@@ -60,6 +60,17 @@
         <div class="text-xs text-cyan-100/60 mt-1">制限時間3分のスコアアタック。距離+残バッテリーでスコア算出。</div>
       </div>
     </div>
+    <div id="mode-test" class="card-select mb-6" onclick="selectMode('test')">
+      <div class="font-bold text-emerald-300 text-lg">🏎 予選・車検モード(Hidden Valley / スクルーティニアリング)</div>
+      <div class="text-xs text-cyan-100/60 mt-1 mb-2">Hidden Valley Raceway(2.87km・14コーナー・高低差15m)でのHot Lap予選、ドラッグエリアでのスラローム・制動テスト、8の字安定性試験(競技規則2.19)。</div>
+      <div class="flex flex-wrap gap-2" onclick="event.stopPropagation()">
+        <button class="btn text-xs py-1" data-test="circuit" onclick="selectTest('circuit')">🏁 サーキット予選 (Hot Lap)</button>
+        <button class="btn text-xs py-1" data-test="slalom" onclick="selectTest('slalom')">〰 スラローム (11.5秒)</button>
+        <button class="btn text-xs py-1" data-test="brake" onclick="selectTest('brake')">🛑 制動テスト</button>
+        <button class="btn text-xs py-1" data-test="fig8" onclick="selectTest('fig8')">∞ 8の字走行 (9秒/18秒)</button>
+      </div>
+      <div class="text-[11px] text-emerald-200 mt-1" id="test-desc">選択中: サーキット予選 ― 優秀チームは2分20秒台前半。ベストラップでグリッドが決まる。</div>
+    </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <div class="panel p-4">
@@ -200,6 +211,25 @@
       <div class="hud-label mt-2">ブレーキ <span id="hud-brake-kind" class="text-orange-300"></span></div>
       <div class="bar-outer h-3 mt-1"><div id="hud-brake" class="h-full bg-orange-400" style="width:0%"></div></div>
       <button class="btn text-[10px] py-0.5 px-2 mt-2 w-full" onclick="StopMenu.open(true)">🔧 停車メニュー (M)</button>
+    </div>
+  </div>
+
+  <!-- テストHUD -->
+  <div id="test-hud" class="absolute top-20 left-1/2 -translate-x-1/2 hidden text-center">
+    <div class="panel px-8 py-2">
+      <div class="mono font-black text-4xl text-emerald-300" id="test-timer">0.00</div>
+      <div class="hud-label" id="test-sub">―</div>
+    </div>
+  </div>
+  <!-- テスト結果 -->
+  <div id="test-result" class="absolute inset-0 z-30 hidden items-center justify-center" style="background:rgba(0,0,10,.55)">
+    <div class="panel px-10 py-6 text-center" style="min-width:380px">
+      <div class="text-2xl font-black" id="test-result-title">結果</div>
+      <div id="test-result-body" class="mono text-sm my-3 space-y-1 text-left"></div>
+      <div class="flex gap-3 justify-center">
+        <button class="btn" onclick="Test.retry()">🔄 リトライ (Backspace)</button>
+        <button class="btn btn-amber" onclick="quitToMenu()">🏠 メニューへ</button>
+      </div>
     </div>
   </div>
 
@@ -460,6 +490,19 @@ function selectMode(m){
   P.mode=m;
   document.getElementById("mode-race").classList.toggle("active",m==="race");
   document.getElementById("mode-event").classList.toggle("active",m==="event");
+  document.getElementById("mode-test").classList.toggle("active",m==="test");
+}
+P.testKind="circuit";
+const TEST_DESC={
+  circuit:"サーキット予選 ― 優秀チームは2分20秒台前半。ベストラップでグリッドが決まる。",
+  slalom:"スラローム ― 18m間隔のパイロン7本・全長126mを11.5秒未満で通過(規則2.19.2)。パイロン接触は失格。",
+  brake:"制動テスト ― 40km/h以上でラインを通過し、14m以内に完全停止できれば合格。",
+  fig8:"8の字走行 ― 内円半径6m・コース幅5mの8の字を片側9秒未満・合計18秒未満(規則2.19.1)。コースアウトは無効。",
+};
+function selectTest(k){
+  P.testKind=k; selectMode('test');
+  document.getElementById("test-desc").textContent="選択中: "+TEST_DESC[k];
+  document.querySelectorAll("[data-test]").forEach(b=>b.style.boxShadow=b.dataset.test===k?"0 0 14px rgba(52,211,153,.8)":"");
 }
 
 /* ---------------- コースプロファイル ---------------- */
@@ -747,7 +790,7 @@ const Engine = {
       let Ftrac=Math.min(KT_F*I_cmd, (Vbus*I_cmd*0.95)/Math.max(s.v,0.8));
       // ブレーキ
       let Fbrake=0, Pregen=0;
-      if(s.brakePhys>0) Fbrake += s.brakePhys*0.38*m*9.81;
+      if(s.brakePhys>0) Fbrake += s.brakePhys*0.55*m*9.81;
       if(s.brakeRegen>0){
         const Fr=s.brakeRegen*P.regenStrength*clamp(40+s.v*3,0,180);
         Fbrake+=Fr;
@@ -937,7 +980,7 @@ const StopMenu={
   active:false, mode:null,
   open(manual){
     const s=Engine.st;
-    if(!s||s.fire||s.stopTimer>0||s.camp) return;
+    if(!s||s.fire||s.stopTimer>0||s.camp||Test.active) return;
     if(s.v*3.6>2){ toast("停車してから操作してください(2km/h以下)"); return; }
     this.active=true; this.mode="menu";
     document.getElementById("stopmenu-status").textContent=
@@ -1015,6 +1058,7 @@ addEventListener("keydown",e=>{
   if(e.key.toLowerCase()==="v") View.cam=(View.cam+1)%3;
   if(e.key.toLowerCase()==="g") document.getElementById("chart-panel").classList.toggle("hidden");
   if(e.key.toLowerCase()==="m") StopMenu.open(true);
+  if(e.key==="Backspace"&&Test.active){ e.preventDefault(); Test.retry(); }
 });
 addEventListener("keyup",e=>Input.keys[e.key.toLowerCase()]=false);
 
@@ -1149,6 +1193,11 @@ const View={
   /* ==== 和歌山大学カラーの車体 ==== */
   buildCar(){
     if(this.car) this.scene.remove(this.car);
+    const m=this.buildCarModelImpl();
+    this.car=m.group; this.carBody=m.body; this.canopyMesh=m.canopy;
+    this.scene.add(this.car);
+  },
+  buildCarModelImpl(){
     const g=new THREE.Group();
     const body=new THREE.Group();
     const panelMat=new THREE.MeshPhongMaterial({color:0x0d1b2e,shininess:140,specular:0x5588cc});
@@ -1180,7 +1229,7 @@ const View={
       top.rotation.x=-Math.PI/2; top.position.y=0.695; body.add(top);
       const canopy=new THREE.Mesh(new THREE.SphereGeometry(0.34,18,14),canopyMat);
       canopy.scale.set(0.85,0.9,1.75); canopy.position.set(0,0.78,-0.15); body.add(canopy);
-      this.canopyMesh=canopy;
+      g.userData.canopy=canopy;
       mkWheelFair(-0.72,1.15,orangeMat); mkWheelFair(0.72,1.15,orangeMat);
       mkWheelFair(-0.72,-1.35,orangeMat); mkWheelFair(0.72,-1.35,orangeMat);
     } else if(P.shape==="catamaran"){
@@ -1192,7 +1241,7 @@ const View={
       deck.position.set(0,0.66,0); body.add(deck);
       const canopy=new THREE.Mesh(new THREE.SphereGeometry(0.34,16,12),canopyMat);
       canopy.scale.set(0.9,0.75,1.7); canopy.position.set(-0.72,0.82,-0.3); body.add(canopy);
-      this.canopyMesh=canopy;
+      g.userData.canopy=canopy;
       mkWheelFair(-0.72,1.35); mkWheelFair(0.72,1.35); mkWheelFair(-0.72,-1.45); mkWheelFair(0.72,-1.45);
     } else {
       const hull=new THREE.Mesh(new THREE.SphereGeometry(0.62,24,16),orangeMat);
@@ -1201,12 +1250,11 @@ const View={
       deck.position.set(0,0.86,0.2); body.add(deck);
       const canopy=new THREE.Mesh(new THREE.SphereGeometry(0.3,16,12),canopyMat);
       canopy.scale.set(0.9,0.8,1.6); canopy.position.set(0,1.0,-0.5); body.add(canopy);
-      this.canopyMesh=canopy;
+      g.userData.canopy=canopy;
       mkWheelFair(-0.62,1.2); mkWheelFair(0.62,1.2); mkWheelFair(0,-1.35);
     }
     g.add(body);
-    this.carBody=body;
-    this.car=g; this.scene.add(g);
+    return {group:g, body, canopy:g.userData.canopy};
   },
   /* ==== 随伴車 ==== */
   mkVan(color){
@@ -1898,12 +1946,555 @@ function showResult(){
   body.innerHTML=rows.map(r=>`<div class="flex justify-between gap-6"><span class="text-cyan-100/60">${r[0]}</span><span>${r[1]}</span></div>`).join("");
 }
 
+/* ================= 予選・車検モード (Hidden Valley / Scrutineering) ================= */
+const Test={
+  active:false, kind:"circuit", state:"ready",
+  scene:null, camera:null, car:null, carBody:null, canopy:null,
+  x:0,z:0,heading:0,v:0, t:0, tSide:0,
+  laps:[], best:null, progress:0, lastIdx:0, prevLapIdx:undefined, trackPts:null, trackN:0,
+  cones:[], coneHit:false, brakeEntry:null, brakeDist:null,
+  f8:{accA:0,accB:0,prevA:null,prevB:null,moved:0,sides:[],done:[]},
+  startHeading:0, grade:0,
+  start(kind){
+    this.kind=kind; this.active=true;
+    if(!View.renderer){
+      const canvas=document.getElementById("three-canvas");
+      View.renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+      View.renderer.setSize(innerWidth,innerHeight);
+      View.renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+    }
+    addEventListener("resize",()=>{ if(Test.active&&Test.camera){ View.renderer.setSize(innerWidth,innerHeight);
+      Test.camera.aspect=innerWidth/innerHeight; Test.camera.updateProjectionMatrix(); } });
+    this.scene=new THREE.Scene();
+    this.scene.background=new THREE.Color(0x8fc3ef);
+    this.camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,4000);
+    this.scene.add(new THREE.HemisphereLight(0xcfe8ff,0x7a6a48,1.0));
+    const sun=new THREE.DirectionalLight(0xfff2cc,1.2); sun.position.set(200,400,150); this.scene.add(sun);
+    const ground=new THREE.Mesh(new THREE.PlaneGeometry(9000,9000),
+      new THREE.MeshLambertMaterial({color:this.kind==="circuit"?0x94804f:0x8b7a55}));
+    ground.rotation.x=-Math.PI/2; ground.position.y=-0.12; this.scene.add(ground);
+    const m=View.buildCarModelImpl();
+    this.car=m.group; this.carBody=m.body; this.canopy=m.canopy;
+    this.scene.add(this.car);
+    this.laps=[]; this.best=null; this.prevLapIdx=undefined;
+    if(kind==="circuit") this.buildCircuit();
+    else if(kind==="fig8") this.buildFig8();
+    else this.buildStrip();
+    this.retry();
+  },
+  /* ---- ジオメトリ ---- */
+  ribbon(pts,halfW,color,yOff){
+    const n=pts.length, verts=[],norms=[],idx=[];
+    for(let i=0;i<=n;i++){
+      const a=pts[i%n], b=pts[(i+1)%n];
+      const dx=b.x-a.x, dz=b.z-a.z, L=Math.hypot(dx,dz)||1;
+      const nx=-dz/L, nz=dx/L;
+      verts.push(a.x+nx*halfW,a.y+yOff,a.z+nz*halfW, a.x-nx*halfW,a.y+yOff,a.z-nz*halfW);
+      norms.push(0,1,0,0,1,0);
+      if(i>0){ const k=(i-1)*2; idx.push(k,k+1,k+2, k+1,k+3,k+2); }
+    }
+    const g=new THREE.BufferGeometry();
+    g.setAttribute("position",new THREE.Float32BufferAttribute(verts,3));
+    g.setAttribute("normal",new THREE.Float32BufferAttribute(norms,3));
+    g.setIndex(idx);
+    return new THREE.Mesh(g,new THREE.MeshLambertMaterial({color,side:THREE.DoubleSide}));
+  },
+  /* 部分ストリップ(インデックス範囲・wrap可) */
+  openStrip(idxA,idxB,offL,offR,yOff,color,basic){
+    const pts=this.trackPts,n=this.trackN;
+    const verts=[],norms=[],idx=[];
+    let vi=0;
+    const count=((idxB-idxA)%n+n)%n;
+    for(let k=0;k<=count;k++){
+      const i=(idxA+k)%n, j=(i+1)%n;
+      const a=pts[i],b=pts[j];
+      const dx=b.x-a.x,dz=b.z-a.z,L=Math.hypot(dx,dz)||1;
+      const nx=-dz/L,nz=dx/L;
+      verts.push(a.x+nx*offL,a.y+yOff,a.z+nz*offL, a.x+nx*offR,a.y+yOff,a.z+nz*offR);
+      norms.push(0,1,0,0,1,0);
+      if(k>0){const q=vi-2;idx.push(q,q+1,q+2,q+1,q+3,q+2);}
+      vi+=2;
+    }
+    const g=new THREE.BufferGeometry();
+    g.setAttribute("position",new THREE.Float32BufferAttribute(verts,3));
+    g.setAttribute("normal",new THREE.Float32BufferAttribute(norms,3));
+    g.setIndex(idx);
+    const mat=basic?new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide})
+                  :new THREE.MeshLambertMaterial({color,side:THREE.DoubleSide});
+    return new THREE.Mesh(g,mat);
+  },
+  /* 垂直ウォール(インデックス範囲) */
+  wallStrip(idxA,idxB,off,hgt,color){
+    const pts=this.trackPts,n=this.trackN;
+    const verts=[],norms=[],idx=[];
+    let vi=0;
+    const count=((idxB-idxA)%n+n)%n;
+    for(let k=0;k<=count;k++){
+      const i=(idxA+k)%n, j=(i+1)%n;
+      const a=pts[i],b=pts[j];
+      const dx=b.x-a.x,dz=b.z-a.z,L=Math.hypot(dx,dz)||1;
+      const nx=-dz/L,nz=dx/L;
+      verts.push(a.x+nx*off,a.y,a.z+nz*off, a.x+nx*off,a.y+hgt,a.z+nz*off);
+      norms.push(nx,0,nz, nx,0,nz);
+      if(k>0){const q=vi-2;idx.push(q,q+1,q+2,q+1,q+3,q+2);}
+      vi+=2;
+    }
+    const g=new THREE.BufferGeometry();
+    g.setAttribute("position",new THREE.Float32BufferAttribute(verts,3));
+    g.setAttribute("normal",new THREE.Float32BufferAttribute(norms,3));
+    g.setIndex(idx);
+    return new THREE.Mesh(g,new THREE.MeshLambertMaterial({color,side:THREE.DoubleSide}));
+  },
+  buildCircuit(){
+    /* Hidden Valley Raceway ― 衛星/3D画像準拠 v2
+       ・T1: 広いRの180°折り返し ・北辺: 流れるS字
+       ・フィッシュフック: 狭い芝分離帯を挟む平行レッグ+タイト180°
+       ・西端: 大カルーセル ・最終: 赤/黄縁石のスイーパーでストレートへ */
+    const cps=[
+      [0,0,0],[440,0,1],                              // メインストレート
+      [500,6,2],[528,42,3],[520,86,4],[478,106,4],    // T1 ワイドヘアピン
+      [400,104,5],[330,126,6],[255,118,7],[205,132,8],// T2-T4 S字
+      [172,150,9],[168,225,12],[162,295,14],          // フィッシュフック上りレッグ
+      [150,322,15],[133,318,15],                      // 先端タイト180°
+      [140,240,13],[146,165,11],[140,130,10],         // 下りレッグ(平行・約25m西)
+      [95,120,9],[10,135,8],[-80,142,7],[-140,128,6], // T7-T9 西へ
+      [-192,108,5],[-222,72,4],[-232,30,3],[-224,-16,2],[-196,-46,1],[-158,-56,0], // カルーセル
+      [-110,-44,0],[-60,-18,0]];                      // 最終スイーパー
+    const curve=new THREE.CatmullRomCurve3(cps.map(p=>new THREE.Vector3(p[0],p[2],-p[1])),true,"catmullrom",0.5);
+    const pts=curve.getSpacedPoints(900); pts.pop();
+    let len=0;
+    for(let i=0;i<pts.length;i++){ const a=pts[i],b=pts[(i+1)%pts.length]; len+=Math.hypot(b.x-a.x,b.z-a.z); }
+    const sc=2870/len;
+    pts.forEach(p=>{p.x*=sc;p.z*=sc;});
+    this.trackPts=pts; this.trackN=pts.length;
+    const n=pts.length;
+    // 曲率配列
+    const curv=new Array(n);
+    for(let i=0;i<n;i++){
+      const a=pts[(i-1+n)%n],b=pts[i],c=pts[(i+1)%n];
+      const h1=Math.atan2(b.x-a.x,-(b.z-a.z)), h2=Math.atan2(c.x-b.x,-(c.z-b.z));
+      let dh=h2-h1; if(dh>Math.PI)dh-=2*Math.PI; if(dh<-Math.PI)dh+=2*Math.PI;
+      curv[i]=dh/(Math.hypot(c.x-b.x,c.z-b.z)||1);
+    }
+    // ---- 地面レイヤ: 芝 → 赤土 ----
+    this.scene.add(this.ribbon(pts,26,0x5d7c3c,-0.03));   // 芝帯
+    this.scene.add(this.ribbon(pts,7.2,0xe8e6da,-0.012)); // 外縁白線
+    this.scene.add(this.ribbon(pts,6.5,0x30333a,0));      // 舗装
+    // ---- コーナー検出 & 縁石(色は3D画像準拠) ----
+    const zones=[];
+    let zs=-1;
+    for(let i=0;i<n+1;i++){
+      const c=Math.abs(curv[i%n])>1/260;
+      if(c&&zs<0) zs=i;
+      if(!c&&zs>=0){ if(i-zs>5) zones.push([zs,i-1]); zs=-1; }
+    }
+    for(const [a,b] of zones){
+      let sum=0,maxC=0;
+      for(let i=a;i<=b;i++){ sum+=curv[i%n]; maxC=Math.max(maxC,Math.abs(curv[i%n])); }
+      const side=Math.sign(sum)||1;             // 内側 = 曲がる方向
+      const tight=maxC>1/45;
+      const inCols=tight?[0xf97316,0xf5f2e8]:[0xd93a2b,0xf2d21f]; // タイト:橙/白, 通常:赤/黄
+      const outCols=[0x2fb9a8,0xf5f2e8];                          // 出口外側: ターコイズ/白
+      const a2=(a-4+n)%n, b2=(b+4)%n;
+      const cnt=((b2-a2)%n+n)%n;
+      for(let k=0;k<cnt;k+=3){
+        const i0=(a2+k)%n, i1=(a2+Math.min(k+3,cnt))%n;
+        const ci=Math.floor(k/3)%2;
+        this.scene.add(this.openStrip(i0,i1,side*6.4,side*7.9,0.02,inCols[ci],true));
+        this.scene.add(this.openStrip(i0,i1,-side*6.4,-side*7.9,0.018,outCols[ci],true));
+      }
+    }
+    // ---- メインストレート検出(x+方向・z≈0の連続区間) ----
+    let straightEnd=0;
+    for(let i=0;i<n;i++){
+      const a=pts[i],b=pts[(i+1)%n];
+      if((b.x-a.x)>0 && Math.abs(a.z-pts[0].z)<14*sc && Math.abs(curv[i])<1/800) straightEnd=i;
+      else if(i>20) break;
+    }
+    // ストレート両側の低コンクリートウォール
+    this.scene.add(this.wallStrip(0,straightEnd,9.5,0.9,0xd8d6cd));
+    this.scene.add(this.wallStrip(0,straightEnd,-9.5,0.9,0xd8d6cd));
+    // T1外側 オレンジ/白ストライプ壁
+    if(zones.length){
+      const [a,b]=zones[0];
+      const cnt=((b-a)%n+n)%n;
+      for(let k=0;k<cnt;k+=4){
+        this.scene.add(this.wallStrip((a+k)%n,(a+Math.min(k+4,cnt))%n,-Math.sign(curv[(a+2)%n])*13,1.0,
+          (Math.floor(k/4)%2)?0xf5f2e8:0xe8722a));
+      }
+    }
+    // ---- スタートゲート ----
+    const p0=pts[0],p1=pts[4];
+    const h=Math.atan2(p1.x-p0.x,-(p1.z-p0.z));
+    this.startHeading=h;
+    const dirX=Math.sin(h), dirZ=-Math.cos(h), rnX=Math.cos(h), rnZ=Math.sin(h);
+    const gate=new THREE.Group();
+    for(const sx of [-10,10]){ const pl=new THREE.Mesh(new THREE.BoxGeometry(0.5,7,0.5),
+      new THREE.MeshLambertMaterial({color:0xdddddd})); pl.position.set(sx,3.5,0); gate.add(pl); }
+    const beam=new THREE.Mesh(new THREE.BoxGeometry(20.5,1.1,0.8),new THREE.MeshLambertMaterial({color:0xf97316}));
+    beam.position.y=7; gate.add(beam);
+    const sl=new THREE.Mesh(new THREE.BoxGeometry(13,0.03,1.0),new THREE.MeshBasicMaterial({color:0xffffff}));
+    sl.position.y=0.03; gate.add(sl);
+    gate.position.copy(p0); gate.rotation.y=-h; this.scene.add(gate);
+    // ---- ドラッグストリップ複合(ストレート東側) ----
+    const at=(alongM,latM,y=0)=>new THREE.Vector3(p0.x+dirX*alongM+rnX*latM, y, p0.z+dirZ*alongM+rnZ*latM);
+    const addBox=(w,hh,d,color,alongM,latM,rotExtra=0)=>{
+      const bx=new THREE.Mesh(new THREE.BoxGeometry(w,hh,d),new THREE.MeshLambertMaterial({color}));
+      bx.position.copy(at(alongM,latM,hh/2)); bx.rotation.y=-h+rotExtra; this.scene.add(bx); return bx; };
+    // ドラッグ路面(濃色)・戻り路 ― ストレートの外側(南)に並行
+    const drag=new THREE.Mesh(new THREE.BoxGeometry(20,0.04,860),new THREE.MeshLambertMaterial({color:0x232529}));
+    drag.position.copy(at(400,26,0)); drag.rotation.y=-h; this.scene.add(drag);
+    const ret=new THREE.Mesh(new THREE.BoxGeometry(8,0.035,860),new THREE.MeshLambertMaterial({color:0x3a3d42}));
+    ret.position.copy(at(400,44,0)); ret.rotation.y=-h; this.scene.add(ret);
+    // 青いローンチパッド+スタート小屋
+    addBox(16,0.06,26,0x2557b8,55,26);
+    addBox(3,3.4,3,0xcfd4d9,35,13);
+    // 黒い長スタンド壁(VISIT NT バナー風)
+    addBox(240,3,2,0x1c1e22,320,52);
+    for(let k=0;k<6;k++) addBox(28,1.2,0.4,0xe8e5dc,220+k*40,51.2);
+    // 観客席・ピット建屋・管制塔(ドラッグの先・東側)
+    addBox(60,6,10,0x8a8f96,260,66);       // グランドスタンド
+    addBox(34,4,12,0xe8e5dc,340,68);       // ピットガレージ
+    addBox(6,14,6,0xd9dde2,300,72);        // 管制塔
+    addBox(10,3,6,0xcabfa8,520,14);        // 計測ブース(コース脇)
+    addBox(10,3,6,0xcabfa8,650,14);
+    // パドック(白線区画の広場)
+    const pad=new THREE.Mesh(new THREE.BoxGeometry(70,0.03,180),new THREE.MeshLambertMaterial({color:0xb9b3a4}));
+    pad.position.copy(at(180,95,0)); pad.rotation.y=-h; this.scene.add(pad);
+    // ---- フィッシュフック中央分離帯のタイヤバンドル ----
+    for(let zPos=150;zPos<=300;zPos+=25){
+      const b=new THREE.Mesh(new THREE.BoxGeometry(2.6,0.9,1.3),
+        new THREE.MeshLambertMaterial({color:(zPos/25)%2?0x2557b8:0xf97316}));
+      b.position.set(154*sc,0.45+13,-zPos*sc); // 標高手動補正(フック部 ~13m)
+      this.scene.add(b);
+    }
+    // 最終コーナー内側のタイヤバンドル
+    for(const [ax,az] of [[-52,-26],[-44,-30]]){
+      const b=new THREE.Mesh(new THREE.BoxGeometry(2.6,0.9,1.3),
+        new THREE.MeshLambertMaterial({color:0x2557b8}));
+      b.position.set(ax*sc,0.45,-az*sc); this.scene.add(b);
+    }
+    // ---- 樹木(外周に散布) ----
+    const treeMat=new THREE.MeshLambertMaterial({color:0x4a6b30});
+    for(let k=0;k<70;k++){
+      const i=Math.floor(Math.random()*n);
+      const a=pts[i],b=pts[(i+1)%n];
+      const dx=b.x-a.x,dz=b.z-a.z,L=Math.hypot(dx,dz)||1;
+      const nx=-dz/L,nz=dx/L;
+      const off=(Math.random()<0.5?-1:1)*(38+Math.random()*110);
+      const t=new THREE.Mesh(new THREE.ConeGeometry(2+Math.random()*2,6+Math.random()*5,7),treeMat);
+      t.position.set(a.x+nx*off,a.y*0.5+3,a.z+nz*off);
+      this.scene.add(t);
+    }
+  },
+  buildStrip(){
+    // ドラッグエリア: 直線舗装 + スラローム/制動マーキング
+    const road=new THREE.Mesh(new THREE.BoxGeometry(560,0.05,18),new THREE.MeshLambertMaterial({color:0x2e3136}));
+    road.position.set(70,0,0); this.scene.add(road);
+    const line=(x,color,w=0.5)=>{ const l=new THREE.Mesh(new THREE.BoxGeometry(w,0.03,18),
+      new THREE.MeshBasicMaterial({color})); l.position.set(x,0.05,0); this.scene.add(l); return l; };
+    line(0,0xffffff,0.6); // 計測開始ライン
+    this.cones=[]; this.coneHit=false;
+    if(this.kind==="slalom"){
+      line(126,0xf97316,0.8); // フィニッシュ
+      for(let i=0;i<7;i++){
+        const c=new THREE.Mesh(new THREE.ConeGeometry(0.28,0.75,10),
+          new THREE.MeshLambertMaterial({color:0xff4d00}));
+        c.position.set(9+i*18,0.38,0);
+        this.scene.add(c); this.cones.push(c); c.userData.hit=false;
+      }
+    } else { // brake
+      line(14,0xdd2222,0.6); // 14m 合格ライン
+      for(const d of [5,10]) line(d,0x888888,0.25);
+    }
+  },
+  buildFig8(){
+    // 規則2.19.1: 内円半径6m・コース幅5m・中心間17m
+    for(const cx of [-8.5,8.5]){
+      const ring=new THREE.Mesh(new THREE.RingGeometry(6,11,64),
+        new THREE.MeshLambertMaterial({color:0x8d9096,side:THREE.DoubleSide}));
+      ring.rotation.x=-Math.PI/2; ring.position.set(cx,0.02,0); this.scene.add(ring);
+      const inner=new THREE.Mesh(new THREE.CircleGeometry(6,48),
+        new THREE.MeshLambertMaterial({color:0xd9d2c0}));
+      inner.rotation.x=-Math.PI/2; inner.position.set(cx,0.015,0); this.scene.add(inner);
+      const dot=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,0.5,8),
+        new THREE.MeshBasicMaterial({color:0xdd2222}));
+      dot.position.set(cx,0.25,0); this.scene.add(dot);
+    }
+    const sl=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.03,5),new THREE.MeshBasicMaterial({color:0xffffff}));
+    sl.position.set(0,0.05,0); this.scene.add(sl);
+  },
+  /* ---- リトライ ---- */
+  retry(){
+    show("test-result",false);
+    const es=Engine.st;
+    es.throttleSet=0; es.brakePhys=0; es.brakeRegen=0;
+    this.v=0; this.t=0; this.tSide=0; this.state="ready"; this.progress=0; this.prevLapIdx=undefined;
+    this.coneHit=false; this.brakeEntry=null; this.brakeDist=null;
+    this.f8={accA:0,accB:0,prevA:null,prevB:null,moved:0,sides:[],done:[]};
+    if(this.kind==="circuit"){
+      const p=this.trackPts[0];
+      this.x=p.x; this.z=p.z; this.heading=this.startHeading; this.lastIdx=0;
+      toast("🏁 Hot Lap ― スタンディングスタート。ベストラップでグリッド決定!","#34d399");
+    } else if(this.kind==="slalom"){
+      this.x=-45; this.z=0; this.heading=Math.PI/2;
+      this.cones.forEach(c=>{c.userData.hit=false;c.rotation.set(0,0,0);c.position.y=0.38;});
+      toast("〰 白線から計測開始。パイロン7本(18m間隔)を縫って126m先のオレンジ線へ ― 11.5秒未満","#34d399");
+    } else if(this.kind==="brake"){
+      this.x=-220; this.z=0; this.heading=Math.PI/2;
+      toast("🛑 40km/h以上で白線を通過し、14m(赤線)以内に完全停止","#34d399");
+    } else {
+      this.x=0; this.z=0; this.heading=0;
+      toast("∞ 白マーカーから発進。片側9秒未満・合計18秒未満。コースアウト無効","#34d399");
+    }
+  },
+  nearestIdx(){
+    const pts=this.trackPts,n=this.trackN;
+    let best=this.lastIdx,bd=1e18;
+    for(let k=-80;k<=80;k++){
+      const i=((this.lastIdx+k)%n+n)%n;
+      const d=(pts[i].x-this.x)**2+(pts[i].z-this.z)**2;
+      if(d<bd){bd=d;best=i;}
+    }
+    this.lastIdx=best;
+    return {i:best,d:Math.sqrt(bd)};
+  },
+  /* ---- 1フレーム ---- */
+  frame(dtR){
+    const es=Engine.st;
+    // 発電(正午・Hidden Valley)
+    const sol=Engine.solarCalc(-12.46,12,false);
+    const Tamb=32;
+    const Tcell=Math.max(Tamb,Tamb+0.025*sol.G-0.15*this.v*3.6);
+    const tempLoss=clamp(1-PANEL_TYPES[P.panel].gamma*Math.max(0,Tcell-25),0.6,1);
+    const Psolar=P.arrayArea*P.cellEff*tempLoss*P.mpptEff*sol.G;
+    es.lastSolar=Psolar; es.lastGeff=sol.G; es.lastTcell=Tcell; es.Tamb=Tamb; es.sunAlt=sol.alt;
+    // 勾配・オフトラック(サーキットのみ)
+    let grade=0, offTrack=false;
+    if(this.kind==="circuit"&&this.trackPts){
+      const near=this.nearestIdx();
+      const pts=this.trackPts,n=this.trackN;
+      const a=pts[near.i], b=pts[(near.i+1)%n];
+      grade=(b.y-a.y)/(Math.hypot(b.x-a.x,b.z-a.z)||1);
+      offTrack=near.d>6.5;
+    }
+    this.grade=grade;
+    // 駆動(レースと同じ電流モデル)
+    const m=massTotal(), mEff=m+8;
+    const Froll=P.Crr*m*9.81;
+    const Fdrag=0.5*1.18*P.Cd*P.frontal*this.v*this.v;
+    const Fslope=m*9.81*grade;
+    let thr=es.throttleSet;
+    if(es.brakePhys>0.05||es.brakeRegen>0.05){ thr=0; es.throttleSet=0; }
+    const I_cmd=thr*P.motorMaxA;
+    const Vbus=V_NOM*(0.85+0.25*es.soc);
+    const Ftrac=Math.min(KT_F*I_cmd,(Vbus*I_cmd*0.95)/Math.max(this.v,0.8));
+    let Fbrake=0,Pregen=0;
+    if(es.brakePhys>0) Fbrake+=es.brakePhys*0.55*m*9.81;
+    if(es.brakeRegen>0){ const Fr=es.brakeRegen*P.regenStrength*clamp(40+this.v*3,0,180);
+      Fbrake+=Fr; Pregen=Fr*this.v*0.30; }
+    if(offTrack&&this.v>1) Fbrake+=m*clamp(this.v*0.12,0.2,2.5);
+    this.v=Math.max(0,this.v+(Ftrac-Froll-Fdrag-Fslope-Fbrake)/mEff*dtR);
+    const Pmotor=Math.max(0,Ftrac*this.v/0.94+I_cmd*I_cmd*0.4-Pregen);
+    es.lastAmp=I_cmd; es.lastMotorW=Pmotor;
+    const Pnet=Pmotor+P.auxW-Psolar;
+    const Ibat=Pnet/Vbus;
+    es.soc=clamp(es.soc-(Ibat*dtR)/((P.batteryWh/V_NOM)*3600),0,1);
+    es.lastIbat=Ibat; es.lastNet=Pnet;
+    if(Ibat>0) es.ahUsed+=Ibat*dtR/3600;
+    es.v=this.v;
+    // 操舵(車検モードは機敏・グリップ限界あり)
+    if(this.v>0.3){
+      let yawRate=Input.steer*clamp(7.0/Math.max(this.v,3),0.15,1.2);
+      if(Math.abs(yawRate)*this.v>7.5) yawRate=Math.sign(yawRate)*7.5/this.v;
+      this.heading+=yawRate*dtR;
+    }
+    this.x+=Math.sin(this.heading)*this.v*dtR;
+    this.z-=Math.cos(this.heading)*this.v*dtR;
+    if(this.state!=="done") this.judge(dtR);
+    // 車配置+カメラ
+    let carY=0;
+    if(this.kind==="circuit"&&this.trackPts) carY=this.trackPts[this.lastIdx].y;
+    this.car.position.set(this.x,carY,this.z);
+    this.car.rotation.y=-this.heading;
+    this.car.rotation.x=-Math.atan(grade)*0.8;
+    const hCar=this.heading, cx=this.x, cy=carY, cz=this.z;
+    let camPos,lookAt;
+    if(View.cam===0){
+      camPos=new THREE.Vector3(cx-Math.sin(hCar)*11,cy+4.2,cz+Math.cos(hCar)*11);
+      lookAt=new THREE.Vector3(cx+Math.sin(hCar)*20,cy+1.1,cz-Math.cos(hCar)*20);
+      this.camera.position.lerp(camPos,clamp(dtR*5,0,1));
+    } else if(View.cam===1){
+      camPos=new THREE.Vector3(cx-Math.sin(hCar)*1.8,cy+1.45,cz+Math.cos(hCar)*1.8);
+      lookAt=new THREE.Vector3(cx+Math.sin(hCar)*40,cy+1.0,cz-Math.cos(hCar)*40);
+      this.camera.position.copy(camPos);
+    } else {
+      camPos=new THREE.Vector3(cx+Math.sin(hCar)*0.35,cy+1.18,cz-Math.cos(hCar)*0.35);
+      lookAt=new THREE.Vector3(cx+Math.sin(hCar)*45,cy+0.8,cz-Math.cos(hCar)*45);
+      this.camera.position.copy(camPos);
+    }
+    if(this.canopy) this.canopy.visible=(View.cam!==2);
+    this.camera.lookAt(lookAt);
+    View.renderer.render(this.scene,this.camera);
+    // HUD
+    updateHUD();
+    document.getElementById("hud-clock").textContent={circuit:"HOT LAP",slalom:"SLALOM",brake:"BRAKE",fig8:"FIGURE-8"}[this.kind];
+    document.getElementById("hud-dist").textContent=(this.v*3.6).toFixed(0)+" km/h";
+    document.getElementById("hud-nextcp").textContent={circuit:"目標 2:20台",slalom:"目標 <11.5s",brake:"40km/h→14m",fig8:"9s / 18s"}[this.kind];
+    document.getElementById("hud-limit").textContent="―";
+    this.updateTestHud();
+    Snd.update(this.v, es.lastAmp/Math.max(P.motorMaxA,1), false);
+  },
+  judge(dtR){
+    const k=this.kind;
+    if(k==="circuit"){
+      if(this.state==="ready"&&this.v>0.5){ this.state="run"; this.t=0; }
+      if(this.state==="run"){
+        this.t+=dtR;
+        const i=this.lastIdx, n=this.trackN;
+        if(this.prevLapIdx!==undefined){
+          let diff=i-this.prevLapIdx;
+          if(diff<-n/2) diff+=n; if(diff>n/2) diff-=n;
+          this.progress+=diff;
+          if(this.progress>=n){
+            this.progress-=n;
+            this.laps.push(this.t);
+            if(!this.best||this.t<this.best) this.best=this.t;
+            toast(`🏁 LAP ${this.laps.length}: ${fmtLap(this.t)}${this.t===this.best?" (BEST)":""}`,"#34d399");
+            Snd.chime();
+            this.t=0;
+          }
+        }
+        this.prevLapIdx=i;
+      }
+    } else if(k==="slalom"){
+      if(this.state==="ready"&&this.x>0){ this.state="run"; this.t=0; }
+      if(this.state==="run"){
+        this.t+=dtR;
+        for(const c of this.cones){
+          if(!c.userData.hit&&Math.hypot(c.position.x-this.x,c.position.z-this.z)<1.5){
+            c.userData.hit=true; this.coneHit=true;
+            c.rotation.z=1.3; c.position.y=0.15; Snd.bang();
+            toast("💥 パイロン接触!","#ef4444");
+          }
+        }
+        if(Math.abs(this.z)>8.5&&this.x<126) this.coneHit=true; // コース逸脱
+        if(this.x>=126){
+          this.state="done";
+          const pass=this.t<11.5&&!this.coneHit;
+          this.finish(pass?"✅ 合格":"❌ 不合格",[
+            ["タイム",this.t.toFixed(2)+" 秒 (規定 11.5秒未満)"],
+            ["パイロン",this.coneHit?"接触あり/コース逸脱":"クリーン"],
+            ["判定",pass?"車検通過!":"要再試験"]],pass);
+        }
+      }
+    } else if(k==="brake"){
+      if(this.state==="ready"&&this.x>0){
+        this.state="run"; this.brakeEntry=this.v; this.t=0;
+        toast(`計測開始!進入 ${(this.v*3.6).toFixed(1)} km/h ― 全力制動!`,"#fbbf24");
+      }
+      if(this.state==="run"){
+        this.t+=dtR;
+        if(this.v<0.3){
+          this.state="done";
+          this.brakeDist=this.x;
+          const entryOK=this.brakeEntry*3.6>=35;
+          const pass=entryOK&&this.brakeDist<=14;
+          this.finish(pass?"✅ 合格":(entryOK?"❌ 不合格":"⚠ 無効(進入速度不足)"),[
+            ["進入速度",(this.brakeEntry*3.6).toFixed(1)+" km/h (35以上)"],
+            ["制動距離",this.brakeDist.toFixed(2)+" m (規定 14m以内)"],
+            ["平均減速度",(this.brakeEntry**2/(2*Math.max(this.brakeDist,0.1))).toFixed(2)+" m/s²"]],pass);
+        }
+      }
+    } else { // fig8
+      const f=this.f8;
+      if(this.state==="ready"&&this.v>0.5){ this.state="run"; this.t=0; this.tSide=0; }
+      if(this.state!=="run") return;
+      this.t+=dtR; this.tSide+=dtR;
+      f.moved+=this.v*dtR;
+      const aA=Math.atan2(this.z,this.x+8.5), aB=Math.atan2(this.z,this.x-8.5);
+      if(f.prevA!==null){
+        let dA=aA-f.prevA; if(dA>Math.PI)dA-=2*Math.PI; if(dA<-Math.PI)dA+=2*Math.PI;
+        let dB=aB-f.prevB; if(dB>Math.PI)dB-=2*Math.PI; if(dB<-Math.PI)dB+=2*Math.PI;
+        f.accA+=dA; f.accB+=dB;
+      }
+      f.prevA=aA; f.prevB=aB;
+      const rA=Math.hypot(this.x+8.5,this.z), rB=Math.hypot(this.x-8.5,this.z);
+      const onCourse=(rA>=5.5&&rA<=11.5)||(rB>=5.5&&rB<=11.5);
+      if(!onCourse&&f.moved>2){
+        this.state="done";
+        this.finish("❌ コースアウト(無効)",[["経過",this.t.toFixed(2)+" 秒"],["","Backspaceでリトライ"]],false);
+        return;
+      }
+      const doneSide=(which)=>{
+        f.sides.push(this.tSide); f.done.push(which);
+        toast(`${which} 完了: ${this.tSide.toFixed(2)}秒`,"#34d399"); Snd.chime();
+        f.accA=0; f.accB=0; this.tSide=0;
+        if(f.done.length>=2){
+          this.state="done";
+          const s1=f.sides[0],s2=f.sides[1],tot=s1+s2;
+          const fig8OK=f.done[0]!==f.done[1];
+          const pass=fig8OK&&s1<9&&s2<9&&tot<18;
+          this.finish(pass?"✅ 合格":"❌ 不合格",[
+            ["1周目("+f.done[0]+")",s1.toFixed(2)+" 秒 (規定 9秒未満)"],
+            ["2周目("+f.done[1]+")",s2.toFixed(2)+" 秒 (規定 9秒未満)"],
+            ["合計",tot.toFixed(2)+" 秒 (規定 18秒未満)"],
+            ["経路",fig8OK?"8の字 OK":"同じ円を2周(無効)"]],pass);
+        }
+      };
+      if(Math.abs(f.accA)>=2*Math.PI) doneSide("左円");
+      else if(Math.abs(f.accB)>=2*Math.PI) doneSide("右円");
+    }
+  },
+  finish(title,rows,pass){
+    document.getElementById("test-result-title").textContent=title;
+    document.getElementById("test-result-title").style.color=pass?"#34d399":"#f87171";
+    document.getElementById("test-result-body").innerHTML=
+      rows.map(r=>`<div class="flex justify-between gap-6"><span class="text-cyan-100/60">${r[0]}</span><span>${r[1]}</span></div>`).join("");
+    show("test-result",true);
+    if(pass) Snd.chime(); else Snd.alarm();
+  },
+  updateTestHud(){
+    const tm=document.getElementById("test-timer"), sub=document.getElementById("test-sub");
+    if(this.kind==="circuit"){
+      tm.textContent=this.state==="run"?fmtLap(this.t):"READY";
+      sub.textContent=`LAP ${this.laps.length+1} ― BEST ${this.best?fmtLap(this.best):"―"}${this.best?` / 推定グリッド P${clamp(Math.round(1+(this.best-141)/3),1,40)}`:""}`;
+    } else if(this.kind==="fig8"){
+      tm.textContent=this.t.toFixed(2);
+      sub.textContent=`今の円: ${this.tSide.toFixed(2)}s ${this.f8.sides.map((s,i)=>`| ${i+1}周目 ${s.toFixed(2)}s`).join(" ")||"| 発進で計測開始"}`;
+    } else if(this.kind==="brake"){
+      tm.textContent=this.state==="run"?this.x.toFixed(1)+" m":(this.v*3.6).toFixed(0)+" km/h";
+      sub.textContent=this.state==="run"?"制動距離":"進入速度(40km/h以上で白線へ)";
+    } else {
+      tm.textContent=this.state==="run"?this.t.toFixed(2):"READY";
+      sub.textContent=this.coneHit?"⚠ パイロン接触":"白線通過で計測開始";
+    }
+  },
+};
+function fmtLap(t){ const mn=Math.floor(t/60),s=(t%60).toFixed(2); return `${mn}:${s.padStart(5,"0")}`; }
+
 /* ---------------- メインループ ---------------- */
 let running=false, paused=false, lastT=0;
 let eventElapsed=0; const EVENT_DURATION=180;
 function startGame(){
   Snd.init();
   Engine.init();
+  Test.active=false;
+  if(P.mode==="test"){
+    Engine.st.hour=12;
+    document.getElementById("setup-screen").classList.add("hidden");
+    show("result-screen",false); show("test-result",false);
+    document.getElementById("game-container").classList.remove("hidden");
+    document.getElementById("event-hud").classList.add("hidden");
+    document.getElementById("test-hud").classList.remove("hidden");
+    Radio.log.length=0;
+    Test.start(P.testKind);
+    initChart();
+    running=true; paused=false; lastT=performance.now();
+    requestAnimationFrame(loop);
+    return;
+  }
+  document.getElementById("test-hud").classList.add("hidden");
   if(P.mode==="event"){
     P.timeScale=60;
     Engine.st.hour=10.5;
@@ -1932,6 +2523,7 @@ function loop(t){
   let dtR=Math.min((t-lastT)/1000,0.1); lastT=t;
   if(paused||modalPause) return;
   updateInput(dtR);
+  if(Test.active){ Test.frame(dtR); return; }
   const es=Engine.st;
   let ts=P.timeScale;
   if(es.stopTimer>0) ts=Math.max(ts,300);
@@ -1955,9 +2547,10 @@ function togglePause(){
   if(!paused) lastT=performance.now();
 }
 function quitToMenu(){
-  running=false; paused=false;
+  running=false; paused=false; Test.active=false;
   document.getElementById("game-container").classList.add("hidden");
-  show("result-screen",false); show("pause-overlay",false); show("stopmenu-overlay",false);
+  document.getElementById("test-hud").classList.add("hidden");
+  show("result-screen",false); show("pause-overlay",false); show("stopmenu-overlay",false); show("test-result",false);
   document.getElementById("setup-screen").classList.remove("hidden");
   Snd.update(0,0,false);
 }
