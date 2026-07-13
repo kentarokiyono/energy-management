@@ -35,6 +35,10 @@
   .limit-sign { width:52px;height:52px;border-radius:50%;background:#fff;border:5px solid #dc2626;
     display:flex;align-items:center;justify-content:center;color:#111;font-weight:900;font-size:1.15rem; }
   kbd { background:#132436;border:1px solid #2c516b;border-radius:4px;padding:0 .35em;font-size:.72em; }
+  .tbtn{ background:rgba(8,20,35,.55); border:1px solid rgba(34,211,238,.5); color:#c9f3ff;
+    border-radius:14px; padding:16px 20px; font-size:15px; font-weight:700; touch-action:none;
+    user-select:none; -webkit-user-select:none; }
+  .tbtn:active{ background:rgba(34,211,238,.35); }
   #radio-pop { transition:transform .3s, opacity .3s; }
   .radio-show { transform:translateY(0)!important; opacity:1!important; }
 </style>
@@ -87,8 +91,12 @@
           <div class="bar-outer p-2"><div class="hud-label">CdA</div><div id="disp-cda" class="mono neon-text text-lg">0.110</div><div class="text-[10px] text-cyan-100/40">m²</div></div>
           <div class="bar-outer p-2"><div class="hud-label">転がり抵抗</div><div id="disp-froll" class="mono neon-text text-lg">10.6</div><div class="text-[10px] text-cyan-100/40">N (平地)</div></div>
           <div class="bar-outer p-2"><div class="hud-label">バラスト(80kg規定)</div><div id="disp-ballast" class="mono neon-text text-lg">12.0</div><div class="text-[10px] text-cyan-100/40">kg</div></div>
-          <div class="bar-outer p-2"><div class="hud-label">バッテリー容量</div><div id="disp-ah" class="mono neon-text text-lg">41.7</div><div class="text-[10px] text-cyan-100/40">Ah (@120V)</div></div>
+          <div class="bar-outer p-2"><div class="hud-label">バッテリー容量</div><div id="disp-ah" class="mono neon-text text-lg">41.7</div><div class="text-[10px] text-cyan-100/40">Ah (@91V公称)</div></div>
         </div>
+        <details class="mt-4">
+          <summary class="text-xs text-cyan-300 cursor-pointer">🔧 プロフェッショナル設定(超詳細 ― 環境/バッテリー/モーター/AI/リスク)</summary>
+          <div id="pro-grid" class="grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-1 mt-2 text-[11px]"></div>
+        </details>
         <div class="flex flex-wrap items-center gap-4 mt-4">
           <div>
             <div class="hud-label">時間加速(レースモード)</div>
@@ -114,7 +122,7 @@
       <kbd>Space</kbd> 物理ブレーキ(開度リセット) <kbd>R</kbd> 回生ブレーキ
       <kbd>A</kbd><kbd>D</kbd>/<kbd>←</kbd><kbd>→</kbd> ハンドル
       <kbd>V</kbd> カメラ(チェイス/フード/ドライバー) <kbd>G</kbd> グラフ <kbd>M</kbd> 停車メニュー <kbd>Esc</kbd> ポーズ
-      ― <button class="btn text-xs ml-1 py-1" onclick="openWheelConfig()">🎮 ハンコン割当設定</button>
+      ― <label class="mr-2"><input type="checkbox" onchange="P.touchMode=this.checked"> 📱タッチ操作UI</label><button class="btn text-xs ml-1 py-1" onclick="openWheelConfig()">🎮 ハンコン割当設定</button>
       <span id="gamepad-status" class="ml-2 text-cyan-400">未検出</span>
     </div>
   </div>
@@ -152,6 +160,7 @@
     <div class="panel px-4 py-2 text-center">
       <div class="hud-label">NEXT CONTROL STOP</div>
       <div class="mono text-xl" id="hud-nextcp">Katherine 317km</div>
+      <div class="text-[10px] mono" id="hud-csclose"></div>
     </div>
     <div class="panel px-2 py-1 flex items-center"><div class="limit-sign" id="hud-limit">60</div></div>
   </div>
@@ -161,9 +170,11 @@
     <div class="panel p-3">
       <div class="flex justify-between"><span class="hud-label">BATTERY SOC</span><span class="mono text-sm" id="hud-socpct">100%</span></div>
       <div class="bar-outer h-5 mt-1"><div id="hud-socbar" class="h-full" style="width:100%;background:linear-gradient(90deg,#059669,#22d3ee)"></div></div>
-      <div class="flex justify-between mt-1 text-[11px] mono text-cyan-100/60"><span id="hud-wh">5000 Wh</span><span id="hud-bms" class="text-red-400"></span></div>
+      <div class="flex justify-between mt-1 text-[11px] mono text-cyan-100/60"><span id="hud-wh">3027 Wh</span><span id="hud-volt"></span><span id="hud-bms" class="text-red-400"></span></div>
+      <button id="bms-btn" class="btn text-[10px] py-0.5 px-2 mt-1 w-full" onclick="toggleBMS()">🛡 BMS: ON</button>
     </div>
     <div class="panel p-3 mono text-sm space-y-1" id="telemetry-panel">
+      <button id="power-btn" class="btn text-[10px] py-0.5 px-2 w-full" onclick="togglePower()">⚙ ECOモード (P)</button>
       <div class="flex justify-between"><span class="hud-label">☀ 発電</span><span class="text-yellow-300" id="hud-solar">0 W</span></div>
       <div class="flex justify-between"><span class="hud-label">⚡ 指令電流</span><span class="text-orange-400" id="hud-amp">0.0 A</span></div>
       <div class="flex justify-between"><span class="hud-label">⚙ モーター電力</span><span class="text-orange-300" id="hud-motorw">0 W</span></div>
@@ -189,12 +200,17 @@
   <!-- 右:マップ -->
   <div class="absolute right-3 top-20 w-52 space-y-2">
     <div class="panel p-2"><canvas id="map-canvas" width="192" height="230"></canvas></div>
+    <div class="panel p-2 flex items-center gap-2">
+      <canvas id="g-canvas" width="84" height="84"></canvas>
+      <div class="hud-label" style="writing-mode:vertical-rl">G-FORCE</div>
+    </div>
     <div class="panel p-3 mono text-xs space-y-1">
       <div class="flex justify-between"><span class="hud-label">標高</span><span id="hud-elev">20 m</span></div>
       <div class="flex justify-between"><span class="hud-label">勾配</span><span id="hud-slope">0.0 %</span></div>
       <div class="flex justify-between"><span class="hud-label">外気温</span><span id="hud-temp">33°C</span></div>
       <div class="flex justify-between"><span class="hud-label">日射</span><span id="hud-geff">0 W/m²</span></div>
-      <div class="flex justify-between"><span class="hud-label">ペナルティ</span><span class="text-red-400" id="hud-penalty">0 s</span></div>
+      <div class="flex justify-between"><span class="hud-label">順位</span><span class="text-amber-300" id="hud-pos">―</span></div>
+      <div class="flex justify-between"><span class="hud-label">平均速度</span><span id="hud-avg">―</span></div>
       <div class="flex justify-between"><span class="hud-label">天候</span><span id="hud-weather">☀ 快晴</span></div>
     </div>
   </div>
@@ -202,15 +218,22 @@
   <!-- 下部:速度計+スロットル -->
   <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-end gap-4">
     <div class="panel px-6 py-3 text-center">
-      <div class="mono font-black text-5xl neon-text" id="hud-speed">0</div>
-      <div class="hud-label">km/h</div>
+      <div class="flex items-center gap-2">
+        <span id="wl" class="text-2xl select-none" style="color:#1e3a4f">◀</span>
+        <div class="mono font-black text-5xl neon-text" id="hud-speed">0</div>
+        <span id="wr" class="text-2xl select-none" style="color:#1e3a4f">▶</span>
+      </div>
+      <div class="hud-label">km/h <span class="text-[9px] text-cyan-100/40">Z:左 C:右 X:ハザード</span></div>
     </div>
     <div class="panel p-3 w-40">
       <div class="flex justify-between"><span class="hud-label">スロットル開度</span><span class="mono text-xs text-emerald-300" id="hud-thr-pct">0%</span></div>
       <div class="bar-outer h-3 mt-1"><div id="hud-throttle" class="h-full bg-emerald-400" style="width:0%"></div></div>
       <div class="hud-label mt-2">ブレーキ <span id="hud-brake-kind" class="text-orange-300"></span></div>
       <div class="bar-outer h-3 mt-1"><div id="hud-brake" class="h-full bg-orange-400" style="width:0%"></div></div>
-      <button class="btn text-[10px] py-0.5 px-2 mt-2 w-full" onclick="StopMenu.open(true)">🔧 停車メニュー (M)</button>
+      <div class="flex gap-1 mt-2">
+        <button class="btn text-[10px] py-0.5 px-1 flex-1" onclick="StopMenu.open(true)">🔧 停車 (M)</button>
+        <button class="btn text-[10px] py-0.5 px-1 flex-1" onclick="document.getElementById('ask-panel').classList.toggle('hidden')">📻 質問 (Q)</button>
+      </div>
     </div>
   </div>
 
@@ -294,6 +317,46 @@
       <input type="range" id="td-slider" min="0" max="80" step="1" value="40" oninput="TiltDecide.preview(this.value)">
       <div class="mono text-yellow-300 my-2 text-lg">予想発電: <span id="td-watt">0</span> W</div>
       <button class="btn" onclick="TiltDecide.confirm()">✅ この角度に決定</button>
+    </div>
+  </div>
+
+  <!-- ドライバーからの無線質問(Q) -->
+  <div id="ask-panel" class="absolute left-3 bottom-4 panel p-2 hidden z-30" style="width:225px">
+    <div class="hud-label mb-1">📻 無線で質問する (Q)</div>
+    <div class="grid grid-cols-1 gap-1">
+      <button class="btn py-1 text-xs" onclick="Ask.q('cs')">次のCSまでは?</button>
+      <button class="btn py-1 text-xs" onclick="Ask.q('pace')">推奨ペースは?</button>
+      <button class="btn py-1 text-xs" onclick="Ask.q('weather')">天気予報は?</button>
+      <button class="btn py-1 text-xs" onclick="Ask.q('road')">前方の道路状況は?</button>
+      <button class="btn py-1 text-xs" onclick="Ask.q('rank')">順位と周囲の状況は?</button>
+      <button class="btn py-1 text-xs" onclick="Ask.q('batt')">バッテリー詳細は?</button>
+    </div>
+  </div>
+
+  <!-- タッチ操作UI(スマホ/タブレット) -->
+  <div id="touch-ui" class="absolute inset-x-0 bottom-2 hidden" style="z-index:25;pointer-events:none">
+    <div class="absolute bottom-2 left-3 flex flex-col gap-2" style="pointer-events:auto">
+      <div class="flex gap-2">
+        <button class="tbtn" style="padding:8px 12px;font-size:12px" onclick="toggleSignal(-1)">⬅WK</button>
+        <button class="tbtn" style="padding:8px 12px;font-size:12px" onclick="toggleSignal(1)">WK➡</button>
+      </div>
+      <div class="flex gap-3">
+        <button class="tbtn" data-tk="a">◀</button><button class="tbtn" data-tk="d">▶</button>
+      </div>
+    </div>
+    <div class="absolute bottom-2 right-3 flex flex-col gap-2 items-end" style="pointer-events:auto">
+      <div class="flex gap-2"><button class="tbtn" data-tk="s">－</button><button class="tbtn" data-tk="w">＋スロットル</button></div>
+      <div class="flex gap-2"><button class="tbtn" data-tk="r">回生</button><button class="tbtn" data-tk=" ">ブレーキ</button></div>
+    </div>
+  </div>
+
+  <!-- 後続チームからのオーバーテイク要求 -->
+  <div id="ot-pop" class="absolute bottom-40 right-3 panel px-4 py-3 hidden z-30" style="border-color:#f59e0b;max-width:340px">
+    <div class="hud-label text-amber-400">📻 後続チームより無線</div>
+    <div id="ot-text" class="text-sm my-2"></div>
+    <div class="flex gap-2 justify-end">
+      <button class="btn text-xs py-1" onclick="OT.answer(true)">Yes</button>
+      <button class="btn btn-amber text-xs py-1" onclick="OT.answer(false)">No</button>
     </div>
   </div>
 
@@ -394,6 +457,9 @@ const LANDMARKS=[
  {km:3016.3,t:"signal",n:"Major Junction"},{km:3019.1,t:"signal",n:"Main North Rd"},{km:3021.2,t:"signal",n:"Main North Rd"},
  {km:3023.1,t:"signal",n:"Walkerville"},{km:3024.3,t:"signal",n:"North Tce"},{km:3025.07,t:"signal",n:"Bartels Rd"},
 ];
+// キャトルグリッド(Route Notes記載の家畜柵グリッド・NT区間に点在)
+const GRID_KMS=[402,468,552,610,688,752,838,910,1015,1120,1330,1620,1745,1930,2075,2210];
+GRID_KMS.forEach(k=>LANDMARKS.push({km:k,t:"grid",n:"Cattle Grid"}));
 
 const BODY_SHAPES = {
   wadai:     { name:"和大型モノハル", Cd:0.12, frontal:1.00, desc:"和歌山大学ソーラーカーを再現。凹面エッジの単胴+中央キャノピー。" },
@@ -409,12 +475,47 @@ const PANEL_TYPES = {
 const P = {
   mode:"race", shape:"wadai", panel:"si",
   arrayArea:4.0, cellEff:0.24, mpptEff:0.98,
-  batteryWh:5000, Cd:0.12, frontal:1.00,
+  batteryWh:3027, Cd:0.12, frontal:1.00,
   massDry:190, massDriver:68, Crr:0.004,
   motorMaxA:30, regenStrength:0.5, auxW:35,
-  timeScale:60,
+  timeScale:60, touchMode:false,
 };
-const V_NOM=120, KT_F=14; // 推力定数 N/A
+/* 🔧 プロフェッショナル設定 ― 実測値に合わせて全パラメータ調整可 */
+const PRO={
+  startSoc:1.0, vFull:107.5, vEmpty:75.0,
+  kt:4.3, noLoadRpm:900, ktPower:3.35, rpmPower:1060, tireR:0.26,
+  mRot:8, brakeMu:0.55, regenEff:0.30, airRho:1.18,
+  tempOffset:0, windBase:6, solarScale:1.0, cloudFactor:1.0, dayOfYear:236,
+  aiCount:20, aiSpdMin:58, aiSpdMax:103, aiRetire:0.5,
+  trainPerHour:3.5, faultScale:1.0, gridRisk:1.0,
+};
+const V_NOM=91; // 公称電圧(容量換算表示用)
+const VOC=soc=>PRO.vEmpty+(PRO.vFull-PRO.vEmpty)*soc; // LiPo実特性
+const CAP_AH=()=>P.batteryWh/((PRO.vFull+PRO.vEmpty)/2);
+/* MITSUBA M2096D-III 近似モデル(ECO/POWER)
+   ①トルク一定領域 → ②入力電力一定領域(界磁弱め相当・加速中に出力が下がらない) → ③無負荷回転数で推力0 */
+function motorModel(I,v,soc,power){
+  const Vb=VOC(soc);
+  const kt=power?PRO.ktPower:PRO.kt;             // POWER: トルク定数減
+  const noLoad=power?PRO.rpmPower:PRO.noLoadRpm; // POWER: 無負荷回転数増=最高速増
+  const vMax=noLoad*(Vb/96)/60*2*Math.PI*PRO.tireR;
+  const eff=clamp((power?0.955:0.97)-0.72/Math.max(I,0.5),0.3,0.97);
+  let F=kt*I;
+  const Pcap=Vb*I*0.97;
+  if(v>0.5 && F*v/eff>Pcap) F=Pcap*eff/v;        // 出力一定領域
+  if(v>vMax*0.97) F*=clamp((vMax-v)/(vMax*0.03),0,1);
+  const Pelec=(v>0.5)? F*v/eff+I*I*0.12 : I*I*0.5;
+  return {F,Pelec,Vb,eff,vMax};
+}
+function csCloseAbs(km){ // CSクローズ時刻(平均65km/h必達ペース基準の近似)
+  let h=km/65, day=1, avail=8.5;
+  while(h>avail){ h-=avail; day++; avail=9; }
+  return (day-1)*24+(day===1?8.5:8)+h;
+}
+function fmtAbsH(h){ const d=Math.floor(h/24)+1, hh=Math.floor(h%24), mm=Math.floor((h%1)*60);
+  return `Day${d} ${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}`; }
+function fmtDur(h){ const sg=h<0?"-":""; h=Math.abs(h);
+  return `${sg}${Math.floor(h)}:${String(Math.floor(h%1*60)).padStart(2,"0")}`; }
 const SLIDERS = [
   { id:"arrayArea",  label:"太陽光パネル面積", min:2, max:6, step:0.1, unit:"m²" },
   { id:"cellEff",    label:"セル変換効率",     min:0.15, max:0.35, step:0.005, unit:"", pct:true },
@@ -460,7 +561,30 @@ function buildSetupUI(){
         oninput="onSlider('${s.id}',this.value)"></div>`;
   }
   SLIDERS.forEach(s=>refreshSliderLabel(s.id));
+  buildProUI();
   refreshDerived();
+}
+const PRO_FIELDS=[
+  ["startSoc","初期SOC (0-1)",0.05],["vFull","満充電電圧 V",0.5],["vEmpty","空電圧 V",0.5],
+  ["kt","ECOトルク定数 N/A",0.05],["ktPower","PWRトルク定数 N/A",0.05],
+  ["noLoadRpm","ECO無負荷rpm",10],["rpmPower","PWR無負荷rpm",10],
+  ["tireR","タイヤ半径 m",0.005],["mRot","回転慣性相当 kg",0.5],
+  ["brakeMu","ブレーキμ",0.01],["regenEff","回生効率",0.01],
+  ["airRho","空気密度 kg/m³",0.01],["tempOffset","気温補正 °C",0.5],
+  ["windBase","基準風速 m/s",0.5],["solarScale","日射スケール",0.01],
+  ["cloudFactor","悪天候係数",0.1],["dayOfYear","開始日(通日)",1],
+  ["aiCount","AIチーム数 (0-20)",1],["aiSpdMin","AI速度min km/h",1],
+  ["aiSpdMax","AI速度max km/h",1],["aiRetire","AIリタイア率",0.05],
+  ["trainPerHour","ロードトレイン台/h",0.5],["faultScale","故障確率係数",0.1],
+  ["gridRisk","グリッドリスク係数",0.1],
+];
+function buildProUI(){
+  const g=document.getElementById("pro-grid"); if(!g) return;
+  g.innerHTML=PRO_FIELDS.map(([k,label,step])=>
+    `<label class="flex justify-between items-center gap-1"><span class="text-cyan-100/60">${label}</span>
+     <input type="number" step="${step}" value="${PRO[k]}" data-pro="${k}"
+      class="bg-slate-900 border border-cyan-900 rounded px-1 py-0.5 w-20 text-right mono"
+      onchange="PRO[this.dataset.pro]=parseFloat(this.value)"></label>`).join("");
 }
 function refreshSliderLabel(id){
   const s=SLIDERS.find(x=>x.id===id);
@@ -524,7 +648,7 @@ function ambientTemp(lat,hour){
   const tmax = t<0.5 ? lerp(33.2,30.9,t*2) : lerp(30.9,21.3,(t-0.5)*2);
   const tmin = t<0.5 ? lerp(24.9,14.8,t*2) : lerp(14.8,11.1,(t-0.5)*2);
   const ph=Math.cos((hour-14.5)/24*2*Math.PI);
-  return lerp(tmin,tmax,(ph+1)/2);
+  return lerp(tmin,tmax,(ph+1)/2)+PRO.tempOffset;
 }
 
 /* ---------------- 無線 ---------------- */
@@ -625,6 +749,7 @@ const Snd={
     src.connect(g); g.connect(this.master);
     setTimeout(()=>{try{src.stop()}catch(e){}},700);
   },
+  rattle(){ for(let i=0;i<7;i++) setTimeout(()=>this.blip(110+Math.random()*90,0.05,"square",0.2), i*65); },
   horn(){ this.blip(110,1.2,"sawtooth",0.25); this.blip(138,1.2,"sawtooth",0.2); },
 };
 
@@ -634,16 +759,18 @@ const Engine = {
   init(){
     this.st={
       km:0, v:0,
-      day:1, hour:8.5, dayOfYear:236,
-      soc:1.0, whUsed:0, whGen:0, ahUsed:0,
+      day:1, hour:8.5, dayOfYear:PRO.dayOfYear,
+      soc:clamp(PRO.startSoc,0,1), whUsed:0, whGen:0, ahUsed:0,
+      powerMode:false, gLat:0, gLong:0, signal:0,
       stopTimer:0, stopKind:"", stopExtra:"",
       morningPenaltyMin:0, extensionMin:0, extWarned:false,
       passedCP:new Set(), finished:false, trailered:false,
       drivingHours:0, penaltySec:0, limitTimer:0,
-      windSpeed:6, windDirWorld:Math.PI/2,
+      windSpeed:PRO.windBase, windDirWorld:Math.PI/2,
       lastSolar:0, lastAmp:0, lastMotorW:0, lastIbat:0, lastNet:0, lastTcell:30, lastGeff:0,
       throttleSet:0, brakePhys:0, brakeRegen:0,
       camp:false, disconnected:false, tiltDeg:40, tiltLocked:false, cpPending:null,
+      bmsOn:true, gridShake:0, gridCount:0, teams:[],
       absHourAtPA:null, sunAlt:0, sunAz:0, Tamb:30,
       // 故障・イベント
       burst:false, fault:null, faultAnnounced:false,
@@ -654,8 +781,65 @@ const Engine = {
       // ロードトレイン
       nextRoadTrainH:0.15+Math.random()*0.3,
     };
+    this.st.teams=this.initTeams();
+    this.st.weatherPlan=this.genWeatherPlan();
+  },
+  genWeatherPlan(){ // レース全日程の天候イベントを事前生成(終盤・南部ほど多い)
+    const plan=[];
+    for(let day=1;day<=6;day++){
+      let n=(Math.random()<(0.3+0.13*day)*PRO.cloudFactor)?1:0;
+      if(day>=4&&Math.random()<0.55*PRO.cloudFactor) n++;
+      for(let i=0;i<Math.min(n,3);i++){
+        const squall=Math.random()<0.35;
+        plan.push({ start:(day-1)*24+9+Math.random()*7,
+          dur:0.4+Math.random()*1.4,
+          type:squall?"squall":"cloud",
+          factor:squall?0.15:0.45 });
+      }
+    }
+    return plan.sort((a,b)=>a.start-b.start);
   },
   raceStartHour(){ return (this.st.day===1?8.5:8.0) + this.st.morningPenaltyMin/60; },
+  initTeams(){
+    const NAMES=["Nuon","Twente","Tokai","Michigan","Punch","Sonnenwagen","Stanford","Blue Sky","Kogakuin","EcoPhoton","W.Sydney","Antakari","Bochum","TopDutch","Illini","JU Solar","Halmstad","SiamTech","Goko","Apollo"];
+    const arr=[];
+    const N=clamp(Math.round(PRO.aiCount),0,20);
+    for(let i=0;i<N;i++){
+      arr.push({ name:NAMES[i], hue:(i*47)%360,
+        spd:PRO.aiSpdMin+Math.random()*Math.max(1,PRO.aiSpdMax-PRO.aiSpdMin),
+        km:0, status:"pre", delayH:(i-N/2)*0.5, // スタートを30分ずつずらす(先行/後発)
+        retireKm:(Math.random()<PRO.aiRetire)? 250+Math.random()*2450 : null,
+        cs:new Set(), csT:0, latV:-2.4,
+        yieldT:0, holdT:0, passing:false, boost:false, askCd:0, reqCd:20+i, otPending:false });
+    }
+    return arr;
+  },
+  updateTeams(dtS){
+    const s=this.st;
+    const startH=(s.day===1?8.5:8.0);
+    const racing=s.hour>=startH&&s.hour<17;
+    for(const tm of s.teams){
+      if(tm.status==="dnf"||tm.status==="fin") continue;
+      if(tm.status==="pre"){
+        if(s.day>1 || s.hour>=8.5+Math.max(0,tm.delayH)){
+          tm.status="run";
+          if(tm.delayH<0&&s.day===1) tm.km=Math.min(420,-tm.delayH*tm.spd*0.9); // 先行スタート分の距離
+        } else continue;
+      }
+      if(tm.csT>0){ tm.csT-=dtS; continue; }
+      if(!racing) continue;
+      const spd=tm.spd*(s.weather?0.85:1)*(tm.boost?1.35:1);
+      tm.km+=spd*dtS/3600;
+      // 【厳格】許可(passing)なしでは絶対に抜けない: プレイヤー後方で強制ホールド
+      if(!tm.passing && s.v>1 && s.stopTimer<=0 && !s.camp &&
+         tm.km<s.km && tm.km>s.km-3.0){
+        tm.km=Math.min(tm.km, s.km-22*P.timeScale/1000);
+      }
+      for(const cp of ROUTE) if(cp.cp&&!tm.cs.has(cp.km)&&tm.km>=cp.km){ tm.cs.add(cp.km); tm.csT=1800; break; }
+      if(tm.retireKm&&tm.km>=tm.retireKm) tm.status="dnf";
+      if(tm.km>=TOTAL_KM){ tm.status="fin"; tm.km=TOTAL_KM; }
+    }
+  },
   sunsetHour(lat){ // 8月冬期の日没近似
     const s=this.st;
     const delta=23.45*Math.sin((2*Math.PI/365)*(284+s.dayOfYear))*Math.PI/180;
@@ -711,19 +895,17 @@ const Engine = {
       return;
     }
 
-    // ---- 天候ランダムイベント: 終盤ほど高確率 ----
-    if(P.mode==="race"){
-      if(s.weather && (s.day*24+s.hour)>s.weatherUntil){ s.weather=null; Radio.push("天候回復。日射戻ります。","偵察車"); }
-      if(!s.weather){
-        const lateFactor = 1 + 3*clamp((s.km-1800)/1200,0,1) + (s.day>=4?1.5:0);
-        if(Math.random() < 0.00002*dtS*lateFactor){
-          const squall=Math.random()<0.4;
-          s.weather={type:squall?"squall":"cloud", factor:squall?0.15:0.45};
-          s.weatherUntil=s.day*24+s.hour + 0.3+Math.random()*1.2;
-          Radio.push(squall?"⚠ 前方にスコール!日射が大きく低下します":"前方曇天。発電量低下に注意","偵察車");
-        }
-      }
+    // ---- 天候(事前生成プラン: 天気予報と実挙動が一致) ----
+    if(P.mode==="race"&&s.weatherPlan){
+      const absH=(s.day-1)*24+s.hour;
+      const ev=s.weatherPlan.find(w=>absH>=w.start&&absH<w.start+w.dur);
+      if(ev&&!s.weather){
+        s.weather={type:ev.type,factor:ev.factor};
+        Radio.push(ev.type==="squall"?"⚠ スコールに入ります!日射が大きく低下":"曇天域に入ります。発電量低下に注意","偵察車");
+      } else if(!ev&&s.weather){ s.weather=null; Radio.push("天候回復。日射戻ります。","偵察車"); }
     }
+
+    if(P.mode==="race") this.updateTeams(dtS);
 
     // ---- 走行可能時間帯 ----
     const startH=this.raceStartHour();
@@ -761,7 +943,7 @@ const Engine = {
     const Tcell=Math.max(Tamb, Tamb+0.025*sol.G-0.15*(s.v*3.6));
     const gamma=PANEL_TYPES[P.panel].gamma;
     const tempLoss=clamp(1-gamma*Math.max(0,Tcell-25),0.6,1);
-    let Psolar=P.arrayArea*P.cellEff*tempLoss*P.mpptEff*sol.G;
+    let Psolar=P.arrayArea*P.cellEff*tempLoss*P.mpptEff*sol.G*PRO.solarScale;
     if(s.fault&&s.fault.type==="solar") Psolar*=0.3;
     if(s.disconnected) Psolar=0; // 結線なし
     s.lastGeff=sol.G; s.lastTcell=Tcell; s.lastSolar=Psolar; s.sunAlt=sol.alt; s.sunAz=sol.az; s.Tamb=Tamb;
@@ -769,50 +951,59 @@ const Engine = {
     // ---- 駆動(電流ベース) ----
     let Pmotor=0, I_cmd=0;
     if(!parked && (P.mode!=="race"||isRaceHours)){
-      const m=massTotal(), mEff=m+8;
+      const m=massTotal(), mEff=m+PRO.mRot;
       const crr = s.burst ? P.Crr*8 : P.Crr;
       const Froll=crr*m*9.81*Math.cos(View.carSlope);
       // 空力(セイル効果なし・向かい風成分のみ)
       const phi=s.windDirWorld-prof.bearing+Math.PI;
       const head=s.windSpeed*Math.cos(phi);
       const vApp=Math.max(0,s.v+head);
-      const Fdrag=0.5*1.18*P.Cd*P.frontal*vApp*vApp;
+      const Fdrag=0.5*PRO.airRho*P.Cd*P.frontal*vApp*vApp;
       const Fslope=m*9.81*Math.sin(View.carSlope);
       // スロットル開度 → 指令電流
       let thr=s.throttleSet;
       if(s.brakePhys>0.05||s.brakeRegen>0.05){ thr=0; s.throttleSet=0; } // ブレーキ連動カット
       let ampLimit=P.motorMaxA;
       if(s.fault&&s.fault.type==="accel") ampLimit*=0.3;
-      if(s.soc<=0.05) ampLimit=Math.min(ampLimit,6); // BMS保護
-      if(s.soc<=0.003) ampLimit=0;
+      if(s.bmsOn){ // BMS保護(OFF時は制限なし=自己責任)
+        if(s.soc<=0.05) ampLimit=Math.min(ampLimit,6);
+        if(s.soc<=0.003) ampLimit=0;
+      }
       I_cmd=thr*ampLimit;
-      const Vbus=V_NOM*(0.85+0.25*s.soc);
-      let Ftrac=Math.min(KT_F*I_cmd, (Vbus*I_cmd*0.95)/Math.max(s.v,0.8));
+      const mm=motorModel(I_cmd,s.v,s.soc,s.powerMode);
+      let Ftrac=mm.F;
       // ブレーキ
       let Fbrake=0, Pregen=0;
-      if(s.brakePhys>0) Fbrake += s.brakePhys*0.55*m*9.81;
+      if(s.brakePhys>0) Fbrake += s.brakePhys*PRO.brakeMu*m*9.81;
       if(s.brakeRegen>0){
         const Fr=s.brakeRegen*P.regenStrength*clamp(40+s.v*3,0,180);
         Fbrake+=Fr;
-        Pregen=Fr*s.v*0.30; // 回生は控えめ
+        Pregen=Fr*s.v*PRO.regenEff; // 回生は控えめ
       }
       const Fnet=Ftrac-Froll-Fdrag-Fslope-Fbrake;
       s.v=Math.max(0,s.v+Fnet/mEff*dtR);
-      Pmotor = Ftrac*s.v/0.94 + I_cmd*I_cmd*0.4 - Pregen;
+      if(dtR>0) s.gLong=(Fnet/mEff)/9.81;
+      Pmotor = mm.Pelec - Pregen;
       // 距離
       const dKm=s.v*dtS/1000;
       const prev=s.km;
       s.km=Math.min(TOTAL_KM,s.km+dKm);
       if(s.v>0.5) s.drivingHours+=dtS/3600;
       this.checkEvents(prev,s.km,dtS,dtR);
+      // キャトルグリッド: 通過でガタガタ+足回りリスク増
+      for(const gk of GRID_KMS) if(prev<gk&&s.km>=gk){
+        s.gridShake=0.9; s.gridCount++;
+        Snd.rattle();
+        toast("🐄 キャトルグリッド通過 ― 足回りに衝撃","#fbbf24");
+      }
       // 制限速度
       const lim=speedLimitAt(s.km);
       if(s.v*3.6>lim+5){ s.limitTimer+=dtR;
-        if(s.limitTimer>2){ s.penaltySec+=30; s.limitTimer=0; Snd.alarm(); toast(`🚨 速度超過!制限${lim}km/h ― ペナルティ+30秒`,"#ef4444"); } }
+        if(s.limitTimer>3){ s.limitTimer=0; Radio.push(`制限速度${lim}km/hを超過しています。減速してください。`,"後方追走車"); } }
       else s.limitTimer=0;
       // 赤信号無視判定 (View側で設定した redSignalAt)
       if(View.redSignalKm!=null && prev<View.redSignalKm && s.km>=View.redSignalKm && s.v*3.6>5){
-        s.penaltySec+=30; Snd.alarm(); toast("🚨 信号無視!ペナルティ+30秒","#ef4444"); View.redSignalKm=null;
+        Snd.alarm(); toast("🚨 赤信号を通過しました!","#ef4444"); View.redSignalKm=null;
       }
     } else { s.v=Math.max(0,s.v-3*dtR); I_cmd=0; Pmotor=0; }
     s.lastAmp=I_cmd; s.lastMotorW=Math.max(0,Pmotor);
@@ -821,9 +1012,9 @@ const Engine = {
     let Paux = s.disconnected ? 0 : (s.camp?2:P.auxW);
     if(s.fault&&s.fault.type==="aux") Paux+=150;
     const Pnet = s.disconnected ? 0 : (Pmotor+Paux-Psolar);
-    const Vbus=V_NOM*(0.85+0.25*s.soc);
+    const Vbus=VOC(s.soc);
     const Ibat=Pnet/Vbus;
-    const capAh=P.batteryWh/V_NOM;
+    const capAh=CAP_AH();
     s.soc=clamp(s.soc-(Ibat*dtS)/(capAh*3600),0,1);
     s.lastIbat=Ibat; s.lastNet=Pnet;
     if(Ibat>0) s.ahUsed+=Ibat*dtS/3600;
@@ -839,11 +1030,11 @@ const Engine = {
 
     // ---- 故障ランダム発生(各レース0〜1回程度) ----
     if(P.mode==="race" && s.v>3){
-      if(!s.burst && Math.random()<0.20*dKmSafe(s,dtS)/TOTAL_KM){
+      if(!s.burst && Math.random()<0.20*PRO.faultScale*dKmSafe(s,dtS)/TOTAL_KM*(1+0.08*PRO.gridRisk*s.gridCount)){
         s.burst=true; Snd.bang(); toast("💥 タイヤバースト!停車してタイヤ交換が必要です","#ef4444");
         Radio.push("タイヤバースト発生!安全に減速して停車後、タイヤ交換を実施してください。");
       }
-      if(!s.fault && Math.random()<0.20*dKmSafe(s,dtS)/TOTAL_KM){
+      if(!s.fault && Math.random()<0.20*PRO.faultScale*dKmSafe(s,dtS)/TOTAL_KM*(1+0.04*PRO.gridRisk*s.gridCount)){
         const types=[["solar","発電量が急激に低下"],["accel","モーター出力が上がりません"],["aux","消費電力が異常増大"],["telemetry","テレメトリシステム故障"]];
         const [ty,msg]=types[Math.floor(Math.random()*types.length)];
         s.fault={type:ty};
@@ -884,8 +1075,8 @@ const Engine = {
     s.nextAdvice-=dtS;
     if(s.nextAdvice<=0 && s.v>3){
       s.nextAdvice=1200; // 20分ごと
-      const vRec=this.recommendSpeed();
-      Radio.push(`時速${vRec}kmで走行してください。(SOC ${(s.soc*100).toFixed(0)}%)`);
+      const r=this.recommendSpeed();
+      Radio.push(`時速${r.v}kmで走行してください。このペースなら${r.cs}到着時 SOC約${(r.pred*100).toFixed(0)}%です。${r.pred<0.45?"⚠ SOC50%維持が困難です。ペースを落として充電区間を作りましょう。":""}`);
     }
     // 勾配区間(道路生成側の先読み)
     if(View.upcomingGrade!==0 && !s.radioCd.gradeMsg){
@@ -895,13 +1086,23 @@ const Engine = {
     }
   },
   recommendSpeed(){
+    // 「そのペースで走れば次のCSにSOC50%で到達できるか」を基準に速度を提案
     const s=this.st;
-    // 残距離を残レース時間で割った基準速度 + SOCで補正
-    const remKm=TOTAL_KM-s.km;
-    const remDays=Math.max(0.2,(5-s.day)+(17-clamp(s.hour,8,17))/9);
-    const base=remKm/(remDays*9);
-    const socAdj=lerp(0.75,1.15,s.soc);
-    return clamp(Math.round(base*socAdj/5)*5,45,110);
+    let next=null;
+    for(const c of ROUTE) if(c.cp&&!s.passedCP.has(c.km)&&c.km>s.km){ next=c; break; }
+    const dist=next?(next.km-s.km):(TOTAL_KM-s.km);
+    const m=massTotal();
+    let out={v:45,pred:0,cs:next?next.name.replace(/\s*\(CS\d\)/,""):"ゴール"};
+    for(let v=90;v>=40;v-=5){
+      const vm=v/3.6;
+      const F=P.Crr*m*9.81+0.5*PRO.airRho*P.Cd*P.frontal*vm*vm;
+      const Pd=F*vm/0.88+P.auxW;
+      const dWh=(Pd-s.lastSolar)*(dist/v);
+      const pred=s.soc-dWh/P.batteryWh;
+      out={v,pred:clamp(pred,0,1),cs:out.cs};
+      if(pred>=0.5) break;
+    }
+    return out;
   },
   checkEvents(prev,curr,dtS,dtR){
     const s=this.st;
@@ -931,15 +1132,14 @@ const Engine = {
     s.passedCP.add(cp.km); s.cpPending=null;
     s.stopTimer=30*60; s.stopKind="cp"; s.cpName=cp.name; s.v=0; s.throttleSet=0;
     Snd.chime();
-    if(missed){ s.penaltySec+=300; s.stopTimer+=5*60;
-      toast("🚨 コントロールストップ通過!その場で強制停止+5分ペナルティ","#ef4444"); }
+    if(missed){ toast("🚨 コントロールストップを通過!その場で30分点検となります","#f59e0b"); }
     else toast(`🛑 ${cp.name} 到着 ― 30分の強制点検`,"#fbbf24");
     TiltDecide.open(); // 停車直後に1回だけ角度決定(時間停止)
     if(cp.km===2720){
       const abs=(s.day-1)*24+s.hour;
       s.absHourAtPA=abs;
       if(abs > 4*24+11){ s.trailered=true; showResult(); }
-      else Radio.push("Port Augusta 11:00デッドライン通過!ソーラーフィニッシュ確定です!");
+      else Radio.push("Port Augusta 11:00通過!あとはアデレードに向かうだけです!");
     }
   },
   enterCamp(){
@@ -964,8 +1164,8 @@ const Engine = {
       const prof=profileAt(s.km);
       let wh=0;
       const sunset=this.sunsetHour(prof.lat);
-      for(let h=17;h<sunset;h+=0.25){ const g=this.solarCalc(prof.lat,h,true); wh+=P.arrayArea*P.cellEff*0.92*P.mpptEff*g.G*0.25; }
-      for(let h=6;h<st2;h+=0.25){ const g=this.solarCalc(prof.lat,h,true); wh+=P.arrayArea*P.cellEff*0.92*P.mpptEff*g.G*0.25; }
+      for(let h=17;h<sunset;h+=0.25){ const g=this.solarCalc(prof.lat,h,true); wh+=P.arrayArea*P.cellEff*0.92*P.mpptEff*g.G*0.25*PRO.solarScale; }
+      for(let h=6;h<st2;h+=0.25){ const g=this.solarCalc(prof.lat,h,true); wh+=P.arrayArea*P.cellEff*0.92*P.mpptEff*g.G*0.25*PRO.solarScale; }
       s.soc=clamp(s.soc+wh*0.5/P.batteryWh,0,1);
       s.whGen+=wh*0.5;
       if(s.hour>=17){ s.day++; s.dayOfYear++; }
@@ -1023,7 +1223,7 @@ const TiltDecide={
     const prof=profileAt(s.km);
     const sol=Engine.solarCalc(prof.lat,s.hour,true);
     const tempLoss=clamp(1-PANEL_TYPES[P.panel].gamma*Math.max(0,(s.Tamb||30)+0.025*sol.G-25),0.6,1);
-    const w=P.arrayArea*P.cellEff*tempLoss*P.mpptEff*sol.G;
+    const w=P.arrayArea*P.cellEff*tempLoss*P.mpptEff*sol.G*PRO.solarScale;
     document.getElementById("td-watt").textContent=w.toFixed(0);
   },
   confirm(){
@@ -1037,6 +1237,110 @@ const TiltDecide={
 };
 
 /* ---------------- トースト ---------------- */
+/* ドライバー→戦略班/偵察車への質問無線 */
+const Ask={
+  q(kind){
+    const s=Engine.st; if(!s) return;
+    document.getElementById("ask-panel").classList.add("hidden");
+    const absH=(s.day-1)*24+s.hour;
+    if(kind==="cs"){
+      let next=null;
+      for(const c of ROUTE) if(c.cp&&!s.passedCP.has(c.km)&&c.km>s.km){ next=c; break; }
+      if(!next){ Radio.push(`次はゴールのVictoria Park、残り${(TOTAL_KM-s.km).toFixed(0)}kmです。`); return; }
+      const closeAbs=csCloseAbs(next.km);
+      const eta=s.v>3? (next.km-s.km)/(s.v*3.6):null;
+      Radio.push(`${next.name}まで残り${(next.km-s.km).toFixed(0)}km${eta?`、現ペースで約${fmtDur(eta)}`:""}。クローズは${fmtAbsH(closeAbs)}(残り${fmtDur(closeAbs-absH)})です。`);
+    } else if(kind==="pace"){
+      const r=Engine.recommendSpeed();
+      Radio.push(`推奨は時速${r.v}km。このペースなら${r.cs}到着時SOC約${(r.pred*100).toFixed(0)}%です。${r.pred<0.45?"⚠ 50%維持は困難、充電停車も検討を。":""}`);
+    } else if(kind==="weather"){
+      const nexts=(s.weatherPlan||[]).filter(w=>w.start+w.dur>absH).slice(0,2);
+      let msg=s.weather?`現在は${s.weather.type==="squall"?"スコール":"曇天"}の中です。`:"現在は快晴。";
+      msg+= nexts.length? " 予報: "+nexts.map(w=>`${fmtAbsH(w.start)}頃から${w.type==="squall"?"⛈スコール":"☁曇天"}(約${w.dur.toFixed(1)}h)`).join(" / ") : " 予報: この先しばらく大きな崩れはありません。";
+      msg+=" なお南下するほど雲は増える傾向です。";
+      Radio.push(msg,"偵察車");
+    } else if(kind==="road"){
+      const g=View.upcomingGrade;
+      const trains=View.roadTrains.length;
+      const lms=LANDMARKS.filter(l=>l.km>s.km&&l.km<s.km+30).slice(0,2);
+      const names={signal:"信号",bridge:"橋",river:"川",camp:"キャンプ地",roadhouse:"ロードハウス",grid:"キャトルグリッド"};
+      let msg=`3km先: ${g>0?"登り区間あり":g<0?"下り区間あり":"平坦"}。`;
+      msg+= trains?`⚠ ロードトレイン${trains}台接近中。`:"対向ロードトレインなし。";
+      if(lms.length) msg+=" この先: "+lms.map(l=>`${l.km.toFixed(0)}km地点に${names[l.t]||l.t}(${l.n})`).join("、")+"。";
+      Radio.push(msg,"偵察車");
+    } else if(kind==="rank"){
+      const rank=1+s.teams.filter(tm=>tm.km>s.km).length;
+      const ahead=s.teams.filter(tm=>tm.km>s.km&&tm.status!=="dnf").sort((a,b)=>a.km-b.km)[0];
+      const behind=s.teams.filter(tm=>tm.km<s.km&&tm.status!=="dnf").sort((a,b)=>b.km-a.km)[0];
+      let msg=`現在P${rank}/${s.teams.length+1}。`;
+      if(ahead) msg+=`前方${(ahead.km-s.km).toFixed(1)}kmに${ahead.name}。`;
+      if(behind) msg+=`後方${(s.km-behind.km).toFixed(1)}kmに${behind.name}。`;
+      msg+=`リタイア${s.teams.filter(tm=>tm.status==="dnf").length}台。`;
+      Radio.push(msg,"後方追走車");
+    } else if(kind==="batt"){
+      const remWh=s.soc*P.batteryWh;
+      const drain=Math.max(s.lastNet,1);
+      Radio.push(`SOC ${(s.soc*100).toFixed(1)}% / ${VOC(s.soc).toFixed(1)}V / ${s.lastIbat.toFixed(1)}A。残${remWh.toFixed(0)}Wh、現在の収支だと${s.lastNet>0?`約${fmtDur(remWh/drain)}で空`:"充電傾向"}です。積算消費${s.ahUsed.toFixed(2)}Ah。`);
+    }
+  },
+};
+/* ウィンカー: dir=-1左 / 1右 / 2ハザード */
+function toggleSignal(dir){
+  const s=Engine.st; if(!s||!running) return;
+  s.signal = s.signal===dir ? 0 : dir;
+  Snd.blip(1200,0.05,"square",0.12);
+}
+let _winkPhase=null;
+function updateWinkers(carGroup,es){
+  if(!carGroup||!carGroup.userData.winkL) return;
+  const on=(performance.now()%800)<400;
+  const L=es.signal===-1||es.signal===2, R=es.signal===1||es.signal===2;
+  carGroup.userData.winkL.forEach(m=>m.color.setHex(L&&on?0xffb020:0x4a3005));
+  carGroup.userData.winkR.forEach(m=>m.color.setHex(R&&on?0xffb020:0x4a3005));
+  if(es.signal!==0){
+    if(on!==_winkPhase){ _winkPhase=on; if(on) Snd.blip(1350,0.025,"square",0.05); } // リレー音
+  } else _winkPhase=null;
+  const wl=document.getElementById("wl"), wr=document.getElementById("wr");
+  if(wl){ wl.style.color=(L&&on)?"#34d399":"#1e3a4f"; wr.style.color=(R&&on)?"#34d399":"#1e3a4f"; }
+}
+function togglePower(){
+  const s=Engine.st; if(!s) return;
+  s.powerMode=!s.powerMode;
+  toast(s.powerMode?"⚡ POWERモード ― トルク減・最高速増":"🍃 ECOモード ― 効率重視","#f59e0b");
+  Snd.blip(s.powerMode?900:500,0.15);
+}
+function toggleBMS(){
+  const s=Engine.st; if(!s) return;
+  s.bmsOn=!s.bmsOn;
+  toast(s.bmsOn?"🛡 BMS保護 ON":"⚠ BMS保護 OFF ― 過放電にご注意!","#f59e0b");
+  Snd.blip(700,0.15);
+}
+/* 後続チームのオーバーテイク要求(走行は中断しない) */
+const OT={active:false,team:null,timer:null,
+  ask(tm,trainNear){
+    this.active=true; this.team=tm;
+    document.getElementById("ot-text").innerHTML=
+      `【${tm.name}】 Can I overtake?<br><span class="text-cyan-300 text-xs">伴走車情報: ${trainNear?"⚠ ロードトレイン接近中 ― No推奨":"前方クリア ― Yes可"}</span>`;
+    show("ot-pop",true); Snd.radioBeep();
+    this.timer=setTimeout(()=>this.answer(false),12000); // 無応答はNo扱い(勝手に抜かせない)
+  },
+  answer(yes){
+    clearTimeout(this.timer); show("ot-pop",false);
+    const tm=this.team; this.active=false; this.team=null;
+    if(!tm) return;
+    if(yes){ tm.passing=true; tm.boost=true; tm.holdT=0;
+      Radio.push("Yes, go ahead と回答しました。","我々");
+      setTimeout(()=>Radio.push("Thanks!",tm.name),1400); }
+    else { tm.holdT=45; Radio.push("No と回答 ― 後続には待ってもらいます。","我々"); }
+  },
+};
+document.querySelectorAll("#touch-ui [data-tk]").forEach(b=>{
+  const k=b.dataset.tk;
+  const on=e=>{e.preventDefault();Input.keys[k]=true;};
+  const off=e=>{e.preventDefault();Input.keys[k]=false;};
+  b.addEventListener("pointerdown",on);
+  b.addEventListener("pointerup",off); b.addEventListener("pointerleave",off); b.addEventListener("pointercancel",off);
+});
 let toastTimer=null;
 function toast(msg,color="#22d3ee"){
   const t=document.getElementById("toast");
@@ -1055,9 +1359,14 @@ addEventListener("keydown",e=>{
   Input.keys[e.key.toLowerCase()]=true;
   if(e.key===" ") e.preventDefault();
   if(e.key==="Escape") togglePause();
-  if(e.key.toLowerCase()==="v") View.cam=(View.cam+1)%3;
+  if(e.key.toLowerCase()==="v") View.cam=(View.cam+1)%4;
   if(e.key.toLowerCase()==="g") document.getElementById("chart-panel").classList.toggle("hidden");
   if(e.key.toLowerCase()==="m") StopMenu.open(true);
+  if(e.key.toLowerCase()==="p"&&Engine.st&&running) togglePower();
+  if(e.key.toLowerCase()==="z") toggleSignal(-1);
+  if(e.key.toLowerCase()==="c") toggleSignal(1);
+  if(e.key.toLowerCase()==="x") toggleSignal(2);
+  if(e.key.toLowerCase()==="q"&&running) document.getElementById("ask-panel").classList.toggle("hidden");
   if(e.key==="Backspace"&&Test.active){ e.preventDefault(); Test.retry(); }
 });
 addEventListener("keyup",e=>Input.keys[e.key.toLowerCase()]=false);
@@ -1179,9 +1488,11 @@ const View={
     this.buildPit();
     this.buildBay();
     this.buildFire();
+    this.aiPool=[];
+    for(let i=0;i<6;i++){ const m=this.mkAICar(); m.visible=false; this.scene.add(m); this.aiPool.push({mesh:m,team:null}); }
     this.road={pts:[{x:0,z:0,y:0,h:0,g:0}],builtS:0,chunks:[]};
     this.s=0; this.lateral=-2.4; this.roadTrains.length=0;
-    this.relHeading=0; this.prevRoadH=0; this.genY=0;
+    this.relHeading=0; this.prevRoadH=0; this.genY=0; this.rollT=0;
     this.gen={grade:0,targetGrade:0,gradeRemain:400,curv:0,targetCurv:0,curvRemain:600};
     this.lmMap.clear(); this.redSignalKm=null; this.inPit=false; this.pitBlend=0; this.fireOn=false;
     this.ensureRoad(1500);
@@ -1212,26 +1523,30 @@ const View={
       f.position.set(x,0.40,z); body.add(f);
     };
     if(P.shape==="wadai"){
-      // 凹面エッジの星型プラン(和大車): Shape押し出し
+      // YATA (和歌山大学): 白い船型ハル+オレンジのガンネル+黒パネル+背高キャノピー / 3輪(前2・後1)
       const sh=new THREE.Shape();
-      const L=2.5, Wd=1.15; // 半長/半幅
-      sh.moveTo(0,L);                       // ノーズ
-      sh.quadraticCurveTo(Wd*0.4,L*0.25, Wd,0.3);  // 右前 凹エッジ
-      sh.quadraticCurveTo(Wd*0.75,-L*0.35, Wd*0.85,-L*0.8); // 右後
+      const L=2.5, Wd=1.15;
+      sh.moveTo(0,L);
+      sh.quadraticCurveTo(Wd*0.4,L*0.25, Wd,0.3);
+      sh.quadraticCurveTo(Wd*0.75,-L*0.35, Wd*0.85,-L*0.8);
       sh.lineTo(0,-L*0.95);
       sh.lineTo(-Wd*0.85,-L*0.8);
       sh.quadraticCurveTo(-Wd*0.75,-L*0.35, -Wd,0.3);
       sh.quadraticCurveTo(-Wd*0.4,L*0.25, 0,L);
-      const hullGeo=new THREE.ExtrudeGeometry(sh,{depth:0.30,bevelEnabled:true,bevelThickness:0.08,bevelSize:0.10,bevelSegments:2});
-      const hull=new THREE.Mesh(hullGeo,orangeMat);
-      hull.rotation.x=-Math.PI/2; hull.position.y=0.30; body.add(hull);
+      const hullGeo=new THREE.ExtrudeGeometry(sh,{depth:0.30,bevelEnabled:true,bevelThickness:0.10,bevelSize:0.12,bevelSegments:2});
+      const hull=new THREE.Mesh(hullGeo,whiteMat);
+      hull.rotation.x=-Math.PI/2; hull.position.y=0.32; body.add(hull);
+      const rim=new THREE.Mesh(new THREE.ShapeGeometry(sh),orangeMat); // オレンジ縁取り
+      rim.rotation.x=-Math.PI/2; rim.scale.set(1.07,1.07,1); rim.position.y=0.745; body.add(rim);
       const top=new THREE.Mesh(new THREE.ShapeGeometry(sh),panelMat);
-      top.rotation.x=-Math.PI/2; top.position.y=0.695; body.add(top);
+      top.rotation.x=-Math.PI/2; top.scale.set(0.97,0.97,1); top.position.y=0.76; body.add(top);
+      const nose=new THREE.Mesh(new THREE.ConeGeometry(0.16,0.5,10),orangeMat); // オレンジノーズ(前方=-z)
+      nose.rotation.x=-Math.PI/2; nose.position.set(0,0.5,-2.55); body.add(nose);
       const canopy=new THREE.Mesh(new THREE.SphereGeometry(0.34,18,14),canopyMat);
-      canopy.scale.set(0.85,0.9,1.75); canopy.position.set(0,0.78,-0.15); body.add(canopy);
+      canopy.scale.set(0.72,1.35,1.5); canopy.position.set(0,0.95,0.25); body.add(canopy);
       g.userData.canopy=canopy;
-      mkWheelFair(-0.72,1.15,orangeMat); mkWheelFair(0.72,1.15,orangeMat);
-      mkWheelFair(-0.72,-1.35,orangeMat); mkWheelFair(0.72,-1.35,orangeMat);
+      mkWheelFair(-0.70,-1.15); mkWheelFair(0.70,-1.15); // 前2輪(前方=-z)
+      mkWheelFair(0,1.55);                               // 後1輪
     } else if(P.shape==="catamaran"){
       for(const sx of [-0.72,0.72]){
         const hull=new THREE.Mesh(new THREE.SphereGeometry(0.5,20,14),orangeMat);
@@ -1253,6 +1568,24 @@ const View={
       g.userData.canopy=canopy;
       mkWheelFair(-0.62,1.2); mkWheelFair(0.62,1.2); mkWheelFair(0,-1.35);
     }
+    // 常時点灯デイライト(DRL) + ブレーキランプ
+    const drlMat=new THREE.MeshBasicMaterial({color:0xffffff});
+    for(const sx of [-0.30,0.30]){
+      const dl=new THREE.Mesh(new THREE.BoxGeometry(0.20,0.08,0.10),drlMat);
+      dl.position.set(sx,0.74,-2.05); body.add(dl); // ノーズ上縁(常時点灯)
+    }
+    const brakeMat=new THREE.MeshBasicMaterial({color:0x4a0505});
+    const bl=new THREE.Mesh(new THREE.BoxGeometry(0.8,0.09,0.10),brakeMat);
+    bl.position.set(0,0.74,2.25); body.add(bl); // テール上縁
+    g.userData.brakeMat=brakeMat;
+    // ウィンカー(前後左右4灯・アンバー): 細いストリップを船体側面に埋め込み(面一)
+    g.userData.winkL=[]; g.userData.winkR=[];
+    for(const [wx,wz] of [[-0.57,-1.05],[0.57,-1.05],[-0.94,1.95],[0.94,1.95]]){
+      const wm=new THREE.MeshBasicMaterial({color:0x4a3005});
+      const wk=new THREE.Mesh(new THREE.BoxGeometry(0.10,0.045,0.32),wm);
+      wk.position.set(wx,0.55,wz); body.add(wk); // ハル側面に半埋め込み
+      (wx<0?g.userData.winkL:g.userData.winkR).push(wm);
+    }
     g.add(body);
     return {group:g, body, canopy:g.userData.canopy};
   },
@@ -1265,6 +1598,11 @@ const View={
     for(const [x,z] of [[-0.8,1.5],[0.8,1.5],[-0.8,-1.5],[0.8,-1.5]]){
       const w=new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.35,0.25,12),new THREE.MeshPhongMaterial({color:0x111}));
       w.rotation.z=Math.PI/2; w.position.set(x,0.35,z); v.add(w);
+    }
+    const dm=new THREE.MeshBasicMaterial({color:0xffffff}); // 常時点灯デイライト
+    for(const sx of [-0.7,0.7]){
+      const dl=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.1,0.06),dm);
+      dl.position.set(sx,0.95,-2.32); v.add(dl);
     }
     return v;
   },
@@ -1409,13 +1747,25 @@ const View={
     if(lm.t==="signal"){
       const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,5.6,8),new THREE.MeshLambertMaterial({color:0x333}));
       pole.position.set(this.ROAD_W+1,2.8,0); g.add(pole);
-      const arm=new THREE.Mesh(new THREE.BoxGeometry(0.15,0.15,this.ROAD_W+1),new THREE.MeshLambertMaterial({color:0x333}));
+      const arm=new THREE.Mesh(new THREE.BoxGeometry(this.ROAD_W+1,0.15,0.15),new THREE.MeshLambertMaterial({color:0x333}));
       arm.position.set(this.ROAD_W/2+0.5,5.4,0); g.add(arm);
       const box=new THREE.Mesh(new THREE.BoxGeometry(0.5,1.3,0.35),new THREE.MeshLambertMaterial({color:0x222}));
       box.position.set(0,5.0,0); g.add(box);
       const lamp=new THREE.Mesh(new THREE.SphereGeometry(0.17,10,10),new THREE.MeshBasicMaterial({color:0x22cc44}));
       lamp.position.set(0,5.25,0.2); g.add(lamp);
       g.userData.lamp=lamp;
+    } else if(lm.t==="grid"){
+      // 梯子状の溝(キャトルグリッド)
+      const base=new THREE.Mesh(new THREE.BoxGeometry(this.ROAD_W*2,0.02,3.4),new THREE.MeshLambertMaterial({color:0x17191d}));
+      base.position.y=0.03; g.add(base);
+      for(let i=0;i<6;i++){
+        const bar=new THREE.Mesh(new THREE.BoxGeometry(this.ROAD_W*2,0.06,0.16),new THREE.MeshLambertMaterial({color:0x757b82}));
+        bar.position.set(0,0.06,-1.35+i*0.54); g.add(bar);
+      }
+      const sp=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,2.4,6),new THREE.MeshLambertMaterial({color:0x666666}));
+      sp.position.set(this.ROAD_W+1.5,1.2,-10); g.add(sp);
+      const sb=new THREE.Mesh(new THREE.BoxGeometry(1.1,1.1,0.08),new THREE.MeshBasicMaterial({color:0xf2c522}));
+      sb.position.set(this.ROAD_W+1.5,2.7,-10); sb.rotation.z=Math.PI/4; g.add(sb);
     } else if(lm.t==="bridge"||lm.t==="river"){
       for(const sx of [-1,1]){
         const wall=new THREE.Mesh(new THREE.BoxGeometry(0.4,1.1,36),new THREE.MeshLambertMaterial({color:0xb8b8b0}));
@@ -1447,6 +1797,77 @@ const View={
       }
     }
     return g;
+  },
+  /* ==== 他チーム(AI)ソーラーカー ==== */
+  mkAICar(){
+    const g=new THREE.Group();
+    const hullM=new THREE.MeshPhongMaterial({color:0xffffff});
+    const hull=new THREE.Mesh(new THREE.SphereGeometry(0.6,16,12),hullM);
+    hull.scale.set(1.6,0.55,3.8); hull.position.y=0.45; g.add(hull);
+    const top=new THREE.Mesh(new THREE.BoxGeometry(1.8,0.05,4.0),new THREE.MeshPhongMaterial({color:0x101a2c}));
+    top.position.y=0.72; g.add(top);
+    const can=new THREE.Mesh(new THREE.SphereGeometry(0.3,12,10),new THREE.MeshPhongMaterial({color:0x0a1015}));
+    can.scale.set(0.9,0.9,1.6); can.position.set(0,0.9,-0.2); g.add(can);
+    g.userData.hullM=hullM;
+    return g;
+  },
+  updateAITeams(es,dtR){
+    if(P.mode!=="race"||!es.teams||!this.aiPool){ if(this.aiPool) this.aiPool.forEach(sl=>sl.mesh.visible=false); return; }
+    const ts=P.timeScale;
+    const near=[];
+    for(const tm of es.teams){
+      if(tm.status==="pre") continue;
+      const rel=(tm.km-es.km)*1000/ts;
+      if(Math.abs(rel)<1200) near.push({tm,rel});
+    }
+    near.sort((a,b)=>Math.abs(a.rel)-Math.abs(b.rel));
+    const shown=near.slice(0,6);
+    for(const sl of this.aiPool){ if(!shown.some(o=>o.tm===sl.team)){ sl.team=null; sl.mesh.visible=false; } }
+    for(const o of shown){
+      let sl=this.aiPool.find(x=>x.team===o.tm)||this.aiPool.find(x=>!x.team);
+      if(!sl) break;
+      sl.team=o.tm; sl.mesh.visible=true;
+      sl.mesh.userData.hullM.color.setHSL(o.tm.hue/360,0.6,0.55);
+      const rp=this.roadPoint(clamp(this.s+o.rel,0,this.road.builtS-this.SEG));
+      let latT=-2.4;
+      if(o.tm.status==="dnf") latT=-11;         // リタイア車は路肩に停止
+      else if(o.tm.yieldT>0) latT=-4.9;         // こちらに道を譲る
+      else if(o.tm.passing) latT=2.4;           // 追い越し中(対向車線)
+      o.tm.latV=lerp(o.tm.latV,latT,clamp(dtR*1.5,0,1));
+      const nx=Math.cos(rp.h), nz=Math.sin(rp.h);
+      sl.mesh.position.set(rp.x+nx*o.tm.latV,rp.y,rp.z+nz*o.tm.latV);
+      sl.mesh.rotation.y=-rp.h;
+      if(o.tm.yieldT>0) o.tm.yieldT-=dtR;
+      if(o.tm.holdT>0) o.tm.holdT-=dtR;
+      if(o.tm.passing&&o.rel>70){ o.tm.passing=false; o.tm.boost=false; }
+    }
+    if(es.camp||es.stopTimer>0||es.fire) return;
+    // --- こちらからの追い越しリクエスト(自動送信・走行は中断しない) ---
+    const ahead=shown.find(o=>o.rel>6&&o.rel<130&&o.tm.status==="run"&&!o.tm.passing);
+    if(ahead&&es.v*3.6>ahead.tm.spd+2){
+      const tm=ahead.tm;
+      tm.askCd-=dtR;
+      if(tm.askCd<=0&&!tm.otPending&&tm.yieldT<=0){
+        tm.otPending=true; tm.askCd=40;
+        Radio.push(`Can I overtake? (→${tm.name})`,"我々");
+        const trainNear=this.roadTrains.some(rt=>Math.abs(rt.sVis-this.s)<650);
+        setTimeout(()=>{ tm.otPending=false;
+          if(trainNear){ Radio.push("No! ロードトレイン接近中。待ってください。",tm.name); }
+          else { Radio.push("Yes, go ahead!",tm.name); tm.yieldT=25; }
+        },1600);
+      }
+    }
+    // --- 後続チームからの追い越しリクエスト(Yes/Noポップアップ) ---
+    if(!OT.active){
+      const behind=shown.find(o=>o.rel<-6&&o.rel>-160&&o.tm.status==="run"&&o.tm.spd>es.v*3.6+3&&!o.tm.passing);
+      if(behind){
+        behind.tm.reqCd-=dtR;
+        if(behind.tm.reqCd<=0){
+          behind.tm.reqCd=55;
+          OT.ask(behind.tm, this.roadTrains.some(rt=>rt.sVis>this.s-150&&rt.sVis<this.s+700));
+        }
+      }
+    }
   },
   /* ==== 道路生成 ==== */
   advanceGen(){
@@ -1559,9 +1980,10 @@ const View={
     if(this.relHeading===undefined){ this.relHeading=0; this.prevRoadH=this.roadPoint(this.s).h; }
     const vv=es.v;
     if(vv>0.3){
-      const yawRate=Input.steer*clamp(5.5/Math.max(vv,4),0.12,0.9); // 速度が上がるほどヨーは緩やか
+      const yawRate=Input.steer*clamp(6.5/Math.max(vv,4),0.12,1.0); // 速度が上がるほどヨーは緩やか
       this.relHeading+=yawRate*dtR;
-    }
+      es.gLat=(yawRate*vv)/9.81;
+    } else es.gLat=0;
     this.s+=vv*Math.cos(this.relHeading)*dtR;
     this.ensureRoad(this.s+2400);
     const pHere=this.roadPoint(this.s);
@@ -1598,6 +2020,10 @@ const View={
     this.carBody.rotation.z=lerp(this.carBody.rotation.z,targetRoll,dtR*2);
     if(es.offroad&&es.v>2) this.car.position.y+=Math.random()*0.05;
     if(es.burst&&es.v>2) this.car.position.y+=Math.random()*0.04;
+    if(this.car.userData.brakeMat)
+      this.car.userData.brakeMat.color.setHex((es.brakePhys>0.05||es.brakeRegen>0.05)?0xff2222:0x4a0505);
+    updateWinkers(this.car,es);
+    if(es.gridShake>0){ es.gridShake-=dtR; if(es.v>1) this.car.position.y+=(Math.random()-0.5)*0.13; }
     // キャンプ設備(車のすぐ左に設営)
     if(es.camp){
       this.pitGroup.visible=true;
@@ -1630,13 +2056,17 @@ const View={
       const cx=this.car.position.x, cy=this.car.position.y, cz=this.car.position.z;
       camPos=new THREE.Vector3(cx-Math.sin(hCar)*1.8, cy+1.45, cz+Math.cos(hCar)*1.8);
       lookAt=new THREE.Vector3(cx+Math.sin(hCar)*40, cy+1.0, cz-Math.cos(hCar)*40);
-    } else { // ドライバー(キャノピー内・車体より上のアイポイント)
+    } else if(this.cam===2){ // ドライバー(キャノピー内)
       const cx=this.car.position.x, cy=this.car.position.y, cz=this.car.position.z;
       camPos=new THREE.Vector3(cx+Math.sin(hCar)*0.35, cy+1.18, cz-Math.cos(hCar)*0.35);
       lookAt=new THREE.Vector3(cx+Math.sin(hCar)*45, cy+0.8, cz-Math.cos(hCar)*45);
+    } else { // バックカメラ(後方確認: 追走車・後続チーム)
+      const cx=this.car.position.x, cy=this.car.position.y, cz=this.car.position.z;
+      camPos=new THREE.Vector3(cx+Math.sin(hCar)*0.3, cy+2.2, cz-Math.cos(hCar)*0.3);
+      lookAt=new THREE.Vector3(cx-Math.sin(hCar)*60, cy+1.2, cz+Math.cos(hCar)*60);
     }
     if(this.canopyMesh) this.canopyMesh.visible=(this.cam!==2);
-    if(this.cam===2) this.camera.position.copy(camPos); // ドライバービューは遅延なし(めり込み防止)
+    if(this.cam>=2) this.camera.position.copy(camPos); // ドライバー/バックカメラは遅延なし
     else this.camera.position.lerp(camPos,clamp(dtR*(this.cam===0?5:12),0,1));
     this.camera.lookAt(lookAt);
     this.ground.position.set(pHere.x,pHere.y-60,pHere.z); // 遠景の底面(近景は道路追従スカートが担当)
@@ -1690,7 +2120,9 @@ const View={
     const chase=this.roadPoint(Math.max(this.s-32,0));
     this.escortChase.position.set(chase.x+Math.cos(chase.h)*-2.4,chase.y,chase.z+Math.sin(chase.h)*-2.4);
     this.escortChase.rotation.y=-chase.h;
-    this.escortLead.visible=this.escortChase.visible=(P.mode==="race"&&!es.camp&&es.stopTimer<=0);
+    this.escortLead.visible=(P.mode==="race"&&!es.camp&&es.stopTimer<=0);
+    this.escortChase.visible=(P.mode==="race"&&!es.camp&&es.stopTimer<=0&&this.s>45); // 始端では車と重なるため非表示
+    this.updateAITeams(es,dtR);
     this.renderer.render(this.scene,this.camera);
   },
   updateLandmarks(es){
@@ -1732,7 +2164,7 @@ const View={
     if(P.mode==="race"&&!es.camp){
       es.nextRoadTrainH-=dtR*P.timeScale/3600;
       if(es.nextRoadTrainH<=0){
-        es.nextRoadTrainH=1/(2+Math.random()*3);
+        es.nextRoadTrainH=1/Math.max(0.1,PRO.trainPerHour*(0.7+0.6*Math.random()));
         const t=this.mkRoadTrain();
         this.scene.add(t);
         this.roadTrains.push({mesh:t, sVis:this.s+1100, warned:false});
@@ -1779,6 +2211,24 @@ function drawMap(){
     ctx.fillStyle="#22d3ee"; ctx.shadowColor="#22d3ee"; ctx.shadowBlur=8;
     ctx.beginPath(); ctx.arc(x,y,4,0,7); ctx.fill(); ctx.shadowBlur=0;
   }
+}
+let GTRAIL=[];
+function drawG(){
+  const es=Engine.st; if(!es) return;
+  const cv=document.getElementById("g-canvas"); if(!cv) return;
+  const ctx=cv.getContext("2d"), C=42, R=38;
+  ctx.clearRect(0,0,84,84);
+  ctx.strokeStyle="#1e3a4f";
+  for(const r of [R/2,R]){ ctx.beginPath(); ctx.arc(C,C,r,0,7); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(C-R,C); ctx.lineTo(C+R,C); ctx.moveTo(C,C-R); ctx.lineTo(C,C+R); ctx.stroke();
+  const gx=clamp(es.gLat||0,-1,1)*R, gy=clamp(-(es.gLong||0),-1,1)*R;
+  GTRAIL.push([gx,gy]); if(GTRAIL.length>45) GTRAIL.shift();
+  ctx.strokeStyle="rgba(52,211,153,.35)"; ctx.beginPath();
+  GTRAIL.forEach((pt,i)=>{ i?ctx.lineTo(C+pt[0],C+pt[1]):ctx.moveTo(C+pt[0],C+pt[1]); }); ctx.stroke();
+  ctx.fillStyle="#34d399"; ctx.beginPath(); ctx.arc(C+gx,C+gy,3.5,0,7); ctx.fill();
+  ctx.fillStyle="#6fa3b8"; ctx.font="8px monospace";
+  ctx.fillText("1G",C+R-13,C-3);
+  ctx.fillText(((es.gLat||0)).toFixed(2)+"G",3,80);
 }
 function drawWind(){
   const es=Engine.st; if(!es) return;
@@ -1834,6 +2284,15 @@ function updateHUD(){
   let next=null;
   for(const c of ROUTE) if(c.cp&&!es.passedCP.has(c.km)&&c.km>es.km){ next=c; break; }
   document.getElementById("hud-nextcp").textContent= next? `${next.name.replace(/\s*\(CS\d\)/,"")} あと${(next.km-es.km).toFixed(0)}km` : "→ GOAL Victoria Park";
+  const ccEl=document.getElementById("hud-csclose");
+  if(next&&P.mode==="race"){
+    const closeAbs=csCloseAbs(next.km);
+    const rem=closeAbs-((es.day-1)*24+es.hour);
+    ccEl.textContent=`Close ${fmtAbsH(closeAbs)} ― 残り ${fmtDur(rem)}`;
+    ccEl.style.color= rem<0?"#ef4444": rem<1?"#f59e0b":"#6fa3b8";
+    if(rem<0&&!es.radioCd["closed"+next.km]){ es.radioCd["closed"+next.km]=true;
+      Radio.push(`${next.name} のクローズ時刻を超過しました。公式記録外走行となります。`); }
+  } else ccEl.textContent="";
   document.getElementById("hud-limit").textContent=speedLimitAt(es.km);
   document.getElementById("hud-speed").textContent=Math.round(es.v*3.6);
   const socP=es.soc*100;
@@ -1842,7 +2301,15 @@ function updateHUD(){
   sb.style.width=socP+"%";
   sb.style.background= socP>40?"linear-gradient(90deg,#059669,#22d3ee)": socP>15?"linear-gradient(90deg,#d97706,#fbbf24)":"linear-gradient(90deg,#b91c1c,#ef4444)";
   document.getElementById("hud-wh").textContent=(es.soc*P.batteryWh).toFixed(0)+" Wh";
-  document.getElementById("hud-bms").textContent= es.disconnected?"🔌結線OFF": es.soc<=0.05?"⚠BMS出力制限":"";
+  document.getElementById("hud-bms").textContent= es.disconnected?"🔌結線OFF": (es.bmsOn&&es.soc<=0.05)?"⚠BMS出力制限":"";
+  document.getElementById("hud-volt").textContent=VOC(es.soc).toFixed(1)+" V";
+  const bb=document.getElementById("bms-btn");
+  bb.textContent=es.bmsOn?"🛡 BMS: ON":"⚠ BMS: OFF";
+  bb.style.borderColor=es.bmsOn?"#22d3ee":"#ef4444";
+  const pb=document.getElementById("power-btn");
+  pb.textContent=es.powerMode?"⚡ POWERモード (P)":"🍃 ECOモード (P)";
+  pb.style.borderColor=es.powerMode?"#f59e0b":"#22d3ee";
+  document.getElementById("hud-avg").textContent=(es.drivingHours>0.02?(es.km/es.drivingHours).toFixed(1):"―")+" km/h";
   const telem=!(es.fault&&es.fault.type==="telemetry");
   const dash="― ―";
   document.getElementById("hud-solar").textContent=telem?es.lastSolar.toFixed(0)+" W":dash;
@@ -1860,7 +2327,10 @@ function updateHUD(){
   document.getElementById("hud-slope").textContent=(Math.tan(View.carSlope)*100).toFixed(1)+" %";
   document.getElementById("hud-temp").textContent=(es.Tamb||30).toFixed(0)+"°C";
   document.getElementById("hud-geff").textContent=es.lastGeff.toFixed(0)+" W/m²";
-  document.getElementById("hud-penalty").textContent=es.penaltySec+" s";
+  if(P.mode==="race"&&es.teams){
+    const rank=1+es.teams.filter(tm=>tm.km>es.km).length;
+    document.getElementById("hud-pos").textContent=`P${rank} / ${es.teams.length+1}`;
+  } else document.getElementById("hud-pos").textContent="―";
   document.getElementById("hud-weather").textContent= es.weather? (es.weather.type==="squall"?"🌧 スコール":"☁ 曇天") : "☀ 快晴";
   document.getElementById("hud-thr-pct").textContent=Math.round(es.throttleSet*100)+"%";
   document.getElementById("hud-throttle").style.width=(es.throttleSet*100)+"%";
@@ -1940,7 +2410,6 @@ function showResult(){
     rows.push(["平均速度", (TOTAL_KM/Math.max(es.drivingHours,0.1)).toFixed(1)+" km/h"]);
     rows.push(["総消費", (es.whUsed/1000).toFixed(1)+" kWh / "+es.ahUsed.toFixed(1)+" Ah"]);
     rows.push(["総発電", (es.whGen/1000).toFixed(1)+" kWh"]);
-    rows.push(["ペナルティ", es.penaltySec+" 秒"]);
     rows.push(["電費", (es.whUsed/TOTAL_KM).toFixed(1)+" Wh/km"]);
   }
   body.innerHTML=rows.map(r=>`<div class="flex justify-between gap-6"><span class="text-cyan-100/60">${r[0]}</span><span>${r[1]}</span></div>`).join("");
@@ -1983,13 +2452,22 @@ const Test={
     this.retry();
   },
   /* ---- ジオメトリ ---- */
-  ribbon(pts,halfW,color,yOff){
+  /* 内側折り返し防止付きリボン: タイトコーナーでは内側幅を曲率半径でクランプ */
+  ribbon(pts,halfW,color,yOff,clampInner){
     const n=pts.length, verts=[],norms=[],idx=[];
     for(let i=0;i<=n;i++){
-      const a=pts[i%n], b=pts[(i+1)%n];
+      const im=i%n;
+      const a=pts[im], b=pts[(im+1)%n], pr=pts[(im-1+n)%n];
       const dx=b.x-a.x, dz=b.z-a.z, L=Math.hypot(dx,dz)||1;
-      const nx=-dz/L, nz=dx/L;
-      verts.push(a.x+nx*halfW,a.y+yOff,a.z+nz*halfW, a.x-nx*halfW,a.y+yOff,a.z-nz*halfW);
+      const nx=-dz/L, nz=dx/L; // 右法線
+      let offR=halfW, offL=halfW;
+      if(clampInner){
+        const h1=Math.atan2(a.x-pr.x,-(a.z-pr.z)), h2=Math.atan2(dx,-dz);
+        let dh=h2-h1; if(dh>Math.PI)dh-=2*Math.PI; if(dh<-Math.PI)dh+=2*Math.PI;
+        const c=Math.abs(dh)/L;
+        if(c>1e-4){ const lim=0.85/c; if(dh>0) offR=Math.min(offR,lim); else offL=Math.min(offL,lim); }
+      }
+      verts.push(a.x+nx*offR,a.y+yOff,a.z+nz*offR, a.x-nx*offL,a.y+yOff,a.z-nz*offL);
       norms.push(0,1,0,0,1,0);
       if(i>0){ const k=(i-1)*2; idx.push(k,k+1,k+2, k+1,k+3,k+2); }
     }
@@ -1998,6 +2476,34 @@ const Test={
     g.setAttribute("normal",new THREE.Float32BufferAttribute(norms,3));
     g.setIndex(idx);
     return new THREE.Mesh(g,new THREE.MeshLambertMaterial({color,side:THREE.DoubleSide}));
+  },
+  /* 築堤(法面): 内縁=コース高さ → 外縁=地面(y-0.1)へ滑らかに落とす */
+  embankment(pts,offIn,offOut,color){
+    const n=pts.length, grp=new THREE.Group();
+    for(const side of [1,-1]){
+      const verts=[],norms=[],idx=[]; let vi=0;
+      for(let i=0;i<=n;i++){
+        const im=i%n, a=pts[im], b=pts[(im+1)%n], pr=pts[(im-1+n)%n];
+        const dx=b.x-a.x,dz=b.z-a.z,L=Math.hypot(dx,dz)||1;
+        const nx=-dz/L,nz=dx/L;
+        let oi=offIn,oo=offOut;
+        const h1=Math.atan2(a.x-pr.x,-(a.z-pr.z)),h2=Math.atan2(dx,-dz);
+        let dh=h2-h1; if(dh>Math.PI)dh-=2*Math.PI; if(dh<-Math.PI)dh+=2*Math.PI;
+        const c=Math.abs(dh)/L;
+        if(c>1e-4 && Math.sign(dh)===side){ const r=1/c; oi=Math.min(oi,0.8*r); oo=Math.min(oo,0.9*r); }
+        verts.push(a.x+nx*side*oi, a.y-0.06, a.z+nz*side*oi,
+                   a.x+nx*side*oo, -0.1,    a.z+nz*side*oo);
+        norms.push(0,1,0, 0,1,0);
+        if(i>0){const q=vi-2;idx.push(q,q+1,q+2,q+1,q+3,q+2);}
+        vi+=2;
+      }
+      const g=new THREE.BufferGeometry();
+      g.setAttribute("position",new THREE.Float32BufferAttribute(verts,3));
+      g.setAttribute("normal",new THREE.Float32BufferAttribute(norms,3));
+      g.setIndex(idx);
+      grp.add(new THREE.Mesh(g,new THREE.MeshLambertMaterial({color,side:THREE.DoubleSide})));
+    }
+    return grp;
   },
   /* 部分ストリップ(インデックス範囲・wrap可) */
   openStrip(idxA,idxB,offL,offR,yOff,color,basic){
@@ -2059,7 +2565,8 @@ const Test={
       [140,240,13],[146,165,11],[140,130,10],         // 下りレッグ(平行・約25m西)
       [95,120,9],[10,135,8],[-80,142,7],[-140,128,6], // T7-T9 西へ
       [-192,108,5],[-222,72,4],[-232,30,3],[-224,-16,2],[-196,-46,1],[-158,-56,0], // カルーセル
-      [-110,-44,0],[-60,-18,0]];                      // 最終スイーパー
+      [-128,-40,0],[-106,-50,0],[-84,-36,0],          // S字(最終コーナー手前)
+      [-56,-18,0],[-28,-3,0],[-12,-0.8,0]];           // 最終スイーパー→以降は純直線
     const curve=new THREE.CatmullRomCurve3(cps.map(p=>new THREE.Vector3(p[0],p[2],-p[1])),true,"catmullrom",0.5);
     const pts=curve.getSpacedPoints(900); pts.pop();
     let len=0;
@@ -2076,10 +2583,11 @@ const Test={
       let dh=h2-h1; if(dh>Math.PI)dh-=2*Math.PI; if(dh<-Math.PI)dh+=2*Math.PI;
       curv[i]=dh/(Math.hypot(c.x-b.x,c.z-b.z)||1);
     }
-    // ---- 地面レイヤ: 芝 → 赤土 ----
-    this.scene.add(this.ribbon(pts,26,0x5d7c3c,-0.03));   // 芝帯
-    this.scene.add(this.ribbon(pts,7.2,0xe8e6da,-0.012)); // 外縁白線
-    this.scene.add(this.ribbon(pts,6.5,0x30333a,0));      // 舗装
+    // ---- 地面レイヤ: 芝(内側クランプ) → 築堤法面 → 赤土平原 ----
+    this.scene.add(this.ribbon(pts,14,0x5d7c3c,-0.03,true)); // 芝帯
+    this.scene.add(this.embankment(pts,14,42,0xa9835a));      // 法面(高低差を地面へ接続)
+    this.scene.add(this.ribbon(pts,7.2,0xe8e6da,-0.012));     // 外縁白線
+    this.scene.add(this.ribbon(pts,6.5,0x30333a,0));          // 舗装
     // ---- コーナー検出 & 縁石(色は3D画像準拠) ----
     const zones=[];
     let zs=-1;
@@ -2124,7 +2632,7 @@ const Test={
       }
     }
     // ---- スタートゲート ----
-    const p0=pts[0],p1=pts[4];
+    const p0=pts[0],p1=pts[14]; // 直線が落ち着いた先で方位を取る
     const h=Math.atan2(p1.x-p0.x,-(p1.z-p0.z));
     this.startHeading=h;
     const dirX=Math.sin(h), dirZ=-Math.cos(h), rnX=Math.cos(h), rnZ=Math.sin(h);
@@ -2267,7 +2775,7 @@ const Test={
     const Tamb=32;
     const Tcell=Math.max(Tamb,Tamb+0.025*sol.G-0.15*this.v*3.6);
     const tempLoss=clamp(1-PANEL_TYPES[P.panel].gamma*Math.max(0,Tcell-25),0.6,1);
-    const Psolar=P.arrayArea*P.cellEff*tempLoss*P.mpptEff*sol.G;
+    const Psolar=P.arrayArea*P.cellEff*tempLoss*P.mpptEff*sol.G*PRO.solarScale;
     es.lastSolar=Psolar; es.lastGeff=sol.G; es.lastTcell=Tcell; es.Tamb=Tamb; es.sunAlt=sol.alt;
     // 勾配・オフトラック(サーキットのみ)
     let grade=0, offTrack=false;
@@ -2280,35 +2788,37 @@ const Test={
     }
     this.grade=grade;
     // 駆動(レースと同じ電流モデル)
-    const m=massTotal(), mEff=m+8;
+    const m=massTotal(), mEff=m+PRO.mRot;
     const Froll=P.Crr*m*9.81;
-    const Fdrag=0.5*1.18*P.Cd*P.frontal*this.v*this.v;
+    const Fdrag=0.5*PRO.airRho*P.Cd*P.frontal*this.v*this.v;
     const Fslope=m*9.81*grade;
     let thr=es.throttleSet;
     if(es.brakePhys>0.05||es.brakeRegen>0.05){ thr=0; es.throttleSet=0; }
     const I_cmd=thr*P.motorMaxA;
-    const Vbus=V_NOM*(0.85+0.25*es.soc);
-    const Ftrac=Math.min(KT_F*I_cmd,(Vbus*I_cmd*0.95)/Math.max(this.v,0.8));
+    const mmT=motorModel(I_cmd,this.v,es.soc,es.powerMode);
+    const Ftrac=mmT.F;
     let Fbrake=0,Pregen=0;
-    if(es.brakePhys>0) Fbrake+=es.brakePhys*0.55*m*9.81;
+    if(es.brakePhys>0) Fbrake+=es.brakePhys*PRO.brakeMu*m*9.81;
     if(es.brakeRegen>0){ const Fr=es.brakeRegen*P.regenStrength*clamp(40+this.v*3,0,180);
-      Fbrake+=Fr; Pregen=Fr*this.v*0.30; }
+      Fbrake+=Fr; Pregen=Fr*this.v*PRO.regenEff; }
     if(offTrack&&this.v>1) Fbrake+=m*clamp(this.v*0.12,0.2,2.5);
-    this.v=Math.max(0,this.v+(Ftrac-Froll-Fdrag-Fslope-Fbrake)/mEff*dtR);
-    const Pmotor=Math.max(0,Ftrac*this.v/0.94+I_cmd*I_cmd*0.4-Pregen);
+    const FnetT=Ftrac-Froll-Fdrag-Fslope-Fbrake;
+    this.v=Math.max(0,this.v+FnetT/mEff*dtR);
+    es.gLong=(FnetT/mEff)/9.81;
+    const Pmotor=Math.max(0,mmT.Pelec-Pregen);
     es.lastAmp=I_cmd; es.lastMotorW=Pmotor;
     const Pnet=Pmotor+P.auxW-Psolar;
-    const Ibat=Pnet/Vbus;
-    es.soc=clamp(es.soc-(Ibat*dtR)/((P.batteryWh/V_NOM)*3600),0,1);
+    const Ibat=Pnet/VOC(es.soc);
+    es.soc=clamp(es.soc-(Ibat*dtR)/(CAP_AH()*3600),0,1);
     es.lastIbat=Ibat; es.lastNet=Pnet;
     if(Ibat>0) es.ahUsed+=Ibat*dtR/3600;
     es.v=this.v;
-    // 操舵(車検モードは機敏・グリップ限界あり)
+    // 操舵(車検モードは機敏)
     if(this.v>0.3){
-      let yawRate=Input.steer*clamp(7.0/Math.max(this.v,3),0.15,1.2);
-      if(Math.abs(yawRate)*this.v>7.5) yawRate=Math.sign(yawRate)*7.5/this.v;
+      const yawRate=Input.steer*clamp(8.5/Math.max(this.v,3),0.15,1.2);
       this.heading+=yawRate*dtR;
-    }
+      es.gLat=(yawRate*this.v)/9.81;
+    } else es.gLat=0;
     this.x+=Math.sin(this.heading)*this.v*dtR;
     this.z-=Math.cos(this.heading)*this.v*dtR;
     if(this.state!=="done") this.judge(dtR);
@@ -2318,6 +2828,9 @@ const Test={
     this.car.position.set(this.x,carY,this.z);
     this.car.rotation.y=-this.heading;
     this.car.rotation.x=-Math.atan(grade)*0.8;
+    if(this.car.userData.brakeMat)
+      this.car.userData.brakeMat.color.setHex((es.brakePhys>0.05||es.brakeRegen>0.05)?0xff2222:0x4a0505);
+    updateWinkers(this.car,es);
     const hCar=this.heading, cx=this.x, cy=carY, cz=this.z;
     let camPos,lookAt;
     if(View.cam===0){
@@ -2328,9 +2841,13 @@ const Test={
       camPos=new THREE.Vector3(cx-Math.sin(hCar)*1.8,cy+1.45,cz+Math.cos(hCar)*1.8);
       lookAt=new THREE.Vector3(cx+Math.sin(hCar)*40,cy+1.0,cz-Math.cos(hCar)*40);
       this.camera.position.copy(camPos);
-    } else {
+    } else if(View.cam===2){
       camPos=new THREE.Vector3(cx+Math.sin(hCar)*0.35,cy+1.18,cz-Math.cos(hCar)*0.35);
       lookAt=new THREE.Vector3(cx+Math.sin(hCar)*45,cy+0.8,cz-Math.cos(hCar)*45);
+      this.camera.position.copy(camPos);
+    } else {
+      camPos=new THREE.Vector3(cx+Math.sin(hCar)*0.3,cy+2.2,cz-Math.cos(hCar)*0.3);
+      lookAt=new THREE.Vector3(cx-Math.sin(hCar)*60,cy+1.2,cz+Math.cos(hCar)*60);
       this.camera.position.copy(camPos);
     }
     if(this.canopy) this.canopy.visible=(View.cam!==2);
@@ -2342,7 +2859,7 @@ const Test={
     document.getElementById("hud-dist").textContent=(this.v*3.6).toFixed(0)+" km/h";
     document.getElementById("hud-nextcp").textContent={circuit:"目標 2:20台",slalom:"目標 <11.5s",brake:"40km/h→14m",fig8:"9s / 18s"}[this.kind];
     document.getElementById("hud-limit").textContent="―";
-    this.updateTestHud();
+    this.updateTestHud(); drawG();
     Snd.update(this.v, es.lastAmp/Math.max(P.motorMaxA,1), false);
   },
   judge(dtR){
@@ -2488,6 +3005,7 @@ function startGame(){
     document.getElementById("event-hud").classList.add("hidden");
     document.getElementById("test-hud").classList.remove("hidden");
     Radio.log.length=0;
+    document.getElementById("touch-ui").classList.toggle("hidden", !(P.touchMode||('ontouchstart' in window)));
     Test.start(P.testKind);
     initChart();
     running=true; paused=false; lastT=performance.now();
@@ -2495,6 +3013,7 @@ function startGame(){
     return;
   }
   document.getElementById("test-hud").classList.add("hidden");
+  document.getElementById("touch-ui").classList.toggle("hidden", !(P.touchMode||('ontouchstart' in window)));
   if(P.mode==="event"){
     P.timeScale=60;
     Engine.st.hour=10.5;
@@ -2537,7 +3056,7 @@ function loop(t){
   }
   View.update(dtR);
   Snd.update(es.v, es.lastAmp/Math.max(P.motorMaxA,1), es.fire);
-  updateHUD(); drawWind();
+  updateHUD(); drawWind(); drawG();
   if(t-lastChartPush>1500){ pushChart(); drawMap(); lastChartPush=t; }
 }
 function togglePause(){
