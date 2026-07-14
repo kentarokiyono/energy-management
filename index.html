@@ -35,10 +35,19 @@
   .limit-sign { width:52px;height:52px;border-radius:50%;background:#fff;border:5px solid #dc2626;
     display:flex;align-items:center;justify-content:center;color:#111;font-weight:900;font-size:1.15rem; }
   kbd { background:#132436;border:1px solid #2c516b;border-radius:4px;padding:0 .35em;font-size:.72em; }
-  .tbtn{ background:rgba(8,20,35,.55); border:1px solid rgba(34,211,238,.5); color:#c9f3ff;
+  .tbtn{ background:rgba(8,20,35,.62); border:1px solid rgba(34,211,238,.5); color:#c9f3ff;
     border-radius:14px; padding:16px 20px; font-size:15px; font-weight:700; touch-action:none;
     user-select:none; -webkit-user-select:none; }
   .tbtn:active{ background:rgba(34,211,238,.35); }
+  /* タッチモード時は重複する下部中央パネル/左のログ/ミニマップを退避して操作領域を確保 */
+  body.touch-on #bottom-hud{ display:none; }
+  body.touch-on #radio-log{ max-height:60px; }
+  /* 縦長(スマホ)では左右情報パネルを縮小して隅へ寄せ、中央の視界と操作領域を確保 */
+  @media (max-width:640px){
+    body.touch-on #hud-left{ transform:scale(.62); transform-origin:top left; width:230px; }
+    body.touch-on #hud-right{ transform:scale(.62); transform-origin:top right; width:200px; }
+    body.touch-on #hud-top{ transform:translateX(-50%) scale(.72); transform-origin:top center; }
+  }
   #radio-pop { transition:transform .3s, opacity .3s; }
   .radio-show { transform:translateY(0)!important; opacity:1!important; }
 </style>
@@ -110,6 +119,17 @@
               <option value="300">×300 (高速検証)</option>
             </select>
           </div>
+          <div>
+            <div class="hud-label">UIモード</div>
+            <div class="flex gap-1 mt-1">
+              <button id="ui-pc" class="btn text-xs py-1 px-3" onclick="setUIMode('pc')">🖥 PC</button>
+              <button id="ui-mobile" class="btn text-xs py-1 px-3" onclick="setUIMode('mobile')">📱 モバイル</button>
+            </div>
+          </div>
+          <label class="flex items-center gap-2 text-sm border border-amber-600 rounded-lg px-3 py-2 cursor-pointer" style="background:rgba(180,83,9,.15)">
+            <input type="checkbox" id="inf-batt" onchange="P.infiniteBattery=this.checked" style="width:16px;height:16px">
+            <span class="text-amber-300 font-bold">🔋 バッテリー無限モード</span>
+          </label>
           <div class="text-xs text-cyan-100/50 max-w-xs">※信号での停止判定は ×1/×2 のときのみ有効(それ以外は演出のみ)。</div>
           <button class="btn text-lg px-10 py-3 ml-auto" onclick="startGame()">▶ スタート</button>
         </div>
@@ -122,7 +142,7 @@
       <kbd>Space</kbd> 物理ブレーキ(開度リセット) <kbd>R</kbd> 回生ブレーキ
       <kbd>A</kbd><kbd>D</kbd>/<kbd>←</kbd><kbd>→</kbd> ハンドル
       <kbd>V</kbd> カメラ(チェイス/フード/ドライバー) <kbd>G</kbd> グラフ <kbd>M</kbd> 停車メニュー <kbd>Esc</kbd> ポーズ
-      ― <label class="mr-2"><input type="checkbox" onchange="P.touchMode=this.checked"> 📱タッチ操作UI</label><button class="btn text-xs ml-1 py-1" onclick="openWheelConfig()">🎮 ハンコン割当設定</button>
+      ― <button class="btn text-xs ml-1 py-1" onclick="openWheelConfig()">🎮 ハンコン割当設定</button>
       <span id="gamepad-status" class="ml-2 text-cyan-400">未検出</span>
     </div>
   </div>
@@ -148,7 +168,7 @@
 <div id="game-container" class="fixed inset-0 hidden">
   <canvas id="three-canvas" class="absolute inset-0 w-full h-full"></canvas>
 
-  <div class="absolute top-2 left-1/2 -translate-x-1/2 flex gap-3 items-stretch">
+  <div id="hud-top" class="absolute top-2 left-1/2 -translate-x-1/2 flex gap-3 items-stretch">
     <div class="panel px-4 py-2 text-center">
       <div class="hud-label">RACE CLOCK</div>
       <div class="mono text-xl neon-text" id="hud-clock">Day1 08:30</div>
@@ -166,7 +186,7 @@
   </div>
 
   <!-- 左:エネルギー -->
-  <div class="absolute left-3 top-20 w-60 space-y-2">
+  <div id="hud-left" class="absolute left-3 top-20 w-60 space-y-2">
     <div class="panel p-3">
       <div class="flex justify-between"><span class="hud-label">BATTERY SOC</span><span class="mono text-sm" id="hud-socpct">100%</span></div>
       <div class="bar-outer h-5 mt-1"><div id="hud-socbar" class="h-full" style="width:100%;background:linear-gradient(90deg,#059669,#22d3ee)"></div></div>
@@ -198,7 +218,7 @@
   </div>
 
   <!-- 右:マップ -->
-  <div class="absolute right-3 top-20 w-52 space-y-2">
+  <div id="hud-right" class="absolute right-3 top-20 w-52 space-y-2">
     <div class="panel p-2"><canvas id="map-canvas" width="192" height="230"></canvas></div>
     <div class="panel p-2 flex items-center gap-2">
       <canvas id="g-canvas" width="84" height="84"></canvas>
@@ -216,7 +236,7 @@
   </div>
 
   <!-- 下部:速度計+スロットル -->
-  <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-end gap-4">
+  <div id="bottom-hud" class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-end gap-4">
     <div class="panel px-6 py-3 text-center">
       <div class="flex items-center gap-2">
         <span id="wl" class="text-2xl select-none" style="color:#1e3a4f">◀</span>
@@ -334,19 +354,41 @@
   </div>
 
   <!-- タッチ操作UI(スマホ/タブレット) -->
-  <div id="touch-ui" class="absolute inset-x-0 bottom-2 hidden" style="z-index:25;pointer-events:none">
-    <div class="absolute bottom-2 left-3 flex flex-col gap-2" style="pointer-events:auto">
-      <div class="flex gap-2">
-        <button class="tbtn" style="padding:8px 12px;font-size:12px" onclick="toggleSignal(-1)">⬅WK</button>
-        <button class="tbtn" style="padding:8px 12px;font-size:12px" onclick="toggleSignal(1)">WK➡</button>
+  <div id="touch-ui" class="absolute inset-0 hidden" style="z-index:26;pointer-events:none">
+    <!-- 中央下: コンパクト速度計(重複防止のため touch-ui 内に内蔵) -->
+    <div class="absolute bottom-2 left-1/2 -translate-x-1/2 panel px-4 py-1 text-center" style="pointer-events:auto">
+      <div class="flex items-center gap-1 justify-center">
+        <span id="wl2" class="text-lg" style="color:#1e3a4f">◀</span>
+        <span class="mono font-black text-3xl neon-text" id="touch-speed">0</span>
+        <span id="wr2" class="text-lg" style="color:#1e3a4f">▶</span>
       </div>
-      <div class="flex gap-3">
-        <button class="tbtn" data-tk="a">◀</button><button class="tbtn" data-tk="d">▶</button>
-      </div>
+      <div class="hud-label" id="touch-thr">スロットル 0%</div>
     </div>
-    <div class="absolute bottom-2 right-3 flex flex-col gap-2 items-end" style="pointer-events:auto">
-      <div class="flex gap-2"><button class="tbtn" data-tk="s">－</button><button class="tbtn" data-tk="w">＋スロットル</button></div>
-      <div class="flex gap-2"><button class="tbtn" data-tk="r">回生</button><button class="tbtn" data-tk=" ">ブレーキ</button></div>
+    <!-- ユーティリティ(小ボタン・右端の縦列: 他の操作系と干渉しない位置) -->
+    <div class="absolute right-1 top-1/2 -translate-y-1/2 grid grid-cols-2 gap-1" style="pointer-events:auto">
+      <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="toggleSignal(-1)">⬅</button>
+      <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="toggleSignal(1)">➡</button>
+      <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="toggleSignal(2)">⚠</button>
+      <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="View.cam=(View.cam+1)%4">📷</button>
+      <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="togglePower()">⚙</button>
+      <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="StopMenu.open(true)">🔧</button>
+      <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="document.getElementById('ask-panel').classList.toggle('hidden')">📻</button>
+    </div>
+    <!-- 左下: ステアリング -->
+    <div class="absolute bottom-2 left-2 flex gap-2" style="pointer-events:auto">
+      <button class="tbtn" data-tk="a" style="padding:18px 22px">◀</button>
+      <button class="tbtn" data-tk="d" style="padding:18px 22px">▶</button>
+    </div>
+    <!-- 右下: 縦積みで スロットル / ブレーキ -->
+    <div class="absolute bottom-2 right-2 flex flex-col gap-2 items-end" style="pointer-events:auto">
+      <div class="flex gap-2">
+        <button class="tbtn" data-tk="s" style="padding:10px 14px;font-size:13px">－</button>
+        <button class="tbtn" data-tk="w" style="padding:10px 14px;font-size:13px">＋スロ</button>
+      </div>
+      <div class="flex gap-2">
+        <button class="tbtn" data-tk="r" style="padding:10px 14px;font-size:13px">回生</button>
+        <button class="tbtn" data-tk=" " style="padding:14px 16px;font-size:13px">ブレーキ</button>
+      </div>
     </div>
   </div>
 
@@ -477,13 +519,15 @@ const P = {
   arrayArea:4.0, cellEff:0.24, mpptEff:0.98,
   batteryWh:3027, Cd:0.12, frontal:1.00,
   massDry:190, massDriver:68, Crr:0.004,
-  motorMaxA:30, regenStrength:0.5, auxW:35,
-  timeScale:60, touchMode:false,
+  motorMaxA:48, regenStrength:0.5, auxW:35,
+  timeScale:60, infiniteBattery:false,
+  uiMode:('ontouchstart' in window)?"mobile":"pc", // PC/モバイルは明示的に分離(初期値は自動判定)
 };
 /* 🔧 プロフェッショナル設定 ― 実測値に合わせて全パラメータ調整可 */
 const PRO={
   startSoc:1.0, vFull:107.5, vEmpty:75.0,
   kt:4.3, noLoadRpm:900, ktPower:3.35, rpmPower:1060, tireR:0.26,
+  stallBoost:2.0, stallBoostV:5, // 発進時トルク倍率(直結DDモーターの高ストールトルク) / 効き終わる速度[m/s]
   mRot:8, brakeMu:0.55, regenEff:0.30, airRho:1.18,
   tempOffset:0, windBase:6, solarScale:1.0, cloudFactor:1.0, dayOfYear:236,
   aiCount:20, aiSpdMin:58, aiSpdMax:103, aiRetire:0.5,
@@ -500,8 +544,9 @@ function motorModel(I,v,soc,power){
   const noLoad=power?PRO.rpmPower:PRO.noLoadRpm; // POWER: 無負荷回転数増=最高速増
   const vMax=noLoad*(Vb/96)/60*2*Math.PI*PRO.tireR;
   const eff=clamp((power?0.955:0.97)-0.72/Math.max(I,0.5),0.3,0.97);
-  let F=kt*I;
-  const Pcap=Vb*I*0.97;
+  const boost=1+(PRO.stallBoost-1)*clamp((PRO.stallBoostV-v)/PRO.stallBoostV,0,1); // 発進トルク・ブースト
+  let F=kt*I*boost;
+  const Pcap=Vb*I*0.97*PRO.stallBoost;           // ブースト中は投入電力上限も引き上げ
   if(v>0.5 && F*v/eff>Pcap) F=Pcap*eff/v;        // 出力一定領域
   if(v>vMax*0.97) F*=clamp((vMax-v)/(vMax*0.03),0,1);
   const Pelec=(v>0.5)? F*v/eff+I*I*0.12 : I*I*0.5;
@@ -525,7 +570,7 @@ const SLIDERS = [
   { id:"massDry",    label:"車体乾燥重量",     min:100, max:400, step:5, unit:"kg" },
   { id:"massDriver", label:"ドライバー体重",   min:40, max:120, step:1, unit:"kg" },
   { id:"Crr",        label:"転がり抵抗係数 Crr", min:0.0015, max:0.015, step:0.0005, unit:"" },
-  { id:"motorMaxA",  label:"モーター最大電流", min:10, max:80, step:1, unit:"A" },
+  { id:"motorMaxA",  label:"モーター最大電流", min:10, max:150, step:1, unit:"A" },
   { id:"regenStrength", label:"回生強度",      min:0, max:1, step:0.05, unit:"", pct:true },
   { id:"mpptEff",    label:"MPPT効率",        min:0.90, max:0.995, step:0.005, unit:"", pct:true },
   { id:"auxW",       label:"補機消費電力",     min:10, max:150, step:5, unit:"W" },
@@ -1015,7 +1060,8 @@ const Engine = {
     const Vbus=VOC(s.soc);
     const Ibat=Pnet/Vbus;
     const capAh=CAP_AH();
-    s.soc=clamp(s.soc-(Ibat*dtS)/(capAh*3600),0,1);
+    if(P.infiniteBattery) s.soc=clamp(PRO.startSoc,0.5,1); // 無限モード: 消費してもSOC維持
+    else s.soc=clamp(s.soc-(Ibat*dtS)/(capAh*3600),0,1);
     s.lastIbat=Ibat; s.lastNet=Pnet;
     if(Ibat>0) s.ahUsed+=Ibat*dtS/3600;
     if(Pnet>0) s.whUsed+=Pnet*dtS/3600;
@@ -1139,7 +1185,7 @@ const Engine = {
       const abs=(s.day-1)*24+s.hour;
       s.absHourAtPA=abs;
       if(abs > 4*24+11){ s.trailered=true; showResult(); }
-      else Radio.push("Port Augusta 11:00通過!あとはアデレードに向かうだけです!");
+      else Radio.push("Port Augusta 11:00デッドライン通過!ソーラーフィニッシュ確定です!");
     }
   },
   enterCamp(){
@@ -1300,8 +1346,29 @@ function updateWinkers(carGroup,es){
   if(es.signal!==0){
     if(on!==_winkPhase){ _winkPhase=on; if(on) Snd.blip(1350,0.025,"square",0.05); } // リレー音
   } else _winkPhase=null;
+  const lc=(L&&on)?"#34d399":"#1e3a4f", rc=(R&&on)?"#34d399":"#1e3a4f";
   const wl=document.getElementById("wl"), wr=document.getElementById("wr");
-  if(wl){ wl.style.color=(L&&on)?"#34d399":"#1e3a4f"; wr.style.color=(R&&on)?"#34d399":"#1e3a4f"; }
+  if(wl){ wl.style.color=lc; wr.style.color=rc; }
+  const wl2=document.getElementById("wl2"), wr2=document.getElementById("wr2");
+  if(wl2){ wl2.style.color=lc; wr2.style.color=rc; }
+}
+function applyTouchMode(){
+  const on=(P.uiMode==="mobile");
+  document.getElementById("touch-ui").classList.toggle("hidden",!on);
+  document.body.classList.toggle("touch-on",on);
+}
+function setUIMode(m){
+  P.uiMode=m;
+  refreshUIModeBtns();
+  if(running) applyTouchMode(); // プレイ中でも即時切替
+}
+function refreshUIModeBtns(){
+  const pc=document.getElementById("ui-pc"), mb=document.getElementById("ui-mobile");
+  if(!pc) return;
+  pc.style.boxShadow=P.uiMode==="pc"?"0 0 12px rgba(34,211,238,.8)":"";
+  pc.style.borderColor=P.uiMode==="pc"?"#22d3ee":"#164e63";
+  mb.style.boxShadow=P.uiMode==="mobile"?"0 0 12px rgba(52,211,153,.8)":"";
+  mb.style.borderColor=P.uiMode==="mobile"?"#34d399":"#164e63";
 }
 function togglePower(){
   const s=Engine.st; if(!s) return;
@@ -1568,15 +1635,16 @@ const View={
       g.userData.canopy=canopy;
       mkWheelFair(-0.62,1.2); mkWheelFair(0.62,1.2); mkWheelFair(0,-1.35);
     }
-    // 常時点灯デイライト(DRL) + ブレーキランプ
+    // 常時点灯デイライト(DRL): 薄型ストリップをノーズ前面に埋め込み(面一)
     const drlMat=new THREE.MeshBasicMaterial({color:0xffffff});
-    for(const sx of [-0.30,0.30]){
-      const dl=new THREE.Mesh(new THREE.BoxGeometry(0.20,0.08,0.10),drlMat);
-      dl.position.set(sx,0.74,-2.05); body.add(dl); // ノーズ上縁(常時点灯)
+    for(const sx of [-0.28,0.28]){
+      const dl=new THREE.Mesh(new THREE.BoxGeometry(0.20,0.045,0.05),drlMat);
+      dl.position.set(sx,0.52,-2.10); body.add(dl); // ノーズ前面に半埋め込み
     }
+    // ブレーキランプ: 薄型ストリップをテール後面に埋め込み(面一)
     const brakeMat=new THREE.MeshBasicMaterial({color:0x4a0505});
-    const bl=new THREE.Mesh(new THREE.BoxGeometry(0.8,0.09,0.10),brakeMat);
-    bl.position.set(0,0.74,2.25); body.add(bl); // テール上縁
+    const bl=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.05,0.05),brakeMat);
+    bl.position.set(0,0.53,2.18); body.add(bl); // テール後面に半埋め込み
     g.userData.brakeMat=brakeMat;
     // ウィンカー(前後左右4灯・アンバー): 細いストリップを船体側面に埋め込み(面一)
     g.userData.winkL=[]; g.userData.winkR=[];
@@ -2253,6 +2321,8 @@ function initChart(){
       {label:"SOC %",data:[],borderColor:"#22d3ee",yAxisID:"y",pointRadius:0,borderWidth:2},
       {label:"発電 W",data:[],borderColor:"#fbbf24",yAxisID:"y1",pointRadius:0,borderWidth:1.5},
       {label:"速度 km/h",data:[],borderColor:"#34d399",yAxisID:"y",pointRadius:0,borderWidth:1.5},
+      {label:"モーター電流 A",data:[],borderColor:"#fb923c",yAxisID:"y",pointRadius:0,borderWidth:1.5},
+      {label:"消費 W",data:[],borderColor:"#f87171",yAxisID:"y1",pointRadius:0,borderWidth:1.5},
     ]},
     options:{responsive:true,maintainAspectRatio:false,animation:false,
       scales:{
@@ -2271,6 +2341,8 @@ function pushChart(){
   chart.data.datasets[0].data.push(es.soc*100);
   chart.data.datasets[1].data.push(es.lastSolar);
   chart.data.datasets[2].data.push(es.v*3.6);
+  chart.data.datasets[3].data.push(es.lastAmp);
+  chart.data.datasets[4].data.push(es.lastMotorW+(es.disconnected?0:P.auxW));
   if(chart.data.labels.length>400){ chart.data.labels.shift(); chart.data.datasets.forEach(d=>d.data.shift()); }
   chart.update("none");
 }
@@ -2295,12 +2367,17 @@ function updateHUD(){
   } else ccEl.textContent="";
   document.getElementById("hud-limit").textContent=speedLimitAt(es.km);
   document.getElementById("hud-speed").textContent=Math.round(es.v*3.6);
+  const tsp=document.getElementById("touch-speed");
+  if(tsp&&!document.getElementById("touch-ui").classList.contains("hidden")){
+    tsp.textContent=Math.round(es.v*3.6);
+    document.getElementById("touch-thr").textContent=`スロットル ${Math.round(es.throttleSet*100)}%`;
+  }
   const socP=es.soc*100;
   document.getElementById("hud-socpct").textContent=socP.toFixed(1)+"%";
   const sb=document.getElementById("hud-socbar");
   sb.style.width=socP+"%";
   sb.style.background= socP>40?"linear-gradient(90deg,#059669,#22d3ee)": socP>15?"linear-gradient(90deg,#d97706,#fbbf24)":"linear-gradient(90deg,#b91c1c,#ef4444)";
-  document.getElementById("hud-wh").textContent=(es.soc*P.batteryWh).toFixed(0)+" Wh";
+  document.getElementById("hud-wh").textContent= P.infiniteBattery?"∞ Wh":(es.soc*P.batteryWh).toFixed(0)+" Wh";
   document.getElementById("hud-bms").textContent= es.disconnected?"🔌結線OFF": (es.bmsOn&&es.soc<=0.05)?"⚠BMS出力制限":"";
   document.getElementById("hud-volt").textContent=VOC(es.soc).toFixed(1)+" V";
   const bb=document.getElementById("bms-btn");
@@ -2809,7 +2886,8 @@ const Test={
     es.lastAmp=I_cmd; es.lastMotorW=Pmotor;
     const Pnet=Pmotor+P.auxW-Psolar;
     const Ibat=Pnet/VOC(es.soc);
-    es.soc=clamp(es.soc-(Ibat*dtR)/(CAP_AH()*3600),0,1);
+    if(P.infiniteBattery) es.soc=clamp(PRO.startSoc,0.5,1);
+    else es.soc=clamp(es.soc-(Ibat*dtR)/(CAP_AH()*3600),0,1);
     es.lastIbat=Ibat; es.lastNet=Pnet;
     if(Ibat>0) es.ahUsed+=Ibat*dtR/3600;
     es.v=this.v;
@@ -3005,7 +3083,7 @@ function startGame(){
     document.getElementById("event-hud").classList.add("hidden");
     document.getElementById("test-hud").classList.remove("hidden");
     Radio.log.length=0;
-    document.getElementById("touch-ui").classList.toggle("hidden", !(P.touchMode||('ontouchstart' in window)));
+    applyTouchMode();
     Test.start(P.testKind);
     initChart();
     running=true; paused=false; lastT=performance.now();
@@ -3013,7 +3091,7 @@ function startGame(){
     return;
   }
   document.getElementById("test-hud").classList.add("hidden");
-  document.getElementById("touch-ui").classList.toggle("hidden", !(P.touchMode||('ontouchstart' in window)));
+  applyTouchMode();
   if(P.mode==="event"){
     P.timeScale=60;
     Engine.st.hour=10.5;
@@ -3076,6 +3154,7 @@ function quitToMenu(){
 
 /* ---------------- 起動 ---------------- */
 buildSetupUI();
+refreshUIModeBtns();
 setInterval(pollGamepad,800);
 addEventListener("gamepadconnected",e=>toast("🎮 コントローラー接続: "+e.gamepad.id.slice(0,40),"#34d399"));
 </script>
