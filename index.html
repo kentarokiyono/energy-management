@@ -284,8 +284,9 @@
     </div>
   </div>
 
-  <div id="chart-panel" class="absolute bottom-4 right-3 panel p-2 hidden" style="width:420px;height:200px">
-    <canvas id="history-chart"></canvas>
+  <div id="chart-panel" class="absolute bottom-4 right-3 panel p-2 hidden" style="width:420px;height:212px">
+    <div class="hud-label text-right pr-1">表示: <span id="chart-mode-label" class="text-amber-300">SOC / 発電 / 速度</span> <span class="text-cyan-100/40">(Gで切替)</span></div>
+    <canvas id="history-chart" style="height:190px"></canvas>
   </div>
 
   <div id="toast" class="absolute top-1/4 left-1/2 -translate-x-1/2 panel px-6 py-3 text-lg font-bold text-center opacity-0 pointer-events-none z-30" style="min-width:300px"></div>
@@ -532,6 +533,7 @@ const PRO={
   tempOffset:0, windBase:6, solarScale:1.0, cloudFactor:1.0, dayOfYear:236,
   aiCount:20, aiSpdMin:58, aiSpdMax:103, aiRetire:0.5,
   trainPerHour:3.5, faultScale:1.0, gridRisk:1.0,
+  noSpeedCap:0, // 1で最高速リミッター解除(逆起電力・出力一定制限を無視してトルク一定)
 };
 const V_NOM=91; // 公称電圧(容量換算表示用)
 const VOC=soc=>PRO.vEmpty+(PRO.vFull-PRO.vEmpty)*soc; // LiPo実特性
@@ -546,9 +548,11 @@ function motorModel(I,v,soc,power){
   const eff=clamp((power?0.955:0.97)-0.72/Math.max(I,0.5),0.3,0.97);
   const boost=1+(PRO.stallBoost-1)*clamp((PRO.stallBoostV-v)/PRO.stallBoostV,0,1); // 発進トルク・ブースト
   let F=kt*I*boost;
-  const Pcap=Vb*I*0.97*PRO.stallBoost;           // ブースト中は投入電力上限も引き上げ
-  if(v>0.5 && F*v/eff>Pcap) F=Pcap*eff/v;        // 出力一定領域
-  if(v>vMax*0.97) F*=clamp((vMax-v)/(vMax*0.03),0,1);
+  if(!PRO.noSpeedCap){ // 通常: 出力一定領域 + 逆起電力による最高速リミット
+    const Pcap=Vb*I*0.97*PRO.stallBoost;         // ブースト中は投入電力上限も引き上げ
+    if(v>0.5 && F*v/eff>Pcap) F=Pcap*eff/v;      // 出力一定領域
+    if(v>vMax*0.97) F*=clamp((vMax-v)/(vMax*0.03),0,1);
+  }
   const Pelec=(v>0.5)? F*v/eff+I*I*0.12 : I*I*0.5;
   return {F,Pelec,Vb,eff,vMax};
 }
@@ -629,7 +633,10 @@ function buildProUI(){
     `<label class="flex justify-between items-center gap-1"><span class="text-cyan-100/60">${label}</span>
      <input type="number" step="${step}" value="${PRO[k]}" data-pro="${k}"
       class="bg-slate-900 border border-cyan-900 rounded px-1 py-0.5 w-20 text-right mono"
-      onchange="PRO[this.dataset.pro]=parseFloat(this.value)"></label>`).join("");
+      onchange="PRO[this.dataset.pro]=parseFloat(this.value)"></label>`).join("")
+    + `<label class="flex items-center gap-2 col-span-2 md:col-span-4 text-amber-300 mt-1">
+        <input type="checkbox" ${PRO.noSpeedCap?"checked":""} onchange="PRO.noSpeedCap=this.checked?1:0" style="width:15px;height:15px">
+        🚀 最高速リミッター解除(逆起電力・出力一定制限を無視 ― 非現実的な伸び)</label>`;
 }
 function refreshSliderLabel(id){
   const s=SLIDERS.find(x=>x.id===id);
@@ -1427,7 +1434,7 @@ addEventListener("keydown",e=>{
   if(e.key===" ") e.preventDefault();
   if(e.key==="Escape") togglePause();
   if(e.key.toLowerCase()==="v") View.cam=(View.cam+1)%4;
-  if(e.key.toLowerCase()==="g") document.getElementById("chart-panel").classList.toggle("hidden");
+  if(e.key.toLowerCase()==="g") cycleChart();
   if(e.key.toLowerCase()==="m") StopMenu.open(true);
   if(e.key.toLowerCase()==="p"&&Engine.st&&running) togglePower();
   if(e.key.toLowerCase()==="z") toggleSignal(-1);
@@ -2321,8 +2328,8 @@ function initChart(){
       {label:"SOC %",data:[],borderColor:"#22d3ee",yAxisID:"y",pointRadius:0,borderWidth:2},
       {label:"発電 W",data:[],borderColor:"#fbbf24",yAxisID:"y1",pointRadius:0,borderWidth:1.5},
       {label:"速度 km/h",data:[],borderColor:"#34d399",yAxisID:"y",pointRadius:0,borderWidth:1.5},
-      {label:"モーター電流 A",data:[],borderColor:"#fb923c",yAxisID:"y",pointRadius:0,borderWidth:1.5},
-      {label:"消費 W",data:[],borderColor:"#f87171",yAxisID:"y1",pointRadius:0,borderWidth:1.5},
+      {label:"モーター電流 A",data:[],borderColor:"#fb923c",yAxisID:"y",pointRadius:0,borderWidth:1.5,hidden:true},
+      {label:"消費 W",data:[],borderColor:"#f87171",yAxisID:"y1",pointRadius:0,borderWidth:1.5,hidden:true},
     ]},
     options:{responsive:true,maintainAspectRatio:false,animation:false,
       scales:{
@@ -2333,6 +2340,23 @@ function initChart(){
       plugins:{legend:{labels:{color:"#9fd8e8",boxWidth:12,font:{size:10}}}},
     }
   });
+}
+/* Gキーで巡回: 0=非表示 → 1=「SOC/発電/速度」 → 2=「モーター電流/消費」 → 0 */
+let chartMode=0;
+function cycleChart(){
+  chartMode=(chartMode+1)%3;
+  document.getElementById("chart-panel").classList.toggle("hidden",chartMode===0);
+  if(chart){
+    const setA=(chartMode===1); // SOC/発電/速度
+    chart.data.datasets[0].hidden=!setA; // SOC
+    chart.data.datasets[1].hidden=!setA; // 発電
+    chart.data.datasets[2].hidden=!setA; // 速度
+    chart.data.datasets[3].hidden=setA;  // モーター電流
+    chart.data.datasets[4].hidden=setA;  // 消費
+    chart.update("none");
+  }
+  const lbl=document.getElementById("chart-mode-label");
+  if(lbl) lbl.textContent= chartMode===1?"SOC / 発電 / 速度":chartMode===2?"モーター電流 / 消費":"";
 }
 function pushChart(){
   const es=Engine.st;
@@ -2499,7 +2523,7 @@ const Test={
   x:0,z:0,heading:0,v:0, t:0, tSide:0,
   laps:[], best:null, progress:0, lastIdx:0, prevLapIdx:undefined, trackPts:null, trackN:0,
   cones:[], coneHit:false, brakeEntry:null, brakeDist:null,
-  f8:{accA:0,accB:0,prevA:null,prevB:null,moved:0,sides:[],done:[]},
+  f8:{accA:0,accB:0,prevA:null,prevB:null,moved:0,sides:[],done:[],count:0,best8:null},
   startHeading:0, grade:0,
   start(kind){
     this.kind=kind; this.active=true;
@@ -2629,21 +2653,24 @@ const Test={
     return new THREE.Mesh(g,new THREE.MeshLambertMaterial({color,side:THREE.DoubleSide}));
   },
   buildCircuit(){
-    /* Hidden Valley Raceway ― 衛星/3D画像準拠 v2
-       ・T1: 広いRの180°折り返し ・北辺: 流れるS字
-       ・フィッシュフック: 狭い芝分離帯を挟む平行レッグ+タイト180°
-       ・西端: 大カルーセル ・最終: 赤/黄縁石のスイーパーでストレートへ */
+    /* Hidden Valley Raceway ― 公式レイアウト図(T1〜T14)準拠 v3
+       メインストレート(S/F中央) → T1広角180°ヘアピン → T2-4エス →
+       T5-6-7 北へ突き出すスパイク(峠) → T8-9スイーパー →
+       T10-11 西端ヘアピン → T12-13 南ループ → T14 最終スイーパーでストレート復帰 */
+    // 公式レイアウト図をトレース(画像px → X=px/4, UP=(720-py)/4)。総延長は後段で2.87kmへ自動スケール
     const cps=[
-      [0,0,0],[440,0,1],                              // メインストレート
-      [500,6,2],[528,42,3],[520,86,4],[478,106,4],    // T1 ワイドヘアピン
-      [400,104,5],[330,126,6],[255,118,7],[205,132,8],// T2-T4 S字
-      [172,150,9],[168,225,12],[162,295,14],          // フィッシュフック上りレッグ
-      [150,322,15],[133,318,15],                      // 先端タイト180°
-      [140,240,13],[146,165,11],[140,130,10],         // 下りレッグ(平行・約25m西)
-      [95,120,9],[10,135,8],[-80,142,7],[-140,128,6], // T7-T9 西へ
-      [-192,108,5],[-222,72,4],[-232,30,3],[-224,-16,2],[-196,-46,1],[-158,-56,0], // カルーセル
-      [-128,-40,0],[-106,-50,0],[-84,-36,0],          // S字(最終コーナー手前)
-      [-56,-18,0],[-28,-3,0],[-12,-0.8,0]];           // 最終スイーパー→以降は純直線
+      [150,82,2],                                       // S/F(ホームストレート中央)
+      [287,150,4],                                      // ストレート → T1進入
+      [315,161,5],[331,180,6],[318,197,6],[291,195,5],[266,180,5], // T1 緩やかな180°(半径大)
+      [244,160,6],[224,140,6],[201,130,6],              // T2-T4 エス(西へ下る)
+      [178,120,7],                                      // T5 進入
+      [158,134,9],[144,160,12],[137,184,14],            // 右レッグ(上り)
+      [134,197,15],[124,200,15],[114,196,15],           // T6 U字の丸い頂点(くびれなし・最高点15m)
+      [112,182,14],[111,154,12],[112,128,10],[111,115,10], // 左レッグ(下り)→ T7
+      [100,109,9],[84,104,8],[69,104,8],[54,108,8],     // T8-T9 スイーパー
+      [38,100,7],[24,85,6],[15,72,5],[14,60,4],         // T10-T11 西端ヘアピン
+      [17,48,3],[24,38,2],                              // T12-T13 南へ下る
+      [40,33,1],[64,40,1]];                             // T14 最終コーナー(滑らかにホームストレートへ)
     const curve=new THREE.CatmullRomCurve3(cps.map(p=>new THREE.Vector3(p[0],p[2],-p[1])),true,"catmullrom",0.5);
     const pts=curve.getSpacedPoints(900); pts.pop();
     let len=0;
@@ -2726,17 +2753,16 @@ const Test={
     const addBox=(w,hh,d,color,alongM,latM,rotExtra=0)=>{
       const bx=new THREE.Mesh(new THREE.BoxGeometry(w,hh,d),new THREE.MeshLambertMaterial({color}));
       bx.position.copy(at(alongM,latM,hh/2)); bx.rotation.y=-h+rotExtra; this.scene.add(bx); return bx; };
-    // ドラッグ路面(濃色)・戻り路 ― ストレートの外側(南)に並行
-    const drag=new THREE.Mesh(new THREE.BoxGeometry(20,0.04,860),new THREE.MeshLambertMaterial({color:0x232529}));
+    // ドラッグ路面・戻り路 ― ストレートの外側(南)に並行(黒に見えないようアスファルト灰)
+    const drag=new THREE.Mesh(new THREE.BoxGeometry(20,0.04,860),new THREE.MeshLambertMaterial({color:0x4a4d54}));
     drag.position.copy(at(400,26,0)); drag.rotation.y=-h; this.scene.add(drag);
-    const ret=new THREE.Mesh(new THREE.BoxGeometry(8,0.035,860),new THREE.MeshLambertMaterial({color:0x3a3d42}));
+    const ret=new THREE.Mesh(new THREE.BoxGeometry(8,0.035,860),new THREE.MeshLambertMaterial({color:0x565961}));
     ret.position.copy(at(400,44,0)); ret.rotation.y=-h; this.scene.add(ret);
     // 青いローンチパッド+スタート小屋
     addBox(16,0.06,26,0x2557b8,55,26);
     addBox(3,3.4,3,0xcfd4d9,35,13);
-    // 黒い長スタンド壁(VISIT NT バナー風)
-    addBox(240,3,2,0x1c1e22,320,52);
-    for(let k=0;k<6;k++) addBox(28,1.2,0.4,0xe8e5dc,220+k*40,51.2);
+    // スタンドのバナー(白帯・淡色フェンス。以前の黒壁は撤去)
+    for(let k=0;k<6;k++) addBox(28,1.4,0.4,0xe8e5dc,220+k*40,52);
     // 観客席・ピット建屋・管制塔(ドラッグの先・東側)
     addBox(60,6,10,0x8a8f96,260,66);       // グランドスタンド
     addBox(34,4,12,0xe8e5dc,340,68);       // ピットガレージ
@@ -2746,31 +2772,23 @@ const Test={
     // パドック(白線区画の広場)
     const pad=new THREE.Mesh(new THREE.BoxGeometry(70,0.03,180),new THREE.MeshLambertMaterial({color:0xb9b3a4}));
     pad.position.copy(at(180,95,0)); pad.rotation.y=-h; this.scene.add(pad);
-    // ---- フィッシュフック中央分離帯のタイヤバンドル ----
-    for(let zPos=150;zPos<=300;zPos+=25){
-      const b=new THREE.Mesh(new THREE.BoxGeometry(2.6,0.9,1.3),
-        new THREE.MeshLambertMaterial({color:(zPos/25)%2?0x2557b8:0xf97316}));
-      b.position.set(154*sc,0.45+13,-zPos*sc); // 標高手動補正(フック部 ~13m)
-      this.scene.add(b);
+    // ---- タイヤバンドル: タイトなコーナー外側に沿って配置(青/オレンジ) ----
+    const tightZones=zones.filter(([a,b])=>{ let mc=0; for(let i=a;i<=b;i++) mc=Math.max(mc,Math.abs(curv[i%n])); return mc>1/55; });
+    for(const [a,b] of tightZones){
+      const side=Math.sign((()=>{let s=0;for(let i=a;i<=b;i++)s+=curv[i%n];return s;})())||1;
+      const cnt=((b-a)%n+n)%n;
+      let bi=0;
+      for(let k=0;k<cnt;k+=4){
+        const p=pts[(a+k)%n], q=pts[(a+k+1)%n];
+        const dx=q.x-p.x,dz=q.z-p.z,L=Math.hypot(dx,dz)||1, nx=-dz/L,nz=dx/L;
+        const bnd=new THREE.Mesh(new THREE.BoxGeometry(2.6,0.9,1.3),
+          new THREE.MeshLambertMaterial({color:(bi++%2)?0x2557b8:0xf97316}));
+        bnd.position.set(p.x-nx*side*10, p.y+0.45, p.z-nz*side*10);
+        bnd.rotation.y=-Math.atan2(dx,-dz);
+        this.scene.add(bnd);
+      }
     }
-    // 最終コーナー内側のタイヤバンドル
-    for(const [ax,az] of [[-52,-26],[-44,-30]]){
-      const b=new THREE.Mesh(new THREE.BoxGeometry(2.6,0.9,1.3),
-        new THREE.MeshLambertMaterial({color:0x2557b8}));
-      b.position.set(ax*sc,0.45,-az*sc); this.scene.add(b);
-    }
-    // ---- 樹木(外周に散布) ----
-    const treeMat=new THREE.MeshLambertMaterial({color:0x4a6b30});
-    for(let k=0;k<70;k++){
-      const i=Math.floor(Math.random()*n);
-      const a=pts[i],b=pts[(i+1)%n];
-      const dx=b.x-a.x,dz=b.z-a.z,L=Math.hypot(dx,dz)||1;
-      const nx=-dz/L,nz=dx/L;
-      const off=(Math.random()<0.5?-1:1)*(38+Math.random()*110);
-      const t=new THREE.Mesh(new THREE.ConeGeometry(2+Math.random()*2,6+Math.random()*5,7),treeMat);
-      t.position.set(a.x+nx*off,a.y*0.5+3,a.z+nz*off);
-      this.scene.add(t);
-    }
+    // (樹木はコース上に被るため撤去)
   },
   buildStrip(){
     // ドラッグエリア: 直線舗装 + スラローム/制動マーキング
@@ -2816,7 +2834,7 @@ const Test={
     es.throttleSet=0; es.brakePhys=0; es.brakeRegen=0;
     this.v=0; this.t=0; this.tSide=0; this.state="ready"; this.progress=0; this.prevLapIdx=undefined;
     this.coneHit=false; this.brakeEntry=null; this.brakeDist=null;
-    this.f8={accA:0,accB:0,prevA:null,prevB:null,moved:0,sides:[],done:[]};
+    this.f8={accA:0,accB:0,prevA:null,prevB:null,moved:0,sides:[],done:[],count:0,best8:null};
     if(this.kind==="circuit"){
       const p=this.trackPts[0];
       this.x=p.x; this.z=p.z; this.heading=this.startHeading; this.lastIdx=0;
@@ -3022,19 +3040,20 @@ const Test={
         return;
       }
       const doneSide=(which)=>{
-        f.sides.push(this.tSide); f.done.push(which);
-        toast(`${which} 完了: ${this.tSide.toFixed(2)}秒`,"#34d399"); Snd.chime();
+        const sideT=this.tSide;
+        f.sides.push(sideT); f.done.push(which);
         f.accA=0; f.accB=0; this.tSide=0;
-        if(f.done.length>=2){
-          this.state="done";
-          const s1=f.sides[0],s2=f.sides[1],tot=s1+s2;
-          const fig8OK=f.done[0]!==f.done[1];
-          const pass=fig8OK&&s1<9&&s2<9&&tot<18;
-          this.finish(pass?"✅ 合格":"❌ 不合格",[
-            ["1周目("+f.done[0]+")",s1.toFixed(2)+" 秒 (規定 9秒未満)"],
-            ["2周目("+f.done[1]+")",s2.toFixed(2)+" 秒 (規定 9秒未満)"],
-            ["合計",tot.toFixed(2)+" 秒 (規定 18秒未満)"],
-            ["経路",fig8OK?"8の字 OK":"同じ円を2周(無効)"]],pass);
+        // 直前の周と逆回りなら「8の字1本」成立 → 合否判定・ベスト更新(周回は継続)
+        const n=f.done.length;
+        if(n>=2 && f.done[n-1]!==f.done[n-2]){
+          const s1=f.sides[n-2], s2=f.sides[n-1], tot=s1+s2;
+          const ok=s1<9&&s2<9&&tot<18;
+          f.count=(f.count||0)+1;
+          if(ok && (!f.best8||tot<f.best8)) f.best8=tot;
+          toast(`${which} ${sideT.toFixed(2)}s ― 8の字#${f.count} 計${tot.toFixed(2)}s ${ok?"✅":"❌"}`, ok?"#34d399":"#f59e0b");
+          Snd.chime();
+        } else {
+          toast(`${which} 完了: ${sideT.toFixed(2)}秒`,"#34d399"); Snd.chime();
         }
       };
       if(Math.abs(f.accA)>=2*Math.PI) doneSide("左円");
@@ -3055,8 +3074,10 @@ const Test={
       tm.textContent=this.state==="run"?fmtLap(this.t):"READY";
       sub.textContent=`LAP ${this.laps.length+1} ― BEST ${this.best?fmtLap(this.best):"―"}${this.best?` / 推定グリッド P${clamp(Math.round(1+(this.best-141)/3),1,40)}`:""}`;
     } else if(this.kind==="fig8"){
-      tm.textContent=this.t.toFixed(2);
-      sub.textContent=`今の円: ${this.tSide.toFixed(2)}s ${this.f8.sides.map((s,i)=>`| ${i+1}周目 ${s.toFixed(2)}s`).join(" ")||"| 発進で計測開始"}`;
+      const f=this.f8;
+      tm.textContent=this.tSide.toFixed(2);
+      const recent=f.sides.slice(-2).map(s=>s.toFixed(2)+"s").join(" / ");
+      sub.textContent=`現在の円 ${this.tSide.toFixed(2)}s ― 8の字${f.count||0}本 / ベスト計${f.best8?f.best8.toFixed(2)+"s":"―"} ${recent?"("+recent+")":"| 発進で計測開始"}`;
     } else if(this.kind==="brake"){
       tm.textContent=this.state==="run"?this.x.toFixed(1)+" m":(this.v*3.6).toFixed(0)+" km/h";
       sub.textContent=this.state==="run"?"制動距離":"進入速度(40km/h以上で白線へ)";
