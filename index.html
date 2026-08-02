@@ -50,6 +50,11 @@
   }
   #radio-pop { transition:transform .3s, opacity .3s; }
   .radio-show { transform:translateY(0)!important; opacity:1!important; }
+  /* スマホ縦画面: 横画面推奨オーバーレイ(タッチ端末かつ縦のときのみ) */
+  #rotate-hint{ display:none; }
+  @media (orientation:portrait) and (max-width:820px){
+    body.touch-on #rotate-hint{ display:flex; }
+  }
 </style>
 </head>
 <body>
@@ -167,6 +172,13 @@
 <!-- ============================ ゲーム画面 ============================ -->
 <div id="game-container" class="fixed inset-0 hidden">
   <canvas id="three-canvas" class="absolute inset-0 w-full h-full"></canvas>
+
+  <!-- スマホ縦画面: 横画面推奨 -->
+  <div id="rotate-hint" class="fixed inset-0 z-50 flex-col items-center justify-center text-center px-8" style="background:#05070d">
+    <div class="text-6xl mb-4" style="animation:none">📱↻</div>
+    <div class="text-xl font-bold neon-text mb-2">横画面でプレイしてください</div>
+    <div class="text-sm text-cyan-100/60">端末を横向きにすると操作系とHUDが最適に表示されます。</div>
+  </div>
 
   <div id="hud-top" class="absolute top-2 left-1/2 -translate-x-1/2 flex gap-3 items-stretch">
     <div class="panel px-4 py-2 text-center">
@@ -529,7 +541,7 @@ const PRO={
   startSoc:1.0, vFull:107.5, vEmpty:75.0,
   kt:4.3, noLoadRpm:900, ktPower:3.35, rpmPower:1060, tireR:0.26,
   stallBoost:2.0, stallBoostV:5, // 発進時トルク倍率(直結DDモーターの高ストールトルク) / 効き終わる速度[m/s]
-  mRot:8, brakeMu:0.55, regenEff:0.30, airRho:1.18,
+  mRot:8, brakeMu:0.55, regenEff:0.30, airRho:1.18, rInternal:0.18, // 内部抵抗Ω(電圧降下)
   tempOffset:0, windBase:6, solarScale:1.0, cloudFactor:1.0, dayOfYear:236,
   aiCount:20, aiSpdMin:58, aiSpdMax:103, aiRetire:0.5,
   trainPerHour:3.5, faultScale:1.0, gridRisk:1.0,
@@ -615,6 +627,7 @@ function buildSetupUI(){
 }
 const PRO_FIELDS=[
   ["startSoc","初期SOC (0-1)",0.05],["vFull","満充電電圧 V",0.5],["vEmpty","空電圧 V",0.5],
+  ["rInternal","内部抵抗 Ω",0.01],
   ["kt","ECOトルク定数 N/A",0.05],["ktPower","PWRトルク定数 N/A",0.05],
   ["noLoadRpm","ECO無負荷rpm",10],["rpmPower","PWR無負荷rpm",10],
   ["tireR","タイヤ半径 m",0.005],["mRot","回転慣性相当 kg",0.5],
@@ -862,6 +875,7 @@ const Engine = {
         km:0, status:"pre", delayH:(i-N/2)*0.5, // スタートを30分ずつずらす(先行/後発)
         retireKm:(Math.random()<PRO.aiRetire)? 250+Math.random()*2450 : null,
         cs:new Set(), csT:0, latV:-2.4,
+        soc:0.9+Math.random()*0.1, eff:0.85+Math.random()*0.3, // 仮想SOC / 車両効率のばらつき
         yieldT:0, holdT:0, passing:false, boost:false, askCd:0, reqCd:20+i, otPending:false });
     }
     return arr;
@@ -878,10 +892,27 @@ const Engine = {
           if(tm.delayH<0&&s.day===1) tm.km=Math.min(420,-tm.delayH*tm.spd*0.9); // 先行スタート分の距離
         } else continue;
       }
-      if(tm.csT>0){ tm.csT-=dtS; continue; }
-      if(!racing) continue;
-      const spd=tm.spd*(s.weather?0.85:1)*(tm.boost?1.35:1);
+      if(tm.csT>0){ tm.csT-=dtS; if(tm.csT<=0&&tm.socRecover){ tm.soc=Math.min(1,tm.soc+0.25); tm.socRecover=false; } continue; }
+      if(!racing){
+        // 夜間: ティルト充電で回復
+        if(s.hour>=17||s.hour<8) tm.soc=Math.min(1,tm.soc+0.00003*dtS);
+        continue;
+      }
+      // --- 仮想エネルギーマネジメント ---
+      const hoursLeft=Math.max(0.5,17-s.hour);
+      let pace=1.0;
+      if(s.weather) pace*=0.82;                                  // 天候悪化でペースダウン
+      if(tm.soc<0.15) pace*=0.6;                                 // 電欠寸前は大幅減速
+      else if(tm.soc<0.35) pace*=0.85;                           // 残量少で節約走行
+      if(s.hour>15.5 && tm.soc>0.4) pace*=1.15;                  // 夕方: 使い切るためスパート
+      const spd=tm.spd*pace*(tm.boost?1.35:1);
       tm.km+=spd*dtS/3600;
+      // 仮想SOC収支: 速度が上がるほど消費増、日射で回復(効率のばらつき込み)
+      const gain=(s.lastGeff/900)*0.00004*dtS;
+      const drain=Math.pow(spd/85,2.3)*0.000055*dtS/tm.eff;
+      tm.soc=clamp(tm.soc+gain-drain,0,1);
+      // 電欠 → 路肩で緊急充電(一時停止)
+      if(tm.soc<=0.02 && !tm.socRecover){ tm.csT=600; tm.socRecover=true; }
       // 【厳格】許可(passing)なしでは絶対に抜けない: プレイヤー後方で強制ホールド
       if(!tm.passing && s.v>1 && s.stopTimer<=0 && !s.camp &&
          tm.km<s.km && tm.km>s.km-3.0){
@@ -1006,12 +1037,17 @@ const Engine = {
       const m=massTotal(), mEff=m+PRO.mRot;
       const crr = s.burst ? P.Crr*8 : P.Crr;
       const Froll=crr*m*9.81*Math.cos(View.carSlope);
-      // 空力(セイル効果なし・向かい風成分のみ)
+      // 空力: 見かけの風 + 横風ヨー角によるCd悪化(セイル推力は無し=抗力のみ)
       const phi=s.windDirWorld-prof.bearing+Math.PI;
       const head=s.windSpeed*Math.cos(phi);
+      const cross=s.windSpeed*Math.sin(phi);
       const vApp=Math.max(0,s.v+head);
-      const Fdrag=0.5*PRO.airRho*P.Cd*P.frontal*vApp*vApp;
+      const yaw=Math.atan2(Math.abs(cross),Math.max(s.v,1));       // 見かけのヨー角
+      const cdEff=P.Cd*(1+Math.abs(yaw)*1.2);                      // ヨーでCd悪化(横面積が大)
+      const Fdrag=0.5*PRO.airRho*cdEff*P.frontal*vApp*vApp;
+      const Fcorner=0.15*m*9.81*(s.gLat||0)*(s.gLat||0);          // コーナリング(引きずり)抵抗
       const Fslope=m*9.81*Math.sin(View.carSlope);
+      s.lastYawDeg=Math.abs(yaw)*180/Math.PI;
       // スロットル開度 → 指令電流
       let thr=s.throttleSet;
       if(s.brakePhys>0.05||s.brakeRegen>0.05){ thr=0; s.throttleSet=0; } // ブレーキ連動カット
@@ -1028,11 +1064,12 @@ const Engine = {
       let Fbrake=0, Pregen=0;
       if(s.brakePhys>0) Fbrake += s.brakePhys*PRO.brakeMu*m*9.81;
       if(s.brakeRegen>0){
-        const Fr=s.brakeRegen*P.regenStrength*clamp(40+s.v*3,0,180);
+        const lowSpd=clamp(s.v/2.2,0,1); // 8km/h以下は回生がほぼ効かない
+        const Fr=s.brakeRegen*P.regenStrength*clamp(40+s.v*3,0,180)*lowSpd;
         Fbrake+=Fr;
         Pregen=Fr*s.v*PRO.regenEff; // 回生は控えめ
       }
-      const Fnet=Ftrac-Froll-Fdrag-Fslope-Fbrake;
+      const Fnet=Ftrac-Froll-Fdrag-Fslope-Fbrake-Fcorner;
       s.v=Math.max(0,s.v+Fnet/mEff*dtR);
       if(dtR>0) s.gLong=(Fnet/mEff)/9.81;
       Pmotor = mm.Pelec - Pregen;
@@ -1064,8 +1101,13 @@ const Engine = {
     let Paux = s.disconnected ? 0 : (s.camp?2:P.auxW);
     if(s.fault&&s.fault.type==="aux") Paux+=150;
     const Pnet = s.disconnected ? 0 : (Pmotor+Paux-Psolar);
-    const Vbus=VOC(s.soc);
-    const Ibat=Pnet/Vbus;
+    // 内部抵抗による電圧降下(Voltage Sag): P=V·I, V=Voc-I·R の二次方程式を解く
+    const Voc=VOC(s.soc), R=Math.max(0.001,PRO.rInternal);
+    let Ibat;
+    if(Pnet>=0){ const disc=Voc*Voc-4*R*Pnet; Ibat = disc>0 ? (Voc-Math.sqrt(disc))/(2*R) : Voc/(2*R); }
+    else Ibat=Pnet/Voc; // 充電側は近似
+    const Vterm=Math.max(0,Voc-Ibat*R); // 端子電圧(負荷時に降下)
+    s.lastVterm=Vterm;
     const capAh=CAP_AH();
     if(P.infiniteBattery) s.soc=clamp(PRO.startSoc,0.5,1); // 無限モード: 消費してもSOC維持
     else s.soc=clamp(s.soc-(Ibat*dtS)/(capAh*3600),0,1);
@@ -1326,9 +1368,11 @@ const Ask={
       const ahead=s.teams.filter(tm=>tm.km>s.km&&tm.status!=="dnf").sort((a,b)=>a.km-b.km)[0];
       const behind=s.teams.filter(tm=>tm.km<s.km&&tm.status!=="dnf").sort((a,b)=>b.km-a.km)[0];
       let msg=`現在P${rank}/${s.teams.length+1}。`;
-      if(ahead) msg+=`前方${(ahead.km-s.km).toFixed(1)}kmに${ahead.name}。`;
+      if(ahead) msg+=`前方${(ahead.km-s.km).toFixed(1)}kmに${ahead.name}(SOC~${(ahead.soc*100).toFixed(0)}%)。`;
       if(behind) msg+=`後方${(s.km-behind.km).toFixed(1)}kmに${behind.name}。`;
+      const lowTeams=s.teams.filter(tm=>tm.status==="run"&&tm.soc<0.2).length;
       msg+=`リタイア${s.teams.filter(tm=>tm.status==="dnf").length}台。`;
+      if(lowTeams) msg+=`電欠寸前で失速中のチームが${lowTeams}台います。`;
       Radio.push(msg,"後方追走車");
     } else if(kind==="batt"){
       const remWh=s.soc*P.batteryWh;
@@ -2005,7 +2049,8 @@ const View={
     while(r.chunks.length&&r.chunks[0].endS<this.s-300){
       const c=r.chunks.shift();
       this.scene.remove(c.mesh);
-      c.mesh.children.forEach(ch=>ch.geometry.dispose());
+      // ジオメトリは確実に破棄(マテリアルは matFor で共有=破棄しない/生成数は有限)
+      c.mesh.traverse(ch=>{ if(ch.geometry) ch.geometry.dispose(); });
     }
   },
   roadPoint(s){
@@ -2014,6 +2059,13 @@ const View={
     const t=(s-i*this.SEG)/this.SEG;
     const a=r.pts[i], b=r.pts[i+1];
     return { x:lerp(a.x,b.x,t), y:lerp(a.y,b.y,t), z:lerp(a.z,b.z,t), h:lerp(a.h,b.h,t), g:lerp(a.g,b.g,t) };
+  },
+  /* 色ごとに共有するマテリアル(毎チャンク新規生成しない=メモリリーク防止) */
+  matFor(color){
+    if(!this._matCache) this._matCache=new Map();
+    let m=this._matCache.get(color);
+    if(!m){ m=new THREE.MeshLambertMaterial({color}); this._matCache.set(color,m); }
+    return m;
   },
   stripGeo(s0,s1,offL,offR,yLift,color){ // 汎用ストリップ(法線は真上=つなぎ目シームレス)
     const verts=[],idx=[],norms=[];
@@ -2030,7 +2082,7 @@ const View={
     geo.setAttribute("position",new THREE.Float32BufferAttribute(verts,3));
     geo.setAttribute("normal",new THREE.Float32BufferAttribute(norms,3));
     geo.setIndex(idx);
-    return new THREE.Mesh(geo,new THREE.MeshLambertMaterial({color}));
+    return new THREE.Mesh(geo,this.matFor(color)); // 共有マテリアル
   },
   buildRoadChunk(s0,s1){
     const grp=new THREE.Group();
@@ -2260,7 +2312,9 @@ const View={
       }
       // すれ違い風圧
       if(Math.abs(rel)<12&&es.v>5) this.car.position.y+=Math.random()*0.03;
-      if(rel<-250){ this.scene.remove(rt.mesh); this.roadTrains.splice(i,1); }
+      if(rel<-250){ this.scene.remove(rt.mesh);
+        rt.mesh.traverse(o=>{ if(o.geometry)o.geometry.dispose(); if(o.material)o.material.dispose(); });
+        this.roadTrains.splice(i,1); }
     }
   },
 };
@@ -2403,7 +2457,7 @@ function updateHUD(){
   sb.style.background= socP>40?"linear-gradient(90deg,#059669,#22d3ee)": socP>15?"linear-gradient(90deg,#d97706,#fbbf24)":"linear-gradient(90deg,#b91c1c,#ef4444)";
   document.getElementById("hud-wh").textContent= P.infiniteBattery?"∞ Wh":(es.soc*P.batteryWh).toFixed(0)+" Wh";
   document.getElementById("hud-bms").textContent= es.disconnected?"🔌結線OFF": (es.bmsOn&&es.soc<=0.05)?"⚠BMS出力制限":"";
-  document.getElementById("hud-volt").textContent=VOC(es.soc).toFixed(1)+" V";
+  document.getElementById("hud-volt").textContent=(es.lastVterm!=null?es.lastVterm:VOC(es.soc)).toFixed(1)+" V";
   const bb=document.getElementById("bms-btn");
   bb.textContent=es.bmsOn?"🛡 BMS: ON":"⚠ BMS: OFF";
   bb.style.borderColor=es.bmsOn?"#22d3ee":"#ef4444";
@@ -2533,8 +2587,10 @@ const Test={
       View.renderer.setSize(innerWidth,innerHeight);
       View.renderer.setPixelRatio(Math.min(devicePixelRatio,2));
     }
-    addEventListener("resize",()=>{ if(Test.active&&Test.camera){ View.renderer.setSize(innerWidth,innerHeight);
-      Test.camera.aspect=innerWidth/innerHeight; Test.camera.updateProjectionMatrix(); } });
+    if(!this._resizeBound){ this._resizeBound=true;
+      addEventListener("resize",()=>{ if(Test.active&&Test.camera){ View.renderer.setSize(innerWidth,innerHeight);
+        Test.camera.aspect=innerWidth/innerHeight; Test.camera.updateProjectionMatrix(); } });
+    }
     this.scene=new THREE.Scene();
     this.scene.background=new THREE.Color(0x8fc3ef);
     this.camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,4000);
@@ -2659,8 +2715,8 @@ const Test={
        T10-11 西端ヘアピン → T12-13 南ループ → T14 最終スイーパーでストレート復帰 */
     // 公式レイアウト図をトレース(画像px → X=px/4, UP=(720-py)/4)。総延長は後段で2.87kmへ自動スケール
     const cps=[
-      [150,82,2],                                       // S/F(ホームストレート中央)     
-      [287,150,4],
+      [150,82,2],                                       // S/F(ホームストレート中央)
+      [287,150,4],                                      // ストレート → T1進入
       [315,161,5],[331,180,6],[318,197,6],[291,195,5],[266,180,5], // T1 緩やかな180°(半径大)
       [244,160,6],[224,140,6],[201,130,6],              // T2-T4 エス(西へ下る)
       [178,120,7],                                      // T5 進入
@@ -2886,6 +2942,7 @@ const Test={
     const m=massTotal(), mEff=m+PRO.mRot;
     const Froll=P.Crr*m*9.81;
     const Fdrag=0.5*PRO.airRho*P.Cd*P.frontal*this.v*this.v;
+    const Fcorner=0.15*m*9.81*(es.gLat||0)*(es.gLat||0); // コーナリング抵抗
     const Fslope=m*9.81*grade;
     let thr=es.throttleSet;
     if(es.brakePhys>0.05||es.brakeRegen>0.05){ thr=0; es.throttleSet=0; }
@@ -2894,16 +2951,21 @@ const Test={
     const Ftrac=mmT.F;
     let Fbrake=0,Pregen=0;
     if(es.brakePhys>0) Fbrake+=es.brakePhys*PRO.brakeMu*m*9.81;
-    if(es.brakeRegen>0){ const Fr=es.brakeRegen*P.regenStrength*clamp(40+this.v*3,0,180);
+    if(es.brakeRegen>0){ const lowSpd=clamp(this.v/2.2,0,1);
+      const Fr=es.brakeRegen*P.regenStrength*clamp(40+this.v*3,0,180)*lowSpd;
       Fbrake+=Fr; Pregen=Fr*this.v*PRO.regenEff; }
     if(offTrack&&this.v>1) Fbrake+=m*clamp(this.v*0.12,0.2,2.5);
-    const FnetT=Ftrac-Froll-Fdrag-Fslope-Fbrake;
+    const FnetT=Ftrac-Froll-Fdrag-Fslope-Fbrake-Fcorner;
     this.v=Math.max(0,this.v+FnetT/mEff*dtR);
     es.gLong=(FnetT/mEff)/9.81;
     const Pmotor=Math.max(0,mmT.Pelec-Pregen);
     es.lastAmp=I_cmd; es.lastMotorW=Pmotor;
     const Pnet=Pmotor+P.auxW-Psolar;
-    const Ibat=Pnet/VOC(es.soc);
+    const Voc=VOC(es.soc), R=Math.max(0.001,PRO.rInternal);
+    let Ibat;
+    if(Pnet>=0){ const disc=Voc*Voc-4*R*Pnet; Ibat=disc>0?(Voc-Math.sqrt(disc))/(2*R):Voc/(2*R); }
+    else Ibat=Pnet/Voc;
+    es.lastVterm=Math.max(0,Voc-Ibat*R);
     if(P.infiniteBattery) es.soc=clamp(PRO.startSoc,0.5,1);
     else es.soc=clamp(es.soc-(Ibat*dtR)/(CAP_AH()*3600),0,1);
     es.lastIbat=Ibat; es.lastNet=Pnet;
