@@ -139,6 +139,7 @@ body.touch-on #rotate-hint{ display:flex; }
 <kbd>Space</kbd> 物理ブレーキ(開度リセット) <kbd>R</kbd> 回生ブレーキ
 <kbd>A</kbd><kbd>D</kbd>/<kbd>←</kbd><kbd>→</kbd> ハンドル
 <kbd>V</kbd> カメラ(チェイス/フード/ドライバー) <kbd>G</kbd> グラフ <kbd>M</kbd> 停車メニュー <kbd>Esc</kbd> ポーズ
+<kbd>B</kbd> ブースト(イベントモード)
 ― <button class="btn text-xs ml-1 py-1" onclick="openWheelConfig()">🎮 ハンコン割当設定</button>
 <span id="gamepad-status" class="ml-2 text-cyan-400">未検出</span>
 </div>
@@ -235,7 +236,7 @@ body.touch-on #rotate-hint{ display:flex; }
 <div class="mono font-black text-5xl neon-text" id="hud-speed">0</div>
 <span id="wr" class="text-2xl select-none" style="color:#1e3a4f">▶</span>
 </div>
-<div class="hud-label">km/h <span class="text-[9px] text-cyan-100/40">Z:左 C:右 X:ハザード</span></div>
+<div class="hud-label">km/h <span class="text-[9px] text-cyan-100/40">Z:左 C:右 X:ハザード B:ブースト</span></div>
 </div>
 <div class="panel p-3 w-40">
 <div class="flex justify-between"><span class="hud-label">スロットル開度</span><span class="mono text-xs text-emerald-300" id="hud-thr-pct">0%</span></div>
@@ -343,7 +344,7 @@ body.touch-on #rotate-hint{ display:flex; }
 <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="toggleSignal(2)">⚠</button>
 <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="View.cam=(View.cam+1)%4">📷</button>
 <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="togglePower()">⚙</button>
-<button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="boost()">🚀</button>
+<button class="tbtn" style="padding:7px 9px;font-size:12px;background:rgba(251,191,36,.3);border-color:#fbbf24" onclick="boost()">🚀</button>
 <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="StopMenu.open(true)">🔧</button>
 <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="document.getElementById('ask-panel').classList.toggle('hidden')">📻</button>
 </div>
@@ -390,12 +391,6 @@ body.touch-on #rotate-hint{ display:flex; }
 </div>
 <script>
 "use strict";
-/* =====================================================================
-BWSC 3D RACING SIMULATOR v3 ― 2025 Official Route Notes 準拠
-+ YATA(61)プロシージャル車体 / イベント90秒+BOOST+アトラクト / キオスク堅牢化
-+ ACES+PMREM環境反射+影+フォグ / 速度連動FOV+スピードライン / 品質監視
-===================================================================== */
-/* ---------------- 定数データ (2025 Route Notes) ---------------- */
 const TOTAL_KM = 3027;
 const ROUTE = [
 { name:"Darwin (Start)",       km:0,    elev:20,  lat:-12.463, lon:130.838, cp:false },
@@ -472,7 +467,6 @@ const PANEL_TYPES = {
 si:   { name:"シリコン単結晶", eff:0.24, gamma:0.0040, desc:"標準的な高性能Si。温度係数-0.40%/K" },
 perov:{ name:"ペロブスカイト・タンデム", eff:0.28, gamma:0.0030, desc:"次世代タンデム構造(実験的)" },
 };
-/* ---------------- ユーザーパラメータ ---------------- */
 const P = {
 mode:"race", shape:"wadai", panel:"si",
 arrayArea:4.0, cellEff:0.24, mpptEff:0.98,
@@ -538,7 +532,6 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
 const massBallast=()=>Math.max(0, 80-P.massDriver);
 const massTotal=()=>P.massDry+P.massDriver+massBallast();
-/* ---------------- 設定UI ---------------- */
 function buildSetupUI(){
 const sc=document.getElementById("shape-cards"); sc.innerHTML="";
 for(const k in BODY_SHAPES){ const s=BODY_SHAPES[k];
@@ -634,7 +627,6 @@ P.testKind=k; selectMode('test');
 document.getElementById("test-desc").textContent="選択中: "+TEST_DESC[k];
 document.querySelectorAll("[data-test]").forEach(b=>b.style.boxShadow=b.dataset.test===k?"0 0 14px rgba(52,211,153,.8)":"");
 }
-/* ---------------- コースプロファイル ---------------- */
 function profileAt(km){
 const d=clamp(km,0,TOTAL_KM);
 let i=0;
@@ -655,7 +647,6 @@ const tmin = t<0.5 ? lerp(24.9,14.8,t*2) : lerp(14.8,11.1,(t-0.5)*2);
 const ph=Math.cos((hour-14.5)/24*2*Math.PI);
 return lerp(tmin,tmax,(ph+1)/2)+PRO.tempOffset;
 }
-/* ---------------- 無線 ---------------- */
 const Radio={
 log:[], popTimer:null,
 push(msg, who="戦略班"){
@@ -671,7 +662,6 @@ clearTimeout(this.popTimer);
 this.popTimer=setTimeout(()=>pop.classList.remove("radio-show"),5000);
 },
 };
-/* ---------------- サウンド (WebAudio) ---------------- */
 const Snd={
 ctx:null, master:null, motorOsc:[], motorGain:null, windGain:null, rollGain:null,
 fireGain:null, started:false,
@@ -750,7 +740,6 @@ setTimeout(()=>{try{src.stop()}catch(e){}},700);
 rattle(){ for(let i=0;i<7;i++) setTimeout(()=>this.blip(110+Math.random()*90,0.05,"square",0.2), i*65); },
 horn(){ this.blip(110,1.2,"sawtooth",0.25); this.blip(138,1.2,"sawtooth",0.2); },
 };
-/* ---------------- 物理エンジン ---------------- */
 const Engine = {
 st:null,
 init(){
@@ -1156,7 +1145,6 @@ s.hour=st2;
 },
 };
 function dKmSafe(s,dtS){ return s.v*dtS/1000; }
-/* ---------------- 停車メニュー ---------------- */
 const StopMenu={
 active:false, mode:null,
 open(manual){
@@ -1186,7 +1174,6 @@ if(this.mode==="charge"){ this.mode=null; this.active=false; Engine.st.tiltLocke
 };
 function show(id,on){ const e=document.getElementById(id); e.classList.toggle("hidden",!on); e.classList.toggle("flex",on); }
 function onTilt(v){ Engine.st.tiltDeg=parseFloat(v); document.getElementById("tilt-val").textContent=v+"°"; }
-/* ---------------- パネル角度決定 ---------------- */
 let modalPause=false;
 const TiltDecide={
 open(){
@@ -1215,10 +1202,8 @@ show("tilt-decide",false);
 modalPause=false; lastT=performance.now();
 },
 };
-/* ---------------- トースト / BOOST ---------------- */
 function boost(){const s=Engine.st;if(!s||P.mode!=="event"||s.boostCd>0)return;
 s.boostT=3;s.boostCd=12;Snd.blip(700,0.2);toast("🚀 BOOST!","#fbbf24");}
-/* ---------------- 無線質問 ---------------- */
 const Ask={
 q(kind){
 const s=Engine.st; if(!s) return;
@@ -1350,7 +1335,6 @@ t.innerHTML=msg; t.style.color=color; t.style.opacity=1;
 clearTimeout(toastTimer);
 toastTimer=setTimeout(()=>t.style.opacity=0,3500);
 }
-/* ---------------- 入力 ---------------- */
 const Input={ keys:{}, steer:0,
 map: JSON.parse(localStorage.getItem("bwsc_wheelmap")||"null") ||
 { steer:{axis:0,inv:false}, accel:null, brake:null },
@@ -1448,13 +1432,9 @@ refreshWheelLabels();
 }
 },50);
 }
-/* ============ ① モード設定(イベント固有はここに集約) ============ */
-const MODE_CFG={
-  event:{ duration:90, attractIdle:30,
-    stamps:[[2.0,"🥇 GOLD","#fbbf24"],[1.4,"🥈 SILVER","#cbd5e1"],[0,"🥉 BRONZE","#d97706"]] },
-  race:{}
-};
-/* ============ ⑤ 品質ヘルパ(r128: sRGBEncoding/ACES/PMREM) ============ */
+/* ============ ① モード設定 ============ */
+const MODE_CFG={ event:{ duration:90, attractIdle:30, stamps:[[2.0,"🥇 GOLD","#fbbf24"],[1.4,"🥈 SILVER","#cbd5e1"],[0,"🥉 BRONZE","#d97706"]] }, race:{} };
+/* ============ ⑤ 品質ヘルパ ============ */
 const _envCache=new WeakMap();
 function setupRenderQuality(renderer,scene){
   renderer.outputEncoding=THREE.sRGBEncoding;
@@ -1462,24 +1442,21 @@ function setupRenderQuality(renderer,scene){
   renderer.toneMappingExposure=1.08;
   if(!_envCache.has(renderer)){
     const es=new THREE.Scene();
-    es.add(new THREE.Mesh(new THREE.SphereGeometry(50,16,12),
-      new THREE.MeshBasicMaterial({color:0x9ec8ef,side:THREE.BackSide})));
-    const gd=new THREE.Mesh(new THREE.CircleGeometry(50,24),
-      new THREE.MeshBasicMaterial({color:0xb4713d})); gd.rotation.x=-Math.PI/2; gd.position.y=-2; es.add(gd);
-    const sn=new THREE.Mesh(new THREE.SphereGeometry(6,12,10),
-      new THREE.MeshBasicMaterial({color:0xfff2c0})); sn.position.set(20,30,-10); es.add(sn);
+    es.add(new THREE.Mesh(new THREE.SphereGeometry(50,16,12), new THREE.MeshBasicMaterial({color:0x9ec8ef,side:THREE.BackSide})));
+    const gd=new THREE.Mesh(new THREE.CircleGeometry(50,24), new THREE.MeshBasicMaterial({color:0xb4713d})); gd.rotation.x=-Math.PI/2; gd.position.y=-2; es.add(gd);
+    const sn=new THREE.Mesh(new THREE.SphereGeometry(6,12,10), new THREE.MeshBasicMaterial({color:0xfff2c0})); sn.position.set(20,30,-10); es.add(sn);
     const pm=new THREE.PMREMGenerator(renderer);
     _envCache.set(renderer,pm.fromScene(es,0.04).texture); pm.dispose();
   }
   scene.environment=_envCache.get(renderer);
   scene.fog=new THREE.Fog(0x87b6e8,250,1600);
 }
-/* ============ ③ 品質監視(45fps未満で影OFF→ピクセル比1.0→0.85) ============ */
+/* ============ ③ 品質監視 ============ */
 const Perf={acc:0,fr:0,lv:0,tick(dt){this.acc+=dt;this.fr++;
   if(this.acc>=2){const fps=this.fr/this.acc;this.acc=0;this.fr=0;
     if(fps<45&&this.lv===0&&View.renderer){this.lv=1;View.renderer.shadowMap.enabled=false;View.renderer.setPixelRatio(1.0);}
     else if(fps<45&&this.lv===1&&View.renderer){this.lv=2;View.renderer.setPixelRatio(0.85);}}}};
-/* ============ ④ YATA(61)プロシージャルhull (r128/座標:X幅 Y高 Z後+) ============ */
+/* ============ ④ YATA(61)プロシージャルhull ============ */
 const YATA_CACHE={};
 function buildYATA(){
   const O={L:5,deckH:.62,noseTip:.23,tailTip:.34,canopyX:1.83,canopyLen:1.55,canopyW:.44,
@@ -1525,17 +1502,19 @@ function buildYATA(){
   for(let i=0;i<=O.seg;i++){
     const u=i/O.seg,xl=u*O.L,w=halfW(u),zb=zBell(u),zd=zDeck(u),cr=.06*(w/.9);
     const pts=[],typ=[];
-    pts.push(new THREE.Vector3(0,zb,xl-2.5));
+    // Z軸を全長方向にマップ(-2.5 to 2.5), X=幅, Y=高さ
+    const zPos = xl - 2.5;
+    pts.push(new THREE.Vector3(0,zb,zPos));
     for(let r=1;r<=O.side;r++){const t=r/O.side;
       pts.push(new THREE.Vector3(w*Math.pow(Math.sin(t*Math.PI/2),.75),
-        zb+(zd-zb)*Math.pow(t,1.35),xl-2.5));typ.push("s");}
+        zb+(zd-zb)*Math.pow(t,1.35),zPos));typ.push("s");}
     for(let r=1;r<=O.deckK;r++){const s2=r/O.deckK;
-      pts.push(new THREE.Vector3(w*(1-s2),zd+cr*Math.sin(s2*Math.PI/2),xl-2.5));typ.push("d");}
+      pts.push(new THREE.Vector3(w*(1-s2),zd+cr*Math.sin(s2*Math.PI/2),zPos));typ.push("d");}
     for(let r=O.deckK-1;r>=1;r--){const s2=r/O.deckK;
-      pts.push(new THREE.Vector3(-w*(1-s2),zd+cr*Math.sin(s2*Math.PI/2),xl-2.5));typ.push("d");}
+      pts.push(new THREE.Vector3(-w*(1-s2),zd+cr*Math.sin(s2*Math.PI/2),zPos));typ.push("d");}
     for(let r=O.side-1;r>=1;r--){const t=r/O.side;
       pts.push(new THREE.Vector3(-w*Math.pow(Math.sin(t*Math.PI/2),.75),
-        zb+(zd-zb)*Math.pow(t,1.35),xl-2.5));typ.push("s");}
+        zb+(zd-zb)*Math.pow(t,1.35),zPos));typ.push("s");}
     typ.push("s");Pp.push(pts);Uv.push(pts.map(p=>new THREE.Vector2(xl,p.x+.9)));TYP.push(typ);
   }
   for(let i=0;i<O.seg;i++)for(let r=0;r<R;r++){
@@ -1552,14 +1531,13 @@ function buildYATA(){
     g2.setAttribute("uv",new THREE.Float32BufferAttribute(b.uv,2));
     g2.setIndex(b.idx);g2.computeVertexNormals();
     const ms=new THREE.Mesh(g2,MATS[m]);ms.castShadow=true;grp.add(ms);});
-  // キャノピー(涙滴+前方グラス)
+  // キャノピー
   const cg=new THREE.SphereGeometry(1,48,24);
   {const p=cg.attributes.position;
    for(let i=0;i<p.count;i++){const x=p.getX(i),f=x>0?1-.45*x*x:1-.25*x*x;
      p.setY(i,p.getY(i)*f);p.setZ(i,p.getZ(i)*f);}}
-  cg.scale(O.canopyLen/2,O.canopyW/2,O.canopyTop-O.deckH+.12);
-  cg.translate(O.canopyX,0,O.deckH+.08);
-  cg.applyMatrix4(new THREE.Matrix4().set(0,1,0,0, 0,0,1,0, 1,0,0,-2.5, 0,0,0,1));
+  cg.scale(O.canopyW/2,O.canopyTop-O.deckH+.12,O.canopyLen/2);
+  cg.translate(0,O.deckH+.08,O.canopyX-2.5);
   let canopy=null;
   {const idx=cg.index.array,g0=[],g1=[],p=cg.attributes.position;
    for(let i=0;i<idx.length;i+=3){
@@ -1575,14 +1553,13 @@ function buildYATA(){
   [-1,1].forEach(s2=>{const pl=new THREE.Mesh(new THREE.PlaneGeometry(.55,.27),
     new THREE.MeshBasicMaterial({map:T.decal,transparent:true,side:DS,
       polygonOffset:true,polygonOffsetFactor:-2}));
-    pl.position.set(s2*.19,.95,-.25);pl.rotation.y=s2*Math.PI/2;grp.add(pl);});
+    pl.position.set(s2*.85,.95,-.25);pl.rotation.y=s2*Math.PI/2;grp.add(pl);});
   // コンタクトシャドウ
   const shM=new THREE.Mesh(new THREE.PlaneGeometry(2.3,5.3),
     new THREE.MeshBasicMaterial({map:T.shadow,transparent:true,depthWrite:false}));
   shM.rotation.x=-Math.PI/2;shM.position.y=.02;grp.add(shM);
   return {group:grp,canopy};
 }
-/* ---------------- 3Dビュー ---------------- */
 const View={
 scene:null,camera:null,renderer:null,car:null,carBody:null,canopyMesh:null,
 sun:null,sunLight:null,hemiLight:null,ground:null,
@@ -1666,7 +1643,7 @@ const f=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.36,0.8),mat||whiteMat);
 f.position.set(x,0.40,z); body.add(f);
 };
 if(P.shape==="wadai"){
-// YATA(61): プロシージャルhull(④)。ホイール非分離・チルトはbody.rollで表現
+// YATA(61)
 const Y=buildYATA();
 body.add(Y.group);
 g.userData.canopy=Y.canopy;
@@ -1691,7 +1668,6 @@ canopy.scale.set(0.9,0.8,1.6); canopy.position.set(0,1.0,-0.5); body.add(canopy)
 g.userData.canopy=canopy;
 mkWheelFair(-0.62,1.2); mkWheelFair(0.62,1.2); mkWheelFair(0,-1.35);
 }
-// 常時点灯DRL / ブレーキ / ウィンカー(和大型はYATA実寸に合わせた位置)
 const isW=P.shape==="wadai";
 const drlMat=new THREE.MeshBasicMaterial({color:0xffffff});
 const drlPos=isW?[[-0.10,-2.28,0.32],[0.10,-2.28,0.32]]:[[-0.28,-2.10,0.52],[0.28,-2.10,0.52]];
@@ -1899,7 +1875,7 @@ const bank2=bank1.clone(); bank2.position.z=-11; g.add(bank2);
 } else if(lm.t==="camp"){
 const signPole=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,2.6,6),new THREE.MeshLambertMaterial({color:0x555}));
 signPole.position.set(this.ROAD_W+3,1.3,0); g.add(signPole);
-const sign=new THREE.Mesh(new THREE.BoxGeometry(2.4,1,0.1),new THREE.MeshLambertMaterial({color:0x14733c}}));
+const sign=new THREE.Mesh(new THREE.BoxGeometry(2.4,1,0.1),new THREE.MeshLambertMaterial({color:0x14733c}));
 sign.position.set(this.ROAD_W+3,2.6,0); g.add(sign);
 const tent=new THREE.Mesh(new THREE.ConeGeometry(2,1.6,4),new THREE.MeshLambertMaterial({color:0xc2632a}));
 tent.position.set(this.ROAD_W+14,0.8,6); tent.rotation.y=0.5; g.add(tent);
@@ -2120,7 +2096,7 @@ const nx=Math.cos(pHere.h), nz=Math.sin(pHere.h);
 const hCar=pHere.h+this.relHeading;
 this.car.position.set(pHere.x+nx*this.lateral, pHere.y, pHere.z+nz*this.lateral);
 this.car.rotation.y=-hCar;
-this.car.rotation.x=-Math.atan(pHere.g)*0.8+clamp(-es.gLong*0.025,-0.045,0.045); // 加減速ピッチ
+this.car.rotation.x=-Math.atan(pHere.g)*0.8+clamp(-es.gLong*0.025,-0.045,0.045);
 const wantTilt=(es.camp||es.stopTimer>0||StopMenu.mode==="charge")&&!es.disconnected;
 const targetRoll=wantTilt? -es.tiltDeg*Math.PI/180*0.85 : 0;
 this.carBody.rotation.z=lerp(this.carBody.rotation.z,targetRoll,dtR*2);
@@ -2179,7 +2155,7 @@ const sunDist=1400, sy=Math.sin(alt)*sunDist, shD=Math.cos(alt)*sunDist;
 this.sun.position.set(pHere.x+Math.sin(relAz)*shD, Math.max(sy,-80), pHere.z-Math.cos(relAz)*shD);
 this.sunLight.position.copy(this.sun.position);
 this.sunLight.intensity=clamp(Math.sin(alt)*1.5,0.02,1.3)*(es.weather?0.4:1);
-this.sunLight.target.position.copy(this.car.position); // 影は車体周辺のみ
+this.sunLight.target.position.copy(this.car.position);
 const dayC=new THREE.Color(0x87b6e8), setC=new THREE.Color(0xe8814f), nightC=new THREE.Color(0x0a1226);
 let sky;
 if(alt<=0) sky=nightC;
@@ -2222,7 +2198,6 @@ this.escortChase.rotation.y=-chase.h;
 this.escortLead.visible=(P.mode==="race"&&!es.camp&&es.stopTimer<=0);
 this.escortChase.visible=(P.mode==="race"&&!es.camp&&es.stopTimer<=0&&this.s>45);
 this.updateAITeams(es,dtR);
-// ③ 速度連動FOV(70→78) + スピードライン
 const fovT=70+clamp((es.v*3.6-55)/120,0,1)*8;
 if(Math.abs(fovT-this.camera.fov)>0.15){this.camera.fov=lerp(this.camera.fov,fovT,0.12);this.camera.updateProjectionMatrix();}
 const sInt=clamp((es.v-22)/22,0,1);
@@ -2301,7 +2276,6 @@ this.roadTrains.splice(i,1); }
 }
 },
 };
-/* ---------------- ミニマップ ---------------- */
 const AUS_OUTLINE=[[-12,130.8],[-11.5,132.5],[-12.3,136.6],[-14.8,135.4],[-16,138],[-17.6,140.8],[-12.6,141.6],[-10.9,142.4],[-14.5,144.3],[-18.8,146.3],[-21,149.2],[-24.5,152],[-28.2,153.6],[-32.5,152.6],[-35,150.7],[-37.6,149.9],[-39,146.4],[-38.4,141.5],[-35.2,139.3],[-35.6,138.6],[-34.8,138.2],[-35.5,137],[-33.2,137.9],[-32.7,137.8],[-35,136.9],[-32.2,133.7],[-31.5,131.4],[-33.9,124],[-33.5,120],[-35,117.5],[-31,115.6],[-26,113.4],[-22,113.9],[-20,119],[-18,122.3],[-14.6,125.6],[-13.8,129.7],[-12,130.8]];
 function drawMap(){
 const cv=document.getElementById("map-canvas"), ctx=cv.getContext("2d");
@@ -2353,7 +2327,6 @@ ctx.strokeStyle="#34d399"; ctx.lineWidth=3; ctx.beginPath();
 ctx.moveTo(0,-24); ctx.lineTo(0,14); ctx.moveTo(-6,6); ctx.lineTo(0,14); ctx.lineTo(6,6); ctx.stroke();
 ctx.restore();
 }
-/* ---------------- グラフ ---------------- */
 let chart=null, lastChartPush=0;
 function initChart(){
 if(chart) chart.destroy();
@@ -2404,7 +2377,6 @@ chart.data.datasets[4].data.push(es.lastMotorW+(es.disconnected?0:P.auxW));
 if(chart.data.labels.length>400){ chart.data.labels.shift(); chart.data.datasets.forEach(d=>d.data.shift()); }
 chart.update("none");
 }
-/* ---------------- HUD ---------------- */
 function updateHUD(){
 const es=Engine.st; if(!es) return;
 const h=Math.floor(es.hour), m=Math.floor(es.hour%1*60);
@@ -2509,7 +2481,6 @@ function eventScore(){
 const es=Engine.st;
 return es.km*10 + es.soc*200 + (es.whGen*0.05);
 }
-/* ---------------- リザルト ---------------- */
 function showResult(){
 const es=Engine.st;
 running=false;
@@ -2547,7 +2518,6 @@ rows.push(["電費", (es.whUsed/TOTAL_KM).toFixed(1)+" Wh/km"]);
 }
 body.innerHTML=rows.map(r=>`<div class="flex justify-between gap-6"><span class="text-cyan-100/60">${r[0]}</span><span>${r[1]}</span></div>`).join("");
 }
-/* ================= 予選・車検モード (Hidden Valley / Scrutineering) ================= */
 const Test={
 active:false, kind:"circuit", state:"ready",
 scene:null, camera:null, car:null, carBody:null, canopy:null,
@@ -3088,7 +3058,6 @@ sub.textContent=this.coneHit?"⚠ パイロン接触":"白線通過で計測開�
 },
 };
 function fmtLap(t){ const mn=Math.floor(t/60),s=(t%60).toFixed(2); return `${mn}:${s.padStart(5,"0")}`; }
-/* ---------------- メインループ ---------------- */
 let running=false, paused=false, lastT=0;
 let eventElapsed=0; const EVENT_DURATION=MODE_CFG.event.duration;
 function startGame(){
@@ -3142,7 +3111,6 @@ let dtR=Math.min((t-lastT)/1000,0.1); lastT=t;
 if(paused||modalPause) return;
 updateInput(dtR);
 if(Test.active){ Test.frame(dtR); return; }
-// ② アトラクト: イベント&30秒無操作で自動走行
 if(P.mode==="event"&&Engine.st){
   if(performance.now()-(window._lastAct||0)>MODE_CFG.event.attractIdle*1000){
     Engine.st.throttleSet=0.7;
@@ -3181,12 +3149,10 @@ show("result-screen",false); show("pause-overlay",false); show("stopmenu-overlay
 document.getElementById("setup-screen").classList.remove("hidden");
 Snd.update(0,0,false);
 }
-/* ---------------- 起動 ---------------- */
 buildSetupUI();
 refreshUIModeBtns();
 setInterval(pollGamepad,800);
 addEventListener("gamepadconnected",e=>toast("🎮 コントローラー接続: "+e.gamepad.id.slice(0,40),"#34d399"));
-
 /* ---- ② キオスク堅牢化 ---- */
 addEventListener("contextmenu",e=>e.preventDefault());
 addEventListener("keydown",e=>{if(e.key==="F5"||(e.ctrlKey&&e.key.toLowerCase()==="r"))e.preventDefault();});
@@ -3196,7 +3162,7 @@ _sb.style.cssText="position:fixed;right:6px;bottom:6px;width:22px;height:22px;bo
 let _sbT=null;
 _sb.addEventListener("pointerdown",e=>{e.stopPropagation();_sbT=setTimeout(()=>location.reload(),3000);});
 ["pointerup","pointerleave"].forEach(ev=>_sb.addEventListener(ev,()=>clearTimeout(_sbT)));
-document.body.appendChild(_sb); // 3秒長押しでリセット(スタッフ用)
+document.body.appendChild(_sb);
 </script>
 </body>
 </html>
