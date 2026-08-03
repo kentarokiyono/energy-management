@@ -1456,109 +1456,178 @@ const Perf={acc:0,fr:0,lv:0,tick(dt){this.acc+=dt;this.fr++;
   if(this.acc>=2){const fps=this.fr/this.acc;this.acc=0;this.fr=0;
     if(fps<45&&this.lv===0&&View.renderer){this.lv=1;View.renderer.shadowMap.enabled=false;View.renderer.setPixelRatio(1.0);}
     else if(fps<45&&this.lv===1&&View.renderer){this.lv=2;View.renderer.setPixelRatio(0.85);}}}};
+/* ============ 砂漠地面テクスチャ(手続き生成=軽量) ============ */
+const GROUND_TEX={};
+function groundTextures(){
+if(GROUND_TEX.sand) return GROUND_TEX;
+const cv=document.createElement("canvas");cv.width=cv.height=256;
+const c=cv.getContext("2d");
+c.fillStyle="#c2a06e";c.fillRect(0,0,256,256);
+for(let i=0;i<80;i++){ // 乾いた斑・風紋
+c.fillStyle=`rgba(${Math.random()<0.5?"150,110,70":"235,210,165"},${0.05+Math.random()*0.09})`;
+c.beginPath();c.ellipse(Math.random()*256,Math.random()*256,8+Math.random()*40,5+Math.random()*16,Math.random()*3.14,0,7);c.fill();}
+for(let i=0;i<6500;i++){ // 砂粒スペック
+c.fillStyle=Math.random()<0.5?"rgba(95,65,35,0.28)":"rgba(255,242,214,0.25)";
+const s=Math.random()<0.85?1:2;c.fillRect(Math.random()*256,Math.random()*256,s,s);}
+for(let i=0;i<90;i++){c.fillStyle="rgba(110,85,60,0.55)";c.fillRect(Math.random()*256,Math.random()*256,2,2);} // 小石
+const t=new THREE.CanvasTexture(cv);
+t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;t.encoding=THREE.sRGBEncoding;
+const t2=t.clone();t2.needsUpdate=true; // 路肩スカート用(ワールドUV)
+GROUND_TEX.sand=t;GROUND_TEX.sandW=t2;
+return GROUND_TEX;
+}
+/* ============ 道路/路肩ザラつきテクスチャ ============ */
+const ROAD_TEX={};
+function roadTextures(){
+if(ROAD_TEX.asph) return ROAD_TEX;
+const mk=(base,spotA,spotB,n)=>{
+const cv=document.createElement("canvas");cv.width=cv.height=256;
+const c=cv.getContext("2d");
+c.fillStyle=base;c.fillRect(0,0,256,256);
+for(let i=0;i<n;i++){
+c.fillStyle=Math.random()<0.5?spotA:spotB;
+const s=Math.random()<0.85?1:2;
+c.fillRect(Math.random()*256,Math.random()*256,s,s);
+}
+const t=new THREE.CanvasTexture(cv);
+t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;t.encoding=THREE.sRGBEncoding;
+return t;};
+ROAD_TEX.asph=mk("#2b2d31","rgba(0,0,0,0.25)","rgba(120,124,130,0.18)",7000);
+ROAD_TEX.shld=mk("#9c6a3c","rgba(70,45,22,0.25)","rgba(210,170,120,0.25)",6000);
+return ROAD_TEX;
+}
 /* ============ ④ YATA(61)プロシージャルhull ============ */
 const YATA_CACHE={};
 function buildYATA(){
-  const O={L:5,deckH:.62,noseTip:.23,tailTip:.34,canopyX:1.83,canopyLen:1.55,canopyW:.44,
-    canopyTop:1.15,orangeU:.20,skirtZ:.30,seg:48,side:12,deckK:5};
-  if(!YATA_CACHE.tex){
-    let cv=document.createElement("canvas");cv.width=cv.height=256;
-    let g=cv.getContext("2d");g.fillStyle="#0b0f13";g.fillRect(0,0,256,256);
-    g.strokeStyle="#232e38";g.lineWidth=3;
-    for(let i=0;i<=8;i++){g.beginPath();g.moveTo(i*32,0);g.lineTo(i*32,256);g.stroke();
-      g.beginPath();g.moveTo(0,i*32);g.lineTo(256,i*32);g.stroke();}
-    g.strokeStyle="rgba(255,255,255,.05)";g.lineWidth=1;
-    for(let i=0;i<32;i++){g.beginPath();g.moveTo(i*8,0);g.lineTo(i*8,256);g.stroke();}
-    const ct=new THREE.CanvasTexture(cv);ct.wrapS=ct.wrapT=THREE.RepeatWrapping;
-    ct.anisotropy=4;ct.encoding=THREE.sRGBEncoding;
-    cv=document.createElement("canvas");cv.width=256;cv.height=128;g=cv.getContext("2d");
-    g.clearRect(0,0,256,128);g.fillStyle="#f7a11a";g.font="bold 72px Arial";g.fillText("61",16,70);
-    g.font="bold 40px Arial";g.fillText("YATA",110,70);
-    const dt=new THREE.CanvasTexture(cv);dt.encoding=THREE.sRGBEncoding;
-    cv=document.createElement("canvas");cv.width=256;cv.height=128;g=cv.getContext("2d");
-    const rd=g.createRadialGradient(128,64,10,128,64,120);
-    rd.addColorStop(0,"rgba(0,0,0,.5)");rd.addColorStop(1,"rgba(0,0,0,0)");
-    g.fillStyle=rd;g.fillRect(0,0,256,128);
-    YATA_CACHE.tex={cell:ct,decal:dt,shadow:new THREE.CanvasTexture(cv)};
-  }
-  const T=YATA_CACHE.tex;
-  const spl=a=>{const c=new THREE.SplineCurve(a.map(p=>new THREE.Vector2(p[0],p[1])));
-    return t=>c.getPoint(clamp(t,0,1)).y;};
-  const halfW=spl([[0,.001],[.05,.16],[.16,.44],[.32,.66],[.52,.90],[.70,.86],[.86,.55],[.96,.24],[1,.015]]);
-  const zDeck=spl([[0,O.noseTip],[.10,.42],[.25,.575],[.50,.62],[.75,.60],[.90,.50],[1,O.tailTip]]);
-  const zBell=spl([[0,O.noseTip],[.12,.20],[.30,.145],[.60,.15],[.80,.22],[1,O.tailTip]]);
-  const DS=THREE.DoubleSide;
-  const MATS=[
-    new THREE.MeshStandardMaterial({color:0xf4f6f8,roughness:.35,side:DS,envMapIntensity:.6}),
-    new THREE.MeshStandardMaterial({color:0xf27316,roughness:.40,side:DS,envMapIntensity:.6}),
-    new THREE.MeshStandardMaterial({color:0x101216,roughness:.50,side:DS}),
-    new THREE.MeshPhysicalMaterial({color:0x0b0e12,roughness:.28,clearcoat:1,
-      clearcoatRoughness:.12,map:T.cell,side:DS,envMapIntensity:1.2})];
-  const B=[{},{},{},{}].map(()=>({v:[],uv:[],idx:[],map:new Map()}));
-  const vid=(b,i,r,Pp,Uv)=>{const k=i*1000+r;let id=b.map.get(k);
-    if(id===undefined){id=b.v.length/3;b.map.set(k,id);
-      b.v.push(Pp[i][r].x,Pp[i][r].y,Pp[i][r].z);b.uv.push(Uv[i][r].x,Uv[i][r].y);}return id;};
-  const R=2*(O.side+O.deckK),Pp=[],Uv=[],TYP=[];
-  for(let i=0;i<=O.seg;i++){
-    const u=i/O.seg,xl=u*O.L,w=halfW(u),zb=zBell(u),zd=zDeck(u),cr=.06*(w/.9);
-    const pts=[],typ=[];
-    // Z軸を全長方向にマップ(-2.5 to 2.5), X=幅, Y=高さ
-    const zPos = xl - 2.5;
-    pts.push(new THREE.Vector3(0,zb,zPos));
-    for(let r=1;r<=O.side;r++){const t=r/O.side;
-      pts.push(new THREE.Vector3(w*Math.pow(Math.sin(t*Math.PI/2),.75),
-        zb+(zd-zb)*Math.pow(t,1.35),zPos));typ.push("s");}
-    for(let r=1;r<=O.deckK;r++){const s2=r/O.deckK;
-      pts.push(new THREE.Vector3(w*(1-s2),zd+cr*Math.sin(s2*Math.PI/2),zPos));typ.push("d");}
-    for(let r=O.deckK-1;r>=1;r--){const s2=r/O.deckK;
-      pts.push(new THREE.Vector3(-w*(1-s2),zd+cr*Math.sin(s2*Math.PI/2),zPos));typ.push("d");}
-    for(let r=O.side-1;r>=1;r--){const t=r/O.side;
-      pts.push(new THREE.Vector3(-w*Math.pow(Math.sin(t*Math.PI/2),.75),
-        zb+(zd-zb)*Math.pow(t,1.35),zPos));typ.push("s");}
-    typ.push("s");Pp.push(pts);Uv.push(pts.map(p=>new THREE.Vector2(xl,p.x+.9)));TYP.push(typ);
-  }
-  for(let i=0;i<O.seg;i++)for(let r=0;r<R;r++){
-    const r2=(r+1)%R,u=i/O.seg,zm=(Pp[i][r].y+Pp[i][r2].y)/2;
-    const m=TYP[i][r]==="d"?(u<O.orangeU?1:3):(u<O.orangeU?1:(zm<O.skirtZ?2:0));
-    const b=B[m];
-    const a=vid(b,i,r,Pp,Uv),c=vid(b,i,r2,Pp,Uv),d=vid(b,i+1,r2,Pp,Uv),e=vid(b,i+1,r,Pp,Uv);
-    b.idx.push(a,c,e,c,d,e);
-  }
-  const grp=new THREE.Group();
-  B.forEach((b,m)=>{if(!b.idx.length)return;
-    const g2=new THREE.BufferGeometry();
-    g2.setAttribute("position",new THREE.Float32BufferAttribute(b.v,3));
-    g2.setAttribute("uv",new THREE.Float32BufferAttribute(b.uv,2));
-    g2.setIndex(b.idx);g2.computeVertexNormals();
-    const ms=new THREE.Mesh(g2,MATS[m]);ms.castShadow=true;grp.add(ms);});
-  // キャノピー
-  const cg=new THREE.SphereGeometry(1,48,24);
-  {const p=cg.attributes.position;
-   for(let i=0;i<p.count;i++){const x=p.getX(i),f=x>0?1-.45*x*x:1-.25*x*x;
-     p.setY(i,p.getY(i)*f);p.setZ(i,p.getZ(i)*f);}}
-  cg.scale(O.canopyW/2,O.canopyTop-O.deckH+.12,O.canopyLen/2);
-  cg.translate(0,O.deckH+.08,O.canopyX-2.5);
-  let canopy=null;
-  {const idx=cg.index.array,g0=[],g1=[],p=cg.attributes.position;
-   for(let i=0;i<idx.length;i+=3){
-     const cz=(p.getZ(idx[i])+p.getZ(idx[i+1])+p.getZ(idx[i+2]))/3;
-     (cz<O.canopyX-O.canopyLen*.18-2.5?g0:g1).push(idx[i],idx[i+1],idx[i+2]);}
-   cg.setIndex(g0.concat(g1));cg.clearGroups();
-   cg.addGroup(0,g0.length,0);cg.addGroup(g0.length,g1.length,1);cg.computeVertexNormals();
-   canopy=new THREE.Mesh(cg,[
-     new THREE.MeshStandardMaterial({color:0x9aa4ad,roughness:.15,metalness:.4,envMapIntensity:1,side:DS}),
-     new THREE.MeshPhysicalMaterial({color:0x15181c,roughness:.18,clearcoat:1,envMapIntensity:1.2,side:DS})]);
-   canopy.castShadow=true;grp.add(canopy);}
-  // 61/YATA デカール
-  [-1,1].forEach(s2=>{const pl=new THREE.Mesh(new THREE.PlaneGeometry(.55,.27),
-    new THREE.MeshBasicMaterial({map:T.decal,transparent:true,side:DS,
-      polygonOffset:true,polygonOffsetFactor:-2}));
-    pl.position.set(s2*.85,.95,-.25);pl.rotation.y=s2*Math.PI/2;grp.add(pl);});
-  // コンタクトシャドウ
-  const shM=new THREE.Mesh(new THREE.PlaneGeometry(2.3,5.3),
-    new THREE.MeshBasicMaterial({map:T.shadow,transparent:true,depthWrite:false}));
-  shM.rotation.x=-Math.PI/2;shM.position.y=.02;grp.add(shM);
-  return {group:grp,canopy};
+const O={L:5,noseTip:.23,canopyX:1.83,canopyLen:1.55,canopyW:.44,canopyTop:1.15,orangeU:.16,skirtZ:.30,seg:48,side:10,deckK:4};
+if(!YATA_CACHE.tex){
+let cv=document.createElement("canvas");cv.width=cv.height=256;
+let g=cv.getContext("2d");g.fillStyle="#0b0f13";g.fillRect(0,0,256,256);
+g.strokeStyle="#232e38";g.lineWidth=3;
+for(let i=0;i<=8;i++){g.beginPath();g.moveTo(i*32,0);g.lineTo(i*32,256);g.stroke();
+g.beginPath();g.moveTo(0,i*32);g.lineTo(256,i*32);g.stroke();}
+g.strokeStyle="rgba(255,255,255,.05)";g.lineWidth=1;
+for(let i=0;i<32;i++){g.beginPath();g.moveTo(i*8,0);g.lineTo(i*8,256);g.stroke();}
+const ct=new THREE.CanvasTexture(cv);ct.wrapS=ct.wrapT=THREE.RepeatWrapping;
+ct.anisotropy=8;ct.encoding=THREE.sRGBEncoding;
+cv=document.createElement("canvas");cv.width=256;cv.height=128;g=cv.getContext("2d");
+const rd=g.createRadialGradient(128,64,10,128,64,120);
+rd.addColorStop(0,"rgba(0,0,0,.5)");rd.addColorStop(1,"rgba(0,0,0,0)");
+g.fillStyle=rd;g.fillRect(0,0,256,128);
+YATA_CACHE.tex={cell:ct,shadow:new THREE.CanvasTexture(cv)};
+}
+const T=YATA_CACHE.tex;
+const spl=a=>{const c=new THREE.SplineCurve(a.map(p=>new THREE.Vector2(p[0],p[1])));
+const S=c.getPoints(240);
+return u=>{u=clamp(u,0,1);
+let lo=0,hi=S.length-1;
+while(lo<hi){const mid=(lo+hi)>>1;if(S[mid].x<u)lo=mid+1;else hi=mid;}
+const b=S[lo],p=S[Math.max(0,lo-1)],f=clamp((u-p.x)/((b.x-p.x)||1e-6),0,1);
+return lerp(p.y,b.y,f);};};
+const halfW=spl([[0,.001],[.05,.16],[.16,.44],[.30,.62],[.45,.85],[.60,.90],[.75,.86],[.90,.78],[1,.70]]);
+const hullW=spl([[0,.001],[.06,.10],[.16,.30],[.30,.44],[.50,.58],[.70,.52],[.85,.40],[1,.26]]);
+const zPanel=spl([[0,.30],[.10,.45],[.25,.60],[.50,.62],[.75,.60],[.90,.60],[1,.58]]);
+const zHull=spl([[0,.24],[.15,.38],[.35,.48],[.60,.50],[.80,.44],[1,.34]]);
+const zBell=spl([[0,O.noseTip],[.12,.20],[.30,.145],[.60,.15],[.80,.20],[1,.28]]);
+const DS=THREE.DoubleSide;
+const matWhite=new THREE.MeshStandardMaterial({color:0xe8eaee,roughness:.5,side:DS,envMapIntensity:.3});
+const matOrange=new THREE.MeshStandardMaterial({color:0xf27316,roughness:.45,side:DS,envMapIntensity:.35});
+const matSkirt=new THREE.MeshStandardMaterial({color:0x101216,roughness:.5,side:DS});
+const matArray=new THREE.MeshPhysicalMaterial({color:0x0b0e12,roughness:.42,clearcoat:.5,clearcoatRoughness:.25,map:T.cell,side:DS,envMapIntensity:.35});
+const grp=new THREE.Group();
+const mkB=mat=>({mat,v:[],uv:[],idx:[],map:new Map()});
+const vid=(b,Pp,Uv,i,r)=>{const k=i*1000+r;let id=b.map.get(k);
+if(id===undefined){id=b.v.length/3;b.map.set(k,id);
+b.v.push(Pp[i][r].x,Pp[i][r].y,Pp[i][r].z);b.uv.push(Uv[i][r].x,Uv[i][r].y);}return id;};
+const finish=b=>{if(!b.idx.length)return;
+const g2=new THREE.BufferGeometry();
+g2.setAttribute("position",new THREE.Float32BufferAttribute(b.v,3));
+g2.setAttribute("uv",new THREE.Float32BufferAttribute(b.uv,2));
+g2.setIndex(b.idx);g2.computeVertexNormals();
+const ms=new THREE.Mesh(g2,b.mat);ms.castShadow=true;grp.add(ms);};
+/* ==== ハル(閉じた立体。上面はハル上端で閉じる) ==== */
+{
+const bW=mkB(matWhite),bO=mkB(matOrange),bS=mkB(matSkirt);
+const R=2*(O.side+O.deckK)-1,Pp=[],Uv=[],TYP=[];
+for(let i=0;i<=O.seg;i++){
+const u=i/O.seg,xl=u*O.L,wh=hullW(u),zb=zBell(u),hd=zHull(u),zPos=xl-2.5;
+const pts=[],typ=[];
+pts.push(new THREE.Vector3(0,zb,zPos));
+for(let r=1;r<=O.side;r++){const t=r/O.side;
+pts.push(new THREE.Vector3(wh*Math.pow(Math.sin(t*Math.PI/2),.85),zb+(hd-zb)*Math.pow(t,1.25),zPos));typ.push("S");}
+for(let d=1;d<=O.deckK;d++){const s2=d/O.deckK;
+pts.push(new THREE.Vector3(wh*(1-s2),hd,zPos));typ.push("K");}
+for(let d=O.deckK-1;d>=1;d--){const s2=d/O.deckK;
+pts.push(new THREE.Vector3(-wh*(1-s2),hd,zPos));typ.push("K");}
+for(let r=O.side-1;r>=1;r--){const t=r/O.side;
+pts.push(new THREE.Vector3(-wh*Math.pow(Math.sin(t*Math.PI/2),.85),zb+(hd-zb)*Math.pow(t,1.25),zPos));typ.push("S");}
+typ.push("S");
+Pp.push(pts);Uv.push(pts.map(p=>new THREE.Vector2(xl,p.x+.9)));TYP.push(typ);
+}
+for(let i=0;i<O.seg;i++)for(let r=0;r<R;r++){
+const r2=(r+1)%R,u=i/O.seg;
+const zm=(Pp[i][r].y+Pp[i][r2].y)/2;
+const b=TYP[i][r]==="K"?bS:(u<O.orangeU?bO:(zm<O.skirtZ?bS:bW));
+const a=vid(b,Pp,Uv,i,r),c=vid(b,Pp,Uv,i,r2),d=vid(b,Pp,Uv,i+1,r2),e=vid(b,Pp,Uv,i+1,r);
+b.idx.push(a,c,e,c,d,e);
+}
+{const i=O.seg,n=Pp[i].length;
+const cid=bS.v.length/3;bS.v.push(0,(zBell(1)+zHull(1))/2,O.L-2.5);bS.uv.push(O.L,.9);
+for(let r=0;r<n;r++){const a=vid(bS,Pp,Uv,i,r),c=vid(bS,Pp,Uv,i,(r+1)%n);bS.idx.push(cid,a,c);}}
+finish(bW);finish(bO);finish(bS);
+}
+/* ==== パネル翼(ハルより≥6cm上の独立フラット面=構造的にZファイティング不可) ==== */
+{
+const bA=mkB(matArray),bO=mkB(matOrange),PW=6,Gp=[],Uv=[];
+for(let i=0;i<=O.seg;i++){
+const u=i/O.seg,xl=u*O.L,wa=halfW(u);
+const ap=Math.max(zPanel(u),zHull(u)+0.06),zPos=xl-2.5;
+const row=[];
+for(let j=0;j<=PW;j++){const x=wa*(j/PW*2-1);row.push(new THREE.Vector3(x,ap,zPos));}
+Gp.push(row);Uv.push(row.map(p=>new THREE.Vector2(xl,p.x+.9)));
+}
+const vid2=(b,i,j)=>{const k=i*100+j;let id=b.map.get(k);
+if(id===undefined){id=b.v.length/3;b.map.set(k,id);
+b.v.push(Gp[i][j].x,Gp[i][j].y,Gp[i][j].z);b.uv.push(Uv[i][j].x,Uv[i][j].y);}return id;};
+const u0=(O.canopyX-O.canopyLen*0.52)/O.L, u1=(O.canopyX+canopyLenSafe())/O.L, wc=O.canopyW*0.46;
+function canopyLenSafe(){return O.canopyLen*0.52;}
+for(let i=0;i<O.seg;i++)for(let j=0;j<PW;j++){
+const uc=(i+0.5)/O.seg;
+const xc=((j+0.5)/PW*2-1)*((halfW(i/O.seg)+halfW((i+1)/O.seg))*0.5);
+if(uc>u0&&uc<u1&&Math.abs(xc)<wc) continue; // キャノピー開口はパネルをくり抜く
+const b=(i/O.seg)<O.orangeU?bO:bA;
+const a=vid2(b,i,j),c=vid2(b,i,j+1),d=vid2(b,i+1,j+1),e=vid2(b,i+1,j);
+b.idx.push(a,c,e,c,d,e);
+}
+finish(bA);finish(bO);
+}
+/* ==== キャノピー ==== */
+let canopy=null;
+{
+const uC=O.canopyX/O.L;
+const apC=Math.max(zPanel(uC),zHull(uC)+0.06);
+const cg=new THREE.SphereGeometry(1,48,24);
+{const p=cg.attributes.position;
+for(let i=0;i<p.count;i++){const z=p.getZ(i),f=z>0?1-.45*z*z:1-.25*z*z;
+p.setX(i,p.getX(i)*f);p.setY(i,p.getY(i)*f);}}
+cg.scale(O.canopyW/2,O.canopyTop-apC+0.05,O.canopyLen/2);
+cg.translate(0,apC-0.05,O.canopyX-2.5);
+const idx=cg.index.array,g0=[],g1=[],p=cg.attributes.position;
+for(let i=0;i<idx.length;i+=3){
+const cz=(p.getZ(idx[i])+p.getZ(idx[i+1])+p.getZ(idx[i+2]))/3;
+(cz<O.canopyX-O.canopyLen*.18-2.5?g0:g1).push(idx[i],idx[i+1],idx[i+2]);}
+cg.setIndex(g0.concat(g1));cg.clearGroups();
+cg.addGroup(0,g0.length,0);cg.addGroup(g0.length,g1.length,1);cg.computeVertexNormals();
+canopy=new THREE.Mesh(cg,[
+new THREE.MeshStandardMaterial({color:0x9aa4ad,roughness:.15,metalness:.4,envMapIntensity:1,side:DS}),
+new THREE.MeshPhysicalMaterial({color:0x15181c,roughness:.18,clearcoat:1,envMapIntensity:1.2,side:DS})]);
+canopy.castShadow=true;grp.add(canopy);
+}
+/* ==== コンタクトシャドウ ==== */
+const shM=new THREE.Mesh(new THREE.PlaneGeometry(2.3,5.3),
+new THREE.MeshBasicMaterial({map:T.shadow,transparent:true,depthWrite:false}));
+shM.rotation.x=-Math.PI/2;shM.position.y=.02;grp.add(shM);
+return {group:grp,canopy};
 }
 const View={
 scene:null,camera:null,renderer:null,car:null,carBody:null,canopyMesh:null,
@@ -1592,7 +1661,10 @@ this.sun=new THREE.Mesh(new THREE.SphereGeometry(22,16,16),
 new THREE.MeshBasicMaterial({color:0xfff1b0}));
 this.scene.add(this.sun);
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(6000,6000),
-new THREE.MeshLambertMaterial({color:0xb4713d}));
+new THREE.MeshLambertMaterial({map:roadTextures().shld})); // 路肩を地平線まで拡大
+{const uv=ground.geometry.attributes.uv;
+for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*2000,uv.getY(i)*2000); // 路肩と同じ3mタイル
+uv.needsUpdate=true;}
 ground.rotation.x=-Math.PI/2; ground.position.y=-0.35;
 this.ground=ground; this.scene.add(ground);
 this.buildCar();
@@ -1647,6 +1719,31 @@ if(P.shape==="wadai"){
 const Y=buildYATA();
 body.add(Y.group);
 g.userData.canopy=Y.canopy;
+// ---- コックピット内装(ドライバーカメラで体感) ----
+const cock=new THREE.Group();
+const carbon=new THREE.MeshStandardMaterial({color:0x14181d,roughness:.6});
+const rim=new THREE.Mesh(new THREE.TorusGeometry(1,.045,8,40),carbon);
+rim.rotation.x=Math.PI/2; rim.scale.set(.23,.8,1); rim.position.set(0,.66,-.67); cock.add(rim);
+// ヨークピボット(ステア連動で回転)
+this.yokePivot=new THREE.Group();
+this.yokePivot.position.set(0,.56,-.95); this.yokePivot.rotation.x=-.35;
+const rr=(sh,x,y,w,h,r)=>{sh.moveTo(x+r,y);sh.lineTo(x+w-r,y);sh.quadraticCurveTo(x+w,y,x+w,y+r);
+sh.lineTo(x+w,y+h-r);sh.quadraticCurveTo(x+w,y+h,x+w-r,y+h);sh.lineTo(x+r,y+h);
+sh.quadraticCurveTo(x,y+h,x,y+h-r);sh.lineTo(x,y+r);sh.quadraticCurveTo(x,y,x+r,y);};
+const ys=new THREE.Shape(); rr(ys,-.16,-.11,.32,.22,.06);
+const yh=new THREE.Path(); rr(yh,-.125,-.075,.25,.15,.04); ys.holes.push(yh);
+const yoke=new THREE.Mesh(new THREE.ExtrudeGeometry(ys,{depth:.025,bevelEnabled:false}),carbon);
+this.yokeMesh=yoke;
+this.yokePivot.add(yoke);
+// ライブ計器(ヨーク開口内に収まりハンドルと一体回転)
+this.dashCanvas=document.createElement("canvas"); this.dashCanvas.width=512; this.dashCanvas.height=160;
+this.dashTex=new THREE.CanvasTexture(this.dashCanvas);
+const dash=new THREE.Mesh(new THREE.PlaneGeometry(.20,.0625),
+new THREE.MeshBasicMaterial({map:this.dashTex,side:THREE.DoubleSide}));
+dash.position.set(0,0,0.02);
+this.yokePivot.add(dash);
+cock.add(this.yokePivot);
+body.add(cock);
 } else if(P.shape==="catamaran"){
 for(const sx of [-0.72,0.72]){
 const hull=new THREE.Mesh(new THREE.SphereGeometry(0.5,20,14),orangeMat);
@@ -1676,11 +1773,11 @@ for(const [sx,sz,sy] of drlPos){
   dl.position.set(sx,sy,sz);body.add(dl);
 }
 const brakeMat=new THREE.MeshBasicMaterial({color:0x4a0505});
-const bl=new THREE.Mesh(new THREE.BoxGeometry(isW?0.24:0.7,0.05,0.05),brakeMat);
-bl.position.set(0,isW?0.36:0.53,isW?2.42:2.18);body.add(bl);
+const bl=new THREE.Mesh(new THREE.BoxGeometry(isW?0.22:0.7,isW?0.035:0.05,0.04),brakeMat);
+bl.position.set(0,isW?0.50:0.53,isW?2.52:2.18);body.add(bl); // アレイ直下の細いブレーキライト
 g.userData.brakeMat=brakeMat;
 g.userData.winkL=[];g.userData.winkR=[];
-const winkPos=isW?[[-0.60,-1.05],[0.60,-1.05],[-0.62,1.60],[0.62,1.60]]
+const winkPos=isW?[[-0.60,-1.05],[0.60,-1.05],[-0.40,1.90],[0.40,1.90]]
   :[[-0.57,-1.05],[0.57,-1.05],[-0.94,1.95],[0.94,1.95]];
 for(const [wx,wz] of winkPos){
   const wm=new THREE.MeshBasicMaterial({color:0x4a3005});
@@ -1783,6 +1880,34 @@ g.visible=false;
 this.fireGroup=g; this.scene.add(g);
 },
 startFire(){ this.fireOn=true; this.fireGroup.visible=true; },
+updateDash(es){
+if(!this.dashCanvas||!this.dashTex) return;
+const c=this.dashCanvas.getContext("2d");
+c.fillStyle="#04070b"; c.fillRect(0,0,512,160);
+// ウインカー端ランプ(車体と同じ800ms点滅に同期・ハザードで両側)
+const on=(performance.now()%800)<400;
+const L=es.signal===-1||es.signal===2, R=es.signal===1||es.signal===2;
+c.fillStyle=(L&&on)?"#ffb020":"#241a10";
+c.beginPath(); c.moveTo(54,42); c.lineTo(54,118); c.lineTo(14,80); c.closePath(); c.fill();
+c.fillStyle=(R&&on)?"#ffb020":"#241a10";
+c.beginPath(); c.moveTo(458,42); c.lineTo(458,118); c.lineTo(498,80); c.closePath(); c.fill();
+// 速度
+c.textAlign="right"; c.fillStyle="#22d3ee"; c.font="bold 84px Consolas,monospace";
+c.fillText(String(Math.round(es.v*3.6)),246,112);
+c.textAlign="left"; c.font="bold 24px Consolas,monospace"; c.fillStyle="#6fa3b8";
+c.fillText("km/h",254,112);
+// SOCバー
+const soc=clamp(es.soc,0,1);
+c.fillStyle="#0c1626"; c.fillRect(90,16,332,20);
+c.fillStyle= soc>.4?"#22d3ee": soc>.15?"#fbbf24":"#ef4444";
+c.fillRect(93,19,326*soc,14);
+c.font="20px Consolas,monospace"; c.fillStyle="#6fa3b8";
+c.fillText("SOC "+(soc*100).toFixed(0)+"%",90,60);
+// 出力/発電
+c.fillStyle="#fb923c"; c.fillText("MTR "+Math.round(es.lastMotorW||0)+"W",90,146);
+c.fillStyle="#fbbf24"; c.fillText("SOL "+Math.round(es.lastSolar||0)+"W",266,146);
+this.dashTex.needsUpdate=true;
+},
 buildScenery(){
 for(const m of this.scenery) this.scene.remove(m);
 this.scenery.length=0;
@@ -2029,16 +2154,23 @@ return { x:lerp(a.x,b.x,t), y:lerp(a.y,b.y,t), z:lerp(a.z,b.z,t), h:lerp(a.h,b.h
 matFor(color){
 if(!this._matCache) this._matCache=new Map();
 let m=this._matCache.get(color);
-if(!m){ m=new THREE.MeshLambertMaterial({color}); this._matCache.set(color,m); }
+if(!m){
+if(color===0x2b2d31) m=new THREE.MeshLambertMaterial({map:roadTextures().asph});       // 舗装=ザラつき
+else if(color===0x9c6a3c||color===0xb4713d) m=new THREE.MeshLambertMaterial({map:roadTextures().shld}); // 路肩+路側=同じ砂利
+else m=new THREE.MeshLambertMaterial({color}); // 白線・中央線は単色でクッキリ
+this._matCache.set(color,m);
+}
 return m;
 },
 stripGeo(s0,s1,offL,offR,yLift,color){
-const verts=[],idx=[],norms=[];
+const verts=[],idx=[],norms=[],uvs=[];
 let vi=0;
 for(let s=s0;s<=s1;s+=this.SEG){
 const p=this.roadPoint(s);
 const nx=Math.cos(p.h), nz=Math.sin(p.h);
-verts.push(p.x+nx*offL,p.y+yLift,p.z+nz*offL, p.x+nx*offR,p.y+yLift,p.z+nz*offR);
+const x0=p.x+nx*offL,z0=p.z+nz*offL,x1=p.x+nx*offR,z1=p.z+nz*offR;
+verts.push(x0,p.y+yLift,z0, x1,p.y+yLift,z1);
+uvs.push(x0/3,z0/3, x1/3,z1/3); // ワールド座標UV(3m毎タイル=チャンク継ぎ目でズレない)
 norms.push(0,1,0, 0,1,0);
 if(s>s0){ const a=vi-2; idx.push(a,a+1,a+2, a+1,a+3,a+2); }
 vi+=2;
@@ -2046,6 +2178,7 @@ vi+=2;
 const geo=new THREE.BufferGeometry();
 geo.setAttribute("position",new THREE.Float32BufferAttribute(verts,3));
 geo.setAttribute("normal",new THREE.Float32BufferAttribute(norms,3));
+geo.setAttribute("uv",new THREE.Float32BufferAttribute(uvs,2));
 geo.setIndex(idx);
 const msh=new THREE.Mesh(geo,this.matFor(color));msh.receiveShadow=true;return msh;
 },
@@ -2105,6 +2238,11 @@ if(es.burst&&es.v>2) this.car.position.y+=Math.random()*0.04;
 if(this.car.userData.brakeMat)
 this.car.userData.brakeMat.color.setHex((es.brakePhys>0.05||es.brakeRegen>0.05)?0xff2222:0x4a0505);
 updateWinkers(this.car,es);
+View.updateDash(es);
+if(View.yokeMesh) View.yokeMesh.rotation.z=-Input.steer*.9;
+// ヨーク回転: 右ステア→右へ回転(車の右旋回と同じ向き)
+if(View.yokeMesh) View.yokeMesh.rotation.z=-Input.steer*.9;
+View.updateDash(es);
 if(es.gridShake>0){ es.gridShake-=dtR; if(es.v>1) this.car.position.y+=(Math.random()-0.5)*0.13; }
 if(es.camp){
 this.pitGroup.visible=true;
@@ -2135,10 +2273,12 @@ lookAt=new THREE.Vector3(cx+Math.sin(hCar)*20, cy+1.1, cz-Math.cos(hCar)*20);
 const cx=this.car.position.x, cy=this.car.position.y, cz=this.car.position.z;
 camPos=new THREE.Vector3(cx-Math.sin(hCar)*1.8, cy+1.45, cz+Math.cos(hCar)*1.8);
 lookAt=new THREE.Vector3(cx+Math.sin(hCar)*40, cy+1.0, cz-Math.cos(hCar)*40);
-} else if(this.cam===2){
-const cx=this.car.position.x, cy=this.car.position.y, cz=this.car.position.z;
-camPos=new THREE.Vector3(cx+Math.sin(hCar)*0.35, cy+1.18, cz-Math.cos(hCar)*0.35);
-lookAt=new THREE.Vector3(cx+Math.sin(hCar)*45, cy+0.8, cz-Math.cos(hCar)*45);
+} else if(this.cam===2){ // ドライバー: 頭を車体に固定(勾配ピッチ・オフロード揺れを継承)
+this.car.updateMatrixWorld();
+const eye=new THREE.Vector3(-(es.gLat||0)*.05, .84+(es.offroad?(Math.random()-.5)*.03:0), -.45);
+eye.applyMatrix4(this.car.matrixWorld);
+const aim=new THREE.Vector3(0,.76,-30).applyMatrix4(this.car.matrixWorld);
+camPos=eye; lookAt=aim;
 } else {
 const cx=this.car.position.x, cy=this.car.position.y, cz=this.car.position.z;
 camPos=new THREE.Vector3(cx+Math.sin(hCar)*0.3, cy+2.2, cz-Math.cos(hCar)*0.3);
@@ -2200,7 +2340,7 @@ this.escortChase.visible=(P.mode==="race"&&!es.camp&&es.stopTimer<=0&&this.s>45)
 this.updateAITeams(es,dtR);
 const fovT=70+clamp((es.v*3.6-55)/120,0,1)*8;
 if(Math.abs(fovT-this.camera.fov)>0.15){this.camera.fov=lerp(this.camera.fov,fovT,0.12);this.camera.updateProjectionMatrix();}
-const sInt=clamp((es.v-22)/22,0,1);
+const sInt=0
 this.speedLines.forEach((pl,i)=>{
   if(sInt<=0){pl.visible=false;return;}
   pl.visible=true;pl.quaternion.copy(this.camera.quaternion);
@@ -2379,6 +2519,8 @@ chart.update("none");
 }
 function updateHUD(){
 const es=Engine.st; if(!es) return;
+const bh=document.getElementById("bottom-hud");
+if(bh) bh.style.display=(View.cam===2)?"none":"";
 const h=Math.floor(es.hour), m=Math.floor(es.hour%1*60);
 document.getElementById("hud-clock").textContent=`Day${es.day} ${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
 document.getElementById("hud-dist").textContent=`${es.km.toFixed(1)} / ${TOTAL_KM} km`;
@@ -2899,6 +3041,8 @@ this.car.rotation.x=-Math.atan(grade)*0.8;
 if(this.car.userData.brakeMat)
 this.car.userData.brakeMat.color.setHex((es.brakePhys>0.05||es.brakeRegen>0.05)?0xff2222:0x4a0505);
 updateWinkers(this.car,es);
+View.updateDash(es);
+if(View.yokeMesh) View.yokeMesh.rotation.z=-Input.steer*.9; // 右ステア→右へ回転
 const hCar=this.heading, cx=this.x, cy=carY, cz=this.z;
 let camPos,lookAt;
 if(View.cam===0){
@@ -2910,8 +3054,9 @@ camPos=new THREE.Vector3(cx-Math.sin(hCar)*1.8,cy+1.45,cz+Math.cos(hCar)*1.8);
 lookAt=new THREE.Vector3(cx+Math.sin(hCar)*40,cy+1.0,cz-Math.cos(hCar)*40);
 this.camera.position.copy(camPos);
 } else if(View.cam===2){
-camPos=new THREE.Vector3(cx+Math.sin(hCar)*0.35,cy+1.18,cz-Math.cos(hCar)*0.35);
-lookAt=new THREE.Vector3(cx+Math.sin(hCar)*45,cy+0.8,cz-Math.cos(hCar)*45);
+this.car.updateMatrixWorld();
+camPos=new THREE.Vector3(0,.84,-.45).applyMatrix4(this.car.matrixWorld);
+lookAt=new THREE.Vector3(0,.76,-30).applyMatrix4(this.car.matrixWorld);
 this.camera.position.copy(camPos);
 } else {
 camPos=new THREE.Vector3(cx+Math.sin(hCar)*0.3,cy+2.2,cz-Math.cos(hCar)*0.3);
