@@ -1496,6 +1496,20 @@ ROAD_TEX.asph=mk("#2b2d31","rgba(0,0,0,0.25)","rgba(120,124,130,0.18)",7000);
 ROAD_TEX.shld=mk("#9c6a3c","rgba(70,45,22,0.25)","rgba(210,170,120,0.25)",6000);
 return ROAD_TEX;
 }
+/* ============ 粒状スパック(縁石/芝/法面に乗算で共有) ============ */
+const GRAIN=(()=>{
+const cv=document.createElement("canvas");cv.width=cv.height=128;
+const c=cv.getContext("2d");
+c.fillStyle="#ffffff";c.fillRect(0,0,128,128);
+for(let i=0;i<2600;i++){
+c.fillStyle=Math.random()<0.5?`rgba(0,0,0,${0.08+Math.random()*0.22})`:`rgba(255,255,255,${0.1+Math.random()*0.3})`;
+const s=Math.random()<0.85?1:2;
+c.fillRect(Math.random()*128,Math.random()*128,s,s);
+}
+const t=new THREE.CanvasTexture(cv);
+t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;t.encoding=THREE.sRGBEncoding;
+return t;
+})();
 /* ============ ④ YATA(61)プロシージャルhull ============ */
 const YATA_CACHE={};
 function buildYATA(){
@@ -1629,6 +1643,36 @@ new THREE.MeshBasicMaterial({map:T.shadow,transparent:true,depthWrite:false}));
 shM.rotation.x=-Math.PI/2;shM.position.y=.02;grp.add(shM);
 return {group:grp,canopy};
 }
+/* ============ スカイドーム(グラデ+太陽+雲+星 / ドローコール1) ============ */
+function makeSkyDome(){
+const mat=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,
+uniforms:{uTop:{value:new THREE.Color(0x2f7fc4)},uHor:{value:new THREE.Color(0xbdd7ea)},
+uSunDir:{value:new THREE.Vector3(0,1,0)},uSunCol:{value:new THREE.Color(1.0,0.95,0.8)},
+uCover:{value:0.22},uTime:{value:0},uNight:{value:0}},
+vertexShader:"varying vec3 vDir;void main(){vDir=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
+fragmentShader:[
+"uniform vec3 uTop;uniform vec3 uHor;uniform vec3 uSunCol;uniform vec3 uSunDir;",
+"uniform float uCover;uniform float uTime;uniform float uNight;varying vec3 vDir;",
+"float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}",
+"float vn(vec2 p){vec2 i=floor(p);vec2 f=fract(p);vec2 u=f*f*(3.0-2.0*f);",
+"return mix(mix(hash(i),hash(i+vec2(1.,0.)),u.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),u.x),u.y);}",
+"float fbm(vec2 p){float v=0.0;float a=0.5;for(int i=0;i<4;i++){v+=a*vn(p);p*=2.02;a*=0.5;}return v;}",
+"void main(){",
+"vec3 d=normalize(vDir);float h=clamp(d.y,0.0,1.0);",
+"vec3 col=mix(uHor,uTop,pow(h,0.55));",
+"if(d.y<0.0)col=uHor*(1.0+d.y*0.6);",
+"vec3 sd=normalize(uSunDir);float s=clamp(dot(d,sd),0.0,1.0);",
+"col+=uSunCol*(pow(s,600.0)*1.5+pow(s,64.0)*0.22+pow(s,8.0)*0.06)*(1.0-uNight*0.95);",
+"if(d.y>0.02){vec2 uv=d.xz/(d.y+0.18)*0.9+vec2(uTime*0.006,uTime*0.0025);",
+"float cl=fbm(uv*1.5);",
+"float m=smoothstep(1.0-uCover,1.05-uCover,cl)*smoothstep(0.02,0.15,d.y);",
+"vec3 cc=mix(vec3(1.0),uHor,0.4);cc=mix(cc,uTop,0.25*h);",
+"col=mix(col,cc,m*0.9);}",
+"if(uNight>0.01&&d.y>0.0){float st=step(0.998,hash(floor(d.xz/(d.y+0.25)*300.0)));col+=vec3(0.8,0.9,1.0)*st*uNight*0.7;}",
+"gl_FragColor=vec4(pow(max(col,vec3(0.0)),vec3(0.4545)),1.0);}"
+].join("\n")});
+return new THREE.Mesh(new THREE.SphereGeometry(2200,32,15),mat);
+}
 const View={
 scene:null,camera:null,renderer:null,car:null,carBody:null,canopyMesh:null,
 sun:null,sunLight:null,hemiLight:null,ground:null,
@@ -1645,8 +1689,9 @@ this.renderer=new THREE.WebGLRenderer({canvas,antialias:true});
 this.renderer.setSize(innerWidth,innerHeight);
 this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
 this.scene=new THREE.Scene();
-this.scene.background=new THREE.Color(0x87b6e8);
+this.scene.background=null;
 setupRenderQuality(this.renderer,this.scene);
+this.skyDome=makeSkyDome(); this.skyDome.frustumCulled=false; this.scene.add(this.skyDome);
 this.camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,3000);
 this.hemiLight=new THREE.HemisphereLight(0xbfe6ff,0x8a5a33,0.9);
 this.scene.add(this.hemiLight);
@@ -1659,7 +1704,7 @@ Object.assign(this.sunLight.shadow.camera,{left:-9,right:9,top:9,bottom:-9,near:
 this.scene.add(this.sunLight.target);
 this.sun=new THREE.Mesh(new THREE.SphereGeometry(22,16,16),
 new THREE.MeshBasicMaterial({color:0xfff1b0}));
-this.scene.add(this.sun);
+this.sun.visible=false; this.scene.add(this.sun);
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(6000,6000),
 new THREE.MeshLambertMaterial({map:roadTextures().shld})); // 路肩を地平線まで拡大
 {const uv=ground.geometry.attributes.uv;
@@ -2296,14 +2341,23 @@ this.sun.position.set(pHere.x+Math.sin(relAz)*shD, Math.max(sy,-80), pHere.z-Mat
 this.sunLight.position.copy(this.sun.position);
 this.sunLight.intensity=clamp(Math.sin(alt)*1.5,0.02,1.3)*(es.weather?0.4:1);
 this.sunLight.target.position.copy(this.car.position);
-const dayC=new THREE.Color(0x87b6e8), setC=new THREE.Color(0xe8814f), nightC=new THREE.Color(0x0a1226);
-let sky;
-if(alt<=0) sky=nightC;
-else if(alt<0.18) sky=nightC.clone().lerp(setC,alt/0.18);
-else sky=setC.clone().lerp(dayC,clamp((alt-0.18)/0.5,0,1));
-if(es.weather) sky.lerp(new THREE.Color(0x555f6b),0.6);
-this.scene.background=sky;
-if(this.scene.fog)this.scene.fog.color.copy(sky);
+const dayTop=new THREE.Color(0x2f7fc4),dayHor=new THREE.Color(0xbdd7ea);
+const setTop=new THREE.Color(0x27356b),setHor=new THREE.Color(0xe8814f);
+const nigTop=new THREE.Color(0x040914),nigHor=new THREE.Color(0x0a1226);
+const t1=clamp(alt/0.18,0,1),t2=clamp((alt-0.18)/0.5,0,1);
+const hor=nigHor.clone().lerp(setHor,t1).lerp(dayHor,t2);
+const top=nigTop.clone().lerp(setTop,t1).lerp(dayTop,t2);
+if(es.weather){hor.lerp(new THREE.Color(0x8a94a0),0.5);top.lerp(new THREE.Color(0x5c6672),0.5);}
+if(this.scene.fog)this.scene.fog.color.copy(hor);
+if(this.skyDome){
+const u=this.skyDome.material.uniforms;
+u.uTop.value.copy(top);u.uHor.value.copy(hor);
+u.uSunDir.value.copy(this.sun.position).sub(this.car.position).normalize();
+u.uCover.value=es.weather?0.6:0.22;
+u.uNight.value=clamp(1-alt/0.18,0,1);
+u.uTime.value=performance.now()/1000;
+this.skyDome.position.copy(this.camera.position);
+}
 this.hemiLight.intensity=clamp(Math.sin(alt)*1.1,0.12,1)*(es.weather?0.55:1);
 for(const m of this.scenery){
 if(this.s-m.userData.s>80){ m.userData.s=this.s+900+Math.random()*400;
@@ -2701,8 +2755,8 @@ else if(kind==="fig8") this.buildFig8();
 else this.buildStrip();
 this.retry();
 },
-ribbon(pts,halfW,color,yOff,clampInner){
-const n=pts.length, verts=[],norms=[],idx=[];
+ribbon(pts,halfW,color,yOff,clampInner,mat){
+const n=pts.length, verts=[],norms=[],idx=[],uvs=[];
 for(let i=0;i<=n;i++){
 const im=i%n;
 const a=pts[im], b=pts[(im+1)%n], pr=pts[(im-1+n)%n];
@@ -2716,19 +2770,22 @@ const c=Math.abs(dh)/L;
 if(c>1e-4){ const lim=0.85/c; if(dh>0) offR=Math.min(offR,lim); else offL=Math.min(offL,lim); }
 }
 verts.push(a.x+nx*offR,a.y+yOff,a.z+nz*offR, a.x-nx*offL,a.y+yOff,a.z-nz*offL);
+uvs.push((a.x+nx*offR)/1.5,(a.z+nz*offR)/1.5, (a.x-nx*offL)/1.5,(a.z+nz*offL)/1.5);
 norms.push(0,1,0,0,1,0);
 if(i>0){ const k=(i-1)*2; idx.push(k,k+1,k+2, k+1,k+3,k+2); }
 }
 const g=new THREE.BufferGeometry();
 g.setAttribute("position",new THREE.Float32BufferAttribute(verts,3));
 g.setAttribute("normal",new THREE.Float32BufferAttribute(norms,3));
+g.setAttribute("uv",new THREE.Float32BufferAttribute(uvs,2));
 g.setIndex(idx);
-return new THREE.Mesh(g,new THREE.MeshLambertMaterial({color,side:THREE.DoubleSide}));
+return new THREE.Mesh(g, mat||new THREE.MeshLambertMaterial({color,side:THREE.DoubleSide,map:GRAIN}));
 },
+asphMat(){ if(!this._asphMat) this._asphMat=new THREE.MeshLambertMaterial({map:roadTextures().asph,side:THREE.DoubleSide}); return this._asphMat; },
 embankment(pts,offIn,offOut,color){
 const n=pts.length, grp=new THREE.Group();
 for(const side of [1,-1]){
-const verts=[],norms=[],idx=[]; let vi=0;
+const verts=[],norms=[],idx=[],uvs=[]; let vi=0;
 for(let i=0;i<=n;i++){
 const im=i%n, a=pts[im], b=pts[(im+1)%n], pr=pts[(im-1+n)%n];
 const dx=b.x-a.x,dz=b.z-a.z,L=Math.hypot(dx,dz)||1;
@@ -2738,8 +2795,9 @@ const h1=Math.atan2(a.x-pr.x,-(a.z-pr.z)),h2=Math.atan2(dx,-dz);
 let dh=h2-h1; if(dh>Math.PI)dh-=2*Math.PI; if(dh<-Math.PI)dh+=2*Math.PI;
 const c=Math.abs(dh)/L;
 if(c>1e-4 && Math.sign(dh)===side){ const r=1/c; oi=Math.min(oi,0.8*r); oo=Math.min(oo,0.9*r); }
-verts.push(a.x+nx*side*oi, a.y-0.06, a.z+nz*side*oi,
-a.x+nx*side*oo, -0.1,    a.z+nz*side*oo);
+const x0=a.x+nx*side*oi,z0=a.z+nz*side*oi,x1=a.x+nx*side*oo,z1=a.z+nz*side*oo;
+verts.push(x0, a.y-0.06, z0, x1, -0.1, z1);
+uvs.push(x0/1.5,z0/1.5, x1/1.5,z1/1.5);
 norms.push(0,1,0, 0,1,0);
 if(i>0){const q=vi-2;idx.push(q,q+1,q+2,q+1,q+3,q+2);}
 vi+=2;
@@ -2747,14 +2805,15 @@ vi+=2;
 const g=new THREE.BufferGeometry();
 g.setAttribute("position",new THREE.Float32BufferAttribute(verts,3));
 g.setAttribute("normal",new THREE.Float32BufferAttribute(norms,3));
+g.setAttribute("uv",new THREE.Float32BufferAttribute(uvs,2));
 g.setIndex(idx);
-grp.add(new THREE.Mesh(g,new THREE.MeshLambertMaterial({color,side:THREE.DoubleSide})));
+grp.add(new THREE.Mesh(g,new THREE.MeshLambertMaterial({color,side:THREE.DoubleSide,map:GRAIN})));
 }
 return grp;
 },
 openStrip(idxA,idxB,offL,offR,yOff,color,basic){
 const pts=this.trackPts,n=this.trackN;
-const verts=[],norms=[],idx=[];
+const verts=[],norms=[],idx=[],uvs=[];
 let vi=0;
 const count=((idxB-idxA)%n+n)%n;
 for(let k=0;k<=count;k++){
@@ -2763,6 +2822,7 @@ const a=pts[i],b=pts[j];
 const dx=b.x-a.x,dz=b.z-a.z,L=Math.hypot(dx,dz)||1;
 const nx=-dz/L,nz=dx/L;
 verts.push(a.x+nx*offL,a.y+yOff,a.z+nz*offL, a.x+nx*offR,a.y+yOff,a.z+nz*offR);
+uvs.push((a.x+nx*offL)/1.5,(a.z+nz*offL)/1.5, (a.x+nx*offR)/1.5,(a.z+nz*offR)/1.5);
 norms.push(0,1,0,0,1,0);
 if(k>0){const q=vi-2;idx.push(q,q+1,q+2,q+1,q+3,q+2);}
 vi+=2;
@@ -2770,9 +2830,10 @@ vi+=2;
 const g=new THREE.BufferGeometry();
 g.setAttribute("position",new THREE.Float32BufferAttribute(verts,3));
 g.setAttribute("normal",new THREE.Float32BufferAttribute(norms,3));
+g.setAttribute("uv",new THREE.Float32BufferAttribute(uvs,2));
 g.setIndex(idx);
-const mat=basic?new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide})
-:new THREE.MeshLambertMaterial({color,side:THREE.DoubleSide});
+const mat=basic?new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide,map:GRAIN})
+:new THREE.MeshLambertMaterial({color,side:THREE.DoubleSide,map:GRAIN});
 return new THREE.Mesh(g,mat);
 },
 wallStrip(idxA,idxB,off,hgt,color){
@@ -2821,7 +2882,8 @@ curv[i]=dh/(Math.hypot(c.x-b.x,c.z-b.z)||1);
 this.scene.add(this.ribbon(pts,14,0x5d7c3c,-0.03,true));
 this.scene.add(this.embankment(pts,14,42,0xa9835a));
 this.scene.add(this.ribbon(pts,7.2,0xe8e6da,-0.012));
-this.scene.add(this.ribbon(pts,6.5,0x30333a,0));
+this.scene.add(this.ribbon(pts,6.5,0x30333a,0,false,
+new THREE.MeshLambertMaterial({color:0xffffff,side:THREE.DoubleSide,map:roadTextures().asph})));
 const zones=[];
 let zs=-1;
 for(let i=0;i<n+1;i++){
@@ -2908,7 +2970,8 @@ this.scene.add(bnd);
 }
 },
 buildStrip(){
-const road=new THREE.Mesh(new THREE.BoxGeometry(560,0.05,18),new THREE.MeshLambertMaterial({color:0x2e3136}));
+const dragTex=roadTextures().asph.clone(); dragTex.needsUpdate=true; dragTex.repeat.set(187,6);
+const road=new THREE.Mesh(new THREE.BoxGeometry(560,0.05,18),new THREE.MeshLambertMaterial({map:dragTex}));
 road.position.set(70,0,0); this.scene.add(road);
 const line=(x,color,w=0.5)=>{ const l=new THREE.Mesh(new THREE.BoxGeometry(w,0.03,18),
 new THREE.MeshBasicMaterial({color})); l.position.set(x,0.05,0); this.scene.add(l); return l; };
