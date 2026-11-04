@@ -41,7 +41,7 @@ SH = r'^Stuart Highway$|(^|;)A87(;|$)'
 TOWNS = [
     {'name': 'Darwin', 'bbox': [-12.480, 130.825, -12.435, 130.870], 'cps': [
         {'km': 0.0, 'start': {'near': {'find': r'^(State Square|Parliament House)', 'snap': 'service'}}, 'anchor': True},
-        {'km': 0.06, 'turn': 'R', 'onto': '^Mitchell Street$', 'man': 0.06, 'minGap': 0},
+        {'km': 0.06, 'turn': 'R', 'onto': '^Bennett Street$', 'man': 0.06, 'minGap': 0},   # 出口は Mitchell St との角: 右折してそのまま Bennett St を直進
         {'km': 0.30, 'cross': 'Cavenagh Street|Cavanagh Street'},
         {'km': 0.56, 'cross': 'McMinn Street'},
         {'km': 1.03, 'turn': 'R', 'onto': 'Garramilla Boulevard', 'man': 1.03},

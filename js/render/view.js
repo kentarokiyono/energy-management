@@ -777,7 +777,9 @@ if(this.canopyMesh) this.canopyMesh.visible=(this.cam!==2);
 if(this.cam>=2) this.camera.position.copy(camPos);
 else this.camera.position.lerp(camPos,clamp(dtR*(this.cam===0?5:12),0,1));
 this.camera.lookAt(lookAt);
-this.ground.position.set(pHere.x,pHere.y-60,pHere.z);
+// 予備の地面: OSM の町区間 (平坦) では路面のすぐ下に置き、急な右左折の内側で地形の帯が縮んでできる隙間を塞ぐ
+const flatTown=P.mode==="race"&&Route.inZone(es.km)&&OsmRoute.townAt(es.km);
+this.ground.position.set(pHere.x,(pHere.y-(pHere.bh||0))-(flatTown?0.3:60),pHere.z);
 const alt=es.sunAlt||0, az=(es.sunAz||0);
 const relAz=az-profileAt(es.km).bearing;
 const sunDist=1400, sy=Math.sin(alt)*sunDist, shD=Math.cos(alt)*sunDist;
