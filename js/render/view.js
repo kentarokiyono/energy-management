@@ -25,22 +25,22 @@ this.sunLight=new THREE.DirectionalLight(0xfff3d6,1.2);
 this.scene.add(this.sunLight);
 this.renderer.shadowMap.enabled=true;
 this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-this.sunLight.castShadow=true;this.sunLight.shadow.mapSize.set(1024,1024);
-Object.assign(this.sunLight.shadow.camera,{left:-9,right:9,top:9,bottom:-9,near:800,far:2600});
+this.sunLight.castShadow=true;this.sunLight.shadow.mapSize.set(2048,2048);
+Object.assign(this.sunLight.shadow.camera,{left:-45,right:45,top:45,bottom:-45,near:800,far:2600});
+this.sunLight.shadow.bias=-0.0006; this.sunLight.shadow.normalBias=0.02;
 this.scene.add(this.sunLight.target);
 this.sun=new THREE.Mesh(new THREE.SphereGeometry(22,16,16),
 new THREE.MeshBasicMaterial({color:0xfff1b0}));
 this.sun.visible=false; this.scene.add(this.sun);
-const ground=new THREE.Mesh(new THREE.PlaneGeometry(6000,6000),
-new THREE.MeshLambertMaterial({map:roadTextures().shld})); // 路肩を地平線まで拡大
-{const uv=ground.geometry.attributes.uv;
-for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*2000,uv.getY(i)*2000); // 路肩と同じ3mタイル
-uv.needsUpdate=true;}
-ground.rotation.x=-Math.PI/2; ground.position.y=-0.35;
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(9000,9000,1,1),SceneMats.get("ground").mat);
+{ const g=ground.geometry, n=g.attributes.position.count;
+ g.setAttribute("color",new THREE.Float32BufferAttribute(new Float32Array(n*3),3));
+ g.setAttribute("aVeg",new THREE.Float32BufferAttribute(new Float32Array(n*4),4));
+ g.setAttribute("aMisc",new THREE.Float32BufferAttribute(new Float32Array(n*3),3)); }
+ground.rotation.x=-Math.PI/2; ground.position.y=-0.35; ground.receiveShadow=false;
 this.ground=ground; this.scene.add(ground);
 this.buildCar();
-this.buildScenery();
-this.buildStructures();
+Horizon.build(this.scene);
 this.buildEscorts();
 this.buildPit();
 this.buildBay();
@@ -55,11 +55,11 @@ for(let i=0;i<12;i++){
 this.aiPool=[];
 for(let i=0;i<6;i++){ const m=this.mkAICar(); m.visible=false; this.scene.add(m); this.aiPool.push({mesh:m,team:null}); }
 this.road={pts:[{x:0,z:0,y:0,h:0,g:0}],builtS:0,chunks:[]};
-this.s=0; this.lateral=-2.4; this.roadTrains.length=0;
+this.s=320; this.lateral=-2.4; this.roadTrains.length=0;
 this.relHeading=0; this.prevRoadH=0; this.genY=0; this.rollT=0;
 this.gen={grade:0,targetGrade:0,gradeRemain:400,curv:0,targetCurv:0,curvRemain:600};
 this.lmMap.clear(); this.redSignalKm=null; this.inPit=false; this.pitBlend=0; this.fireOn=false;
-this.ensureRoad(1500);
+this.ensureRoad(this.s+1500);
 addEventListener("resize",()=>{
 this.camera.aspect=innerWidth/innerHeight; this.camera.updateProjectionMatrix();
 this.renderer.setSize(innerWidth,innerHeight);
@@ -159,43 +159,74 @@ for(const [wx,wz] of winkPos){
 g.add(body);
 return {group:g, body, canopy:g.userData.canopy};
 },
-mkVan(color){
-const v=new THREE.Group();
-const bodyM=new THREE.MeshPhongMaterial({color});
-const cab=new THREE.Mesh(new THREE.BoxGeometry(1.9,1.4,4.6),bodyM); cab.position.y=1.0; v.add(cab);
-const win=new THREE.Mesh(new THREE.BoxGeometry(1.92,0.5,1.4),new THREE.MeshPhongMaterial({color:0x1a2733})); win.position.set(0,1.45,1.0); v.add(win);
-for(const [x,z] of [[-0.8,1.5],[0.8,1.5],[-0.8,-1.5],[0.8,-1.5]]){
-const w=new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.35,0.25,12),new THREE.MeshPhongMaterial({color:0x111}));
-w.rotation.z=Math.PI/2; w.position.set(x,0.35,z); v.add(w);
-}
+mkVan(color){ // 随伴車: 4WDワゴン(ブルバー・ルーフラック・回転灯)  前方=-z
+const v=new THREE.Group(), bs=new BatchSet();
+srand(color);
+const body=linCol(color).clone(), dark=0x1b1f22;
+bs.get("solid").add(tpl("box"),M4(0,0.45,0,1.92,0.95,4.8),body);
+bs.get("solid").add(tpl("box"),M4(0,1.4,0.45,1.84,0.85,3.3),body);
+bs.get("glass").add(tpl("box"),M4(0,1.47,0.45,1.87,0.62,3.1),linCol(0x1a242b));
+bs.get("glass").add(tpl("box"),M4(0,1.42,-1.24,1.7,0.7,0.06,0,-0.45,0),linCol(0x1a242b));
+bs.get("solid").add(tpl("box"),M4(0,0.62,-2.42,1.9,0.55,0.08),linCol(0x2a2d30));            // グリル
+bs.get("solid").add(tpl("box"),M4(0,0.32,-2.6,2.0,0.7,0.22),linCol(0x34383b));             // ブルバー
+bs.get("solid").add(tpl("box"),M4(0,2.25,0.45,1.7,0.08,2.8),linCol(0x2a2a2a));             // ルーフラック
+bs.get("solid").add(tpl("cyl8"),M4(0.6,2.33,-0.6,0.1,0.14,0.1),linCol(0xffa000));          // 回転灯
+for(const [x,z] of [[-0.86,1.55],[0.86,1.55],[-0.86,-1.5],[0.86,-1.5]]){
+ bs.get("solid").add(tpl("cyl12"),M4(x,0.38,z,0.38,0.3,0.38,0,0,Math.PI/2),linCol(dark));
+ bs.get("solid").add(tpl("cyl8"),M4(x*1.01,0.38,z,0.2,0.31,0.2,0,0,Math.PI/2),linCol(0x9a9da0)); }
+bs.get("solid").add(tpl("cyl12"),M4(0,0.95,2.5,0.36,0.25,0.36,0,Math.PI/2,0),linCol(dark));  // 背面スペア
+bs.toGroup(v);
 const dm=new THREE.MeshBasicMaterial({color:0xffffff});
-for(const sx of [-0.7,0.7]){
-const dl=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.1,0.06),dm);
-dl.position.set(sx,0.95,-2.32); v.add(dl);
-}
+for(const sx of [-0.7,0.7]){ const dl=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.12,0.06),dm); dl.position.set(sx,0.82,-2.42); v.add(dl); }
+const tm=new THREE.MeshBasicMaterial({color:0xaa1111});
+for(const sx of [-0.85,0.85]){ const tl=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.35,0.05),tm); tl.position.set(sx,0.9,2.42); v.add(tl); }
 return v;
 },
 buildEscorts(){
 if(this.escortLead) this.scene.remove(this.escortLead);
 if(this.escortChase) this.scene.remove(this.escortChase);
 this.escortLead=this.mkVan(0xffffff);
-const sign=new THREE.Mesh(new THREE.BoxGeometry(1.6,0.5,0.08),new THREE.MeshBasicMaterial({color:0xffcc00}));
-sign.position.set(0,2.0,-2.2); this.escortLead.add(sign);
+const mkBanner=(txt,z,flip)=>{ const g=new THREE.Group();
+ const pl=new THREE.Mesh(new THREE.PlaneGeometry(1.75,0.55),new THREE.MeshLambertMaterial({map:signTex("banner",txt)}));
+ const bk=new THREE.Mesh(new THREE.BoxGeometry(1.8,0.6,0.04),new THREE.MeshLambertMaterial({color:0x2a2a2a}));
+ pl.position.z=0.03; g.add(pl,bk); g.position.set(0,2.65,z); if(flip) g.rotation.y=Math.PI; return g; };
+this.escortLead.add(mkBanner("CAUTION\nSOLAR CAR AHEAD",-0.9,true));
 this.escortChase=this.mkVan(0x3b82f6);
+this.escortChase.add(mkBanner("CAUTION\nSOLAR CAR AHEAD",1.6,false));
 this.scene.add(this.escortLead,this.escortChase);
 },
-mkRoadTrain(){
-const t=new THREE.Group();
-const cabM=new THREE.MeshPhongMaterial({color:[0xaa2222,0x2255aa,0xdddddd][Math.floor(Math.random()*3)]});
-const cab=new THREE.Mesh(new THREE.BoxGeometry(2.5,2.8,4.5),cabM); cab.position.set(0,1.7,6.5); t.add(cab);
+mkRoadTrain(){ // ボンネット型トラクタ+ブルバー+3連トレーラ(全長約53m)
+const t=new THREE.Group(), bs=new BatchSet();
+srand(Math.floor(Math.random()*1e6));
+const cab=rndPick([0xaa2222,0x1f4f9c,0xe8e8e8,0xd8a21c,0x1d1d1d,0x2f6b3a]);
+const chrome=0xd0d4d8, tyre=0x141414;
+// トラクタ (前方=+z: すれ違い用に後で反転)
+bs.get("solid").add(tpl("box"),M4(0,0.9,4.6,2.5,0.35,8.5),linCol(0x222222));
+bs.get("solid").add(tpl("box"),M4(0,1.25,7.6,2.3,1.35,2.6),linCol(cab));            // ボンネット
+bs.get("solid").add(tpl("box"),M4(0,1.25,5.0,2.5,2.65,2.6),linCol(cab));            // キャブ
+bs.get("solid").add(tpl("box"),M4(0,3.9,4.4,2.5,1.0,1.6),linCol(cab));              // スリーパー
+bs.get("glass").add(tpl("box"),M4(0,2.75,6.31,2.3,0.9,0.05),linCol(0x1a2228));
+bs.get("solid").add(tpl("box"),M4(0,1.1,8.95,2.3,1.15,0.15),linCol(chrome));       // グリル
+bs.get("solid").add(tpl("box"),M4(0,0.55,9.25,2.6,1.25,0.35),linCol(0xb9bcbf));    // ブルバー
+for(const sx of [-1.15,1.15]) bs.get("solid").add(tpl("cyl8"),M4(sx,1.6,3.75,0.09,3.6,0.09),linCol(chrome)); // 排気スタック
+for(const sx of [-1.3,1.3]) bs.get("solid").add(tpl("cyl12"),M4(sx,0.7,4.6,0.45,1.4,0.45,0,0,Math.PI/2),linCol(chrome)); // 燃料タンク
+const wheel=(x,z)=>bs.get("solid").add(tpl("cyl12"),M4(x,0.52,z,0.52,0.3,0.52,0,0,Math.PI/2),linCol(tyre));
+for(const z of [8.2,2.6,1.2]) for(const x of [-1.1,1.1]) wheel(x,z);
+// トレーラ ×3 (サイドティッパー/バン)
+const trCol=rndPick([0xb4b7ba,0x9aa0a6,0xc9c9c2,0x7a8288]);
 for(let i=0;i<3;i++){
-const tr=new THREE.Mesh(new THREE.BoxGeometry(2.5,3.0,10),new THREE.MeshPhongMaterial({color:0x8b8f96}));
-tr.position.set(0,1.8,-i*11.5); t.add(tr);
-for(const z of [-4+ -i*11.5, 4 + -i*11.5]) for(const x of [-1.1,1.1]){
-const w=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,0.35,10),new THREE.MeshPhongMaterial({color:0x111}));
-w.rotation.z=Math.PI/2; w.position.set(x,0.5,z); t.add(w);
+ const zc=-6-i*13.5;
+ const tip=rnd()<0.5;
+ bs.get("solid").add(tpl("box"),M4(0,1.05,zc,2.5,0.3,12.4),linCol(0x2a2a2a));
+ bs.get(tip?"solid":"corr").add(tpl("box"),M4(0,1.35,zc,2.5,tip?1.9:2.9,12.2),linCol(trCol,0.05),2);
+ if(i<2) bs.get("solid").add(tpl("box"),M4(0,0.6,zc-7.1,0.2,0.2,2.2),linCol(0x333333));  // ドーリー連結
+ for(const dz of [-4.8,-3.4,-2.0,4.4,5.8]) for(const x of [-1.1,1.1]) wheel(x,zc+dz);
+ bs.get("solid").add(tpl("box"),M4(0,0.9,zc-6.2,2.4,0.25,0.06),linCol(0xd11a1a));
 }
-}
+bs.get("solid").add(tpl("box"),M4(0,1.7,-33.8,1.2,0.6,0.04),linCol(0xf6c400));     // ROAD TRAIN 表示板
+bs.toGroup(t);
+t.traverse(o=>{ if(o.isMesh) o.matrixAutoUpdate=false; });
+t.rotation.order="YXZ";
 return t;
 },
 buildPit(){
@@ -279,113 +310,90 @@ c.fillStyle="#fb923c"; c.fillText("MTR "+Math.round(es.lastMotorW||0)+"W",90,146
 c.fillStyle="#fbbf24"; c.fillText("SOL "+Math.round(es.lastSolar||0)+"W",266,146);
 this.dashTex.needsUpdate=true;
 },
-buildScenery(){
-for(const m of this.scenery) this.scene.remove(m);
-this.scenery.length=0;
-const mats={ bush:new THREE.MeshLambertMaterial({color:0x4d6b33}),
-rock:new THREE.MeshLambertMaterial({color:0x8f4a26}),
-mound:new THREE.MeshLambertMaterial({color:0x7a3b1d}),
-tree:new THREE.MeshLambertMaterial({color:0x3f5f2a}) };
-const geos={ bush:new THREE.IcosahedronGeometry(1,0), rock:new THREE.DodecahedronGeometry(1,0),
-mound:new THREE.ConeGeometry(0.8,2.2,7), tree:new THREE.ConeGeometry(1.5,4,6) };
-for(let i=0;i<120;i++){
-const kind=["bush","bush","rock","mound","tree"][i%5];
-const m=new THREE.Mesh(geos[kind],mats[kind]);
-const sc=0.5+Math.random()*1.6;
-m.scale.set(sc,kind==="bush"?sc*0.7:sc,sc);
-m.userData={s:Math.random()*1400, off:(Math.random()<0.5?-1:1)*(14+Math.random()*90)};
-this.scenery.push(m); this.scene.add(m);
-}
-},
-buildStructures(){
-for(const m of this.structures) this.scene.remove(m);
-this.structures.length=0;
-for(let i=0;i<46;i++){
-const g=new THREE.Group();
-g.userData={s:-1e9, off:0, kind:""};
-this.structures.push(g); this.scene.add(g);
-}
-},
-dressStructure(g,kind){
-while(g.children.length) g.remove(g.children[0]);
-if(kind==="house"){
-const w=5+Math.random()*4, d=6+Math.random()*5, h=2.8+Math.random()*1.2;
-const base=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),
-new THREE.MeshLambertMaterial({color:[0xd9c7a8,0xc9b291,0xb9a58f][Math.floor(Math.random()*3)]}));
-base.position.y=h/2; g.add(base);
-const roofG=new THREE.ConeGeometry(Math.max(w,d)*0.72,1.6,4);
-const roof=new THREE.Mesh(roofG,new THREE.MeshLambertMaterial({color:0x7c3f21}));
-roof.position.y=h+0.8; roof.rotation.y=Math.PI/4; g.add(roof);
-} else if(kind==="building"){
-const w=9+Math.random()*10, h=18+Math.random()*45;
-const mat=new THREE.MeshLambertMaterial({color:[0x8ea3b5,0x6f8296,0xa8b8c6][Math.floor(Math.random()*3)]});
-const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,w*(0.7+Math.random()*0.5)),mat);
-b.position.y=h/2; g.add(b);
-const band=new THREE.Mesh(new THREE.BoxGeometry(w*1.01,h*0.9,w*0.1),
-new THREE.MeshLambertMaterial({color:0x33475c}));
-band.position.set(0,h/2,w*0.35); g.add(band);
-} else if(kind==="shop"){
-const b=new THREE.Mesh(new THREE.BoxGeometry(12,4,8),new THREE.MeshLambertMaterial({color:0xcfc4ae}));
-b.position.y=2; g.add(b);
-const sign=new THREE.Mesh(new THREE.BoxGeometry(6,1.2,0.2),new THREE.MeshBasicMaterial({color:0xdd3333}));
-sign.position.y=5; g.add(sign);
-}
-g.userData.kind=kind;
-},
 mkLandmark(lm){
-const g=new THREE.Group();
+const g=new THREE.Group(), W=this.ROAD_W;
+const bs=new BatchSet();
+srand(Math.floor(lm.km*997)+7);
+const lam=(c)=>new THREE.MeshLambertMaterial({color:new THREE.Color(c).convertSRGBToLinear()});
+const signBoard=(kind,text,x,y,z,w,h)=>{
+ const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshLambertMaterial({map:signTex(kind,text),side:THREE.DoubleSide}));
+ m.position.set(x,y,z); g.add(m);
+ bs.get("solid").add(tpl("box"),M4(x,0,z-0.05,0.08,y-h/2+0.1,0.08),linCol(0x9a9da0));
+};
 if(lm.t==="signal"){
-const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,5.6,8),new THREE.MeshLambertMaterial({color:0x333}));
-pole.position.set(this.ROAD_W+1,2.8,0); g.add(pole);
-const arm=new THREE.Mesh(new THREE.BoxGeometry(this.ROAD_W+1,0.15,0.15),new THREE.MeshLambertMaterial({color:0x333}));
-arm.position.set(this.ROAD_W/2+0.5,5.4,0); g.add(arm);
-const box=new THREE.Mesh(new THREE.BoxGeometry(0.5,1.3,0.35),new THREE.MeshLambertMaterial({color:0x222}));
-box.position.set(0,5.0,0); g.add(box);
-const lamp=new THREE.Mesh(new THREE.SphereGeometry(0.17,10,10),new THREE.MeshBasicMaterial({color:0x22cc44}));
-lamp.position.set(0,5.25,0.2); g.add(lamp);
-g.userData.lamp=lamp;
+ // 豪州型: 左側の柱+右側の柱、3灯(赤/黄/緑)・黒い背板
+ const lamps=[];
+ const head=(x,y,z)=>{
+  bs.get("solid").add(tpl("boxC"),M4(x,y,z-0.02,0.62,1.5,0.06),linCol(0x111111));
+  bs.get("solid").add(tpl("boxC"),M4(x,y,z+0.06,0.4,1.2,0.25),linCol(0x1c1c1c));
+  [0xff2020,0xffb000,0x20ff60].forEach((c,i)=>{
+   const m=new THREE.Mesh(new THREE.CircleGeometry(0.13,14),new THREE.MeshBasicMaterial({color:0x111111}));
+   m.position.set(x,y+0.38-i*0.38,z+0.19); g.add(m); lamps.push({m,c,i});
+  });
+ };
+ for(const sd of [-1,1]){
+  const px=sd*(W+1.4);
+  bs.get("solid").add(tpl("cyl8"),M4(px,0,0,0.11,sd<0?6.2:3.6,0.11),linCol(0x3a3d40));
+  head(px,sd<0?2.9:2.9,0.15);
+ }
+ bs.get("solid").add(tpl("boxC"),M4(-W*0.6-0.7,6.0,0,W*0.9+1.4,0.14,0.14),linCol(0x3a3d40));
+ head(-W*0.45,5.3,0.15);
+ // 停止線
+ bs.get("solid").add(tpl("box"),M4(-W/2,0.005,3.5,W,0.012,0.4),linCol(0xf2f0e6));
+ g.userData.setRed=(red)=>{ for(const L of lamps){ const on= red? L.i===0 : L.i===2; L.m.material.color.setHex(on?L.c:0x161616); } };
+ g.userData.setRed(false);
 } else if(lm.t==="grid"){
-const base=new THREE.Mesh(new THREE.BoxGeometry(this.ROAD_W*2,0.02,3.4),new THREE.MeshLambertMaterial({color:0x17191d}));
-base.position.y=0.03; g.add(base);
-for(let i=0;i<6;i++){
-const bar=new THREE.Mesh(new THREE.BoxGeometry(this.ROAD_W*2,0.06,0.16),new THREE.MeshLambertMaterial({color:0x757b82}));
-bar.position.set(0,0.06,-1.35+i*0.54); g.add(bar);
-}
-const sp=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,2.4,6),new THREE.MeshLambertMaterial({color:0x666666}));
-sp.position.set(this.ROAD_W+1.5,1.2,-10); g.add(sp);
-const sb=new THREE.Mesh(new THREE.BoxGeometry(1.1,1.1,0.08),new THREE.MeshBasicMaterial({color:0xf2c522}));
-sb.position.set(this.ROAD_W+1.5,2.7,-10); sb.rotation.z=Math.PI/4; g.add(sb);
+ const base=new THREE.Mesh(new THREE.BoxGeometry(W*2,0.02,3.4),lam(0x17191d)); base.position.y=0.03; g.add(base);
+ for(let i=0;i<7;i++) bs.get("solid").add(tpl("box"),M4(0,0.02,-1.4+i*0.47,W*2,0.06,0.14),linCol(0x7d8288));
+ for(const sd of [-1,1]){ // 境界フェンスが道路と交差する
+  const pts=[]; for(let x=W+1.5;x<160;x+=7){ bs.get("solid").add(tpl("box"),M4(sd*x,0,0,0.07,1.25,0.07),linCol(0x5a4a3a,0.1)); pts.push([sd*x,0,0]); }
+  bs.get("solid").add(tpl("box"),M4(sd*(W+1),0,0,0.25,1.4,1.0),linCol(0xc2c4c4));
+  this._wireLocal(g,pts,[0.6,1.0],0.03);
+ }
+ signBoard("warn","cow",-(W+2.2),2.6,-30,1.3,1.3);
 } else if(lm.t==="bridge"||lm.t==="river"){
-for(const sx of [-1,1]){
-const wall=new THREE.Mesh(new THREE.BoxGeometry(0.4,1.1,36),new THREE.MeshLambertMaterial({color:0xb8b8b0}));
-wall.position.set(sx*(this.ROAD_W+0.8),0.55,0); g.add(wall);
-}
-if(lm.t==="river"){
-const water=new THREE.Mesh(new THREE.PlaneGeometry(280,16),
-new THREE.MeshLambertMaterial({color:0x2b6f9e,transparent:true,opacity:0.85}));
-water.rotation.x=-Math.PI/2; water.position.y=-1.4; g.add(water);
-const bank1=new THREE.Mesh(new THREE.PlaneGeometry(280,7),new THREE.MeshLambertMaterial({color:0x9a8a6a}));
-bank1.rotation.x=-Math.PI/2; bank1.position.set(0,-0.9,11); g.add(bank1);
-const bank2=bank1.clone(); bank2.position.z=-11; g.add(bank2);
-}
+ const wet=/Katherine River|Elizabeth River|Gawler River|Broughton River|Adelaide River/.test(lm.n);
+ for(const sd of [-1,1]){ // W-ビーム ガードレール
+  for(let z=-22;z<=22;z+=2) bs.get("solid").add(tpl("box"),M4(sd*(W+0.9),0,z,0.12,0.75,0.12),linCol(0xa8aaa8));
+  bs.get("solid").add(tpl("box"),M4(sd*(W+0.85),0.5,0,0.06,0.3,46),linCol(0xc9cbc9));
+  bs.get("solid").add(tpl("box"),M4(sd*(W+0.8),-1.2,0,0.6,1.2,40),linCol(0xb8b6ae));
+ }
+ if(lm.t==="river"){
+  const bed=new THREE.Mesh(new THREE.PlaneGeometry(420,22),lam(wet?0x8a7a5a:0xd8bb8c));
+  bed.rotation.x=-Math.PI/2; bed.position.y=-2.2; g.add(bed);
+  if(wet){
+   bs.get("water").add(tpl("box"),M4(0,-2.0,0,420,0.02,14),linCol(0x4d6a5c));
+  } else for(let i=0;i<40;i++) PR.rock(bs,rndr(-200,200),-2.2,rndr(-9,9),0.5,0xc9b08a);
+  for(let i=0;i<22;i++){ const x=(rnd()<0.5?-1:1)*rndr(W+6,190), z=(rnd()<0.5?-1:1)*rndr(11,16); PR.tree(bs,x,-1.2,z,"redgum",rndr(0.7,1.1)); }
+  for(const sd of [-1,1]){ const bank=new THREE.Mesh(new THREE.PlaneGeometry(420,8),lam(0x9a7a55)); bank.rotation.x=-Math.PI/2+sd*0.25; bank.position.set(0,-1.2,sd*14.5); g.add(bank); }
+ }
+ signBoard("green",lm.n.slice(0,22),-(W+2.6),2.4,-34,3.6,0.9);
 } else if(lm.t==="camp"){
-const signPole=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,2.6,6),new THREE.MeshLambertMaterial({color:0x555}));
-signPole.position.set(this.ROAD_W+3,1.3,0); g.add(signPole);
-const sign=new THREE.Mesh(new THREE.BoxGeometry(2.4,1,0.1),new THREE.MeshLambertMaterial({color:0x14733c}));
-sign.position.set(this.ROAD_W+3,2.6,0); g.add(sign);
-const tent=new THREE.Mesh(new THREE.ConeGeometry(2,1.6,4),new THREE.MeshLambertMaterial({color:0xc2632a}));
-tent.position.set(this.ROAD_W+14,0.8,6); tent.rotation.y=0.5; g.add(tent);
+ signBoard("blue","REST AREA\n500 m",-(W+3),2.6,60,3.2,1.6);
+ const pad=new THREE.Mesh(new THREE.BoxGeometry(28,0.06,60),lam(0x9a7a5a)); pad.position.set(W+18,0.0,0); g.add(pad);
+ bs.get("solid").add(tpl("box"),M4(W+16,0,-8,4,0.75,1.4),linCol(0x8a6a4a));
+ for(const dx of [-1.8,1.8]) for(const dz of [-1.6,1.6]) bs.get("solid").add(tpl("box"),M4(W+16+dx,0,-8+dz,0.1,2.6,0.1),linCol(0x6a6a6a));
+ bs.get("corr").add(tpl("gable"),M4(W+16,2.6,-8,4.4,0.7,4.6),linCol(0x55635a),3);
+ PR.tank(bs,W+24,0,6,0.9);
+ bs.get("solid").add(tpl("cyl8"),M4(W+13,0,4,0.35,0.9,0.35),linCol(0x2e6b3a));
+ for(let i=0;i<6;i++) PR.tree(bs,W+rndr(8,40),0,rndr(-28,28),rnd()<0.5?"redgum":"ghost",0.8);
+ if(rnd()<0.6){ const tn=new THREE.Mesh(new THREE.ConeGeometry(1.8,1.5,4),lam(0x2f6b3a)); tn.position.set(W+22,0.75,14); g.add(tn); }
 } else if(lm.t==="roadhouse"){
-const b=new THREE.Mesh(new THREE.BoxGeometry(16,4.5,10),new THREE.MeshLambertMaterial({color:0xd9cdb2}));
-b.position.set(this.ROAD_W+18,2.25,0); g.add(b);
-const canopyR=new THREE.Mesh(new THREE.BoxGeometry(10,0.4,8),new THREE.MeshLambertMaterial({color:0xcc3333}));
-canopyR.position.set(this.ROAD_W+9,4.4,0); g.add(canopyR);
-for(const z of [-2,2]){
-const col=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,4.2,8),new THREE.MeshLambertMaterial({color:0xeee}));
-col.position.set(this.ROAD_W+9,2.1,z); g.add(col);
+ PR.roadhouse(bs,W+22,0,0,-Math.PI/2);
+ signBoard("brown",lm.n.toUpperCase().slice(0,18)+"\nFUEL · FOOD",W+4,3.4,-24,4.2,1.7);
+ for(let i=0;i<5;i++) PR.tree(bs,W+rndr(30,70),0,rndr(-40,40),"redgum",0.9);
+ PR.windmill(bs,W+52,0,-22);
 }
-}
+bs.toGroup(g);
 return g;
+},
+_wireLocal(g,pts,heights,sag){
+ const v=[];
+ for(const hh of heights) for(let i=0;i<pts.length-1;i++){ const a=pts[i],b=pts[i+1];
+  for(let k=0;k<4;k++){ const t0=k/4,t1=(k+1)/4;
+   v.push(lerp(a[0],b[0],t0),a[1]+hh-sag*4*t0*(1-t0),lerp(a[2],b[2],t0), lerp(a[0],b[0],t1),a[1]+hh-sag*4*t1*(1-t1),lerp(a[2],b[2],t1)); } }
+ const geo=new THREE.BufferGeometry(); geo.setAttribute("position",new THREE.Float32BufferAttribute(v,3));
+ g.add(new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color:0x5a5048})));
 },
 mkAICar(){
 const g=new THREE.Group();
@@ -522,50 +530,15 @@ const t=(s-i*this.SEG)/this.SEG;
 const a=r.pts[i], b=r.pts[i+1];
 return { x:lerp(a.x,b.x,t), y:lerp(a.y,b.y,t), z:lerp(a.z,b.z,t), h:lerp(a.h,b.h,t), g:lerp(a.g,b.g,t) };
 },
-matFor(color){
-if(!this._matCache) this._matCache=new Map();
-let m=this._matCache.get(color);
-if(!m){
-if(color===0x2b2d31) m=new THREE.MeshLambertMaterial({map:roadTextures().asph});       // 舗装=ザラつき
-else if(color===0x9c6a3c||color===0xb4713d) m=new THREE.MeshLambertMaterial({map:roadTextures().shld}); // 路肩+路側=同じ砂利
-else m=new THREE.MeshLambertMaterial({color}); // 白線・中央線は単色でクッキリ
-this._matCache.set(color,m);
-}
-return m;
-},
-stripGeo(s0,s1,offL,offR,yLift,color){
-const verts=[],idx=[],norms=[],uvs=[];
-let vi=0;
-for(let s=s0;s<=s1;s+=this.SEG){
-const p=this.roadPoint(s);
-const nx=Math.cos(p.h), nz=Math.sin(p.h);
-const x0=p.x+nx*offL,z0=p.z+nz*offL,x1=p.x+nx*offR,z1=p.z+nz*offR;
-verts.push(x0,p.y+yLift,z0, x1,p.y+yLift,z1);
-uvs.push(x0/3,z0/3, x1/3,z1/3); // ワールド座標UV(3m毎タイル=チャンク継ぎ目でズレない)
-norms.push(0,1,0, 0,1,0);
-if(s>s0){ const a=vi-2; idx.push(a,a+1,a+2, a+1,a+3,a+2); }
-vi+=2;
-}
-const geo=new THREE.BufferGeometry();
-geo.setAttribute("position",new THREE.Float32BufferAttribute(verts,3));
-geo.setAttribute("normal",new THREE.Float32BufferAttribute(norms,3));
-geo.setAttribute("uv",new THREE.Float32BufferAttribute(uvs,2));
-geo.setIndex(idx);
-const msh=new THREE.Mesh(geo,this.matFor(color));msh.receiveShadow=true;return msh;
-},
-buildRoadChunk(s0,s1){
-const grp=new THREE.Group();
-grp.add(this.stripGeo(s0,s1,-600,-this.SHOULDER,-0.18,0xb4713d));
-grp.add(this.stripGeo(s0,s1,this.SHOULDER,600,-0.18,0xb4713d));
-grp.add(this.stripGeo(s0,s1,-this.SHOULDER,-this.ROAD_W,-0.05,0x9c6a3c));
-grp.add(this.stripGeo(s0,s1,this.ROAD_W,this.SHOULDER,-0.05,0x9c6a3c));
-grp.add(this.stripGeo(s0,s1,-this.ROAD_W,this.ROAD_W,0.0,0x2b2d31));
-grp.add(this.stripGeo(s0,s1,-this.ROAD_W+0.15,-this.ROAD_W+0.35,0.015,0xe8e6da));
-grp.add(this.stripGeo(s0,s1,this.ROAD_W-0.35,this.ROAD_W-0.15,0.015,0xe8e6da));
-for(let s=s0;s<s1;s+=12){
-grp.add(this.stripGeo(s,Math.min(s+6,s1),-0.08,0.08,0.02,0xf5f3e8));
-}
-return grp;
+buildRoadChunk(s0,s1){ return Scenery.buildChunk(this,s0,s1); },
+/* 現在kmで道路と景観を作り直す(ワープ/デバッグ用) */
+resetRoad(){
+ if(this.road) for(const c of this.road.chunks){ this.scene.remove(c.mesh); c.mesh.traverse(ch=>{ if(ch.geometry) ch.geometry.dispose(); }); }
+ this.road={pts:[{x:0,z:0,y:0,h:0,g:0}],builtS:0,chunks:[]};
+ this.s=320; this.lateral=-2.4; this.relHeading=0; this.prevRoadH=0; this.genY=0;
+ this.gen={grade:0,targetGrade:0,gradeRemain:400,curv:0,targetCurv:0,curvRemain:600};
+ for(const [,e] of this.lmMap) this.scene.remove(e.mesh); this.lmMap.clear();
+ this.ensureRoad(this.s+1500); Horizon.lastKm=-1e9;
 },
 update(dtR){
 const es=Engine.st; if(!es) return;
@@ -665,8 +638,10 @@ const relAz=az-profileAt(es.km).bearing;
 const sunDist=1400, sy=Math.sin(alt)*sunDist, shD=Math.cos(alt)*sunDist;
 this.sun.position.set(pHere.x+Math.sin(relAz)*shD, Math.max(sy,-80), pHere.z-Math.cos(relAz)*shD);
 this.sunLight.position.copy(this.sun.position);
-this.sunLight.intensity=clamp(Math.sin(alt)*1.5,0.02,1.3)*(es.weather?0.4:1);
+this.sunLight.intensity=clamp(Math.sin(alt)*1.45,0.02,1.2)*(es.weather?0.35:1);
+{ const warm=clamp(alt/0.45,0,1); this.sunLight.color.setRGB(1.0,0.62+0.33*warm,0.38+0.5*warm); }
 this.sunLight.target.position.copy(this.car.position);
+this.sunLight.position.sub(this.car.position).normalize().multiplyScalar(1400).add(this.car.position);
 const dayTop=new THREE.Color(0x2f7fc4),dayHor=new THREE.Color(0xbdd7ea);
 const setTop=new THREE.Color(0x27356b),setHor=new THREE.Color(0xe8814f);
 const nigTop=new THREE.Color(0x040914),nigHor=new THREE.Color(0x0a1226);
@@ -674,39 +649,19 @@ const t1=clamp(alt/0.18,0,1),t2=clamp((alt-0.18)/0.5,0,1);
 const hor=nigHor.clone().lerp(setHor,t1).lerp(dayHor,t2);
 const top=nigTop.clone().lerp(setTop,t1).lerp(dayTop,t2);
 if(es.weather){hor.lerp(new THREE.Color(0x8a94a0),0.5);top.lerp(new THREE.Color(0x5c6672),0.5);}
-if(this.scene.fog)this.scene.fog.color.copy(hor);
+if(this.scene.fog)this.scene.fog.color.copy(hor).convertSRGBToLinear();
 if(this.skyDome){
 const u=this.skyDome.material.uniforms;
 u.uTop.value.copy(top);u.uHor.value.copy(hor);
 u.uSunDir.value.copy(this.sun.position).sub(this.car.position).normalize();
 u.uCover.value=es.weather?0.6:0.22;
+if(u.uDust){ const b=biomeAt(es.km); u.uDust.value.setHex(b.urban?0xc9c4b8:0xd9b48c).convertSRGBToLinear().lerp(hor,0.35); }
 u.uNight.value=clamp(1-alt/0.18,0,1);
 u.uTime.value=performance.now()/1000;
 this.skyDome.position.copy(this.camera.position);
 }
-this.hemiLight.intensity=clamp(Math.sin(alt)*1.1,0.12,1)*(es.weather?0.55:1);
-for(const m of this.scenery){
-if(this.s-m.userData.s>80){ m.userData.s=this.s+900+Math.random()*400;
-m.userData.off=(Math.random()<0.5?-1:1)*(14+Math.random()*95); }
-const rp=this.roadPoint(Math.min(m.userData.s,this.road.builtS-this.SEG));
-m.position.set(rp.x+Math.cos(rp.h)*m.userData.off, rp.y+0.3, rp.z+Math.sin(rp.h)*m.userData.off);
-m.visible = townProx(es.km)>2;
-}
-const tp=townProx(es.km), city=isCity(es.km);
-for(const g of this.structures){
-if(this.s-g.userData.s>80||g.userData.s<-1e8){
-g.userData.s=this.s+250+Math.random()*900;
-const side=(Math.random()<0.5?-1:1);
-if(city){ this.dressStructure(g,"building"); g.userData.off=side*(26+Math.random()*70); }
-else if(tp<8){ this.dressStructure(g,Math.random()<0.85?"house":"shop"); g.userData.off=side*(16+Math.random()*45); }
-else { g.userData.kind=""; }
-}
-if(!g.userData.kind){ g.visible=false; continue; }
-g.visible= city||tp<9;
-const rp=this.roadPoint(clamp(g.userData.s,0,this.road.builtS-this.SEG));
-g.position.set(rp.x+Math.cos(rp.h)*g.userData.off, rp.y, rp.z+Math.sin(rp.h)*g.userData.off);
-g.rotation.y=-rp.h;
-}
+this.hemiLight.intensity=clamp(Math.sin(alt)*0.9,0.12,0.8)*(es.weather?0.6:1);
+this.updateEnvironment(es,pHere,alt,hor);
 this.updateLandmarks(es);
 this.updateRoadTrains(es,dtR);
 const lead=this.roadPoint(Math.min(this.s+150,this.road.builtS-this.SEG));
@@ -734,6 +689,21 @@ this.speedLines.forEach((pl,i)=>{
   pl.material.opacity=sInt*0.28;});
 this.renderer.render(this.scene,this.camera);
 },
+updateEnvironment(es,pHere,alt,hor){
+ const bio=biomeAt(es.km);
+ // 遠方地面: 現在地の土色
+ const g=this.ground.geometry, ca=g.attributes.color.array, va=g.attributes.aVeg.array, ma=g.attributes.aMisc.array;
+ const sc=new THREE.Color(bio.soil).convertSRGBToLinear(), vc=new THREE.Color(bio.veg).convertSRGBToLinear();
+ for(let i=0;i<4;i++){ ca.set([sc.r,sc.g,sc.b],i*3); va.set([vc.r,vc.g,vc.b,bio.cov],i*4); ma.set([0,bio.stone*0.5,bio.field],i*3); }
+ g.attributes.color.needsUpdate=g.attributes.aVeg.needsUpdate=g.attributes.aMisc.needsUpdate=true;
+ // 半球光の地面色=土の照り返し
+ this.hemiLight.groundColor.copy(sc).multiplyScalar(1.3);
+ // 逃げ水: 晴天・日中・高温ほど強い
+ const heat=clamp(((es.Tamb||25)-22)/12,0,1)*clamp((alt-0.35)/0.4,0,1)*(es.weather?0.15:1);
+ const t=performance.now()/1000;
+ SceneMats.eachRoad(u=>{ u.uMirage.value=heat*(bio.urban?0.3:1); u.uSkyCol.value.copy(hor).multiplyScalar(1.05); u.uTime.value=t; });
+ Horizon.update(this,es);
+},
 updateLandmarks(es){
 const range=1000;
 const interactive=P.timeScale<=2;
@@ -753,8 +723,8 @@ const sVis=this.s+distVis;
 const rp=this.roadPoint(clamp(sVis,0,this.road.builtS-this.SEG));
 ent.mesh.position.set(rp.x,rp.y,rp.z);
 ent.mesh.rotation.y=-rp.h;
-if(ent.lm.t==="signal"&&ent.mesh.userData.lamp){
-ent.mesh.userData.lamp.material.color.setHex(ent.red?0xff2222:0x22cc44);
+if(ent.lm.t==="signal"&&ent.mesh.userData.setRed){
+ent.mesh.userData.setRed(ent.red);
 if(ent.red&&!ent.decided&&distVis<50){
 ent.decided=true;
 this.redSignalKm=ent.lm.km;
@@ -783,7 +753,7 @@ const rt=this.roadTrains[i];
 rt.sVis-=27*dtR;
 const rp=this.roadPoint(clamp(rt.sVis,0,this.road.builtS-this.SEG));
 rt.mesh.position.set(rp.x+Math.cos(rp.h)*2.6,rp.y,rp.z+Math.sin(rp.h)*2.6);
-rt.mesh.rotation.y=-rp.h+Math.PI;
+rt.mesh.rotation.y=-rp.h;
 const rel=rt.sVis-this.s;
 if(!rt.warned&&rel<180){ rt.warned=true; Snd.horn(); }
 if(Math.abs(rel)<18 && this.lateral>0.6 && es.v*3.6>15 && !es.fire){

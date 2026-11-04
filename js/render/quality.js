@@ -4,7 +4,7 @@ const _envCache=new WeakMap();
 function setupRenderQuality(renderer,scene){
   renderer.outputEncoding=THREE.sRGBEncoding;
   renderer.toneMapping=THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure=1.08;
+  renderer.toneMappingExposure=0.92;
   if(!_envCache.has(renderer)){
     const es=new THREE.Scene();
     es.add(new THREE.Mesh(new THREE.SphereGeometry(50,16,12), new THREE.MeshBasicMaterial({color:0x9ec8ef,side:THREE.BackSide})));
@@ -14,7 +14,7 @@ function setupRenderQuality(renderer,scene){
     _envCache.set(renderer,pm.fromScene(es,0.04).texture); pm.dispose();
   }
   scene.environment=_envCache.get(renderer);
-  scene.fog=new THREE.Fog(0x87b6e8,250,1600);
+  scene.fog=new THREE.Fog(0x87b6e8,320,2000);
 }
 /* ============ ③ 品質監視 ============ */
 const Perf={acc:0,fr:0,lv:0,tick(dt){this.acc+=dt;this.fr++;
