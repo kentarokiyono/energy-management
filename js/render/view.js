@@ -177,6 +177,10 @@ const dm=new THREE.MeshBasicMaterial({color:0xffffff});
 for(const sx of [-0.7,0.7]){ const dl=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.12,0.06),dm); dl.position.set(sx,0.82,-2.42); v.add(dl); }
 const tm=new THREE.MeshBasicMaterial({color:0xaa1111});
 for(const sx of [-0.85,0.85]){ const tl=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.35,0.05),tm); tl.position.set(sx,0.9,2.42); v.add(tl); }
+// ハザード(四隅のウインカー)
+const hz=new THREE.MeshBasicMaterial({color:0x4a3005});
+for(const [x,z] of [[-0.9,-2.44],[0.9,-2.44],[-0.9,2.44],[0.9,2.44]]){ const l=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.12,0.05),hz); l.position.set(x,0.62,z); v.add(l); }
+v.userData.hazMat=hz;
 return v;
 },
 buildEscorts(){
@@ -206,7 +210,7 @@ bs.get("glass").add(tpl("box"),M4(0,2.75,6.31,2.3,0.9,0.05),linCol(0x1a2228));
 bs.get("solid").add(tpl("box"),M4(0,1.1,8.95,2.3,1.15,0.15),linCol(chrome));       // グリル
 bs.get("solid").add(tpl("box"),M4(0,0.55,9.25,2.6,1.25,0.35),linCol(0xb9bcbf));    // ブルバー
 for(const sx of [-1.15,1.15]) bs.get("solid").add(tpl("cyl8"),M4(sx,1.6,3.75,0.09,3.6,0.09),linCol(chrome)); // 排気スタック
-for(const sx of [-1.3,1.3]) bs.get("solid").add(tpl("cyl12"),M4(sx,0.7,4.6,0.45,1.4,0.45,0,0,Math.PI/2),linCol(chrome)); // 燃料タンク
+for(const sx of [-0.95,0.95]) bs.get("solid").add(tpl("cyl12"),M4(sx,0.95,3.9,0.36,1.5,0.36,0,Math.PI/2,0),linCol(chrome)); // 燃料タンク (車体の下・前後方向)
 const wheel=(x,z)=>bs.get("solid").add(tpl("cyl12"),M4(x,0.52,z,0.52,0.3,0.52,0,0,Math.PI/2),linCol(tyre));
 for(const z of [8.2,2.6,1.2]) for(const x of [-1.1,1.1]) wheel(x,z);
 // トレーラ ×3 (サイドティッパー/バン)
@@ -752,7 +756,22 @@ this.hemiLight.intensity=clamp(Math.sin(alt)*0.9,0.12,0.8)*(es.weather?0.6:1);
 this.updateEnvironment(es,pHere,alt,hor);
 this.updateLandmarks(es);
 this.updateRoadTrains(es,dtR);
-const lead=this.roadPoint(Math.min(this.s+150,this.road.builtS-this.SEG));
+// 前方誘導車: 通常は150m前。信号で先に抜けて赤で分断されたら、その場でハザードを点けて停車し待機
+{ const want=this.s+150;
+  if(this.leadS===undefined||Math.abs(this.leadS-want)>2000) this.leadS=want;
+  let hold=false, stopAt=Infinity;
+  for(const [,ent] of this.lmMap){ if(ent.lm.t!=="signal"||!ent.red) continue;
+   const sg=this.sOfKm(ent.lm.km);
+   if(sg>this.s && this.leadS>sg) hold=true;                 // ソーラーカーは赤信号の手前、誘導車は通過済み
+   else if(sg>this.leadS-2 && sg<want+5) stopAt=Math.min(stopAt,sg-10); } // 誘導車の前が赤 → 停止線で止まる
+  if(hold) this.leadHold=true;
+  else { this.leadHold=false; const tgt=Math.min(want,stopAt); this.leadS=Math.max(Math.min(this.leadS+ (es.v+8)*dtR, tgt), Math.min(tgt,this.leadS)); }
+  if(this.leadHold&&!this._leadHoldMsg){ this._leadHoldMsg=true; Radio.push("赤信号で分断。前方誘導車はハザードを点けて停車・待機します。","前方誘導車"); }
+  if(!this.leadHold) this._leadHoldMsg=false;
+  const on=this.leadHold&&(performance.now()%800)<400;
+  if(this.escortLead.userData.hazMat) this.escortLead.userData.hazMat.color.setHex(on?0xffb020:0x4a3005);
+}
+const lead=this.roadPoint(clamp(this.leadS,0,this.road.builtS-this.SEG));
 this.escortLead.position.set(lead.x+Math.cos(lead.h)*-2.4,lead.y,lead.z+Math.sin(lead.h)*-2.4);
 this.escortLead.rotation.y=-lead.h;
 const chase=this.roadPoint(Math.max(this.s-32,0));

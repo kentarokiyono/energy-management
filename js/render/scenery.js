@@ -22,12 +22,28 @@ groundRel(x,z,off,bio,km){
  if(Route.inZone(km)) return -0.18;      // 等倍ゾーン(町中の右左折区間)は平坦: 他の道路区間を地形が覆わないように
  const a=Math.abs(off);
  const urb=bio.urban?0.25:1;
- return -0.18+terrainH(x,z,a,bio.hill*urb);
+ const h=-0.18+terrainH(x,z,a,bio.hill*urb);
+ return Math.min(h,this.branchCap(x,z));
+},
+/* 分岐道路の周囲は道路面より下へ (地形が脇道を埋めないように) — 戻り値は本線行の高さ基準 */
+branchCap(x,z){
+ const brs=this._capBr; if(!brs||!brs.length) return Infinity;
+ let cap=Infinity;
+ for(const b of brs){
+  if(Math.abs(x-b.cx)>b.R||Math.abs(z-b.cz)>b.R) continue;
+  let bd=1e9; const P=b.pts;
+  for(let i=0;i<P.length-1;i+=1){ const p=P[i], q=P[i+1], dx=q.x-p.x, dz=q.z-p.z, L2=dx*dx+dz*dz||1;
+   const t=clamp(((x-p.x)*dx+(z-p.z)*dz)/L2,0,1), d=(p.x+dx*t-x)**2+(p.z+dz*t-z)**2; if(d<bd) bd=d; }
+  const d=Math.sqrt(bd);
+  if(d<b.half+14){ const base=b.y0-(this._rowY||0)-0.15; const k=clamp((d-b.half-3)/11,0,1); cap=Math.min(cap, base+k*6); }
+ }
+ return cap;
 },
 /* メッシュと同じ折れ線補間で地表高さを返す(物体の接地用) */
 groundY(view,s,off){
  const p=view.roadPoint(clamp(s,0,view.road.builtS-0.01)), nx=Math.cos(p.h), nz=Math.sin(p.h);
  const km=this.kmOfS(view,s), bio=biomeAt(km), SH=view.SHOULDER;
+ this._rowY=p.y;
  const sd=Math.sign(off)||1, a=Math.abs(off)-SH;
  if(a<=0) return p.y+(bio.urban?0.15:-0.05);
  let i=0; while(i<TERRAIN_OFFS.length-2 && TERRAIN_OFFS[i+1]<a) i++;
@@ -43,6 +59,7 @@ ribbon(view,s0,s1,cols,mat,rowFn,step){
  for(let s=s0;s<=s1+0.01;s+=step){
   const p=view.roadPoint(Math.min(s,view.road.builtS-0.01)), nx=Math.cos(p.h), nz=Math.sin(p.h);
   const rd=rowFn(s,p);
+  this._rowY=p.y;
   const [cp,cn]=view.maxCurv(s,45), limR=cp>1/700?0.9/cp:1e9, limL=cn>1/700?0.9/cn:1e9;
   for(const c0 of cols){
    const c=(c0.off>limR||-c0.off>limL)? Object.assign({},c0,{off:c0.off>0?Math.min(c0.off,limR):-Math.min(-c0.off,limL)}) : c0;
@@ -84,6 +101,13 @@ buildChunk(view,s0,s1){
  const urban=bioM.urban;
  srand(Math.floor(kmA*1000)+Math.floor(s0)*7+13);
  const W=view.ROAD_W, SH=view.SHOULDER;
+ // ---- 分岐道路を先に作る (周囲の地形をその高さに合わせるため) ----
+ const bs=new BatchSet();
+ const signs=[];
+ const ctx={view,grp,bs,signs,s0,s1,kmA,kmB,branches:[]};
+ grp.userData.branches=ctx.branches;
+ if(P.mode==="race") this.branches(ctx);
+ this._capBr=view.branches.filter(b=>b.sJ>s0-400&&b.sJ<s1+400);
  // ---- 路面 ----
  const roadMat=SceneMats.get(urban?"road_urban":"road_rural").mat;
  const white=new THREE.Color(1,1,1);
@@ -121,18 +145,13 @@ buildChunk(view,s0,s1){
   }));
  }
  // ---- 景観オブジェクト ----
- const bs=new BatchSet();
- const signs=[];
- const ctx={view,grp,bs,signs,s0,s1,kmA,kmB,branches:[]};
- grp.userData.branches=ctx.branches;
- if(P.mode==="race") this.branches(ctx);
  this.buildOcc(ctx); this._ctxOcc=ctx.occ;
  if(P.mode==="race") this.sites(ctx);
  if(urban) this.urban(ctx,urban); else this.rural(ctx);
  this.townOverlay(ctx);
  this.features(ctx);
  this.roadSigns(ctx);
- this._ctxOcc=null;
+ this._ctxOcc=null; this._capBr=null;
  bs.toGroup(grp);
  for(const sg of signs) grp.add(sg);
  return grp;
@@ -420,12 +439,13 @@ makeBranch(ctx,sJ,angle,opt){
  const jf=[Math.sin(p.h),-Math.cos(p.h)], jr=[Math.cos(p.h),Math.sin(p.h)];
  for(let d=0;d<=len;d+=step){
   const along=(x-p.x)*jf[0]+(z-p.z)*jf[1], lat=(x-p.x)*jr[0]+(z-p.z)*jr[1];
-  const y=Math.abs(lat)<W+1&&Math.abs(along)<15? p.y+0.012 : this.groundY(view,clamp(sJ+along,0,view.road.builtS-1),lat)+0.08;
+  const y=p.y+0.012;   // 分岐道路は接続点の高さで平坦 (周囲の地形を下げて合わせる)
   pts.push({x,z,y});
   if(d>30) hh+=wob;
   x+=Math.sin(hh)*step; z-=Math.cos(hh)*step;
  }
- const b={pts,sJ,kmJ:view.kmOfS(sJ),len,half,step,name:opt.name||"",wrong:!!opt.wrong,surface:opt.surface||"asph"};
+ const b={pts,sJ,kmJ:view.kmOfS(sJ),len,half,step,name:opt.name||"",wrong:!!opt.wrong,surface:opt.surface||"asph",y0:p.y,
+  cx:(pts[0].x+pts[pts.length-1].x)/2, cz:(pts[0].z+pts[pts.length-1].z)/2, R:len/2+40};
  // メッシュ
  const pos=[],uv=[],idx=[];
  for(let i=0;i<pts.length;i++){
