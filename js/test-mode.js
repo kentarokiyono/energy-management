@@ -64,7 +64,7 @@ retry(){
 show("test-result",false);
 const es=Engine.st;
 es.throttleSet=0; es.brakePhys=0; es.brakeRegen=0;
-this.v=0; this.t=0; this.tSide=0; this.state="ready"; this.progress=0; this.prevLapIdx=undefined;
+this.v=0; this.t=0; this.tSide=0; this.state="ready"; this.progress=0; this.prevLapIdx=undefined; this.lapPit=false; this.lapStartPit=false; this.inPit=false;
 this.coneHit=false; this.brakeEntry=null; this.brakeDist=null; this.slalomT=null; this.slalomOK=null;
 this.cones.forEach(c=>{c.userData.hit=false;c.rotation.set(0,0,0);c.position.y=0.38;});
 this.f8={accA:0,accB:0,prevA:null,prevB:null,moved:0,sides:[],done:[],count:0,best8:null};
@@ -204,6 +204,12 @@ if(this.state==="ready"&&this.v>0.5){ this.state="run"; this.t=0; }
 if(this.state==="run"){
 this.t+=dtR;
 const i=this.lastIdx, n=this.trackN;
+// ピットレーン走行(コース外側でピット中心線付近)を検出 → その周はアウトラップ
+{ const T=HV.track(), p=T.pts[i], r=T.right[i];
+  const lat=(this.x-p.x)*r[0]+(this.z-p.z)*r[1];
+  // ピットウォールより外側 = 分離後のピットレーン
+  this.inPit = lat>T.hw[i]+4 && HV.pitDist(this.x,this.z)<7;
+  if(this.inPit){ if(!this.lapPit) toast("🅿 ピットレーン ― この周はタイム対象外","#fbbf24"); this.lapPit=true; } }
 if(this.prevLapIdx!==undefined){
 let diff=i-this.prevLapIdx;
 if(diff<-n/2) diff+=n; if(diff>n/2) diff-=n;
@@ -211,10 +217,16 @@ this.progress+=diff;
 if(this.progress>=n){
 this.progress-=n;
 this.laps.push(this.t);
-if(!this.best||this.t<this.best) this.best=this.t;
-toast(`🏁 LAP ${this.laps.length}: ${fmtLap(this.t)}${this.t===this.best?" (BEST)":""}`,"#34d399");
+if(this.lapPit){
+ // ピットから出た周=OUT LAP / ピットに入った周=IN LAP (どちらも記録対象外)
+ const tag=this.lapStartPit?"OUT LAP":"IN LAP";
+ toast(`🅿 LAP ${this.laps.length}: ${fmtLap(this.t)} (${tag} ― 記録対象外)`,"#fbbf24");
+} else {
+ if(!this.best||this.t<this.best) this.best=this.t;
+ toast(`🏁 LAP ${this.laps.length}: ${fmtLap(this.t)}${this.t===this.best?" (BEST)":""}`,"#34d399");
+}
 Snd.chime();
-this.t=0;
+this.t=0; this.lapStartPit=!!this.inPit; this.lapPit=this.lapStartPit;
 }
 }
 this.prevLapIdx=i;
@@ -336,7 +348,7 @@ updateTestHud(){
 const tm=document.getElementById("test-timer"), sub=document.getElementById("test-sub");
 if(this.kind==="circuit"){
 tm.textContent=this.state==="run"?fmtLap(this.t):"READY";
-sub.textContent=`LAP ${this.laps.length+1} ― BEST ${this.best?fmtLap(this.best):"―"}${this.best?` / 推定グリッド P${clamp(Math.round(1+(this.best-141)/3),1,40)}`:""}`;
+sub.textContent=`LAP ${this.laps.length+1}${this.lapPit?(this.lapStartPit?" (OUT LAP)":" (IN LAP)"):""} ― BEST ${this.best?fmtLap(this.best):"―"}${this.best?` / 推定グリッド P${clamp(Math.round(1+(this.best-141)/3),1,40)}`:""}`;
 } else if(this.kind==="fig8"){
 const f=this.f8;
 tm.textContent=this.tSide.toFixed(2);
