@@ -61,7 +61,7 @@ flatAreas(){ // [along0,along1,lat0,lat1] (ストレート座標) — 舗装・�
  const [a0,a1]=this.stripRange();
  return [
   [a0,a1,this.STRIP_OFF-this.STRIP_HALF-4,this.STRIP_OFF+this.STRIP_HALF+4],   // ドラッグストリップ
-  [-330,330,8,48],      // ピットレーン/ガレージ
+  [-520,330,3,48],      // ピットレーン(入口〜出口)/ガレージ
   [-260,300,48,140],    // パドック
   [-120,260,140,270],   // PIT PADDOCK 駐車場
   [-300,-200,-120,-50], // 観客駐車場(コース内)
@@ -78,6 +78,13 @@ nearestTrack(x,z){
  for(let i=0;i<T.n;i+=2){ const p=T.pts[i], d=(p.x-x)**2+(p.z-z)**2; if(d<bd){bd=d;bi=i;} }
  for(let i=Math.max(0,bi-3);i<=bi+3;i++){ const k=(i+T.n)%T.n, p=T.pts[k], d=(p.x-x)**2+(p.z-z)**2; if(d<bd){bd=d;bi=k;} }
  return {i:bi,d:Math.sqrt(bd)};
+},
+pitDist(x,z){ // ピットレーン中心線(AC)までの距離
+ const A=HV_DATA.pit; let bd=1e18;
+ for(let i=0;i<A.length-1;i++){ const ax=A[i][0],az=A[i][2],bx=A[i+1][0],bz=A[i+1][2];
+  const dx=bx-ax,dz=bz-az,L2=dx*dx+dz*dz||1, t=clamp(((x-ax)*dx+(z-az)*dz)/L2,0,1);
+  const d=(ax+dx*t-x)**2+(az+dz*t-z)**2; if(d<bd) bd=d; }
+ return Math.sqrt(bd);
 },
 insideLoop(x,z){ // 中心線ポリゴン内判定
  const P=this.track().pts; let c=false;
@@ -271,12 +278,24 @@ build(){
   const a2=(a-8+n)%n, b2=(b+12)%n, o=i=>-side*(HW[i]+(mx<1/45?30:14));
   grp.add(this.wall(a2,b2,o,0.75,steel,0.1));
  }
- // メインストレート: 南=ピットウォール(コンクリ+フェンス) / 北=ドラッグストリップ側のコンクリ壁
- // 南=ピットウォール / 北=ドラッグストリップとの仕切り壁 (コース北端に接する)
- grp.add(this.wall(straight[0],straight[1],W(1.5),1.1,conc));
- grp.add(this.wall(straight[0],straight[1],W(1.5),3.5,fence,1.1));
- grp.add(this.wall(straight[0],straight[1],i=>-(HW[i]+0.5),1.1,conc));
- grp.add(this.wall(straight[0],straight[1],i=>-(HW[i]+0.5),3.0,fence,1.1));
+ // メインストレート: 南=ピットウォール / 北=ドラッグストリップとの仕切り壁
+ { // ピットウォール: ピットレーンがコースから離れている区間のみ (入口/出口は開口)
+  const sepIdx=HV_DATA.pit.map(p=>{ const nt=this.nearestTrack(p[0],p[2]); const tp=T.pts[nt.i], r=T.right[nt.i]; return [nt.i,(p[0]-tp.x)*r[0]+(p[2]-tp.z)*r[1]-HW[nt.i]]; }).filter(q=>q[1]>6);
+  const w0=(sepIdx[0][0]+6)%n, w1=(sepIdx[sepIdx.length-1][0]-6+n)%n;
+  grp.add(this.wall(w0,w1,W(1.5),1.1,conc));
+  grp.add(this.wall(w0,w1,W(1.5),3.5,fence,1.1));
+  // ピット入口/出口: コース端に沿った白い区分線 (分岐点の手前/先 約90m)
+  for(const [i0,dir] of [[sepIdx[0][0],-1],[sepIdx[sepIdx.length-1][0],1]]){
+   for(let k=0;k<30;k++){ const i=(i0+dir*k+n)%n, p=T.pts[i], r=T.right[i], o=HW[i]+0.35;
+    bs.get("solid").add(tpl("box"),M4(p.x+r[0]*o,p.y+0.022,p.z+r[1]*o,0.25,0.01,3.1,-Math.atan2(T.fwd[i][0],-T.fwd[i][1])),linCol(0xf2f0e6)); }
+  }
+ }
+ { // 北=ドラッグストリップとの仕切り (ストリップ区間のみ)
+  const [sa0,sa1]=this.stripRange(), lc=T.pts[0].x*T.sr[0]+T.pts[0].z*T.sr[1];
+  const ia=this.nearestTrack(...this.SW(sa0+30,lc)).i, ib=this.nearestTrack(...this.SW(sa1-70,lc)).i;
+  grp.add(this.wall(ia,ib,i=>-(HW[i]+0.5),1.1,conc));
+  grp.add(this.wall(ia,ib,i=>-(HW[i]+0.5),3.0,fence,1.1));
+ }
  this.buildStartFinish(grp,bs);
  this.buildPits(grp,bs);
  this.buildDragStrip(grp,bs);
@@ -312,17 +331,24 @@ buildPits(grp,bs){
  const T=this.track();
  const latOf=(p)=>p[0]*T.sr[0]+p[2]*T.sr[1];
  const P=HV_DATA.pit.filter(p=>latOf(p)>6.5).map(p=>new THREE.Vector3(p[0],p[1],p[2]));
- const pos=[],uv=[],idx=[];
- for(let i=0;i<P.length;i++){
-  const a=P[Math.max(0,i-1)], b=P[Math.min(P.length-1,i+1)];
+ // ピットレーン全区間 (入口=T14立ち上がりのストレート上 → 出口=T1手前で合流)。合流部は1車線幅に絞る
+ const A=HV_DATA.pit.map(p=>new THREE.Vector3(p[0],p[1],p[2]));
+ const edgeS=(p)=>{ const nt=this.nearestTrack(p.x,p.z); const tp=T.pts[nt.i], r=T.right[nt.i]; return (p.x-tp.x)*r[0]+(p.z-tp.z)*r[1]-T.hw[nt.i]; };
+ const pos=[],uv=[],idx=[]; let vsum=0;
+ for(let i=0;i<A.length;i++){
+  const a=A[Math.max(0,i-1)], b=A[Math.min(A.length-1,i+1)];
   const fx=b.x-a.x, fz=b.z-a.z, L=Math.hypot(fx,fz)||1, rx=-fz/L, rz=fx/L;
-  const w0=-3.0, w1=9.0; // 走行レーン + 作業レーン(南側)
-  pos.push(P[i].x+rx*w0,0.015,P[i].z+rz*w0, P[i].x+rx*w1,0.015,P[i].z+rz*w1);
-  uv.push(0,i*4/8, 1,i*4/8);
+  const sep=edgeS(A[i]);                         // コース南端からの離れ [m]
+  const w0=-3.0, w1=lerp(3.0,9.0,clamp((sep-3)/8,0,1));
+  const y=sep<1.5? 0.02 : 0.015;
+  pos.push(A[i].x+rx*w0,y,A[i].z+rz*w0, A[i].x+rx*w1,y,A[i].z+rz*w1);
+  if(i>0) vsum+=A[i].distanceTo(A[i-1]);
+  uv.push(0,vsum/8, 1,vsum/8);
   if(i>0){ const q=(i-1)*2; idx.push(q,q+1,q+2, q+1,q+3,q+2); }
  }
  const g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); g.setAttribute("uv",new THREE.Float32BufferAttribute(uv,2)); g.setIndex(idx); g.computeVertexNormals();
- const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({map:roadTex("urban")})); m.receiveShadow=true; grp.add(m);
+ const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({map:this.raceTex(),polygonOffset:true,polygonOffsetFactor:-1})); m.receiveShadow=true; grp.add(m);
+ this.pitPts=A;
  this.buildGarages(grp,bs);
  this.buildPitMarkings(grp,bs,P);
 },

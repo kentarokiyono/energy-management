@@ -111,7 +111,7 @@ const near=this.nearestIdx();
 const pts=this.trackPts,n=this.trackN;
 const a=pts[near.i], b=pts[(near.i+1)%n];
 grade=(b.y-a.y)/(Math.hypot(b.x-a.x,b.z-a.z)||1);
-offTrack=near.d>HV.track().hw[near.i]+1.2;
+offTrack=near.d>HV.track().hw[near.i]+1.2 && HV.pitDist(this.x,this.z)>6.5;   // ピットレーン走行は可
 }
 this.grade=grade;
 const m=massTotal(), mEff=m+PRO.mRot;
