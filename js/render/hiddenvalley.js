@@ -4,9 +4,9 @@
  中心線 = OSM, 標高・ピットレーン・走行ライン = Assetto Corsa AIライン由来 (js/data/hidden-valley.js)
  周回 = 反時計回り。メインストレートは南西→北東、ピットは南側、ドラッグストリップは北側(コース内側)に並行 */
 const HV={
-HALF_W:6.5,              // コース半幅 (路面 13m)
-STRIP_OFF:-26,           // ドラッグストリップ中心のメインストレートからの横オフセット (負=北/左)
-STRIP_HALF:9,            // ドラッグストリップ半幅 (2レーン+コンクリ)
+HALF_W:5.0,              // 既定のコース半幅 (実幅は HV_DATA.half_width: ストレート約16m・他約9.7m)
+STRIP_OFF:-21,           // ドラッグストリップ中心の横オフセット (負=北/左, kn5の路面から: コース北端に接する)
+STRIP_HALF:6.9,          // ドラッグストリップ半幅 (約14m)
 SLALOM_FROM_NE:110,      // ドラッグストリップ北東端からスラローム開始線まで [m]
 BRAKE_X:386,             // スラローム開始線→制動開始線 [m]
 _cache:null,
@@ -32,7 +32,8 @@ track(){
  // メインストレートの向き (S/F 前後 ±150m の主成分)
  let sx=0,sz=0; for(let k=-50;k<=50;k++){ const f=fwd[(k+n)%n]; sx+=f[0]; sz+=f[1]; }
  const L=Math.hypot(sx,sz); const sd=[sx/L,sz/L], sr=[-sd[1],sd[0]];
- this._cache={pts,fwd,right,curv,s,n,len:acc,sd,sr};
+ const hw=HV_DATA.half_width? HV_DATA.half_width.slice() : new Array(n).fill(this.HALF_W);
+ this._cache={pts,fwd,right,curv,s,n,len:acc,sd,sr,hw};
  return this._cache;
 },
 /* ストレート座標系 (along=北東+, lat=南+) → ワールド */
@@ -98,7 +99,8 @@ buildTerrain(grp){
   const nt=this.nearestTrack(x,z);
   const tp=T.pts[nt.i];
   const flat=this.inFlat(x,z,6);
-  const near=clamp((nt.d-this.HALF_W-3)/25,0,1);
+  const hwN=T.hw[nt.i];
+  const near=clamp((nt.d-hwN-3)/25,0,1);
   h=lerp(tp.y-0.12,h,near);
   const far=clamp((nt.d-45)/250,0,1);
   if(!flat) h+=far*(2.5*vnoise(x*0.006,z*0.006)+1.0*vnoise(x*0.02+3,z*0.02))*1.6 + (x>200&&z>60? far*6*vnoise(x*0.004,z*0.004):0);
@@ -106,7 +108,7 @@ buildTerrain(grp){
   H[j*nx+i]=h;
   pos.push(x,h,z);
   // 色: コース脇=刈り込んだ乾いた芝 / 外周=乾季サバンナ
-  const runoff=nt.d<this.HALF_W+30;
+  const runoff=nt.d<hwN+30;
   const inner=runoff&&this.insideLoop(x,z);
   if(flat||runoff){ cs.setHex(0x7b6a45); cv.setHex(inner?0x7f8a46:0x8a8a4a); }
   else { cs.setHex(0x6e4a32); cv.setHex(0x9c824f); }
@@ -153,11 +155,17 @@ band(i0,i1,offA,offB,yOff,mat,{uvW=1,uvL=4,colFn=null,clampInner=true}={}){
   if(colFn){ const c1=colFn(i,k); col.push(c1.r,c1.g,c1.b,c1.r,c1.g,c1.b); }
   if(k>0){ const q=(k-1)*2; idx.push(q,q+1,q+2, q+1,q+3,q+2); }
  }
+ if(colFn){ // 縁石: 区間ごとに単色 (頂点を区間単位で複製)
+  const p2=[],c2=[],u2=[];
+  for(let t=0;t<idx.length;t+=6){ const k=t/6, cc=colFn((i0+k)%n,k);
+   for(let m=0;m<6;m++){ const v=idx[t+m]; p2.push(pos[v*3],pos[v*3+1],pos[v*3+2]); u2.push(uv[v*2],uv[v*2+1]); c2.push(cc.r,cc.g,cc.b); } }
+  pos.length=0; pos.push(...p2); uv.length=0; uv.push(...u2); col.length=0; col.push(...c2); idx.length=0;
+ }
  const g=new THREE.BufferGeometry();
  g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));
  g.setAttribute("uv",new THREE.Float32BufferAttribute(uv,2));
  if(col.length) g.setAttribute("color",new THREE.Float32BufferAttribute(col,3));
- g.setIndex(idx); g.computeVertexNormals();
+ if(idx.length) g.setIndex(idx); g.computeVertexNormals();
  const nn=g.attributes.normal; for(let i=0;i<nn.count;i++) if(nn.getY(i)<0) nn.setXYZ(i,-nn.getX(i),-nn.getY(i),-nn.getZ(i));
  const m=new THREE.Mesh(g,mat); m.receiveShadow=true; return m;
 },
@@ -186,7 +194,7 @@ wall(i0,i1,off,h,mat,yBase=0,step=2){
  const pos=[],uv=[],idx=[]; let k2=0;
  for(let k=0;k<=cnt;k+=step){
   const i=(i0+k)%n, p=T.pts[i], r=T.right[i], c=T.curv[i];
-  let o=off; if(Math.abs(c)>1e-4){ const lim=0.92/Math.abs(c); if(c>0&&o>0) o=Math.min(o,lim); if(c<0&&o<0) o=Math.max(o,-lim); }
+  let o=typeof off==="function"?off(i):off; if(Math.abs(c)>1e-4){ const lim=0.92/Math.abs(c); if(c>0&&o>0) o=Math.min(o,lim); if(c<0&&o<0) o=Math.max(o,-lim); }
   const x=p.x+r[0]*o, z=p.z+r[1]*o, y=p.y+yBase;
   pos.push(x,y,z, x,y+h,z); uv.push(T.s[i]/4,0, T.s[i]/4,h/2);
   if(k2>0){ const q=(k2-1)*2; idx.push(q,q+2,q+1, q+1,q+2,q+3); } k2++;
@@ -210,7 +218,7 @@ corners(){
 /* ---------- 全体 ---------- */
 build(){
  const grp=new THREE.Group();
- const T=this.track(), n=T.n, W=this.HALF_W;
+ const T=this.track(), n=T.n, HW=T.hw, W=(k)=>(i)=>HW[i]+k;
  srand(20251022);
  this.buildTerrain(grp);
  const L=(c)=>new THREE.MeshLambertMaterial({color:new THREE.Color(c).convertSRGBToLinear()});
@@ -218,23 +226,23 @@ build(){
  const C=(hex)=>new THREE.Color(hex).convertSRGBToLinear();
  // 路面
  const asph=new THREE.MeshLambertMaterial({map:this.raceTex()});
- grp.add(this.band(0,0,-W,W,0.0,asph,{uvL:8}));
+ grp.add(this.band(0,0,i=>-HW[i],i=>HW[i],0.0,asph,{uvL:8}));
  // ラバー(走行ライン): ACのラインを中心線へ投影してオフセット化
  const rub=new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.22,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2});
  const RL=HV_DATA.racing, roff=new Float32Array(n).fill(NaN);
- for(const q of RL){ const nt=this.nearestTrack(q[0],q[1]); const p=T.pts[nt.i], r=T.right[nt.i]; roff[nt.i]=clamp((q[0]-p.x)*r[0]+(q[1]-p.z)*r[1],-W+1,W-1); }
+ for(const q of RL){ const nt=this.nearestTrack(q[0],q[1]); const p=T.pts[nt.i], r=T.right[nt.i]; roff[nt.i]=clamp((q[0]-p.x)*r[0]+(q[1]-p.z)*r[1],-HW[nt.i]+1,HW[nt.i]-1); }
  let last=0; for(let k=0;k<n*2;k++){ const i=k%n; if(!isNaN(roff[i])) last=roff[i]; else roff[i]=last; }
  for(let it=0;it<3;it++) for(let i=0;i<n;i++) roff[i]=(roff[(i-1+n)%n]+roff[i]+roff[(i+1)%n])/3;
  grp.add(this.band(0,0,i=>roff[i]-0.9,i=>roff[i]+0.9,0.012,rub,{clampInner:false}));
  // 縁石: 内側(エイペックス)=赤白 / 出口外側=赤白の幅広
  const kerbMat=vc({});
  const red=C(0xb3242b), white=C(0xe9e6de);
- const kc=(i)=> (Math.floor(T.s[i]/1.6)%2)? red : white;
+ const kc=(i,k)=> (k%2)? red : white;
  const cs=this.corners();
  for(const [a,b,side,mx] of cs){
   const a2=(a-3+n)%n, b2=(b+6)%n;
-  grp.add(this.band(a2,b,side*(W-0.2),side*(W+1.0),0.03,kerbMat,{colFn:kc}));
-  grp.add(this.band((a+((b-a+n)%n)>>1)%n,b2,-side*(W-0.2),-side*(W+1.3),0.025,kerbMat,{colFn:kc}));
+  grp.add(this.band(a2,b,i=>side*(HW[i]-0.2),i=>side*(HW[i]+1.0),0.03,kerbMat,{colFn:kc}));
+  grp.add(this.band((a+((b-a+n)%n)>>1)%n,b2,i=>-side*(HW[i]-0.2),i=>-side*(HW[i]+1.3),0.025,kerbMat,{colFn:kc}));
  }
  // ランオフ: 急コーナー外側に砂利、それ以外は芝(地形)
  const gravel=new THREE.MeshLambertMaterial({map:detailTex(),color:C(0xc9ad84)});
@@ -243,11 +251,11 @@ build(){
  for(const [a,b,side,mx] of cs){
   if(mx<1/45) continue;
   const a2=(a-6+n)%n, b2=(b+10)%n;
-  grp.add(this.band(a2,b2,-side*(W+2.2),-side*(W+26),-0.04,gravel,{uvL:4}));
+  grp.add(this.band(a2,b2,i=>-side*(HW[i]+2.2),i=>-side*(HW[i]+26),-0.04,gravel,{uvL:4}));
   // タイヤバリア(赤白ベルトカバー)
   const cnt=((b2-a2)%n+n)%n;
   for(let k=0;k<cnt;k+=2){ const i=(a2+k)%n, p=T.pts[i], r=T.right[i];
-   const o=-side*(W+27.5), x=p.x+r[0]*o, z=p.z+r[1]*o;
+   const o=-side*(HW[i]+27.5), x=p.x+r[0]*o, z=p.z+r[1]*o;
    bs.get("solid").add(tpl("cyl8"),M4(x,p.y,z,0.75,1.1,0.75),linCol(0x18181a));
    bs.get("solid").add(tpl("box"),M4(x-r[0]*side*0.8,p.y+0.05,z-r[1]*side*0.8,0.05,1.05,3.2,-Math.atan2(T.fwd[i][0],-T.fwd[i][1])),linCol(Math.floor(k/2)%2?0xc8202a:0xeeeeee));
   }
@@ -257,14 +265,15 @@ build(){
  const fence=new THREE.MeshLambertMaterial({map:this.fenceTex(),transparent:true,side:THREE.DoubleSide,alphaTest:0.25});
  const straight=[(n-150)%n,150];
  for(const [a,b,side,mx] of cs){
-  const a2=(a-8+n)%n, b2=(b+12)%n, o=-side*(mx<1/45?W+30:W+14);
+  const a2=(a-8+n)%n, b2=(b+12)%n, o=i=>-side*(HW[i]+(mx<1/45?30:14));
   grp.add(this.wall(a2,b2,o,0.75,steel,0.1));
  }
  // メインストレート: 南=ピットウォール(コンクリ+フェンス) / 北=ドラッグストリップ側のコンクリ壁
- grp.add(this.wall(straight[0],straight[1],W+3.2,1.1,conc));
- grp.add(this.wall(straight[0],straight[1],W+3.2,3.5,fence,1.1));
- grp.add(this.wall(straight[0],straight[1],-(W+5),1.1,conc));
- grp.add(this.wall(straight[0],straight[1],-(W+5),3.0,fence,1.1));
+ // 南=ピットウォール / 北=ドラッグストリップとの仕切り壁 (コース北端に接する)
+ grp.add(this.wall(straight[0],straight[1],W(1.5),1.1,conc));
+ grp.add(this.wall(straight[0],straight[1],W(1.5),3.5,fence,1.1));
+ grp.add(this.wall(straight[0],straight[1],i=>-(HW[i]+0.5),1.1,conc));
+ grp.add(this.wall(straight[0],straight[1],i=>-(HW[i]+0.5),3.0,fence,1.1));
  this.buildStartFinish(grp,bs);
  this.buildPits(grp,bs);
  this.buildDragStrip(grp,bs);
@@ -276,7 +285,7 @@ build(){
  return grp;
 },
 buildStartFinish(grp,bs){
- const T=this.track(), W=this.HALF_W, p=T.pts[0], r=T.right[0], f=T.fwd[0];
+ const T=this.track(), W=T.hw[0], p=T.pts[0], r=T.right[0], f=T.fwd[0];
  const ry=-Math.atan2(f[0],-f[1]);
  // チェッカーライン
  const cv=document.createElement("canvas"); cv.width=256; cv.height=32; const c=cv.getContext("2d");
@@ -299,12 +308,12 @@ buildStartFinish(grp,bs){
 buildPits(grp,bs){
  const T=this.track();
  const latOf=(p)=>p[0]*T.sr[0]+p[2]*T.sr[1];
- const P=HV_DATA.pit.filter(p=>latOf(p)>this.HALF_W+3.6).map(p=>new THREE.Vector3(p[0],p[1],p[2]));
+ const P=HV_DATA.pit.filter(p=>latOf(p)>6.5).map(p=>new THREE.Vector3(p[0],p[1],p[2]));
  const pos=[],uv=[],idx=[];
  for(let i=0;i<P.length;i++){
   const a=P[Math.max(0,i-1)], b=P[Math.min(P.length-1,i+1)];
   const fx=b.x-a.x, fz=b.z-a.z, L=Math.hypot(fx,fz)||1, rx=-fz/L, rz=fx/L;
-  const w0=-2.0, w1=9.0; // 走行レーン + 作業レーン(南側)
+  const w0=-3.0, w1=9.0; // 走行レーン + 作業レーン(南側)
   pos.push(P[i].x+rx*w0,0.015,P[i].z+rz*w0, P[i].x+rx*w1,0.015,P[i].z+rz*w1);
   uv.push(0,i*4/8, 1,i*4/8);
   if(i>0){ const q=(i-1)*2; idx.push(q,q+1,q+2, q+1,q+3,q+2); }
@@ -368,16 +377,16 @@ buildGarages(grp,bs){
  const sign2=new THREE.Mesh(new THREE.PlaneGeometry(26,2.6),new THREE.MeshLambertMaterial({map:this.textBoard("BRIDGESTONE WORLD SOLAR CHALLENGE","#ffffff","#c8102e")}));
  const [s2x,s2z]=this.SW(tal+75,FRONT+1); sign2.position.set(s2x,H1+5.7,s2z); sign2.rotation.y=ry+Math.PI/2; grp.add(sign2);
  // 計時スコアボード塔 (S/F の北側, ドラッグストリップとの間)
- const [px,pz]=this.SW(8,-this.HALF_W-12);
+ const [px,pz]=this.SW(8,-14.6);
  bs.get("solid").add(tpl("box"),M4(px,0,pz,1.2,14,1.2,ry),linCol(0x30343a));
  bs.get("solid").add(tpl("boxC"),M4(px,14,pz,2.2,7,1.0,ry),linCol(0x111111));
  for(let r=0;r<6;r++) bs.get("emis").add(tpl("boxC"),M4(px+(T.sr[0])*0.52*(-1),11.3+r*1.05,pz+(T.sr[1])*0.52*(-1),1.6,0.6,0.02,ry),linCol(r%2?0xffb000:0xf6f6f6));
  // ピットウォールのチームスタンド + スタッフ
  for(let k=0;k<12;k++){ const al=-160+k*32;
-  at(al,this.HALF_W+4.2,0,1.2,1.0,2.6,"box","solid",0xe8e6e0);
-  at(al,this.HALF_W+4.2,2.4,1.6,0.08,3.0,"box","solid",teams[k%teams.length]);
-  for(const d of [-1,1]) at(al+d*1.2,this.HALF_W+4.2,1.0,0.06,1.4,0.06,"box","solid",0x6b6f75);
-  if(rnd()<0.8){ const [qx,qz]=this.SW(al,this.HALF_W+5.4); PR.person(bs,qx,0.02,qz,ry,teams[k%teams.length]); }
+  at(al,5.2,0,1.2,1.0,2.6,"box","solid",0xe8e6e0);
+  at(al,5.2,2.4,1.6,0.08,3.0,"box","solid",teams[k%teams.length]);
+  for(const d of [-1,1]) at(al+d*1.2,5.2,1.0,0.06,1.4,0.06,"box","solid",0x6b6f75);
+  if(rnd()<0.8){ const [qx,qz]=this.SW(al,6.3); PR.person(bs,qx,0.02,qz,ry,teams[k%teams.length]); }
  }
 },
 textBoard(text,bg,fg){
@@ -400,11 +409,11 @@ buildPitMarkings(grp,bs,P){
   const [x,z]=this.SW(al+(al<0?6:-6),lat+3.5); m.rotation.order="YXZ"; m.rotation.set(-Math.PI/2,ry+(al<0?-Math.PI/2:Math.PI/2),0); m.position.set(x,0.03,z); grp.add(m);
  }
  // ファストレーン/ワーキングレーン区分線
- for(let al=-215;al<235;al+=6) at(al,16.0,0.18,4.5);
+ for(let al=-215;al<235;al+=6) at(al,14.6,0.18,4.5);
  // ピットボックス (各ガレージ前)
  for(let k=0;k<22;k++){ const al=-200+k*19.5;
-  at(al-4,19.5,6,0.15); at(al+4,19.5,6,0.15); at(al,16.6,0.15,8); at(al,22.4,0.15,8);
-  at(al,19.5,0.9,0.9,0xe5b324);
+  at(al-4,18.2,5.4,0.15); at(al+4,18.2,5.4,0.15); at(al,15.5,0.15,8); at(al,20.9,0.15,8);
+  at(al,18.2,0.9,0.9,0xe5b324);
  }
  // ガレージ前のコンクリエプロン
  { const [x,z]=this.SW(15,22.5); bs.get("solid").add(tpl("box"),M4(x,0.0,z,3.2,0.02,440,ry),linCol(0xb9b4a8)); }
@@ -475,11 +484,11 @@ buildPaddock(grp,bs){
  const sl=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.02,5),new THREE.MeshBasicMaterial({color:0xffffff})); sl.position.set(0,0.03,0); g.add(sl);
 },
 buildBrakeBoards(grp,bs){ // 急コーナー手前の制動目安ボード (300/200/100)
- const T=this.track(), n=T.n, W=this.HALF_W;
+ const T=this.track(), n=T.n;
  for(const [a,b,side,mx] of this.corners()){
   if(mx<1/45) continue;
   for(const [d,txt] of [[300,"300"],[200,"200"],[100,"100"]]){
-   const i=(a-Math.round(d/3)+n)%n, p=T.pts[i], r=T.right[i], o=-side*(W+4);
+   const i=(a-Math.round(d/3)+n)%n, p=T.pts[i], r=T.right[i], o=-side*(T.hw[i]+4);
    const x=p.x+r[0]*o, z=p.z+r[1]*o, ry=-Math.atan2(T.fwd[i][0],-T.fwd[i][1]);
    const m=new THREE.Mesh(new THREE.PlaneGeometry(1.2,1.2),new THREE.MeshLambertMaterial({map:signTex("speed",txt)}));
    m.position.set(x,p.y+1.5,z); m.rotation.y=ry; grp.add(m);
@@ -506,12 +515,12 @@ buildSurroundings(grp,bs){
  for(let i=0;i<220;i++){ const x=rndr(-1000,900), z=rndr(-560,560); const nt=this.nearestTrack(x,z);
   if(nt.d<30||this.inFlat(x,z,10)) continue; PR.termite(bs,x,this.heightAt(x,z),z,rndr(0.8,1.3)); }
  for(let i=0;i<2600;i++){ const x=rndr(-700,700), z=rndr(-450,450); const nt=this.nearestTrack(x,z);
-  if(nt.d<this.HALF_W+30||this.inFlat(x,z,8)) continue; PR.grass(bs,x,this.heightAt(x,z),z,1); }
+  if(nt.d<T.hw[nt.i]+30||this.inFlat(x,z,8)) continue; PR.grass(bs,x,this.heightAt(x,z),z,1); }
  // コース内側の施設 (T6-T7 付近の倉庫群)
  for(const [x,z] of [[-310,-250],[-260,-275],[-205,-255]]) PR.shed(bs,x,this.heightAt(x,z),z,ry);
  // 照明柱・マーシャルポスト
  for(const [a,b,side,mx] of this.corners()){
-  const i=(a+((b-a+T.n)%T.n>>1))%T.n, p=T.pts[i], r=T.right[i], o=-side*(this.HALF_W+(mx<1/45?33:18));
+  const i=(a+((b-a+T.n)%T.n>>1))%T.n, p=T.pts[i], r=T.right[i], o=-side*(T.hw[i]+(mx<1/45?33:18));
   const x=p.x+r[0]*o, z=p.z+r[1]*o;
   bs.get("solid").add(tpl("box"),M4(x,this.heightAt(x,z),z,2.2,2.4,2.2,ry),linCol(0xf97316));
   bs.get("solid").add(tpl("box"),M4(x,this.heightAt(x,z)+2.4,z,2.6,0.2,2.6,ry),linCol(0xe8e6e0));

@@ -3,10 +3,11 @@
 入力:
   assets/hidden-valley.gpx          中心線 (OpenStreetMap, ODbL)
   fast_lane.ai / pit_lane.ai        Assetto Corsa の AI ライン (標高・ピットレーン・走行ライン用, 非同梱)
+  akv8_hiddenvalley2.kn5 (任意)     AC の路面モデル。白線(STRP)からコース端を求め、中心線を路面中央へ補正 (非同梱)
 出力:
   js/data/hidden-valley.js          シーン座標 (x=東, y=標高, z=-北) [m], 原点=S/F
 
-使い方: python3 tools/gen_hidden_valley.py <fast_lane.ai> <pit_lane.ai>
+使い方: python3 tools/gen_hidden_valley.py <fast_lane.ai> <pit_lane.ai> [akv8_hiddenvalley2.kn5]
 """
 import json, math, re, struct, sys
 import numpy as np
@@ -58,6 +59,77 @@ def resample(P, step, closed):
     return np.array([np.interp(t, s, Q[:, j]) for j in range(Q.shape[1])]).T, s[-1]
 
 
+def read_kn5_meshes(fn):
+    """kn5 (v5/v6) のメッシュ頂点をワールド座標で返す: [(node名, マテリアル名, Nx3)]"""
+    b = open(fn, 'rb').read()
+    o = [6]
+    def i32():
+        v = struct.unpack_from('<i', b, o[0])[0]; o[0] += 4; return v
+    def f32(n):
+        v = struct.unpack_from('<%df' % n, b, o[0]); o[0] += 4 * n; return v
+    def u8():
+        v = b[o[0]]; o[0] += 1; return v
+    def st():
+        n = i32(); v = b[o[0]:o[0] + n].decode('latin1'); o[0] += n; return v
+    assert b[:6] == b'sc6969'
+    ver = i32()
+    if ver > 5:
+        i32()
+    for _ in range(i32()):
+        i32(); st(); L = i32(); o[0] += L
+    mats = []
+    for _ in range(i32()):
+        name = st(); st(); u8(); u8()
+        if ver > 4:
+            i32()
+        for _ in range(i32()):
+            st(); f32(10)
+        for _ in range(i32()):
+            st(); i32(); st()
+        mats.append(name)
+    out = []
+    def node(M):
+        cls = i32(); name = st(); nch = i32(); u8()
+        if cls == 1:
+            M2 = np.array(f32(16)).reshape(4, 4) @ M
+        elif cls == 2:
+            u8(); u8(); u8(); nv = i32()
+            v = np.frombuffer(b, dtype='<f4', count=nv * 11, offset=o[0]).reshape(nv, 11); o[0] += nv * 44
+            ni = i32(); o[0] += ni * 2
+            mid = i32(); i32(); f32(2); f32(4); u8()
+            out.append((name, mats[mid] if mid < len(mats) else '?', (np.c_[v[:, :3], np.ones(nv)] @ M)[:, :3]))
+            M2 = M
+        else:
+            raise ValueError('unsupported node class %d' % cls)
+        for _ in range(nch):
+            node(M2)
+    node(np.eye(4))
+    return out
+
+
+def track_edges(C, T_ac, kn5_fn):
+    """白線(STRP_*)頂点から各中心線点の左右端 [m] (右=+)。中心線は (x,北) 平面"""
+    P = np.vstack([m[2] for m in read_kn5_meshes(kn5_fn) if m[1].startswith('STRP')])
+    X = T_ac(P)
+    n = len(C)
+    Tn = np.roll(C, -1, 0) - np.roll(C, 1, 0); Tn /= np.linalg.norm(Tn, axis=1)[:, None]
+    Rn = np.c_[Tn[:, 1], -Tn[:, 0]]           # 進行方向の右 (x=東, y=北)
+    idx = np.empty(len(X), int)
+    for k in range(0, len(X), 4000):
+        idx[k:k + 4000] = ((X[k:k + 4000, None, :] - C[None]) ** 2).sum(-1).argmin(1)
+    lat = ((X - C[idx]) * Rn[idx]).sum(1)
+    E = np.full((n, 2), np.nan)
+    for i in range(n):
+        l = lat[idx == i]; l = l[np.abs(l) < 14]
+        if (l < 0).any(): E[i, 0] = l[l < 0].min()
+        if (l > 0).any(): E[i, 1] = l[l > 0].max()
+    for j in range(2):                         # 欠損補間 → 平滑化
+        ok = np.isfinite(E[:, j]); xi = np.arange(n)
+        E[:, j] = np.interp(xi, xi[ok], E[ok, j], period=n)
+    E = smooth_closed(E, 6)
+    return E, Rn
+
+
 def _icp(A, Gd, X0, iters):
     X = X0
     for _ in range(iters):
@@ -95,7 +167,7 @@ def fit_ac(F, G):
     return refl, M, err
 
 
-def main(fast_fn, pit_fn):
+def main(fast_fn, pit_fn, kn5_fn=None):
     G, lat0, lon0 = gpx_xy('assets/hidden-valley.gpx')
     F, PL = read_ai(fast_fn), read_ai(pit_fn)
     refl, M, err = fit_ac(F, G)
@@ -105,13 +177,22 @@ def main(fast_fn, pit_fn):
     # 中心線: OSM の折れ線を平滑化して 3m 間隔へ
     C = smooth_closed(densify(G, 1.0, True), 3)
     C, L = resample(C, 3.0, True)
+    half = None
+    if kn5_fn:
+        E, Rn = track_edges(C, T, kn5_fn)
+        C = C + Rn * ((E[:, 0] + E[:, 1]) / 2)[:, None]     # 路面中央へ補正
+        half = (E[:, 1] - E[:, 0]) / 2
+        print(f'track width (between edge lines) median {np.median(half*2):.2f} m, min {half.min()*2:.2f}, max {half.max()*2:.2f}')
     # 標高: 最寄りの AC 点の高さ → 沿線平滑化
     d = ((C[:, None, :] - Fx[None, :, :]) ** 2).sum(-1)
     elev = smooth_closed(F[d.argmin(1), 1][:, None], 4)[:, 0]
     # S/F = AC 原点 (fast_lane 0 番) に最も近い中心線点, 周回方向 = OSM の順序 (反時計回り)
     i0 = int(((C - Fx[0]) ** 2).sum(1).argmin())
     C, elev = np.roll(C, -i0, 0), np.roll(elev, -i0)
-    org = C[0].copy()
+    if half is not None:
+        half = np.roll(half, -i0)
+    # 原点 = S/F の AC 原点 (中心線補正前後で不変)
+    org = Fx[0].copy()
     sc = lambda P: [[round(float(p[0] - org[0]), 2), round(float(p[1] - org[1]) * -1, 2)] for p in P]
     cen = [[x, round(float(e), 2), z] for (x, z), e in zip(sc(C), elev)]
     # ピットレーン (AC) 4m 間隔
@@ -125,6 +206,7 @@ def main(fast_fn, pit_fn):
                   'Elevation, pit lane and racing line derived from Assetto Corsa AI lines.',
         'length': round(float(L), 1), 'origin_latlon': [lat0, lon0], 'origin_offset_m': [round(float(org[0]), 2), round(float(org[1]), 2)],
         'centre': cen, 'pit': pit, 'racing': race,
+        'half_width': None if half is None else [round(float(h), 2) for h in half],
     }
     open('js/data/hidden-valley.js', 'w').write(
         '"use strict";\n/* Hidden Valley Raceway (Darwin) — generated by tools/gen_hidden_valley.py */\n'
@@ -133,4 +215,4 @@ def main(fast_fn, pit_fn):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1], sys.argv[2])
+    main(*sys.argv[1:4])

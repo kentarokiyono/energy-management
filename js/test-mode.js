@@ -111,7 +111,7 @@ const near=this.nearestIdx();
 const pts=this.trackPts,n=this.trackN;
 const a=pts[near.i], b=pts[(near.i+1)%n];
 grade=(b.y-a.y)/(Math.hypot(b.x-a.x,b.z-a.z)||1);
-offTrack=near.d>HV.HALF_W+1.4;
+offTrack=near.d>HV.track().hw[near.i]+1.2;
 }
 this.grade=grade;
 const m=massTotal(), mEff=m+PRO.mRot;
@@ -230,7 +230,7 @@ c.rotation.z=1.3; c.position.y=0.15; Snd.bang();
 toast("💥 パイロン接触!","#ef4444");
 }
 }
-if(Math.abs(this.z)>8.5&&this.x<126) this.coneHit=true;
+if(Math.abs(this.z)>HV.STRIP_HALF-0.2&&this.x<126) this.coneHit=true;
 if(this.x>=126){
 this.state="done";
 const pass=this.t<11.5&&!this.coneHit;
@@ -249,7 +249,7 @@ if(this.state==="run"){
    if(!c.userData.hit&&Math.hypot(c.position.x-this.x,c.position.z-this.z)<1.5){
     c.userData.hit=true; this.coneHit=true; c.rotation.z=1.3; c.position.y=0.15; Snd.bang(); toast("💥 パイロン接触!","#ef4444"); }
   }
-  if(Math.abs(this.z)>8.5) this.coneHit=true;
+  if(Math.abs(this.z)>HV.STRIP_HALF-0.2) this.coneHit=true;
   if(this.x>=126){ this.slalomT=this.t; this.slalomOK=this.t<11.5&&!this.coneHit;
    toast(`〰 スラローム ${this.t.toFixed(2)}s ${this.slalomOK?"✅":"❌"} ― 加速して制動へ`,this.slalomOK?"#34d399":"#f59e0b"); }
  } else if(this.brakeEntry===null){
