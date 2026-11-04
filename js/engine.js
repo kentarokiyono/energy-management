@@ -1,0 +1,423 @@
+"use strict";
+const Engine = {
+st:null,
+init(){
+this.st={
+km:0, v:0,
+day:1, hour:8.5, dayOfYear:PRO.dayOfYear,
+soc:clamp(PRO.startSoc,0,1), whUsed:0, whGen:0, ahUsed:0,
+powerMode:false, gLat:0, gLong:0, signal:0,
+stopTimer:0, stopKind:"", stopExtra:"",
+morningPenaltyMin:0, extensionMin:0, extWarned:false,
+passedCP:new Set(), finished:false, trailered:false,
+drivingHours:0, penaltySec:0, limitTimer:0,
+windSpeed:PRO.windBase, windDirWorld:Math.PI/2,
+lastSolar:0, lastAmp:0, lastMotorW:0, lastIbat:0, lastNet:0, lastTcell:30, lastGeff:0,
+throttleSet:0, brakePhys:0, brakeRegen:0, boostT:0, boostCd:0,
+camp:false, disconnected:false, tiltDeg:40, tiltLocked:false, cpPending:null,
+bmsOn:true, gridShake:0, gridCount:0, teams:[],
+absHourAtPA:null, sunAlt:0, sunAz:0, Tamb:30,
+burst:false, fault:null, faultAnnounced:false,
+socZeroSec:0, fire:false, fireSec:0, fireReason:"",
+weather:null, weatherUntil:0,
+radioCd:{}, nextAdvice:0,
+TcellDyn:null, Tbat:null, wGust:0, wDirDev:0, lastHead:0, lastRho:1.17,
+nextRoadTrainH:0.15+Math.random()*0.3,
+};
+this.st.teams=this.initTeams();
+this.st.weatherPlan=this.genWeatherPlan();
+},
+genWeatherPlan(){
+const plan=[];
+for(let day=1;day<=6;day++){
+let n=(Math.random()<(0.3+0.13*day)*PRO.cloudFactor)?1:0;
+if(day>=4&&Math.random()<0.55*PRO.cloudFactor) n++;
+for(let i=0;i<Math.min(n,3);i++){
+const squall=Math.random()<0.35;
+plan.push({ start:(day-1)*24+9+Math.random()*7,
+dur:0.4+Math.random()*1.4,
+type:squall?"squall":"cloud",
+factor:squall?0.15:0.45 });
+}
+}
+return plan.sort((a,b)=>a.start-b.start);
+},
+raceStartHour(){ return (this.st.day===1?8.5:8.0) + this.st.morningPenaltyMin/60; },
+initTeams(){
+const NAMES=["Nuon","Twente","Tokai","Michigan","Punch","Sonnenwagen","Stanford","Blue Sky","Kogakuin","EcoPhoton","W.Sydney","Antakari","Bochum","TopDutch","Illini","JU Solar","Halmstad","SiamTech","Goko","Apollo"];
+const arr=[];
+const N=clamp(Math.round(PRO.aiCount),0,20);
+for(let i=0;i<N;i++){
+arr.push({ name:NAMES[i], hue:(i*47)%360,
+spd:PRO.aiSpdMin+Math.random()*Math.max(1,PRO.aiSpdMax-PRO.aiSpdMin),
+km:0, status:"pre", delayH:(i-N/2)*0.5,
+retireKm:(Math.random()<PRO.aiRetire)? 250+Math.random()*2450 : null,
+cs:new Set(), csT:0, latV:-2.4,
+soc:0.9+Math.random()*0.1, eff:0.85+Math.random()*0.3,
+yieldT:0, holdT:0, passing:false, boost:false, askCd:0, reqCd:20+i, otPending:false });
+}
+return arr;
+},
+updateTeams(dtS){
+const s=this.st;
+const startH=(s.day===1?8.5:8.0);
+const racing=s.hour>=startH&&s.hour<17;
+for(const tm of s.teams){
+if(tm.status==="dnf"||tm.status==="fin") continue;
+if(tm.status==="pre"){
+if(s.day>1 || s.hour>=8.5+Math.max(0,tm.delayH)){
+tm.status="run";
+if(tm.delayH<0&&s.day===1) tm.km=Math.min(420,-tm.delayH*tm.spd*0.9);
+} else continue;
+}
+if(tm.csT>0){ tm.csT-=dtS; if(tm.csT<=0&&tm.socRecover){ tm.soc=Math.min(1,tm.soc+0.25); tm.socRecover=false; } continue; }
+if(!racing){
+if(s.hour>=17||s.hour<8) tm.soc=Math.min(1,tm.soc+0.00003*dtS);
+continue;
+}
+const hoursLeft=Math.max(0.5,17-s.hour);
+let pace=1.0;
+if(s.weather) pace*=0.82;
+if(tm.soc<0.15) pace*=0.6;
+else if(tm.soc<0.35) pace*=0.85;
+if(s.hour>15.5 && tm.soc>0.4) pace*=1.15;
+const spd=tm.spd*pace*(tm.boost?1.35:1);
+tm.km+=spd*dtS/3600;
+const gain=(s.lastGeff/900)*0.00004*dtS;
+const drain=Math.pow(spd/85,2.3)*0.000055*dtS/tm.eff;
+tm.soc=clamp(tm.soc+gain-drain,0,1);
+if(tm.soc<=0.02 && !tm.socRecover){ tm.csT=600; tm.socRecover=true; }
+if(!tm.passing && s.v>1 && s.stopTimer<=0 && !s.camp &&
+tm.km<s.km && tm.km>s.km-3.0){
+tm.km=Math.min(tm.km, s.km-22*P.timeScale/1000);
+}
+for(const cp of ROUTE) if(cp.cp&&!tm.cs.has(cp.km)&&tm.km>=cp.km){ tm.cs.add(cp.km); tm.csT=1800; break; }
+if(tm.retireKm&&tm.km>=tm.retireKm) tm.status="dnf";
+if(tm.km>=TOTAL_KM){ tm.status="fin"; tm.km=TOTAL_KM; }
+}
+},
+sunsetHour(lat,lon){
+const s=this.st;
+if(lon==null) lon=profileAt(s.km).lon;
+return Phys.sunPos(lat,lon,s.dayOfYear,12).sunset;
+},
+solarCalc(lat,hour,tilted,lon,elev){
+const s=this.st;
+if(lon==null||elev==null){ const pr=profileAt(s.km); if(lon==null) lon=pr.lon; if(elev==null) elev=pr.elev; }
+const sp=Phys.sunPos(lat,lon,s.dayOfYear,hour);
+const alt=sp.alt, az=sp.az;
+if(alt<=0) return {G:0,alt:0,az,ghi:0,dni:0};
+let {dni,dhi}=Phys.clearSky(alt,elev,s.dayOfYear);
+if(s.weather){ const wf=s.weather.factor; dni*=wf; dhi*=(2-wf)*(0.5+0.5*wf); }
+const cz=Math.sin(alt);
+const ghi=dni*cz+dhi;
+let G;
+if(tilted){
+const tiltR=s.tiltDeg*Math.PI/180;
+const cosInc=Math.max(0,Math.cos(Math.PI/2-alt-tiltR));
+G=dni*cosInc*Phys.iam(cosInc)+dhi*(1+Math.cos(tiltR))/2*0.95+PRO.albedo*ghi*(1-Math.cos(tiltR))/2*0.9;
+} else {
+G=dni*cz*Phys.iam(cz)+dhi*0.95;
+}
+return {G:Math.max(0,G),alt,az,ghi,dni};
+},
+chargingAllowed(){
+const s=this.st;
+const prof=profileAt(s.km);
+const sunset=this.sunsetHour(prof.lat);
+return (s.hour>=6&&s.hour<8) || (s.hour>=17&&s.hour<sunset) || (s.hour>=this.raceStartHour()&&s.hour<17);
+},
+step(dtS,dtR){
+const s=this.st;
+if(s.finished||s.trailered) return;
+const prof=profileAt(s.km);
+{ // 風: 気候値 + OU過程の突風/風向揺らぎ (時間刻み非依存)
+const wc=Phys.windClim(prof.lat,s.hour);
+const tauS=600, tauD=1800;
+s.wGust+=-s.wGust*dtS/tauS+0.35*Math.sqrt(2*dtS/tauS)*Phys.gauss();
+s.wDirDev+=-s.wDirDev*dtS/tauD+0.30*Math.sqrt(2*dtS/tauD)*Phys.gauss();
+s.wGust=clamp(s.wGust,-0.8,1.5); s.wDirDev=clamp(s.wDirDev,-1.2,1.2);
+s.windSpeed=Math.max(0,PRO.windBase*wc.f*(1+s.wGust)*0.6); // 車高(~1m)へ対数則換算
+s.windDirWorld=wc.toward+s.wDirDev;
+}
+s.hour+=dtS/3600;
+if(s.boostT>0)s.boostT-=dtR; if(s.boostCd>0)s.boostCd-=dtR;
+if(s.hour>=24){ s.hour-=24; s.day++; s.dayOfYear++; }
+if(s.fire){
+s.fireSec+=dtR;
+s.v=Math.max(0,s.v-4*dtR);
+if(s.fireSec>6){ showResult(); }
+return;
+}
+if(P.mode==="race"&&s.weatherPlan){
+const absH=(s.day-1)*24+s.hour;
+const ev=s.weatherPlan.find(w=>absH>=w.start&&absH<w.start+w.dur);
+if(ev&&!s.weather){
+s.weather={type:ev.type,factor:ev.factor};
+Radio.push(ev.type==="squall"?"⚠ スコールに入ります!日射が大きく低下":"曇天域に入ります。発電量低下に注意","偵察車");
+} else if(!ev&&s.weather){ s.weather=null; Radio.push("天候回復。日射戻ります。","偵察車"); }
+}
+if(P.mode==="race") this.updateTeams(dtS);
+const startH=this.raceStartHour();
+const isRaceHours = s.hour>=startH && s.hour<17+(s.extensionMin/60);
+let parked = s.stopTimer>0 || StopMenu.active;
+if(s.stopTimer>0){
+s.stopTimer-=dtS; s.v=0;
+if(s.stopTimer<=0){
+if(s.stopKind==="tire"&&s.burst){ s.burst=false; toast("🛞 タイヤ交換完了!","#34d399"); }
+if(s.stopKind==="check"){ if(s.fault){ s.fault=null; s.faultAnnounced=false; toast("🔍 不具合を修理しました!","#34d399"); } else toast("🔍 機器チェック完了。異常なし","#34d399"); }
+if(s.stopKind==="cp") toast("点検完了!ベイから自走で道路に復帰してください","#34d399");
+s.stopKind=""; s.tiltLocked=false;
+}
+} else if(P.mode==="race" && !isRaceHours && !StopMenu.active){
+if(!s.camp && s.hour>=17 && s.v>1){
+s.extensionMin+=dtS/60;
+if(!s.extWarned){ Radio.push("17:00を超過しています。最大10分、翌朝遅延ペナルティ付きで延長可能です。"); s.extWarned=true; }
+if(s.extensionMin>=10){ s.morningPenaltyMin=10; this.enterCamp(); parked=true; }
+} else {
+if(!s.camp && s.hour>=17){ s.morningPenaltyMin=Math.min(10,Math.round(s.extensionMin)); this.enterCamp(); }
+if(!s.camp && s.hour<startH) s.camp=true;
+parked=true; s.v=Math.max(0,s.v-3*dtR);
+}
+}
+const sunset=this.sunsetHour(prof.lat);
+s.disconnected = s.camp && (s.hour>=sunset || s.hour<6);
+const tilted = parked || s.camp;
+const sol=this.solarCalc(prof.lat,s.hour,tilted);
+const Tamb=ambientTemp(prof.lat,s.hour);
+const phiW=s.windDirWorld-prof.bearing+Math.PI;
+const airOverArray=tilted? s.windSpeed : Math.max(0,s.v+s.windSpeed*Math.cos(phiW));
+const TcSS=cellTempSS(Tamb,sol.G,airOverArray,tilted);
+if(s.TcellDyn==null) s.TcellDyn=TcSS;
+s.TcellDyn+=(TcSS-s.TcellDyn)*(1-Math.exp(-dtS/240));
+const Tcell=s.TcellDyn;
+if(s.Tbat==null) s.Tbat=Tamb;
+const rho=Phys.airDensity(prof.elev,Tamb); s.lastRho=rho;
+const gamma=PANEL_TYPES[P.panel].gamma;
+const tempLoss=clamp(1-gamma*Math.max(0,Tcell-25),0.6,1);
+let Psolar=P.arrayArea*P.cellEff*tempLoss*P.mpptEff*sol.G*PRO.solarScale;
+if(s.fault&&s.fault.type==="solar") Psolar*=0.3;
+if(s.disconnected) Psolar=0;
+s.lastGeff=sol.G; s.lastTcell=Tcell; s.lastSolar=Psolar; s.sunAlt=sol.alt; s.sunAz=sol.az; s.Tamb=Tamb;
+let Pmotor=0, I_cmd=0;
+if(!parked && (P.mode!=="race"||isRaceHours)){
+const m=massTotal(), mEff=m+PRO.mRot;
+const crr = (s.burst?8:1)*Phys.crr(s.v);
+const Froll=crr*m*9.81*Math.cos(View.carSlope)+motorIronW(s.v)/Math.max(s.v,0.5);
+const phi=s.windDirWorld-prof.bearing+Math.PI;
+const head=s.windSpeed*Math.cos(phi); s.lastHead=head;
+const cross=s.windSpeed*Math.sin(phi);
+const vApp=Math.max(0,s.v+head);
+const yaw=Math.atan2(Math.abs(cross),Math.max(s.v,1));
+const cdEff=P.Cd*(1+Math.abs(yaw)*1.2);
+const Fdrag=0.5*rho*cdEff*P.frontal*vApp*vApp;
+const Fcorner=0.15*m*9.81*(s.gLat||0)*(s.gLat||0);
+const Fslope=m*9.81*Math.sin(View.carSlope);
+s.lastYawDeg=Math.abs(yaw)*180/Math.PI;
+let thr=s.throttleSet;
+if(s.brakePhys>0.05||s.brakeRegen>0.05){ thr=0; s.throttleSet=0; }
+let ampLimit=P.motorMaxA;
+if(s.boostT>0)ampLimit*=1.25; // 🚀BOOST
+if(s.fault&&s.fault.type==="accel") ampLimit*=0.3;
+if(s.bmsOn){
+if(s.soc<=0.05) ampLimit=Math.min(ampLimit,6);
+if(s.soc<=0.003) ampLimit=0;
+if(s.Tbat>55) ampLimit*=clamp(1-(s.Tbat-55)/10,0,1); // 高温ディレーティング
+}
+I_cmd=thr*ampLimit;
+const mm=motorModel(I_cmd,s.v,s.soc,s.powerMode);
+let Ftrac=mm.F;
+let Fbrake=0, Pregen=0;
+if(s.brakePhys>0) Fbrake += s.brakePhys*PRO.brakeMu*m*9.81;
+if(s.brakeRegen>0){
+const lowSpd=clamp(s.v/2.2,0,1);
+const Fr=s.brakeRegen*P.regenStrength*clamp(40+s.v*3,0,180)*lowSpd;
+Fbrake+=Fr;
+const Ir=Fr/PRO.kt;
+Pregen=Math.max(0,Fr*s.v*PRO.regenEff-Ir*Ir*PRO.rWinding);
+}
+const Fnet=Ftrac-Froll-Fdrag-Fslope-Fbrake-Fcorner;
+s.v=Math.max(0,s.v+Fnet/mEff*dtR);
+if(dtR>0) s.gLong=(Fnet/mEff)/9.81;
+Pmotor = mm.Pelec - Pregen;
+const dKm=s.v*dtS/1000;
+const prev=s.km;
+s.km=Math.min(TOTAL_KM,s.km+dKm);
+if(s.v>0.5) s.drivingHours+=dtS/3600;
+this.checkEvents(prev,s.km,dtS,dtR);
+for(const gk of GRID_KMS) if(prev<gk&&s.km>=gk){
+s.gridShake=0.9; s.gridCount++;
+Snd.rattle();
+toast("🐄 キャトルグリッド通過 ― 足回りに衝撃","#fbbf24");
+}
+const lim=speedLimitAt(s.km);
+if(s.v*3.6>lim+5){ s.limitTimer+=dtR;
+if(s.limitTimer>3){ s.limitTimer=0; Radio.push(`制限速度${lim}km/hを超過しています。減速してください。`,"後方追走車"); } }
+else s.limitTimer=0;
+if(View.redSignalKm!=null && prev<View.redSignalKm && s.km>=View.redSignalKm && s.v*3.6>5){
+Snd.alarm(); toast("🚨 赤信号を通過しました!","#ef4444"); View.redSignalKm=null;
+}
+} else { s.v=Math.max(0,s.v-3*dtR); I_cmd=0; Pmotor=0; }
+s.lastAmp=I_cmd; s.lastMotorW=Math.max(0,Pmotor);
+let Paux = s.disconnected ? 0 : (s.camp?2:P.auxW);
+if(s.fault&&s.fault.type==="aux") Paux+=150;
+const Pnet = s.disconnected ? 0 : (Pmotor+Paux-Psolar);
+const Voc=VOC(s.soc), R=Phys.rInt(s.Tbat,s.soc);
+const Ibat=Phys.battCurrent(Voc,R,Pnet);
+const Vterm=Math.max(0,Voc-Ibat*R);
+s.lastVterm=Vterm;
+{ // 電池温度: ジュール熱 - 放熱(走行風で強制換気)
+const UA=PRO.battUA*(1+0.04*s.v);
+s.Tbat+=(Ibat*Ibat*R-UA*(s.Tbat-Tamb))/Math.max(1000,PRO.battCth)*dtS;
+if(s.Tbat>50&&!s.radioCd.tbat){ s.radioCd.tbat=true; Radio.push(`⚠ バッテリー温度${s.Tbat.toFixed(0)}°C。電流を抑えてください(55°C超で出力制限)。`); }
+else if(s.Tbat<45) s.radioCd.tbat=false;
+}
+const capAh=CAP_AH();
+if(P.infiniteBattery) s.soc=clamp(PRO.startSoc,0.5,1);
+else s.soc=clamp(s.soc-(Ibat*(Ibat<0?0.995:1)*dtS)/(capAh*3600),0,1);
+s.lastIbat=Ibat; s.lastNet=Pnet;
+if(Ibat>0) s.ahUsed+=Ibat*dtS/3600;
+if(P.mode==="event"&&s.soc<0.15)s.soc=0.3; // ② 電欠なし=必ずゴール可能
+if(Pnet>0) s.whUsed+=Pnet*dtS/3600;
+if(!s.disconnected) s.whGen+=Psolar*dtS/3600;
+if(s.soc<=0.001 && s.v>1){
+s.socZeroSec+=dtS;
+if(s.socZeroSec>60&&!s.radioCd.soc0){ Radio.push("⚠ SOC 0%!直ちに停車してください!過放電で危険です!"); s.radioCd.soc0=true; }
+if(s.socZeroSec>300) this.ignite("バッテリー過放電による熱暴走");
+} else if(s.soc>0.01) { s.socZeroSec=0; s.radioCd.soc0=false; }
+if(P.mode==="race" && s.v>3){
+if(!s.burst && Math.random()<0.20*PRO.faultScale*dKmSafe(s,dtS)/TOTAL_KM*(1+0.08*PRO.gridRisk*s.gridCount)){
+s.burst=true; Snd.bang(); toast("💥 タイヤバースト!停車してタイヤ交換が必要です","#ef4444");
+Radio.push("タイヤバースト発生!安全に減速して停車後、タイヤ交換を実施してください。");
+}
+if(!s.fault && Math.random()<0.20*PRO.faultScale*dKmSafe(s,dtS)/TOTAL_KM*(1+0.04*PRO.gridRisk*s.gridCount)){
+const types=[["solar","発電量が急激に低下"],["accel","モーター出力が上がりません"],["aux","消費電力が異常増大"],["telemetry","テレメトリシステム故障"]];
+const [ty,msg]=types[Math.floor(Math.random()*types.length)];
+s.fault={type:ty};
+Snd.alarm(); toast(`⚠ 電装系不具合: ${msg}`,"#f59e0b");
+Radio.push(`電装系に不具合発生(${msg})。停車して機器チェックを推奨します。`);
+}
+}
+this.radioLogic(dtS);
+if(s.camp){
+const st2=this.raceStartHour();
+if(s.hour>=st2 && s.hour<17){
+s.camp=false; s.extensionMin=0; s.extWarned=false; s.tiltLocked=false;
+Radio.push(`Day${s.day} スタート!${s.morningPenaltyMin>0?`(延長ペナルティ+${s.morningPenaltyMin}分)`:""}今日も安全第一で。`);
+s.morningPenaltyMin=0;
+}
+}
+if(s.km>=TOTAL_KM && !s.finished){ s.finished=true; showResult(); }
+},
+radioLogic(dtS){
+const s=this.st;
+if(P.mode!=="race") return;
+let next=null;
+for(const c of ROUTE) if(c.cp&&!s.passedCP.has(c.km)&&c.km>s.km){ next=c; break; }
+if(next){
+const d=next.km-s.km;
+if(d<10 && !s.radioCd["cs10_"+next.km]){ s.radioCd["cs10_"+next.km]=true;
+Radio.push(`あと${d.toFixed(0)}km(${(s.v*3.6).toFixed(0)}km/h)でコントロールストップ「${next.name}」です。`); }
+if(d<2 && !s.radioCd["cs2_"+next.km]){ s.radioCd["cs2_"+next.km]=true;
+Radio.push(`まもなくコントロールストップ。減速して道路左側のベイへ進入し、停車してください。`,"前方誘導車"); }
+}
+s.nextAdvice-=dtS;
+if(s.nextAdvice<=0 && s.v>3){
+s.nextAdvice=1200;
+const r=this.recommendSpeed();
+Radio.push(`時速${r.v}kmで走行してください。このペースなら${r.cs}到着時 SOC約${(r.pred*100).toFixed(0)}%です。${r.pred<0.45?"⚠ SOC50%維持が困難です。ペースを落として充電区間を作りましょう。":""}`);
+}
+if(View.upcomingGrade!==0 && !s.radioCd.gradeMsg){
+s.radioCd.gradeMsg=true;
+Radio.push(View.upcomingGrade>0?"この先、登り区間入ります。電流に注意。":"この先、下り区間入ります。","偵察車");
+setTimeout(()=>s.radioCd.gradeMsg=false, 25000);
+}
+},
+recommendSpeed(){
+const s=this.st;
+let next=null;
+for(const c of ROUTE) if(c.cp&&!s.passedCP.has(c.km)&&c.km>s.km){ next=c; break; }
+const dist=next?(next.km-s.km):(TOTAL_KM-s.km);
+const m=massTotal();
+let out={v:45,pred:0,cs:next?next.name.replace(/\s*\(CS\d\)/,""):"ゴール"};
+for(let v=90;v>=40;v-=5){
+const vm=v/3.6;
+const va=Math.max(0,vm+(s.lastHead||0));
+const F=Phys.crr(vm)*m*9.81+0.5*(s.lastRho||1.17)*P.Cd*P.frontal*va*va;
+const Pd=F*vm+motorIronW(vm)+(F/PRO.kt)**2*PRO.rWinding+PRO.ctrlW+0.01*F*vm+P.auxW;
+const dWh=(Pd-s.lastSolar)*(dist/v);
+const pred=s.soc-dWh/P.batteryWh;
+out={v,pred:clamp(pred,0,1),cs:out.cs};
+if(pred>=0.5) break;
+}
+return out;
+},
+checkEvents(prev,curr,dtS,dtR){
+const s=this.st;
+if(!s.cpPending){
+for(const cp of ROUTE){
+if(!cp.cp||s.passedCP.has(cp.km)) continue;
+if(cp.km>curr-1){
+const bayRel=(cp.km-curr)*1000/P.timeScale;
+if(bayRel<950&&bayRel>-100) s.cpPending=cp;
+break;
+}
+}
+}
+if(s.cpPending && s.stopTimer<=0){
+const cp=s.cpPending;
+const bayRel=(cp.km-curr)*1000/P.timeScale;
+if(bayRel<60 && bayRel>-140 && View.lateral<-8 && s.v<0.8){
+this.beginCS(cp,false);
+} else if(bayRel<-300){
+this.beginCS(cp,true);
+}
+}
+},
+beginCS(cp,missed){
+const s=this.st;
+s.passedCP.add(cp.km); s.cpPending=null;
+s.stopTimer=30*60; s.stopKind="cp"; s.cpName=cp.name; s.v=0; s.throttleSet=0;
+Snd.chime();
+if(missed){ toast("🚨 コントロールストップを通過!その場で30分点検となります","#f59e0b"); }
+else toast(`🛑 ${cp.name} 到着 ― 30分の強制点検`,"#fbbf24");
+TiltDecide.open();
+if(cp.km===2720){
+const abs=(s.day-1)*24+s.hour;
+s.absHourAtPA=abs;
+if(abs > 4*24+11){ s.trailered=true; showResult(); }
+else Radio.push("Port Augusta 11:00デッドライン通過!ソーラーフィニッシュ確定です!");
+}
+},
+enterCamp(){
+const s=this.st;
+s.camp=true; s.v=0;
+Radio.push(`Day${s.day} 走行終了。その場でキャンプ設営、日没までティルト充電を行います。`);
+TiltDecide.open();
+},
+ignite(reason){
+const s=this.st;
+if(s.fire) return;
+s.fire=true; s.fireSec=0; s.fireReason=reason;
+Snd.bang(); Snd.alarm();
+View.startFire();
+toast("🔥 車両炎上!!","#ef4444");
+},
+skipStop(){
+const s=this.st;
+if(s.stopTimer>0){ s.stopTimer=0.1; }
+else if(s.camp){
+const st2=this.raceStartHour();
+const prof=profileAt(s.km);
+let wh=0;
+const sunset=this.sunsetHour(prof.lat);
+for(let h=17;h<sunset;h+=0.25){ const g=this.solarCalc(prof.lat,h,true); wh+=P.arrayArea*P.cellEff*0.92*P.mpptEff*g.G*0.25*PRO.solarScale; }
+for(let h=6;h<st2;h+=0.25){ const g=this.solarCalc(prof.lat,h,true); wh+=P.arrayArea*P.cellEff*0.92*P.mpptEff*g.G*0.25*PRO.solarScale; }
+s.soc=clamp(s.soc+wh*0.5/P.batteryWh,0,1);
+s.whGen+=wh*0.5;
+if(s.hour>=17){ s.day++; s.dayOfYear++; }
+s.hour=st2;
+}
+},
+};
+function dKmSafe(s,dtS){ return s.v*dtS/1000; }
