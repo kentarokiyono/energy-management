@@ -64,3 +64,70 @@ nextManeuver(km){ for(const m of RP_MANEUVERS) if(m.km>km) return m; return null
 csByN(n){ return RP_CS.find(c=>c.n===n); },
 absHour(t){ return (t[0]-1)*24+t[1]+t[2]/60; },
 };
+/* ============ OSM の町区間 (js/data/route-osm.js) ============
+ 町ごとに曲率プログラム prog=[長さ,曲率,...] を持つ。H(km) は区間始点からの方位変化 (rad, 右 +)。
+ 読み込み時に区間内の動作・CS・ノートの事象の km を OSM 由来の位置へ写像する (TOTAL_KM 確定前に実行)。 */
+const OsmRoute={
+towns:[],
+init(){
+ if(typeof OSM_TOWNS==="undefined"||!OSM_TOWNS.length) return;
+ for(const t of OSM_TOWNS){
+  const D=[0], H=[0], K=[];
+  for(let i=0;i<t.prog.length;i+=2){ const L=t.prog[i], k=t.prog[i+1]; K.push(k); D.push(D[D.length-1]+L); H.push(H[H.length-1]+L*k); }
+  t.D=D; t.H=H; t.K=K; t.km1=t.km0+t.len/1000;
+  this.towns.push(t);
+ }
+ this.apply();
+},
+townAt(km){ for(const t of this.towns) if(km>=t.km0&&km<=t.km1) return t; return null; },
+H(t,km){
+ const d=clamp((km-t.km0)*1000,0,t.len), D=t.D;
+ let lo=0, hi=D.length-1;
+ while(hi-lo>1){ const m=(lo+hi)>>1; if(D[m]<=d) lo=m; else hi=m; }
+ return t.H[lo]+(d-D[lo])*(t.K[lo]||0);
+},
+/* ノート km → OSM km: 動作の対応点で区分線形 (両端は傾き 1 で外挿) */
+mapper(t){
+ const P=Object.entries(t.man).map(([k,v])=>[+k,v[0]]).sort((a,b)=>a[0]-b[0]);
+ if(t.cs) for(const c of RP_CS) if(t.cs[c.n]!=null) P.push([c.km,t.cs[c.n]]);
+ if(t.finish!=null) P.push([RP_FINISH.km,t.finish]);
+ P.sort((a,b)=>a[0]-b[0]);
+ const f=(k)=>{
+  if(!P.length) return k;
+  if(k<=P[0][0]) return P[0][1]+(k-P[0][0]);
+  for(let i=1;i<P.length;i++) if(k<=P[i][0]){ const a=P[i-1], b=P[i]; return b[0]>a[0]? a[1]+(b[1]-a[1])*(k-a[0])/(b[0]-a[0]) : b[1]; }
+  const z=P[P.length-1]; return z[1]+(k-z[0]);
+ };
+ const a=P.length? P[0][0]-(P[0][1]-t.km0) : t.km0, b=P.length? P[P.length-1][0]+(t.km1-P[P.length-1][1]) : t.km1;
+ return {f,a,b};
+},
+apply(){
+ const snap=(k,list,w)=>{ let best=k, bd=w; for(const s of list||[]){ const d=Math.abs(s-k); if(d<bd){ bd=d; best=s; } } return best; };
+ for(const t of this.towns){
+  const {f,a,b}=this.mapper(t), inT=(k)=>k>=a&&k<=b;
+  for(const m of RP_MANEUVERS){
+   if(!inT(m.km)) continue;
+   const v=t.man[String(m.km)];
+   m.noteKm=m.km; m.km= v? v[0] : f(m.km); m.osm=t; m.osmHin= v? v[1] : null;
+   if(m.warnKm!=null) m.warnKm=f(m.warnKm);
+  }
+  for(const c of RP_CS) if(inT(c.km)) c.km= t.cs&&t.cs[c.n]!=null? t.cs[c.n] : f(c.km);
+  if(inT(RP_FINISH.km)) RP_FINISH.km= t.finish!=null? t.finish : f(RP_FINISH.km);
+  for(const tr of RP_TRAPS) if(inT(tr.km)) tr.km=f(tr.km);
+  const r=RP_RULES; if(inT(r.driverChange.km)) r.driverChange.km=f(r.driverChange.km);
+  if(inT(r.saturdayNoSouthOfPA.km)) r.saturdayNoSouthOfPA.km=f(r.saturdayNoSouthOfPA.km);
+  for(const e of RN_EVENTS){
+   if(!inT(e.km)) continue;
+   let k=f(e.km);
+   if(e.k==="signal") k=snap(k,t.sig,0.25);
+   else if(e.k==="pedlight") k=snap(k,(t.ped||[]).concat(t.sig),0.25);
+   else if(e.k==="roundabout") k=snap(k,t.rab,0.25);
+   if(e.km2!=null) e.km2=f(e.km2);
+   e.km=k; e.osm=true;
+  }
+  for(const row of RN_ROWS) if(inT(row[0])) row[0]=+f(row[0]).toFixed(3);
+ }
+ RP_MANEUVERS.sort((a,b)=>a.km-b.km); RN_EVENTS.sort((a,b)=>a.km-b.km);
+},
+};
+OsmRoute.init();
