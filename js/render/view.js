@@ -83,10 +83,18 @@ const f=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.36,0.8),mat||whiteMat);
 f.position.set(x,0.40,z); body.add(f);
 };
 if(P.shape==="wadai"){
-// YATA(61)
-const Y=buildYATA();
+// YATA(61) — 車両諸元 (非公開ファイル) があれば実車の形
+const SB=VEH.active?VEH.spec.body:null;
+const Y=buildYATA(SB);
 body.add(Y.group);
 g.userData.canopy=Y.canopy;
+// 車輪 (諸元にある場合): [x, z(車体中心基準, 前方 -), 半径, 幅]
+if(SB&&SB.wheels){ const tm=new THREE.MeshStandardMaterial({color:0x111316,roughness:.85}), hm=new THREE.MeshStandardMaterial({color:0x8a8f96,roughness:.4,metalness:.6});
+ g.userData.wheels=[];
+ for(const [x,z,r,w] of SB.wheels){ const wg=new THREE.Group(); wg.position.set(x,r,z);
+  const t=new THREE.Mesh(new THREE.CylinderGeometry(r,r,w,28),tm); t.rotation.z=Math.PI/2; wg.add(t);
+  const h=new THREE.Mesh(new THREE.CylinderGeometry(r*0.55,r*0.55,w+0.01,20),hm); h.rotation.z=Math.PI/2; wg.add(h);
+  g.add(wg); g.userData.wheels.push({g:wg,r,front:z<0}); } }
 // ---- コックピット内装(ドライバーカメラで体感) ----
 const cock=new THREE.Group();
 const carbon=new THREE.MeshStandardMaterial({color:0x14181d,roughness:.6});
@@ -134,23 +142,25 @@ g.userData.canopy=canopy;
 mkWheelFair(-0.62,1.2); mkWheelFair(0.62,1.2); mkWheelFair(0,-1.35);
 }
 const isW=P.shape==="wadai";
+const LP=(isW&&VEH.active&&VEH.spec.lamps)||null;   // 灯火の位置 (諸元): [x, z, y]
 const drlMat=new THREE.MeshBasicMaterial({color:0xffffff});
-const drlPos=isW?[[-0.10,-2.28,0.32],[0.10,-2.28,0.32]]:[[-0.28,-2.10,0.52],[0.28,-2.10,0.52]];
+const drlPos=LP&&LP.head? LP.head : isW?[[-0.10,-2.28,0.32],[0.10,-2.28,0.32]]:[[-0.28,-2.10,0.52],[0.28,-2.10,0.52]];
 for(const [sx,sz,sy] of drlPos){
   const dl=new THREE.Mesh(new THREE.BoxGeometry(isW?0.09:0.20,isW?0.03:0.045,isW?0.22:0.05),drlMat);
   dl.position.set(sx,sy,sz);body.add(dl);
 }
 const brakeMat=new THREE.MeshBasicMaterial({color:0x4a0505});
-const bl=new THREE.Mesh(new THREE.BoxGeometry(isW?0.22:0.7,isW?0.035:0.05,0.04),brakeMat);
-bl.position.set(0,isW?0.50:0.53,isW?2.52:2.18);body.add(bl); // アレイ直下の細いブレーキライト
+if(LP&&LP.stop){ for(const [x,z,y] of LP.stop){ const b2=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.035,0.04),brakeMat); b2.position.set(x,y,z); body.add(b2); } }
+else { const bl=new THREE.Mesh(new THREE.BoxGeometry(isW?0.22:0.7,isW?0.035:0.05,0.04),brakeMat);
+bl.position.set(0,isW?0.50:0.53,isW?2.52:2.18);body.add(bl); } // アレイ直下の細いブレーキライト
 g.userData.brakeMat=brakeMat;
 g.userData.winkL=[];g.userData.winkR=[];
-const winkPos=isW?[[-0.60,-1.05],[0.60,-1.05],[-0.40,1.90],[0.40,1.90]]
+const winkPos=LP&&LP.wink? LP.wink : isW?[[-0.60,-1.05],[0.60,-1.05],[-0.40,1.90],[0.40,1.90]]
   :[[-0.57,-1.05],[0.57,-1.05],[-0.94,1.95],[0.94,1.95]];
-for(const [wx,wz] of winkPos){
+for(const [wx,wz,wy] of winkPos){
   const wm=new THREE.MeshBasicMaterial({color:0x4a3005});
   const wk=new THREE.Mesh(new THREE.BoxGeometry(isW?0.05:0.10,0.045,0.32),wm);
-  wk.position.set(wx,isW?0.50:0.55,wz);body.add(wk);
+  wk.position.set(wx,wy!=null?wy:(isW?0.50:0.55),wz);body.add(wk);
   (wx<0?g.userData.winkL:g.userData.winkR).push(wm);
 }
 g.add(body);
@@ -663,11 +673,21 @@ if(this.cx===undefined) this.resetRoad();
 const vv=es.v;
 // ---- ワールド座標での運動 (分岐/Uターンに対応) ----
 if(vv>0.3){
- const yawRate=Input.steer*clamp(6.5/Math.max(vv,4),0.12,1.0);
+ const yawRate= VEH.active&&VEH.spec.chassis? VehDyn.yawRate(Input.steer,vv) : Input.steer*clamp(6.5/Math.max(vv,4),0.12,1.0);
  this.ch+=yawRate*dtR;
  es.gLat=(yawRate*vv)/9.81;
 } else es.gLat=0;
 this.cx+=Math.sin(this.ch)*vv*dtR; this.cz-=Math.cos(this.ch)*vv*dtR;
+// 横風 (諸元があるとき): 横方向に押される。タイヤの横すべりで遅れて効く。旋回と合わせて転倒余裕を監視
+if(VEH.active&&VEH.spec.chassis&&P.mode==="race"){
+ const aY= vv>1? VehDyn.sideAccel(-(es.lastCross||0),es.lastRho||1.17,massTotal()) : 0;
+ this.vyWind=lerp(this.vyWind||0,aY*0.35,clamp(dtR*3,0,1));
+ this.cx+=Math.cos(this.ch)*this.vyWind*dtR; this.cz+=Math.sin(this.ch)*this.vyWind*dtR;
+ const aLat=Math.abs((es.gLat||0)*9.81+aY);
+ es.tipRatio=aLat/VehDyn.tipAccel();
+ if(es.tipRatio>0.8&&!(this.tipWarnT>0)){ this.tipWarnT=8; Snd.alarm(); Radio.push(`⚠ 横転の危険!横加速度 ${(aLat/9.81).toFixed(2)} G (転倒限界の ${(es.tipRatio*100).toFixed(0)} %)。減速してください。`,"チーフ"); }
+ if(this.tipWarnT>0) this.tipWarnT-=dtR;
+} else es.tipRatio=0;
 const sPrev=this.s;
 const pr=this.project(this.cx,this.cz);
 this.iProj=pr.i; this.s=pr.s; this.lateral=pr.lat;
@@ -698,6 +718,9 @@ const nx=Math.cos(pHere.h), nz=Math.sin(pHere.h);
 const hCar=this.ch;
 this.car.position.set(this.cx, carY, this.cz);
 this.car.rotation.y=-hCar;
+if(this.car.userData.wheels) for(const w of this.car.userData.wheels){   // 車輪の回転と前輪の舵角
+ w.spin=((w.spin||0)+vv*dtR/w.r)%(Math.PI*2); w.g.rotation.order="YXZ";
+ w.g.rotation.y= w.front? -Input.steer*0.45 : 0; w.g.rotation.x=-w.spin; }
 this.car.rotation.x=-Math.atan(pHere.g)*0.8+clamp(-es.gLong*0.025,-0.045,0.045);
 const wantTilt=(es.camp||es.stopTimer>0||StopMenu.mode==="charge")&&!es.disconnected;
 const targetRoll=wantTilt? -es.tiltDeg*Math.PI/180*0.85 : 0;
@@ -738,7 +761,8 @@ camPos=new THREE.Vector3(cx-Math.sin(hCar)*1.8, cy+1.45, cz+Math.cos(hCar)*1.8);
 lookAt=new THREE.Vector3(cx+Math.sin(hCar)*40, cy+1.0, cz-Math.cos(hCar)*40);
 } else if(this.cam===2){ // ドライバー: 頭を車体に固定(勾配ピッチ・オフロード揺れを継承)
 this.car.updateMatrixWorld();
-const eye=new THREE.Vector3(-(es.gLat||0)*.05, .84+(es.offroad?(Math.random()-.5)*.03:0), -.45);
+const E0=(VEH.active&&VEH.spec.eye)||[0,.84,-.45];
+const eye=new THREE.Vector3(E0[0]-(es.gLat||0)*.05, E0[1]+(es.offroad?(Math.random()-.5)*.03:0), E0[2]);
 eye.applyMatrix4(this.car.matrixWorld);
 const aim=new THREE.Vector3(0,.76,-30).applyMatrix4(this.car.matrixWorld);
 camPos=eye; lookAt=aim;

@@ -19,7 +19,7 @@ for(const k in BODY_SHAPES){ const s=BODY_SHAPES[k];
 sc.innerHTML+=`<div class="card-select ${k===P.shape?'active':''}" data-shape="${k}" onclick="selectShape('${k}')">
 <div class="font-bold text-sm text-cyan-200">${s.name}</div>
 <div class="text-[10px] text-cyan-100/50">${s.desc}</div>
-<div class="text-[10px] mono text-cyan-400 mt-1">Cd ${s.Cd} / A ${s.frontal}m²</div></div>`;
+<div class="text-[10px] mono text-cyan-400 mt-1">Cd ${s.Cd} / A ${s.frontal}m²</div>${k==="wadai"&&VEH.active?'<div class="text-[10px] text-amber-300 mt-1">● 実車諸元を使用中</div>':''}</div>`;
 }
 const pc=document.getElementById("panel-cards"); pc.innerHTML="";
 for(const k in PANEL_TYPES){ const s=PANEL_TYPES[k];

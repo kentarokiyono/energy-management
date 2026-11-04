@@ -1,8 +1,14 @@
 "use strict";
 /* ============ ④ YATA(61)プロシージャルhull ============ */
 const YATA_CACHE={};
-function buildYATA(){
-const O={L:5,noseTip:.23,canopyX:1.83,canopyLen:1.55,canopyW:.44,canopyTop:1.15,orangeU:.16,skirtZ:.30,seg:48,side:10,deckK:4};
+/* BD (任意): 車両諸元の body。{L, noseTip, canopy:{x,len,w,top}, orangeU, skirtZ, profiles:{halfW,hullW,zPanel,zHull,zBell}}
+ profiles は [u (0=先端,1=後端), 値 m] の列 (halfW/hullW は半幅, z* は地面からの高さ) */
+function buildYATA(BD){
+BD=BD||{};
+const O=Object.assign({L:5,noseTip:.23,canopyX:1.83,canopyLen:1.55,canopyW:.44,canopyTop:1.15,orangeU:.16,skirtZ:.30,seg:48,side:10,deckK:4},
+ BD.L!=null?{L:BD.L}:{}, BD.noseTip!=null?{noseTip:BD.noseTip}:{}, BD.orangeU!=null?{orangeU:BD.orangeU}:{}, BD.skirtZ!=null?{skirtZ:BD.skirtZ}:{},
+ BD.canopy?{canopyX:BD.canopy.x,canopyLen:BD.canopy.len,canopyW:BD.canopy.w,canopyTop:BD.canopy.top}:{});
+const PF=BD.profiles||{};
 if(!YATA_CACHE.tex){
 let cv=document.createElement("canvas");cv.width=cv.height=256;
 let g=cv.getContext("2d");g.fillStyle="#0b0f13";g.fillRect(0,0,256,256);
@@ -27,11 +33,12 @@ let lo=0,hi=S.length-1;
 while(lo<hi){const mid=(lo+hi)>>1;if(S[mid].x<u)lo=mid+1;else hi=mid;}
 const b=S[lo],p=S[Math.max(0,lo-1)],f=clamp((u-p.x)/((b.x-p.x)||1e-6),0,1);
 return lerp(p.y,b.y,f);};};
-const halfW=spl([[0,.001],[.05,.16],[.16,.44],[.30,.62],[.45,.85],[.60,.90],[.75,.86],[.90,.78],[1,.70]]);
-const hullW=spl([[0,.001],[.06,.10],[.16,.30],[.30,.44],[.50,.58],[.70,.52],[.85,.40],[1,.26]]);
-const zPanel=spl([[0,.30],[.10,.45],[.25,.60],[.50,.62],[.75,.60],[.90,.60],[1,.58]]);
-const zHull=spl([[0,.24],[.15,.38],[.35,.48],[.60,.50],[.80,.44],[1,.34]]);
-const zBell=spl([[0,O.noseTip],[.12,.20],[.30,.145],[.60,.15],[.80,.20],[1,.28]]);
+const halfW=spl(PF.halfW||[[0,.001],[.05,.16],[.16,.44],[.30,.62],[.45,.85],[.60,.90],[.75,.86],[.90,.78],[1,.70]]);
+const hullW=spl(PF.hullW||[[0,.001],[.06,.10],[.16,.30],[.30,.44],[.50,.58],[.70,.52],[.85,.40],[1,.26]]);
+const zPanel=spl(PF.zPanel||[[0,.30],[.10,.45],[.25,.60],[.50,.62],[.75,.60],[.90,.60],[1,.58]]);
+const zHull=spl(PF.zHull||[[0,.24],[.15,.38],[.35,.48],[.60,.50],[.80,.44],[1,.34]]);
+const zBell=spl(PF.zBell||[[0,O.noseTip],[.12,.20],[.30,.145],[.60,.15],[.80,.20],[1,.28]]);
+const HL=O.L/2;   // 車体中心 (z=0) から先端までの距離
 const DS=THREE.DoubleSide;
 const matWhite=new THREE.MeshStandardMaterial({color:0xe8eaee,roughness:.5,side:DS,envMapIntensity:.3});
 const matOrange=new THREE.MeshStandardMaterial({color:0xf27316,roughness:.45,side:DS,envMapIntensity:.35});
@@ -53,7 +60,7 @@ const ms=new THREE.Mesh(g2,b.mat);ms.castShadow=true;grp.add(ms);};
 const bW=mkB(matWhite),bO=mkB(matOrange),bS=mkB(matSkirt);
 const R=2*(O.side+O.deckK)-1,Pp=[],Uv=[],TYP=[];
 for(let i=0;i<=O.seg;i++){
-const u=i/O.seg,xl=u*O.L,wh=hullW(u),zb=zBell(u),hd=zHull(u),zPos=xl-2.5;
+const u=i/O.seg,xl=u*O.L,wh=hullW(u),zb=zBell(u),hd=zHull(u),zPos=xl-HL;
 const pts=[],typ=[];
 pts.push(new THREE.Vector3(0,zb,zPos));
 for(let r=1;r<=O.side;r++){const t=r/O.side;
@@ -75,7 +82,7 @@ const a=vid(b,Pp,Uv,i,r),c=vid(b,Pp,Uv,i,r2),d=vid(b,Pp,Uv,i+1,r2),e=vid(b,Pp,Uv
 b.idx.push(a,c,e,c,d,e);
 }
 {const i=O.seg,n=Pp[i].length;
-const cid=bS.v.length/3;bS.v.push(0,(zBell(1)+zHull(1))/2,O.L-2.5);bS.uv.push(O.L,.9);
+const cid=bS.v.length/3;bS.v.push(0,(zBell(1)+zHull(1))/2,O.L-HL);bS.uv.push(O.L,.9);
 for(let r=0;r<n;r++){const a=vid(bS,Pp,Uv,i,r),c=vid(bS,Pp,Uv,i,(r+1)%n);bS.idx.push(cid,a,c);}}
 finish(bW);finish(bO);finish(bS);
 }
@@ -84,7 +91,7 @@ finish(bW);finish(bO);finish(bS);
 const bA=mkB(matArray),bO=mkB(matOrange),PW=6,Gp=[],Uv=[];
 for(let i=0;i<=O.seg;i++){
 const u=i/O.seg,xl=u*O.L,wa=halfW(u);
-const ap=Math.max(zPanel(u),zHull(u)+0.06),zPos=xl-2.5;
+const ap=Math.max(zPanel(u),zHull(u)+0.06),zPos=xl-HL;
 const row=[];
 for(let j=0;j<=PW;j++){const x=wa*(j/PW*2-1);row.push(new THREE.Vector3(x,ap,zPos));}
 Gp.push(row);Uv.push(row.map(p=>new THREE.Vector2(xl,p.x+.9)));
@@ -114,11 +121,11 @@ const cg=new THREE.SphereGeometry(1,48,24);
 for(let i=0;i<p.count;i++){const z=p.getZ(i),f=z>0?1-.45*z*z:1-.25*z*z;
 p.setX(i,p.getX(i)*f);p.setY(i,p.getY(i)*f);}}
 cg.scale(O.canopyW/2,O.canopyTop-apC+0.05,O.canopyLen/2);
-cg.translate(0,apC-0.05,O.canopyX-2.5);
+cg.translate(0,apC-0.05,O.canopyX-HL);
 const idx=cg.index.array,g0=[],g1=[],p=cg.attributes.position;
 for(let i=0;i<idx.length;i+=3){
 const cz=(p.getZ(idx[i])+p.getZ(idx[i+1])+p.getZ(idx[i+2]))/3;
-(cz<O.canopyX-O.canopyLen*.18-2.5?g0:g1).push(idx[i],idx[i+1],idx[i+2]);}
+(cz<O.canopyX-O.canopyLen*.18-HL?g0:g1).push(idx[i],idx[i+1],idx[i+2]);}
 cg.setIndex(g0.concat(g1));cg.clearGroups();
 cg.addGroup(0,g0.length,0);cg.addGroup(g0.length,g1.length,1);cg.computeVertexNormals();
 canopy=new THREE.Mesh(cg,[
@@ -127,7 +134,7 @@ new THREE.MeshPhysicalMaterial({color:0x15181c,roughness:.18,clearcoat:1,envMapI
 canopy.castShadow=true;grp.add(canopy);
 }
 /* ==== コンタクトシャドウ ==== */
-const shM=new THREE.Mesh(new THREE.PlaneGeometry(2.3,5.3),
+const shM=new THREE.Mesh(new THREE.PlaneGeometry(2.3*Math.max(1,halfW(.6)/.9),O.L+0.3),
 new THREE.MeshBasicMaterial({map:T.shadow,transparent:true,depthWrite:false}));
 shM.rotation.x=-Math.PI/2;shM.position.y=.02;grp.add(shM);
 return {group:grp,canopy};
