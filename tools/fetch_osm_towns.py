@@ -19,6 +19,9 @@
   {"km", "cross": 道路}                                        … 交差道路を通過 (経路の曖昧さ解消用)
   {"km", "via": 位置, "leave": 動作km, "man": 動作km, "cs": n}  … 敷地等へ最短経路 (leave: 現在の道路を離れる点の動作)
   {"km", "end": true}                                          … 現在の道路を km まで直進して終了
+  "lot": m … 右左折で敷地に入った後、m 進んで同じ道を戻る (敷地内 U ターン, "uturnMan": 折り返しの動作km)
+  "bearing": deg … 右左折後の向き (北 0°, 東 90°) を ±45° に限定 (ラウンドアバウトの出口指定など)
+  turn "merge" … 合流 (±90° の範囲なら可)
   道路は name/ref/alt_name/old_name に対する正規表現。"@service" = service/parking_aisle の道
   "anchor": true のチェックポイントはノート km をそのまま採用 (町の区間の km 基準点)
   "minGap": m … この距離未満の候補は無視 (既定はノート km 差の 0.5 倍)
@@ -34,26 +37,27 @@ CLASS_W = {'motorway': 1.0, 'trunk': 1.0, 'primary': 1.0, 'secondary': 1.15, 'te
            'residential': 2.2, 'living_street': 3.0, 'road': 2.5, 'service': 4.0}
 ARM_CLASSES = set(CLASS_W) - {'service'}
 
-SH = 'Stuart Highway'
+SH = r'^Stuart Highway$|(^|;)A87(;|$)'
 TOWNS = [
     {'name': 'Darwin', 'bbox': [-12.480, 130.825, -12.435, 130.870], 'cps': [
         {'km': 0.0, 'start': {'near': {'find': r'^(State Square|Parliament House)', 'snap': 'service'}}, 'anchor': True},
-        {'km': 0.06, 'turn': 'R', 'onto': 'Mitchell Street', 'man': 0.06},
+        {'km': 0.06, 'turn': 'R', 'onto': '^Mitchell Street$', 'man': 0.06, 'minGap': 0},
         {'km': 0.30, 'cross': 'Cavenagh Street|Cavanagh Street'},
         {'km': 0.56, 'cross': 'McMinn Street'},
         {'km': 1.03, 'turn': 'R', 'onto': 'Garramilla Boulevard', 'man': 1.03},
         {'km': 2.00, 'end': True},
     ]},
+    # CS1 は計量所 (OSM では名前なしの側道ループ): 左へ斜めに入り、約 300 m 先で本線へ戻る
     {'name': 'Katherine', 'bbox': [-14.560, 132.220, -14.420, 132.340], 'cps': [
-        {'km': 321.30, 'start': {'on': SH, 'near': {'find': r'weigh|heavy vehicle|inspection|control stop'}, 'back': 500, 'from': 330}},
-        {'km': 322.00, 'via': {'find': r'weigh|heavy vehicle|inspection|control stop', 'snap': 'service'}, 'leave': 321.80, 'cs': 1, 'anchor': True},
-        {'km': 322.20, 'turn': 'veerR', 'onto': SH, 'man': 322.20},
+        {'km': 321.30, 'start': {'on': SH, 'near': {'pt': [-14.4817259, 132.3236386]}, 'back': 500, 'from': 300}},
+        {'km': 321.80, 'turn': 'veerL', 'onto': '@service', 'man': 321.80, 'anchor': True},
+        {'km': 322.20, 'turn': 'merge', 'onto': SH, 'man': 322.20},
         {'km': 322.70, 'end': True},
     ]},
     {'name': 'Tennant Creek', 'bbox': [-19.675, 134.165, -19.620, 134.215], 'cps': [
-        {'km': 987.20, 'start': {'on': SH + '|Paterson Street', 'near': {'x': [SH + '|Paterson Street', 'Kathleen Street']}, 'back': 420, 'from': 0}},
-        {'km': 987.62, 'turn': 'L', 'onto': 'Kathleen Street', 'man': 987.62},
-        {'km': 987.78, 'turn': 'R', 'onto': 'Weaber Street', 'man': 987.78},
+        {'km': 987.20, 'start': {'on': SH + '|Paterson Street', 'near': {'x': [SH + '|Paterson Street', '^Kathleen Street$']}, 'back': 420, 'from': 0}},
+        {'km': 987.62, 'turn': 'L', 'onto': '^Kathleen Street$', 'man': 987.62},
+        {'km': 987.78, 'turn': 'R', 'onto': '^Weaber (Road|Street)$', 'man': 987.78},
         {'km': 987.92, 'turn': 'R', 'onto': '@service', 'man': 987.92, 'anchor': True},
         {'km': 988.12, 'turn': 'L', 'onto': SH + '|Paterson Street', 'man': 988.12},
         {'km': 988.50, 'end': True},
@@ -62,28 +66,28 @@ TOWNS = [
     {'name': 'Alice Springs', 'bbox': [-23.815, 133.830, -23.680, 133.920], 'zone': False, 'cps': [
         {'km': 1493.50, 'start': {'on': SH, 'near': {'x': [SH, 'Wills Terrace']}, 'back': 500, 'from': 0}},
         {'km': 1494.00, 'cross': 'Wills Terrace'},
-        {'km': 1494.70, 'cross': 'Parsons Street'},
         {'km': 1495.00, 'cross': 'Stott Terrace'},
         {'km': 1495.85, 'turn': 'L', 'onto': 'Traeger Avenue', 'man': 1495.85},
         {'km': 1495.95, 'turn': 'R', 'onto': '@service', 'man': 1495.95, 'anchor': True},
         {'km': 1496.12, 'turn': 'L', 'onto': 'Speed Street', 'man': 1496.12},
         {'km': 1496.32, 'turn': 'R', 'onto': 'Gap Road', 'man': 1496.32},
         {'km': 1497.70, 'turn': 'rab', 'onto': SH, 'man': 1497.70},
-        {'km': 1505.70, 'turn': 'R', 'onto': SH, 'man': 1505.70, 'minGap': 6000},
+        {'km': 1505.70, 'turn': 'R', 'onto': SH, 'man': 1505.70, 'minGap': 7500},
         {'km': 1506.20, 'end': True},
     ]},
     {'name': 'Coober Pedy', 'bbox': [-29.035, 134.725, -28.990, 134.775], 'cps': [
-        {'km': 2179.50, 'start': {'on': SH, 'near': {'x': [SH, 'Hutchinson Street']}, 'back': 500, 'from': 330}},
-        {'km': 2180.00, 'turn': 'L', 'onto': 'Hutchinson Street', 'man': 2180.00},
-        {'km': 2180.85, 'turn': 'L', 'onto': '@service', 'man': 2180.85, 'cs': 7, 'anchor': True},
-        {'km': 2181.12, 'turn': 'R', 'onto': 'Hutchinson Street', 'man': 2181.12},
+        {'km': 2179.50, 'start': {'on': SH, 'near': {'x': [SH, 'Hutchison Street|Hutchinson Street']}, 'back': 500, 'from': 330}},
+        {'km': 2180.00, 'turn': 'L', 'onto': 'Hutchison Street|Hutchinson Street', 'man': 2180.00},
+        {'km': 2180.85, 'turn': 'L', 'onto': '@service', 'man': 2180.85, 'anchor': True, 'lot': 60, 'uturnMan': 2181.02},
+        {'km': 2181.12, 'turn': 'R', 'onto': 'Hutchison Street|Hutchinson Street', 'man': 2181.12},
         {'km': 2181.90, 'turn': 'L', 'onto': SH, 'man': 2181.90},
         {'km': 2182.30, 'end': True},
     ]},
     {'name': 'Glendambo', 'bbox': [-30.990, 135.720, -30.950, 135.780], 'cps': [
-        {'km': 2432.50, 'start': {'on': SH, 'near': {'find': r'Glendambo', 'tag': 'amenity=fuel'}, 'back': 1500, 'from': 310}},
-        {'km': 2434.10, 'via': {'find': r'Glendambo', 'tag': 'amenity=fuel', 'snap': 'service'}, 'leave': 2433.00, 'cs': 8, 'anchor': True},
-        {'km': 2434.20, 'turn': 'L', 'onto': SH, 'man': 2434.20},
+        {'km': 2432.50, 'start': {'on': SH, 'near': {'find': r'^Glendambo Roadhouse$'}, 'back': 1500, 'from': 310}},
+        {'km': 2433.00, 'turn': 'L', 'onto': '^Glendambo Access Road$|^Glendambo Roadhouse$', 'man': 2433.00, 'minGap': 0},
+        {'km': 2434.10, 'via': {'find': r'^Glendambo Roadhouse$', 'snap': 'service'}, 'cs': 8, 'anchor': True},
+        {'km': 2434.20, 'turn': 'L', 'onto': SH, 'man': 2434.20, 'minGap': 400},
         {'km': 2434.70, 'end': True},
     ]},
     {'name': 'Port Augusta', 'bbox': [-32.520, 137.680, -32.440, 137.800], 'cps': [
@@ -91,25 +95,28 @@ TOWNS = [
         {'km': 2717.00, 'turn': 'L', 'onto': r'\bA1\b|Highway One|Highway 1|Augusta Highway', 'man': 2717.00},
         {'km': 2719.40, 'turn': 'L', 'onto': 'Flinders Terrace', 'man': 2719.40},
         {'km': 2719.80, 'turn': 'R', 'onto': 'Augusta Terrace', 'man': 2719.80},
-        {'km': 2720.00, 'turn': 'R', 'onto': '@service', 'man': 2720.00, 'anchor': True},
+        {'km': 2720.00, 'turn': 'R', 'onto': '@service', 'man': 2720.00, 'anchor': True, 'lot': 80, 'uturnMan': 2720.42},
         {'km': 2720.55, 'turn': 'R', 'onto': 'Augusta Terrace', 'man': 2720.55},
         {'km': 2720.80, 'turn': 'rab', 'onto': 'Carlton Parade|Calton Parade', 'man': 2720.80},
         {'km': 2721.00, 'turn': 'L', 'onto': 'Victoria Parade', 'man': 2721.00},
         {'km': 2721.50, 'end': True},
     ]},
     {'name': 'Adelaide', 'bbox': [-34.960, 138.580, -34.860, 138.650], 'cps': [
-        {'km': 3020.70, 'start': {'on': 'Main North Road', 'near': {'x': ['Main North Road', 'Robe Terrace']}, 'back': 650, 'from': 0}},
+        {'km': 3019.10, 'start': {'on': '^Main North Road$', 'near': {'x': ['^Main North Road$', '^Regency Road$']}, 'back': 300, 'from': 0}},
         {'km': 3021.20, 'turn': 'veerR', 'onto': 'Main North Road', 'man': 3021.20},
         {'km': 3021.35, 'turn': 'L', 'onto': 'Robe Terrace', 'man': 3021.35},
         {'km': 3022.20, 'cross': 'Walkerville Terrace'},
         {'km': 3024.30, 'cross': 'North Terrace'},
         {'km': 3024.50, 'cross': 'Rundle Street'},
         {'km': 3025.07, 'cross': 'Bartels Road'},
-        {'km': 3026.92, 'via': {'find': r'^Victoria Park', 'snap': 'service'}, 'finish': True, 'anchor': True},
+        # Britannia Roundabout を右 (Wakefield Road 西行き)。Victoria Park 内への車道は OSM に無いので、
+        # ゴール (3026.92) は公園北辺の Wakefield Road 上になる
+        {'km': 3026.70, 'turn': 'rab', 'onto': '^Wakefield Road$', 'man': 3026.70, 'minGap': 0, 'bearing': 270, 'anchor': True},
+        {'km': 3027.10, 'end': True},
     ]},
 ]
 
-TURN_RANGE = {'L': (-160, -30), 'R': (30, 160), 'veerL': (-75, -6), 'veerR': (6, 75), 'S': (-25, 25), 'rab': (-180, 180)}
+TURN_RANGE = {'merge': (-90, 90), 'L': (-160, -30), 'R': (30, 160), 'veerL': (-75, -6), 'veerR': (6, 75), 'S': (-25, 25), 'rab': (-180, 180)}
 
 
 # ---------------- Overpass ----------------
@@ -150,7 +157,7 @@ class Graph:
         self.lat0, self.lon0 = lat0, lon0
         self.kx = math.cos(math.radians(lat0)) * 111320.0
         self.ky = 110540.0
-        self.xy, self.ways, self.adj, self.node_ways = {}, {}, {}, {}
+        self.xy, self.ways, self.adj, self.radj, self.node_ways = {}, {}, {}, {}, {}
         self.signals, self.ped, self.places = set(), set(), []
         for el in d['elements']:
             if el['type'] == 'node' and 'lat' in el:
@@ -171,8 +178,8 @@ class Graph:
             fwd = True; bwd = not (ow in ('yes', 'true', '1') or rab or tg.get('highway') == 'motorway')
             if ow == '-1': fwd, bwd = False, True
             for a, b in zip(ns, ns[1:]):
-                if fwd: self.adj.setdefault(a, []).append((b, wid))
-                if bwd: self.adj.setdefault(b, []).append((a, wid))
+                if fwd: self.adj.setdefault(a, []).append((b, wid)); self.radj.setdefault(b, []).append((a, wid))
+                if bwd: self.adj.setdefault(b, []).append((a, wid)); self.radj.setdefault(a, []).append((b, wid))
             for n in ns: self.node_ways.setdefault(n, set()).add(wid)
 
     def proj(self, lat, lon):
@@ -314,17 +321,27 @@ def follow(G, n, prev, pat, length, forced=None):
 
 
 def walk_back(G, n, pat, length, from_deg):
-    """n から from_deg 方位へ pat の道路を length m 戻る (一方通行は無視) → 起点からの順の経路"""
-    path = [n]; L = 0.0; pn = None; b = from_deg
+    """n へ進入してくる向きに pat の道路を length m 遡る (一方通行に従う) → 起点からの順の経路"""
+    path = [n]; L = 0.0; nx = None; b = from_deg
     while L < length:
-        opts = [(m, w) for m, w in G.neighbours(n) if m != pn]
+        opts = [(m, w) for m, w in G.radj.get(n, []) if m != nx]
         if not opts: break
         def key(o):
             m, w = o
             return (0 if G.match(w, pat) else 1, abs(wrap(G.bearing(n, m) - b)))
         m, w = min(opts, key=key)
-        b = G.bearing(n, m); L += G.dist(n, m); pn, n = n, m; path.append(n)
+        b = G.bearing(n, m); L += G.dist(n, m); nx, n = n, m; path.append(n)
     return path[::-1]
+
+
+def pick_start(G, cand, pat, from_deg):
+    """交差点候補 (上下線で複数) のうち、from 方位から pat の道路で進入できるノード"""
+    def score(n):
+        best = 1e9
+        for m, w in G.radj.get(n, []):
+            if G.match(w, pat): best = min(best, abs(wrap(G.bearing(n, m) - from_deg)))
+        return best
+    return min(cand, key=score)
 
 
 def route_town(G, t):
@@ -333,7 +350,7 @@ def route_town(G, t):
     st = cps[0]['start']
     cand, p = G.locate(st['near'])
     if 'on' in st:
-        n0 = cand[0] if cand else G.nearest(p, st['on'])[0]
+        n0 = pick_start(G, cand, st['on'], st.get('from', 0)) if cand else G.nearest(p, st['on'])[0]
         wb = walk_back(G, n0, st['on'], st.get('back', 400), st.get('from', 0))
         path = [wb[0]]; cur = st['on']
         forced = (wb[1], G_edge_way(G, wb[0], wb[1])) if len(wb) > 1 else None
@@ -342,11 +359,11 @@ def route_town(G, t):
         path = [n0]; cur = None; forced = None
     marks = [{'cp': cps[0], 'i': 0}]
     log = []
-    after_via = False; prev_km = cps[0]['km']
+    after_via = False; back_at_src = False; prev_km = cps[0]['km']
     for cp in cps[1:]:
         gap = (cp['km'] - prev_km) * 1000.0
         pat = cp.get('onto') or cp.get('cross')
-        min_gap = cp.get('minGap', max(0.0, gap * (0.85 if pat == '@service' else 0.5)))
+        min_gap = cp.get('minGap', max(0.0, gap * (0.3 if pat == '@service' else 0.5)))
         src = path[-1]
         prev = None if after_via or len(path) < 2 else path[-2]
         L0 = plen(G, path)
@@ -375,12 +392,22 @@ def route_town(G, t):
             log.append(f"  {cp['km']:8.2f} via      OSM {plen(G, path) - L0:6.0f} m / ノート {gap:6.0f} m")
             prev_km = cp['km']; continue
         D = dijkstra(G, src, prev, cur, forced)
+        if back_at_src and len(path) > 1:   # 敷地で折り返して入口に戻った直後: 入口の交差点自体が候補
+            D[src] = (0.0, 0.0, path[-2], G_edge_way(G, path[-2], src))
+            min_gap = 0.0
         best = None   # (実距離, ノード, 次の辺, 転向角)
         for n, (c, L, pn, pw) in D.items():
-            if n == src or pn is None or L < min_gap or not G.on(n, pat): continue
+            if (n == src and not back_at_src) or pn is None or L < min_gap or not G.on(n, pat): continue
             if best is not None and L >= best[0]: continue
-            if 'cross' in cp:
-                if G.degree(n) >= 3 and not G.match(pw, pat): best = (L, n, None, 0.0)
+            if 'cross' in cp:   # 交差道路を直進で通過: 同じ道路で最も直進に近い辺へ続ける
+                if G.degree(n) < 3 or G.match(pw, pat): continue
+                b_in = G.bearing(pn, n); opts = []
+                for m, w in G.adj.get(n, []):
+                    if m == pn or G.match(w, pat): continue
+                    a = wrap(G.bearing(n, m) - b_in)
+                    if abs(a) <= 35: opts.append((0 if G.wname(w) == G.wname(pw) else 1, abs(a), m, w, a))
+                if opts:
+                    o = min(opts); best = (L, n, (o[2], o[3]), o[4])
                 continue
             tr = cp['turn']; lo, hi = TURN_RANGE[tr]
             if tr == 'rab':
@@ -392,11 +419,14 @@ def route_town(G, t):
             for m, w in G.adj.get(n, []):
                 if m == pn or not G.match(w, pat) or (tr == 'rab' and G.is_rab(w)): continue
                 a = wrap(G.bearing(n, m) - b_in)
+                if 'bearing' in cp and abs(wrap(G.bearing(n, m) - cp['bearing'])) > 45: continue   # 出口の絶対方位 (北 0°, 東 90°)
                 if lo <= a <= hi and (best is None or L < best[0]): best = (L, n, (m, w), a)
         if best is None:
+            G.partial = (path, marks, log)   # 診断用
             raise LookupError(f'候補なし: {cp}')
         L, n, fo, a = best
-        seg = trace(D, n, src)
+        seg = trace(D, n, src) if n != src else [src]
+        back_at_src = False
         base = len(path) - 1
         path += seg[1:]
         mk = {'cp': cp, 'i': len(path) - 1, 'ang': a}
@@ -406,7 +436,12 @@ def route_town(G, t):
                 if w is not None and G.is_rab(w): mk['rab_i'] = base + k - 1; break
         marks.append(mk)
         forced = fo; after_via = False
-        if fo: cur = pat
+        if fo and 'cross' not in cp: cur = pat
+        if cp.get('lot') and fo:   # 敷地に入って lot m 進み、同じ道を戻って入口へ (敷地内 U ターン)
+            seg, _ = follow(G, path[-1], path[-2] if len(path) > 1 else None, '@service', cp['lot'], fo)
+            path += seg[1:] + seg[-2::-1]
+            mk['uturn_i'] = len(path) - len(seg)
+            forced = None; back_at_src = True
         kind = cp.get('turn') or 'cross'
         log.append(f"  {cp['km']:8.2f} {kind:8s} OSM {L:6.0f} m / ノート {gap:6.0f} m  角度 {a:+5.0f}°  {pat}")
         prev_km = cp['km']
@@ -531,6 +566,8 @@ def build_town(G, t):
         cp = m['cp']; i = m.get('rab_i', m['i'])
         if cp.get('man') is not None:
             man[f"{cp['man']:g}"] = [kmof(i), round(vh[i], 4)]
+        if cp.get('uturnMan') is not None and 'uturn_i' in m:
+            ui = m['uturn_i']; man[f"{cp['uturnMan']:g}"] = [kmof(ui), round(vh[ui], 4)]
         if cp.get('leave') is not None and 'leave_i' in m:
             li = m['leave_i']; man[f"{cp['leave']:g}"] = [kmof(li), round(vh[li], 4)]
         if cp.get('cs') is not None:
