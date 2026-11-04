@@ -515,17 +515,29 @@ if(g.gradeRemain<=0){
 }
 g.grade+=clamp(g.targetGrade-g.grade,-0.0008,0.0008)*this.SEG*(zone?0.3:1);
 this.genY=(this.genY||0)+g.grade*this.SEG;
-// ルートノートの右左折: 区間に入ったら曲率プログラムを実行
+// OSM の町区間: 等倍ゾーン内は実形状 (方位 = osmOff + H(km))。ゾーン外 (圧縮区間) は直線で、次のゾーンで合わせ直す
+const kmPrev=this.lastGenKm, lastH=this.road.pts[this.road.pts.length-1].h;
+const town= P.mode==="race"&&!this.prog? OsmRoute.townAt(km) : null;
+let osmCurv=null;
+if(town&&zone){
+ if(this.osmTown!==town){ this.osmTown=town; this.osmOff=lastH-OsmRoute.H(town,km); osmCurv=0; }
+ else osmCurv=(OsmRoute.H(town,km)-OsmRoute.H(town,kmPrev))/this.SEG;
+}else if(town) osmCurv=0;
+if(!(town&&zone)) this.osmTown=null;
+// ルートノートの右左折: 区間に入ったら曲率プログラムを実行 (OSM 区間の動作は実形状に含まれる)
 if(!this.prog&&P.mode==="race"){
- const m=RP_MANEUVERS.find(m=>m.km>this.lastGenKm-1e-9&&m.km<=km&&!this.doneMan.has(m));
- if(m){ this.doneMan.add(m); this.prog=this.turnProgram(m).map(p=>({...p})); g.curv=0; g.targetCurv=0; g.curvRemain=60;
-  this.junctions.push({s:sNext,km:m.km,m,h:this.road.pts[this.road.pts.length-1].h}); }
+ const m=RP_MANEUVERS.find(m=>m.km>kmPrev-1e-9&&m.km<=km&&!this.doneMan.has(m));
+ if(m){ this.doneMan.add(m);
+  const osm=m.osm&&osmCurv!==null&&this.osmTown===m.osm;
+  if(!osm){ this.prog=this.turnProgram(m).map(p=>({...p})); g.curv=0; g.targetCurv=0; g.curvRemain=60; osmCurv=null; this.osmTown=null; }
+  this.junctions.push({s:sNext,km:m.km,m,osm,h: osm&&m.osmHin!=null? this.osmOff+m.osmHin : lastH}); }
 }
 this.lastGenKm=km;
 if(this.prog&&this.prog.length){
  const p=this.prog[0]; p.len-=this.SEG; const k=p.k; if(p.len<=0) this.prog.shift(); if(!this.prog.length) this.prog=null;
  return {grade:g.grade,curv:k};
 }
+if(osmCurv!==null){ g.curv=0; g.targetCurv=0; g.curvRemain=60; return {grade:g.grade,curv:osmCurv}; }
 // 等倍ゾーン(町中)は直線、それ以外は緩いカーブを自動生成
 g.curvRemain-=this.SEG;
 if(g.curvRemain<=0){
@@ -588,7 +600,7 @@ resetRoad(){
  if(this.road) for(const c of this.road.chunks){ this.scene.remove(c.mesh); c.mesh.traverse(ch=>{ if(ch.geometry) ch.geometry.dispose(); }); }
  const es=Engine.st, km=es?es.km:0;
  this.road={pts:[{x:0,z:0,y:0,h:0,g:0,c:0}],builtS:0,chunks:[]};
- this.branches=[]; this.junctions=[]; this.prog=null; this.doneMan=new Set(); this.lastGenKm=-1;
+ this.branches=[]; this.junctions=[]; this.prog=null; this.doneMan=new Set(); this.lastGenKm=-1; this.osmTown=null;
  this.s=320; this.visOrigin=Route.vis(km)-this.s;
  // 現在地より手前の動作は実行済み扱い
  for(const m of RP_MANEUVERS) if(m.km<this.kmOfS(0)) this.doneMan.add(m);

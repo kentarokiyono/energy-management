@@ -474,7 +474,7 @@ branches(ctx){
  // 曲がり損ね (ルートの右左折地点)
  for(const j of view.junctions){
   if(j.s<s0||j.s>=s1||j.built) continue; j.built=true;
-  const m=j.m; if(!m.wrong) continue;
+  const m=j.m; if(!m.wrong||j.osm) continue;   // OSM 区間は実際の交差道路 (下の arms) が曲がり損ねの道になる
   const ang={S:0,L:-90*D,R:90*D,veerL:-30*D,veerR:30*D}[m.wrong]||0;
   const nm={S:"(直進)",L:"(左)",R:"(右)"}[m.wrong]||"";
   this.makeBranch(ctx,j.s,ang,{h:j.h,wrong:true,name:m.wrong==="S"? (m.note&&m.note.includes("空港")?"Airport Road":"") : "",len:m.wrong==="S"?260:200,fromCentre:m.wrong==="S"||m.wrong.startsWith("veer"),sign:false});
@@ -483,19 +483,31 @@ branches(ctx){
  for(const t of RP_TRAPS){ if(t.km>=kmA&&t.km<kmB&&!t.dummy) this.makeBranch(ctx,view.sOfKm(t.km),(t.side==="R"?90:-90)*D,{wrong:true,name:t.name,len:240}); }
  // 脇道 (t/o) — すべて走行可能
  const near=(k)=>RP_MANEUVERS.some(m=>Math.abs(m.km-k)<0.08);
+ const osmHere=(k)=>OsmRoute.townAt(k)&&Route.inZone(k);
  for(const e of Route.eventsIn(kmA,kmB,"sideroad")){
-  if(near(e.km)) continue;
+  if(near(e.km)||osmHere(e.km)) continue;
   const dirt=/station|track|dirt|H\/S|homestead|quarry|stn|camp/i.test(e.t);
   const name=e.t.replace(/\b(t\/o|on|left|right|Straight ahead|Exit|Turn off).*$/i,"").trim().slice(0,22);
   this.makeBranch(ctx,view.sOfKm(e.km),(e.v==="R"?1:-1)*(80+rnd()*20)*D,{name,surface:dirt?"gravel":"asph",half:dirt?3.0:3.6,len:200});
  }
  // 信号交差点の交差道路 (左右とも)
  for(const e of Route.eventsIn(kmA,kmB,"signal")){
-  if(near(e.km)) continue;
+  if(near(e.km)||osmHere(e.km)) continue;
   for(const sd of [-1,1]) this.makeBranch(ctx,view.sOfKm(e.km),sd*90*D,{name:sd<0?e.t.split(/Traffic|traffic/)[0].trim().slice(0,20):"",len:160});
  }
+ // OSM 区間の交差道路 (実際の向き)。動作地点の腕は曲がり損ねの道として扱う
+ for(const t of OsmRoute.towns){
+  if(t.km1<kmA||t.km0>=kmB) continue;
+  for(const [k,hb,name] of t.arms){
+   if(k<kmA||k>=kmB||k<=t.km0+0.005||k>=t.km1-0.005||!Route.inZone(k)) continue;
+   const ang=Math.atan2(Math.sin(hb-OsmRoute.H(t,k)),Math.cos(hb-OsmRoute.H(t,k)));
+   if(Math.abs(ang)<0.2||Math.abs(ang)>2.9) continue;
+   const atMan=RP_MANEUVERS.some(m=>m.osm===t&&Math.abs(m.km-k)<0.015);
+   this.makeBranch(ctx,view.sOfKm(k),ang,{name,wrong:atMan,len:atMan?200:120,sign:!!name&&!atMan});
+  }
+ }
  // ラウンドアバウトの他の出口
- for(const j of view.junctions){ if(j.s>=s0&&j.s<s1&&j.m.turn==="rab"&&!j.rabBuilt){ j.rabBuilt=true;
+ for(const j of view.junctions){ if(j.s>=s0&&j.s<s1&&j.m.turn==="rab"&&!j.osm&&!j.rabBuilt){ j.rabBuilt=true;
   for(const a of [-90,90]) if(!((j.m.exit==="R"&&a===90)||(j.m.exit==="L"&&a===-90))) this.makeBranch(ctx,j.s+26,a*D,{h:j.h,len:150,sign:false}); } }
 },
 /* ---- CS 構内・強制ドライバー交代の駐車帯・スタート/ゴール ---- */

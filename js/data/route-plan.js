@@ -101,6 +101,7 @@ function rpScaleZones(){
  for(const c of RP_CS) pts.push([c.km-0.6,c.km+0.4]);
  pts.push([RP_RULES.driverChange.km-0.5,RP_RULES.driverChange.km+0.4]);
  pts.push([0,1.4]); pts.push([3014,RP_FINISH.km+0.2]);
+ if(typeof OsmRoute!=="undefined") for(const t of OsmRoute.towns) if(t.zone!==false) pts.push([t.km0,t.km1]);   // OSM 実形状の町区間は等倍
  pts.sort((a,b)=>a[0]-b[0]);
  const z=[];
  for(const p of pts){ if(z.length&&p[0]<=z[z.length-1][1]+0.15) z[z.length-1][1]=Math.max(z[z.length-1][1],p[1]); else z.push([Math.max(0,p[0]),p[1]]); }
