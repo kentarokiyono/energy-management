@@ -529,6 +529,8 @@ if(g.gradeRemain<=0){
  if(this.genY<-25) g.targetGrade=Math.max(g.targetGrade,0.006);
 }
 g.grade+=clamp(g.targetGrade-g.grade,-0.0008,0.0008)*this.SEG*(zone?0.3:1);
+// OSM の町区間 (等倍) は平坦: 道路が同じ場所を再び通るので、高さがずれると地形が別の区間の道路を覆う
+if(P.mode==="race"&&zone&&OsmRoute.townAt(km)){ g.grade*=0.85; g.targetGrade=0; g.gradeRemain=Math.max(g.gradeRemain,200); }
 this.genY=(this.genY||0)+g.grade*this.SEG;
 // OSM の町区間: 等倍ゾーン内は実形状 (方位 = osmOff + H(km))。ゾーン外 (圧縮区間) は直線で、次のゾーンで合わせ直す
 const kmPrev=this.lastGenKm, lastH=this.road.pts[this.road.pts.length-1].h;
