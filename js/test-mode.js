@@ -19,291 +19,64 @@ if(!this._resizeBound){ this._resizeBound=true;
 addEventListener("resize",()=>{ if(Test.active&&Test.camera){ View.renderer.setSize(innerWidth,innerHeight);
 Test.camera.aspect=innerWidth/innerHeight; Test.camera.updateProjectionMatrix(); } });
 }
+View.renderer.shadowMap.enabled=true; View.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 this.scene=new THREE.Scene();
-this.scene.background=new THREE.Color(0x8fc3ef);
 setupRenderQuality(View.renderer,this.scene);
 this.camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,4000);
-this.scene.add(new THREE.HemisphereLight(0xcfe8ff,0x7a6a48,1.0));
-const sun=new THREE.DirectionalLight(0xfff2cc,1.2); sun.position.set(200,400,150); this.scene.add(sun);
-sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);
-Object.assign(sun.shadow.camera,{left:-9,right:9,top:9,bottom:-9,near:800,far:2600});
-this.scene.add(sun.target);
-const ground=new THREE.Mesh(new THREE.PlaneGeometry(9000,9000),
-new THREE.MeshLambertMaterial({color:this.kind==="circuit"?0x94804f:0x8b7a55}));
-ground.rotation.x=-Math.PI/2; ground.position.y=-0.12; ground.receiveShadow=true; this.scene.add(ground);
+// 会場 (Hidden Valley) は初回のみ生成して再利用
+if(!this._venue) this._venue=HV.build();
+this.cones=HV.cones;
+// 試験ごとのローカル座標系 (車両/判定はローカル、会場を逆変換して配置)
+const fr=HV.frames();
+let F=new THREE.Matrix4();
+if(kind==="slalom"||kind==="combo") F=HV.frameMatrix(fr.strip);
+else if(kind==="brake") F=HV.frameMatrix(fr.strip).multiply(new THREE.Matrix4().makeTranslation(HV.BRAKE_X,0,0));
+else if(kind==="fig8") F=HV.frameMatrix(fr.fig8);
+this.frameM=F; this.frameInv=F.clone().invert();
+this.root=new THREE.Group(); this.root.matrixAutoUpdate=false; this.root.matrix.copy(this.frameInv);
+this.root.add(this._venue); this.scene.add(this.root);
+// 空・太陽 (ダーウィン 8月 正午前後)
+this.sky=makeSkyDome(); this.sky.frustumCulled=false; this.scene.add(this.sky);
+const es=Engine.st, sp=Phys.sunPos(-12.448,130.907,es.dayOfYear||236,es.hour||12);
+const dW=new THREE.Vector3(Math.sin(sp.az)*Math.cos(sp.alt),Math.sin(sp.alt),-Math.cos(sp.az)*Math.cos(sp.alt));
+const rotInv=new THREE.Matrix4().extractRotation(this.frameInv);
+this.sunDir=dW.applyMatrix4(rotInv).normalize();
+const u=this.sky.material.uniforms;
+u.uTop.value.setHex(0x2f7fc4); u.uHor.value.setHex(0xc4dbea); u.uSunDir.value.copy(this.sunDir);
+u.uCover.value=0.18; u.uNight.value=0; u.uDust.value.setHex(0xd9c3a0).convertSRGBToLinear();
+this.scene.fog.color.setHex(0xc4dbea).convertSRGBToLinear(); this.scene.fog.near=400; this.scene.fog.far=2600;
+this.scene.add(new THREE.HemisphereLight(0xbfe0ff,new THREE.Color(0x7a5a3c).convertSRGBToLinear(),0.75));
+const sun=new THREE.DirectionalLight(0xfff1dc,1.2*clamp(Math.sin(sp.alt)*1.4,0.2,1));
+sun.castShadow=true; sun.shadow.mapSize.set(2048,2048); sun.shadow.bias=-0.0006; sun.shadow.normalBias=0.02;
+Object.assign(sun.shadow.camera,{left:-40,right:40,top:40,bottom:-40,near:1,far:900});
+this.scene.add(sun); this.scene.add(sun.target); this.sun=sun;
 const m=View.buildCarModelImpl();
 this.car=m.group; this.carBody=m.body; this.canopy=m.canopy;
+this.car.traverse(o=>{ if(o.isMesh) o.castShadow=true; });
 this.scene.add(this.car);
 this.laps=[]; this.best=null; this.prevLapIdx=undefined;
-if(kind==="circuit") this.buildCircuit();
-else if(kind==="fig8") this.buildFig8();
-else this.buildStrip();
+const T=HV.track();
+this.trackPts=T.pts; this.trackN=T.n;
+this.startHeading=Math.atan2(T.fwd[0][0],-T.fwd[0][1]);
 this.retry();
-},
-ribbon(pts,halfW,color,yOff,clampInner,mat){
-const n=pts.length, verts=[],norms=[],idx=[],uvs=[];
-for(let i=0;i<=n;i++){
-const im=i%n;
-const a=pts[im], b=pts[(im+1)%n], pr=pts[(im-1+n)%n];
-const dx=b.x-a.x, dz=b.z-a.z, L=Math.hypot(dx,dz)||1;
-const nx=-dz/L, nz=dx/L;
-let offR=halfW, offL=halfW;
-if(clampInner){
-const h1=Math.atan2(a.x-pr.x,-(a.z-pr.z)), h2=Math.atan2(dx,-dz);
-let dh=h2-h1; if(dh>Math.PI)dh-=2*Math.PI; if(dh<-Math.PI)dh+=2*Math.PI;
-const c=Math.abs(dh)/L;
-if(c>1e-4){ const lim=0.85/c; if(dh>0) offR=Math.min(offR,lim); else offL=Math.min(offL,lim); }
-}
-verts.push(a.x+nx*offR,a.y+yOff,a.z+nz*offR, a.x-nx*offL,a.y+yOff,a.z-nz*offL);
-uvs.push((a.x+nx*offR)/1.5,(a.z+nz*offR)/1.5, (a.x-nx*offL)/1.5,(a.z+nz*offL)/1.5);
-norms.push(0,1,0,0,1,0);
-if(i>0){ const k=(i-1)*2; idx.push(k,k+1,k+2, k+1,k+3,k+2); }
-}
-const g=new THREE.BufferGeometry();
-g.setAttribute("position",new THREE.Float32BufferAttribute(verts,3));
-g.setAttribute("normal",new THREE.Float32BufferAttribute(norms,3));
-g.setAttribute("uv",new THREE.Float32BufferAttribute(uvs,2));
-g.setIndex(idx);
-return new THREE.Mesh(g, mat||new THREE.MeshLambertMaterial({color,side:THREE.DoubleSide,map:GRAIN}));
-},
-asphMat(){ if(!this._asphMat) this._asphMat=new THREE.MeshLambertMaterial({map:roadTextures().asph,side:THREE.DoubleSide}); return this._asphMat; },
-embankment(pts,offIn,offOut,color){
-const n=pts.length, grp=new THREE.Group();
-for(const side of [1,-1]){
-const verts=[],norms=[],idx=[],uvs=[]; let vi=0;
-for(let i=0;i<=n;i++){
-const im=i%n, a=pts[im], b=pts[(im+1)%n], pr=pts[(im-1+n)%n];
-const dx=b.x-a.x,dz=b.z-a.z,L=Math.hypot(dx,dz)||1;
-const nx=-dz/L,nz=dx/L;
-let oi=offIn,oo=offOut;
-const h1=Math.atan2(a.x-pr.x,-(a.z-pr.z)),h2=Math.atan2(dx,-dz);
-let dh=h2-h1; if(dh>Math.PI)dh-=2*Math.PI; if(dh<-Math.PI)dh+=2*Math.PI;
-const c=Math.abs(dh)/L;
-if(c>1e-4 && Math.sign(dh)===side){ const r=1/c; oi=Math.min(oi,0.8*r); oo=Math.min(oo,0.9*r); }
-const x0=a.x+nx*side*oi,z0=a.z+nz*side*oi,x1=a.x+nx*side*oo,z1=a.z+nz*side*oo;
-verts.push(x0, a.y-0.06, z0, x1, -0.1, z1);
-uvs.push(x0/1.5,z0/1.5, x1/1.5,z1/1.5);
-norms.push(0,1,0, 0,1,0);
-if(i>0){const q=vi-2;idx.push(q,q+1,q+2,q+1,q+3,q+2);}
-vi+=2;
-}
-const g=new THREE.BufferGeometry();
-g.setAttribute("position",new THREE.Float32BufferAttribute(verts,3));
-g.setAttribute("normal",new THREE.Float32BufferAttribute(norms,3));
-g.setAttribute("uv",new THREE.Float32BufferAttribute(uvs,2));
-g.setIndex(idx);
-grp.add(new THREE.Mesh(g,new THREE.MeshLambertMaterial({color,side:THREE.DoubleSide,map:GRAIN})));
-}
-return grp;
-},
-openStrip(idxA,idxB,offL,offR,yOff,color,basic){
-const pts=this.trackPts,n=this.trackN;
-const verts=[],norms=[],idx=[],uvs=[];
-let vi=0;
-const count=((idxB-idxA)%n+n)%n;
-for(let k=0;k<=count;k++){
-const i=(idxA+k)%n, j=(i+1)%n;
-const a=pts[i],b=pts[j];
-const dx=b.x-a.x,dz=b.z-a.z,L=Math.hypot(dx,dz)||1;
-const nx=-dz/L,nz=dx/L;
-verts.push(a.x+nx*offL,a.y+yOff,a.z+nz*offL, a.x+nx*offR,a.y+yOff,a.z+nz*offR);
-uvs.push((a.x+nx*offL)/1.5,(a.z+nz*offL)/1.5, (a.x+nx*offR)/1.5,(a.z+nz*offR)/1.5);
-norms.push(0,1,0,0,1,0);
-if(k>0){const q=vi-2;idx.push(q,q+1,q+2,q+1,q+3,q+2);}
-vi+=2;
-}
-const g=new THREE.BufferGeometry();
-g.setAttribute("position",new THREE.Float32BufferAttribute(verts,3));
-g.setAttribute("normal",new THREE.Float32BufferAttribute(norms,3));
-g.setAttribute("uv",new THREE.Float32BufferAttribute(uvs,2));
-g.setIndex(idx);
-const mat=basic?new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide,map:GRAIN})
-:new THREE.MeshLambertMaterial({color,side:THREE.DoubleSide,map:GRAIN});
-return new THREE.Mesh(g,mat);
-},
-wallStrip(idxA,idxB,off,hgt,color){
-const pts=this.trackPts,n=this.trackN;
-const verts=[],norms=[],idx=[];
-let vi=0;
-const count=((idxB-idxA)%n+n)%n;
-for(let k=0;k<=count;k++){
-const i=(idxA+k)%n, j=(i+1)%n;
-const a=pts[i],b=pts[j];
-const dx=b.x-a.x,dz=b.z-a.z,L=Math.hypot(dx,dz)||1;
-const nx=-dz/L,nz=dx/L;
-verts.push(a.x+nx*off,a.y,a.z+nz*off, a.x+nx*off,a.y+hgt,a.z+nz*off);
-norms.push(nx,0,nz, nx,0,nz);
-if(k>0){const q=vi-2;idx.push(q,q+1,q+2,q+1,q+3,q+2);}
-vi+=2;
-}
-const g=new THREE.BufferGeometry();
-g.setAttribute("position",new THREE.Float32BufferAttribute(verts,3));
-g.setAttribute("normal",new THREE.Float32BufferAttribute(norms,3));
-g.setIndex(idx);
-return new THREE.Mesh(g,new THREE.MeshLambertMaterial({color,side:THREE.DoubleSide}));
-},
-buildCircuit(){
-const cps=[
-[150,82,2],[287,150,4],[315,161,5],[331,180,6],[318,197,6],[291,195,5],[266,180,5],
-[244,160,6],[224,140,6],[201,130,6],[178,120,7],[158,134,9],[144,160,12],[137,184,14],
-[134,197,15],[124,200,15],[114,196,15],[112,182,14],[111,154,12],[112,128,10],[111,115,10],
-[100,109,9],[84,104,8],[69,104,8],[54,108,8],[38,100,7],[24,85,6],[15,72,5],[14,60,4],
-[17,48,3],[24,38,2],[40,33,1],[64,40,1]];
-const curve=new THREE.CatmullRomCurve3(cps.map(p=>new THREE.Vector3(p[0],p[2],-p[1])),true,"catmullrom",0.5);
-const pts=curve.getSpacedPoints(900); pts.pop();
-let len=0;
-for(let i=0;i<pts.length;i++){ const a=pts[i],b=pts[(i+1)%pts.length]; len+=Math.hypot(b.x-a.x,b.z-a.z); }
-const sc=2870/len;
-pts.forEach(p=>{p.x*=sc;p.z*=sc;});
-this.trackPts=pts; this.trackN=pts.length;
-const n=pts.length;
-const curv=new Array(n);
-for(let i=0;i<n;i++){
-const a=pts[(i-1+n)%n],b=pts[i],c=pts[(i+1)%n];
-const h1=Math.atan2(b.x-a.x,-(b.z-a.z)), h2=Math.atan2(c.x-b.x,-(c.z-b.z));
-let dh=h2-h1; if(dh>Math.PI)dh-=2*Math.PI; if(dh<-Math.PI)dh+=2*Math.PI;
-curv[i]=dh/(Math.hypot(c.x-b.x,c.z-b.z)||1);
-}
-this.scene.add(this.ribbon(pts,14,0x5d7c3c,-0.03,true));
-this.scene.add(this.embankment(pts,14,42,0xa9835a));
-this.scene.add(this.ribbon(pts,7.2,0xe8e6da,-0.012));
-this.scene.add(this.ribbon(pts,6.5,0x30333a,0,false,
-new THREE.MeshLambertMaterial({color:0xffffff,side:THREE.DoubleSide,map:roadTextures().asph})));
-const zones=[];
-let zs=-1;
-for(let i=0;i<n+1;i++){
-const c=Math.abs(curv[i%n])>1/260;
-if(c&&zs<0) zs=i;
-if(!c&&zs>=0){ if(i-zs>5) zones.push([zs,i-1]); zs=-1; }
-}
-for(const [a,b] of zones){
-let sum=0,maxC=0;
-for(let i=a;i<=b;i++){ sum+=curv[i%n]; maxC=Math.max(maxC,Math.abs(curv[i%n])); }
-const side=Math.sign(sum)||1;
-const tight=maxC>1/45;
-const inCols=tight?[0xf97316,0xf5f2e8]:[0xd93a2b,0xf2d21f];
-const outCols=[0x2fb9a8,0xf5f2e8];
-const a2=(a-4+n)%n, b2=(b+4)%n;
-const cnt=((b2-a2)%n+n)%n;
-for(let k=0;k<cnt;k+=3){
-const i0=(a2+k)%n, i1=(a2+Math.min(k+3,cnt))%n;
-const ci=Math.floor(k/3)%2;
-this.scene.add(this.openStrip(i0,i1,side*6.4,side*7.9,0.02,inCols[ci],true));
-this.scene.add(this.openStrip(i0,i1,-side*6.4,-side*7.9,0.018,outCols[ci],true));
-}
-}
-let straightEnd=0;
-for(let i=0;i<n;i++){
-const a=pts[i],b=pts[(i+1)%n];
-if((b.x-a.x)>0 && Math.abs(a.z-pts[0].z)<14*sc && Math.abs(curv[i])<1/800) straightEnd=i;
-else if(i>20) break;
-}
-this.scene.add(this.wallStrip(0,straightEnd,9.5,0.9,0xd8d6cd));
-this.scene.add(this.wallStrip(0,straightEnd,-9.5,0.9,0xd8d6cd));
-if(zones.length){
-const [a,b]=zones[0];
-const cnt=((b-a)%n+n)%n;
-for(let k=0;k<cnt;k+=4){
-this.scene.add(this.wallStrip((a+k)%n,(a+Math.min(k+4,cnt))%n,-Math.sign(curv[(a+2)%n])*13,1.0,
-(Math.floor(k/4)%2)?0xf5f2e8:0xe8722a));
-}
-}
-const p0=pts[0],p1=pts[14];
-const h=Math.atan2(p1.x-p0.x,-(p1.z-p0.z));
-this.startHeading=h;
-const dirX=Math.sin(h), dirZ=-Math.cos(h), rnX=Math.cos(h), rnZ=Math.sin(h);
-const gate=new THREE.Group();
-for(const sx of [-10,10]){ const pl=new THREE.Mesh(new THREE.BoxGeometry(0.5,7,0.5),
-new THREE.MeshLambertMaterial({color:0xdddddd})); pl.position.set(sx,3.5,0); gate.add(pl); }
-const beam=new THREE.Mesh(new THREE.BoxGeometry(20.5,1.1,0.8),new THREE.MeshLambertMaterial({color:0xf97316}));
-beam.position.y=7; gate.add(beam);
-const sl=new THREE.Mesh(new THREE.BoxGeometry(13,0.03,1.0),new THREE.MeshBasicMaterial({color:0xffffff}));
-sl.position.y=0.03; gate.add(sl);
-gate.position.copy(p0); gate.rotation.y=-h; this.scene.add(gate);
-const at=(alongM,latM,y=0)=>new THREE.Vector3(p0.x+dirX*alongM+rnX*latM, y, p0.z+dirZ*alongM+rnZ*latM);
-const addBox=(w,hh,d,color,alongM,latM,rotExtra=0)=>{
-const bx=new THREE.Mesh(new THREE.BoxGeometry(w,hh,d),new THREE.MeshLambertMaterial({color}));
-bx.position.copy(at(alongM,latM,hh/2)); bx.rotation.y=-h+rotExtra; this.scene.add(bx); return bx; };
-const drag=new THREE.Mesh(new THREE.BoxGeometry(20,0.04,860),new THREE.MeshLambertMaterial({color:0x4a4d54}));
-drag.position.copy(at(400,26,0)); drag.rotation.y=-h; this.scene.add(drag);
-const ret=new THREE.Mesh(new THREE.BoxGeometry(8,0.035,860),new THREE.MeshLambertMaterial({color:0x565961}));
-ret.position.copy(at(400,44,0)); ret.rotation.y=-h; this.scene.add(ret);
-addBox(16,0.06,26,0x2557b8,55,26);
-addBox(3,3.4,3,0xcfd4d9,35,13);
-for(let k=0;k<6;k++) addBox(28,1.4,0.4,0xe8e5dc,220+k*40,52);
-addBox(60,6,10,0x8a8f96,260,66);
-addBox(34,4,12,0xe8e5dc,340,68);
-addBox(6,14,6,0xd9dde2,300,72);
-addBox(10,3,6,0xcabfa8,520,14);
-addBox(10,3,6,0xcabfa8,650,14);
-const pad=new THREE.Mesh(new THREE.BoxGeometry(70,0.03,180),new THREE.MeshLambertMaterial({color:0xb9b3a4}));
-pad.position.copy(at(180,95,0)); pad.rotation.y=-h; this.scene.add(pad);
-const tightZones=zones.filter(([a,b])=>{ let mc=0; for(let i=a;i<=b;i++) mc=Math.max(mc,Math.abs(curv[i%n])); return mc>1/55; });
-for(const [a,b] of tightZones){
-const side=Math.sign((()=>{let s=0;for(let i=a;i<=b;i++)s+=curv[i%n];return s;})())||1;
-const cnt=((b-a)%n+n)%n;
-let bi=0;
-for(let k=0;k<cnt;k+=4){
-const p=pts[(a+k)%n], q=pts[(a+k+1)%n];
-const dx=q.x-p.x,dz=q.z-p.z,L=Math.hypot(dx,dz)||1, nx=-dz/L,nz=dx/L;
-const bnd=new THREE.Mesh(new THREE.BoxGeometry(2.6,0.9,1.3),
-new THREE.MeshLambertMaterial({color:(bi++%2)?0x2557b8:0xf97316}));
-bnd.position.set(p.x-nx*side*10, p.y+0.45, p.z-nz*side*10);
-bnd.rotation.y=-Math.atan2(dx,-dz);
-this.scene.add(bnd);
-}
-}
-},
-buildStrip(){
-const dragTex=roadTextures().asph.clone(); dragTex.needsUpdate=true; dragTex.repeat.set(187,6);
-const road=new THREE.Mesh(new THREE.BoxGeometry(560,0.05,18),new THREE.MeshLambertMaterial({map:dragTex}));
-road.position.set(70,0,0); this.scene.add(road);
-const line=(x,color,w=0.5)=>{ const l=new THREE.Mesh(new THREE.BoxGeometry(w,0.03,18),
-new THREE.MeshBasicMaterial({color})); l.position.set(x,0.05,0); this.scene.add(l); return l; };
-line(0,0xffffff,0.6);
-this.cones=[]; this.coneHit=false;
-if(this.kind==="slalom"){
-line(126,0xf97316,0.8);
-for(let i=0;i<7;i++){
-const c=new THREE.Mesh(new THREE.ConeGeometry(0.28,0.75,10),
-new THREE.MeshLambertMaterial({color:0xff4d00}));
-c.position.set(9+i*18,0.38,0);
-this.scene.add(c); this.cones.push(c); c.userData.hit=false;
-}
-} else {
-line(14,0xdd2222,0.6);
-for(const d of [5,10]) line(d,0x888888,0.25);
-}
-},
-buildFig8(){
-for(const cx of [-8.5,8.5]){
-const ring=new THREE.Mesh(new THREE.RingGeometry(6,11,64),
-new THREE.MeshLambertMaterial({color:0x8d9096,side:THREE.DoubleSide}));
-ring.rotation.x=-Math.PI/2; ring.position.set(cx,0.02,0); this.scene.add(ring);
-const inner=new THREE.Mesh(new THREE.CircleGeometry(6,48),
-new THREE.MeshLambertMaterial({color:0xd9d2c0}));
-inner.rotation.x=-Math.PI/2; inner.position.set(cx,0.015,0); this.scene.add(inner);
-const dot=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,0.5,8),
-new THREE.MeshBasicMaterial({color:0xdd2222}));
-dot.position.set(cx,0.25,0); this.scene.add(dot);
-}
-const sl=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.03,5),new THREE.MeshBasicMaterial({color:0xffffff}));
-sl.position.set(0,0.05,0); this.scene.add(sl);
 },
 retry(){
 show("test-result",false);
 const es=Engine.st;
 es.throttleSet=0; es.brakePhys=0; es.brakeRegen=0;
 this.v=0; this.t=0; this.tSide=0; this.state="ready"; this.progress=0; this.prevLapIdx=undefined;
-this.coneHit=false; this.brakeEntry=null; this.brakeDist=null;
+this.coneHit=false; this.brakeEntry=null; this.brakeDist=null; this.slalomT=null; this.slalomOK=null;
+this.cones.forEach(c=>{c.userData.hit=false;c.rotation.set(0,0,0);c.position.y=0.38;});
 this.f8={accA:0,accB:0,prevA:null,prevB:null,moved:0,sides:[],done:[],count:0,best8:null};
 if(this.kind==="circuit"){
 const p=this.trackPts[0];
 this.x=p.x; this.z=p.z; this.heading=this.startHeading; this.lastIdx=0;
 toast("🏁 Hot Lap ― スタンディングスタート。ベストラップでグリッド決定!","#34d399");
+} else if(this.kind==="combo"){
+this.x=-45; this.z=0; this.heading=Math.PI/2;
+toast("〰→🛑 ドラッグストリップ北東端から進入。スラローム(11.5秒未満)を抜けて加速し、"+(HV.BRAKE_X-126)+"m先の白線から制動(40km/h以上→14m以内)","#34d399");
 } else if(this.kind==="slalom"){
 this.x=-45; this.z=0; this.heading=Math.PI/2;
-this.cones.forEach(c=>{c.userData.hit=false;c.rotation.set(0,0,0);c.position.y=0.38;});
 toast("〰 白線から計測開始。パイロン7本(18m間隔)を縫って126m先のオレンジ線へ ― 11.5秒未満","#34d399");
 } else if(this.kind==="brake"){
 this.x=-220; this.z=0; this.heading=Math.PI/2;
@@ -338,7 +111,7 @@ const near=this.nearestIdx();
 const pts=this.trackPts,n=this.trackN;
 const a=pts[near.i], b=pts[(near.i+1)%n];
 grade=(b.y-a.y)/(Math.hypot(b.x-a.x,b.z-a.z)||1);
-offTrack=near.d>6.5;
+offTrack=near.d>HV.HALF_W+1.4;
 }
 this.grade=grade;
 const m=massTotal(), mEff=m+PRO.mRot;
@@ -381,7 +154,10 @@ this.x+=Math.sin(this.heading)*this.v*dtR;
 this.z-=Math.cos(this.heading)*this.v*dtR;
 if(this.state!=="done") this.judge(dtR);
 let carY=0;
-if(this.kind==="circuit"&&this.trackPts) carY=this.trackPts[this.lastIdx].y;
+if(this.kind==="circuit"&&this.trackPts){ const n=this.trackN, a=this.trackPts[this.lastIdx], b=this.trackPts[(this.lastIdx+1)%n];
+ const L2=(b.x-a.x)**2+(b.z-a.z)**2||1, t=clamp(((this.x-a.x)*(b.x-a.x)+(this.z-a.z)*(b.z-a.z))/L2,-1,2); carY=a.y+(b.y-a.y)*t; }
+if(this.sun){ this.sun.target.position.set(this.x,carY,this.z); this.sun.position.copy(this.sun.target.position).addScaledVector(this.sunDir,400); }
+if(this.sky) this.sky.position.copy(this.camera.position);
 this.car.position.set(this.x,carY,this.z);
 this.car.rotation.y=-this.heading;
 this.car.rotation.x=-Math.atan(grade)*0.8;
@@ -414,9 +190,9 @@ if(this.canopy) this.canopy.visible=(View.cam!==2);
 this.camera.lookAt(lookAt);
 View.renderer.render(this.scene,this.camera);
 updateHUD();
-document.getElementById("hud-clock").textContent={circuit:"HOT LAP",slalom:"SLALOM",brake:"BRAKE",fig8:"FIGURE-8"}[this.kind];
+document.getElementById("hud-clock").textContent={circuit:"HOT LAP",slalom:"SLALOM",brake:"BRAKE",combo:"SLALOM+BRAKE",fig8:"FIGURE-8"}[this.kind];
 document.getElementById("hud-dist").textContent=(this.v*3.6).toFixed(0)+" km/h";
-document.getElementById("hud-nextcp").textContent={circuit:"目標 2:20台",slalom:"目標 <11.5s",brake:"40km/h→14m",fig8:"9s / 18s"}[this.kind];
+document.getElementById("hud-nextcp").textContent={circuit:"目標 2:20台",slalom:"目標 <11.5s",brake:"40km/h→14m",combo:"<11.5s → 14m",fig8:"9s / 18s"}[this.kind];
 document.getElementById("hud-limit").textContent="―";
 this.updateTestHud(); drawG();
 Snd.update(this.v, es.lastAmp/Math.max(P.motorMaxA,1), false);
@@ -463,6 +239,32 @@ this.finish(pass?"✅ 合格":"❌ 不合格",[
 ["パイロン",this.coneHit?"接触あり/コース逸脱":"クリーン"],
 ["判定",pass?"車検通過!":"要再試験"]],pass);
 }
+}
+} else if(k==="combo"){
+if(this.state==="ready"&&this.x>0){ this.state="run"; this.t=0; }
+if(this.state==="run"){
+ this.t+=dtR;
+ if(this.slalomT===null){
+  for(const c of this.cones){
+   if(!c.userData.hit&&Math.hypot(c.position.x-this.x,c.position.z-this.z)<1.5){
+    c.userData.hit=true; this.coneHit=true; c.rotation.z=1.3; c.position.y=0.15; Snd.bang(); toast("💥 パイロン接触!","#ef4444"); }
+  }
+  if(Math.abs(this.z)>8.5) this.coneHit=true;
+  if(this.x>=126){ this.slalomT=this.t; this.slalomOK=this.t<11.5&&!this.coneHit;
+   toast(`〰 スラローム ${this.t.toFixed(2)}s ${this.slalomOK?"✅":"❌"} ― 加速して制動へ`,this.slalomOK?"#34d399":"#f59e0b"); }
+ } else if(this.brakeEntry===null){
+  if(this.x>=HV.BRAKE_X){ this.brakeEntry=this.v; toast(`🛑 制動開始 ${(this.v*3.6).toFixed(1)} km/h ― 全力制動!`,"#fbbf24"); }
+  else if(this.v<0.3&&this.x>130){ this.state="done"; this.finish("⚠ 無効(制動ライン手前で停止)",[["スラローム",this.slalomT.toFixed(2)+" 秒"]],false); }
+ } else if(this.v<0.3){
+  this.state="done";
+  this.brakeDist=this.x-HV.BRAKE_X;
+  const entryOK=this.brakeEntry*3.6>=35, brakeOK=entryOK&&this.brakeDist<=14;
+  const pass=this.slalomOK&&brakeOK;
+  this.finish(pass?"✅ 合格(スラローム+制動)":"❌ 不合格",[
+   ["スラローム",this.slalomT.toFixed(2)+" 秒 "+(this.coneHit?"(接触/逸脱)":"")+(this.slalomOK?"✅":"❌")],
+   ["進入速度",(this.brakeEntry*3.6).toFixed(1)+" km/h (35以上)"],
+   ["制動距離",this.brakeDist.toFixed(2)+" m (14m以内) "+(brakeOK?"✅":"❌")]],pass);
+ }
 }
 } else if(k==="brake"){
 if(this.state==="ready"&&this.x>0){
@@ -540,6 +342,9 @@ const f=this.f8;
 tm.textContent=this.tSide.toFixed(2);
 const recent=f.sides.slice(-2).map(s=>s.toFixed(2)+"s").join(" / ");
 sub.textContent=`現在の円 ${this.tSide.toFixed(2)}s ― 8の字${f.count||0}本 / ベスト計${f.best8?f.best8.toFixed(2)+"s":"―"} ${recent?"("+recent+")":"| 発進で計測開始"}`;
+} else if(this.kind==="combo"){
+tm.textContent=this.state!=="run"?"READY": this.slalomT===null? this.t.toFixed(2) : this.brakeEntry===null? (this.v*3.6).toFixed(0)+" km/h" : (this.x-HV.BRAKE_X).toFixed(1)+" m";
+sub.textContent=this.slalomT===null? (this.coneHit?"⚠ パイロン接触":"スラローム ― 白線通過で計測開始") : this.brakeEntry===null? `制動ラインまで ${(HV.BRAKE_X-this.x).toFixed(0)} m (40km/h以上で進入)` : "制動距離";
 } else if(this.kind==="brake"){
 tm.textContent=this.state==="run"?this.x.toFixed(1)+" m":(this.v*3.6).toFixed(0)+" km/h";
 sub.textContent=this.state==="run"?"制動距離":"進入速度(40km/h以上で白線へ)";
