@@ -269,6 +269,7 @@ get(name){
  case "shop": def={mat:L({map:shopTex()}),cast:true}; break;
  case "glass": def={mat:new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.12,metalness:0.6,envMapIntensity:1.0}),cast:false}; break;
  case "water": def={mat:new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.08,metalness:0.2,envMapIntensity:1.2}),cast:false}; break;
+ case "emis": def={mat:new THREE.MeshBasicMaterial({vertexColors:true}),cast:false}; break;
  case "ground": def={mat:makeGroundMaterial(),cast:false}; break;
  case "road_rural": def={mat:makeRoadMaterial("rural"),cast:false}; break;
  case "road_urban": def={mat:makeRoadMaterial("urban"),cast:false}; break;

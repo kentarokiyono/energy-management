@@ -30,11 +30,12 @@
 </div>
 <div id="mode-test" class="card-select mb-6" onclick="selectMode('test')">
 <div class="font-bold text-emerald-300 text-lg">🏎 予選・車検モード(Hidden Valley / スクルーティニアリング)</div>
-<div class="text-xs text-cyan-100/60 mt-1 mb-2">Hidden Valley Raceway(2.87km・14コーナー・高低差15m)でのHot Lap予選、ドラッグエリアでのスラローム・制動テスト、8の字安定性試験(競技規則2.19)。</div>
+<div class="text-xs text-cyan-100/60 mt-1 mb-2">Hidden Valley Raceway(2.87km・14コーナー・高低差約13m・反時計回り)でのHot Lap予選、ドラッグストリップでのスラローム・制動テスト、PIT PADDOCK駐車場での8の字安定性試験(競技規則2.19)。</div>
 <div class="flex flex-wrap gap-2" onclick="event.stopPropagation()">
 <button class="btn text-xs py-1" data-test="circuit" onclick="selectTest('circuit')">🏁 サーキット予選 (Hot Lap)</button>
 <button class="btn text-xs py-1" data-test="slalom" onclick="selectTest('slalom')">〰 スラローム (11.5秒)</button>
 <button class="btn text-xs py-1" data-test="brake" onclick="selectTest('brake')">🛑 制動テスト</button>
+<button class="btn text-xs py-1" data-test="combo" onclick="selectTest('combo')">〰→🛑 スラローム+制動(連続)</button>
 <button class="btn text-xs py-1" data-test="fig8" onclick="selectTest('fig8')">∞ 8の字走行 (9秒/18秒)</button>
 </div>
 <div class="text-[11px] text-emerald-200 mt-1" id="test-desc">選択中: サーキット予選 ― 優秀チームは2分20秒台前半。ベストラップでグリッドが決まる。</div>
@@ -360,6 +361,8 @@
 <script src="js/render/materials.js"></script>
 <script src="js/render/props.js"></script>
 <script src="js/render/scenery.js"></script>
+<script src="js/data/hidden-valley.js"></script>
+<script src="js/render/hiddenvalley.js"></script>
 <script src="js/render/view.js"></script>
 <script src="js/hud.js"></script>
 <script src="js/test-mode.js"></script>

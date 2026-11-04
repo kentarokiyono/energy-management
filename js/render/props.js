@@ -240,6 +240,38 @@ car(bs,x,y,z,ry,ute=false){ // 長さ方向=ローカルz
  for(const [lx,lz] of [[-0.85,1.4],[0.85,1.4],[-0.85,-1.4],[0.85,-1.4]])
   bs.get("solid").add(tpl("cyl8"),M4(x+lx*cos+lz*sin,y+0.34,z-lx*sin+lz*cos,0.34,0.22,0.34,ry,0,Math.PI/2),linCol(0x161616));
 },
+/* ---------- 人物 (簡易シルエット) ---------- */
+person(bs,x,y,z,ry,shirt){
+ const sin=Math.sin(ry),cos=Math.cos(ry);
+ const pants=rndPick([0x2b2f3a,0x3d3a33,0x1f2933,0x6b5d4a]);
+ for(const lx of [-0.1,0.1]) bs.get("solid").add(tpl("box"),M4(x+lx*cos,y,z-lx*sin,0.15,0.85,0.18,ry),linCol(pants));
+ bs.get("solid").add(tpl("box"),M4(x,y+0.85,z,0.44,0.6,0.24,ry),linCol(shirt,0.06));
+ for(const lx of [-0.27,0.27]) bs.get("solid").add(tpl("box"),M4(x+lx*cos,y+0.9,z-lx*sin,0.1,0.55,0.12,ry,(rnd()-0.5)*0.4,0),linCol(shirt,0.06));
+ bs.get("solid").add(tpl("ico0"),M4(x,y+1.6,z,0.12,0.14,0.12),linCol(rndPick([0xe0b899,0xc68e6a,0x8d5a3b,0xf1d2b6])));
+ if(rnd()<0.5) bs.get("solid").add(tpl("cyl8"),M4(x,y+1.7,z,0.14,0.05,0.14),linCol(shirt));
+},
+/* ---------- 汎用ソーラーカー (実在チームの意匠は使わない) 長さ方向=ローカルz ---------- */
+solarCar(bs,x,y,z,ry,kind,col){
+ const sin=Math.sin(ry),cos=Math.cos(ry);
+ const L=(lx,lz)=>[x+lx*cos+lz*sin, z-lx*sin+lz*cos];
+ const panel=0x0e1624, glass=0x1a2228;
+ if(kind==="cat"){
+  for(const lx of [-0.62,0.62]){ const [px,pz]=L(lx,0); bs.get("solid").add(tpl("ico1"),M4(px,y+0.55,pz,0.3,0.36,2.3,ry),linCol(col)); }
+  bs.get("solid").add(tpl("box"),M4(x,y+0.86,z,1.75,0.05,4.6,ry),linCol(panel));
+  bs.get("solid").add(tpl("box"),M4(x,y+0.85,z,1.8,0.04,4.65,ry),linCol(0xeeeeee));
+  const [cx,cz]=L(-0.62,0.3); bs.get("glass").add(tpl("ico1"),M4(cx,y+1.02,cz,0.3,0.3,0.75,ry),linCol(glass));
+ } else if(kind==="mono"){
+  bs.get("solid").add(tpl("ico1"),M4(x,y+0.55,z,0.75,0.32,2.4,ry),linCol(col));
+  bs.get("solid").add(tpl("box"),M4(x,y+0.8,z,1.7,0.04,4.4,ry),linCol(panel));
+  const [cx,cz]=L(0,0.5); bs.get("glass").add(tpl("ico1"),M4(cx,y+0.95,cz,0.32,0.3,0.8,ry),linCol(glass));
+ } else {
+  bs.get("solid").add(tpl("ico1"),M4(x,y+0.62,z,0.88,0.45,2.25,ry),linCol(col));
+  bs.get("solid").add(tpl("box"),M4(x,y+1.08,z,1.6,0.04,3.4,ry,0.03,0),linCol(panel));
+  const [cx,cz]=L(0,0.9); bs.get("glass").add(tpl("box"),M4(cx,y+0.82,cz,1.5,0.35,1.2,ry,-0.4,0),linCol(glass));
+ }
+ for(const [lx,lz] of kind==="mono"?[[-0.55,1.5],[0.55,1.5],[0,-1.6]]:[[-0.62,1.5],[0.62,1.5],[-0.62,-1.5],[0.62,-1.5]]){
+  const [wx,wz]=L(lx,lz); bs.get("solid").add(tpl("cyl12"),M4(wx,y+0.27,wz,0.27,0.08,0.27,ry,0,Math.PI/2),linCol(0x161616)); }
+},
 /* ---------- 道路付属物 ---------- */
 guidePost(bs,x,y,z,ry,left){ // 白いガイドポスト: 左側=赤反射板 / 右側=白反射板
  bs.get("solid").add(tpl("box"),M4(x,y,z,0.12,1.0,0.07,ry),linCol(0xf2f2ee));
