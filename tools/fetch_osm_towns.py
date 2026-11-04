@@ -26,6 +26,7 @@
 import argparse, heapq, json, math, os, re, sys, time, urllib.parse, urllib.request
 
 OVERPASS = 'https://overpass-api.de/api/interpreter'
+ENDPOINT = [OVERPASS]   # --endpoint で差し替え (例: https://overpass.private.coffee/api/interpreter)
 UA = 'energy-management-route-tool/1.0 (BWSC simulator; route geometry)'
 DRIVE = ('motorway|trunk|primary|secondary|tertiary|unclassified|residential|service|living_street|road|'
          'motorway_link|trunk_link|primary_link|secondary_link|tertiary_link')
@@ -120,7 +121,7 @@ def overpass(q, cache_path, offline):
     body = urllib.parse.urlencode({'data': q}).encode()
     for i in range(5):
         try:
-            req = urllib.request.Request(OVERPASS, data=body, headers={'User-Agent': UA})
+            req = urllib.request.Request(ENDPOINT[0], data=body, headers={'User-Agent': UA})
             with urllib.request.urlopen(req, timeout=180) as r:
                 d = json.loads(r.read().decode('utf-8'))
             if cache_path:
@@ -130,7 +131,7 @@ def overpass(q, cache_path, offline):
         except Exception as e:  # 429/504/接続断はバックオフして再試行
             print(f'  overpass 失敗 ({e}) — {2 ** (i + 1)} 秒後に再試行', file=sys.stderr)
             time.sleep(2 ** (i + 1))
-    raise SystemExit('overpass-api.de から取得できませんでした')
+    raise SystemExit(f'{ENDPOINT[0]} から取得できませんでした')
 
 
 def town_query(t):
@@ -581,7 +582,9 @@ def main():
     ap.add_argument('--cache', default=None)
     ap.add_argument('--offline', action='store_true')
     ap.add_argument('--only', default=None)
+    ap.add_argument('--endpoint', default=OVERPASS, help='Overpass API の URL (ミラー可)')
     a = ap.parse_args()
+    ENDPOINT[0] = a.endpoint
     res = []
     for t in TOWNS:
         if a.only and t['name'] != a.only: continue
