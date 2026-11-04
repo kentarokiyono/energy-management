@@ -405,14 +405,9 @@ buildBrakeBoards(grp,bs){ // 急コーナー手前の制動目安ボード (300/
   }
  }
 },
-/* 周辺: ダーウィン郊外の乾季サバンナ (ユーカリ疎林・蟻塚・枯れ草) + 観客スタンド */
+/* 周辺: ダーウィン郊外の乾季サバンナ (ユーカリ疎林・蟻塚・枯れ草) */
 buildSurroundings(grp,bs){
  const T=this.track(), ry=-Math.atan2(T.sd[0],-T.sd[1]);
- // 観客スタンド: ドラッグストリップの北側 (S/F 対面)
- for(const al of [-40,40]){ const [x,z]=this.SW(al,this.STRIP_OFF-this.STRIP_HALF-14);
-  for(let r=0;r<8;r++){ const [sx,sz]=this.SW(al,this.STRIP_OFF-this.STRIP_HALF-10-r*1.2); bs.get("solid").add(tpl("box"),M4(sx,0,sz,1.25,0.6+r*0.55,60,ry),linCol(r%2?0xb9bcc0:0xa9adb2)); }
-  for(const u of [-28,0,28]) for(const v of [-2,-14]){ const [px,pz]=this.SW(al+u,this.STRIP_OFF-this.STRIP_HALF+v); bs.get("solid").add(tpl("cyl5"),M4(px,0,pz,0.12,7,0.12),linCol(0x9a9da0)); }
-  bs.get("corr").add(tpl("box"),M4(x,7,z,14,0.2,62,ry,0,0.08),linCol(0xe4e2d5),2); }
  // 樹木・蟻塚・草 (コース/舗装/流路から離して)
  let placed=0, tries=0;
  while(placed<1500 && tries<9000){ tries++;
