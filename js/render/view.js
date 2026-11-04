@@ -313,6 +313,8 @@ this.dashTex.needsUpdate=true;
 },
 mkLandmark(lm){
 const g=new THREE.Group(), W=this.ROAD_W;
+const rp0=this.roadPoint(clamp(this.sOfKm(lm.km),0,Math.max(0,this.road.builtS-this.SEG)));
+const Lw=rp0.L||W, Rw=rp0.R||W, M1=rp0.m1||0, Cw=(Rw-Lw)/2, Fw=Lw+Rw;   // 左端/右端/分離帯/中心/全幅
 const bs=new BatchSet();
 srand(Math.floor(lm.km*997)+7);
 const lam=(c)=>new THREE.MeshLambertMaterial({color:new THREE.Color(c).convertSRGBToLinear()});
@@ -322,23 +324,23 @@ const signBoard=(kind,text,x,y,z,w,h)=>{
  bs.get("solid").add(tpl("box"),M4(x,0,z-0.05,0.08,y-h/2+0.1,0.08),linCol(0x9a9da0));
 };
 if(lm.t==="pedlight"){ // 押しボタン式横断歩道の信号
- for(const sd of [-1,1]){ bs.get("solid").add(tpl("cyl8"),M4(sd*(W+1.2),0,0,0.09,3.4,0.09),linCol(0x3a3d40));
-  bs.get("solid").add(tpl("boxC"),M4(sd*(W+1.2),2.9,0.12,0.4,0.9,0.25),linCol(0x1c1c1c)); }
- for(let k=0;k<8;k++) bs.get("solid").add(tpl("box"),M4(-W+0.6+k*1.25,0.005,0,0.6,0.012,3.0),linCol(0xf2f0e6));
+ for(const sd of [-1,1]){ bs.get("solid").add(tpl("cyl8"),M4((sd<0?-(Lw+1.2):(Rw+1.2)),0,0,0.09,3.4,0.09),linCol(0x3a3d40));
+  bs.get("solid").add(tpl("boxC"),M4((sd<0?-(Lw+1.2):(Rw+1.2)),2.9,0.12,0.4,0.9,0.25),linCol(0x1c1c1c)); }
+ for(let x=-Lw+0.6;x<Rw-0.5;x+=1.25){ if(M1>0.3&&x>-0.3&&x<M1+0.3) continue; bs.get("solid").add(tpl("box"),M4(x,0.005,0,0.6,0.012,3.0),linCol(0xf2f0e6)); }
 } else if(lm.t==="floodway"){ // フラッドウェイ: 深さ標柱 + 注意標識 (路面は浅いくぼみ)
  for(const sd of [-1,1]) for(const z of [-30,30]){
-  bs.get("solid").add(tpl("box"),M4(sd*(W+1.6),0,z,0.12,2.0,0.12),linCol(0xf2f2ee));
-  for(let k=0;k<4;k++) bs.get("solid").add(tpl("box"),M4(sd*(W+1.6),0.3+k*0.4,z+0.07,0.13,0.18,0.02),linCol(k%2?0xd11a1a:0xf2f2ee)); }
- signBoard("warn","FLOOD\nWAY",-(W+2.4),2.4,60,1.3,1.3);
+  bs.get("solid").add(tpl("box"),M4((sd<0?-(Lw+1.6):(Rw+1.6)),0,z,0.12,2.0,0.12),linCol(0xf2f2ee));
+  for(let k=0;k<4;k++) bs.get("solid").add(tpl("box"),M4((sd<0?-(Lw+1.6):(Rw+1.6)),0.3+k*0.4,z+0.07,0.13,0.18,0.02),linCol(k%2?0xd11a1a:0xf2f2ee)); }
+ signBoard("warn","FLOOD\nWAY",-(Lw+2.4),2.4,60,1.3,1.3);
 } else if(lm.t==="rail"){ // 鉄道: 跨線橋(The Ghan) または踏切
  if(/overpass|bridge|Bridge/i.test(lm.n)){
-  bs.get("solid").add(tpl("boxC"),M4(0,7.2,0,W*2+24,1.4,9,0),linCol(0xb8b6ae));
-  for(const sd of [-1,1]) bs.get("solid").add(tpl("box"),M4(sd*(W+5),0,0,2,6.5,8),linCol(0xa9a69e));
-  bs.get("solid").add(tpl("boxC"),M4(0,8.1,-3.2,W*2+24,0.15,0.25),linCol(0x6b5a4a));
+  bs.get("solid").add(tpl("boxC"),M4(Cw,7.2,0,Fw+24,1.4,9,0),linCol(0xb8b6ae));
+  for(const sd of [-1,1]) bs.get("solid").add(tpl("box"),M4((sd<0?-(Lw+5):(Rw+5)),0,0,2,6.5,8),linCol(0xa9a69e));
+  bs.get("solid").add(tpl("boxC"),M4(Cw,8.1,-3.2,Fw+24,0.15,0.25),linCol(0x6b5a4a));
  } else {
   for(const z of [-0.75,0.75]) bs.get("solid").add(tpl("boxC"),M4(0,0.06,z,60,0.12,0.12),linCol(0x6b6b6b));
-  for(const sd of [-1,1]){ bs.get("solid").add(tpl("cyl8"),M4(sd*(W+2),0,sd*8,0.1,3.2,0.1),linCol(0xf2f2ee));
-   bs.get("solid").add(tpl("boxC"),M4(sd*(W+2),3.0,sd*8,1.6,0.25,0.06,sd*0.6),linCol(0xf2f2ee)); }
+  for(const sd of [-1,1]){ bs.get("solid").add(tpl("cyl8"),M4((sd<0?-(Lw+2):(Rw+2)),0,sd*8,0.1,3.2,0.1),linCol(0xf2f2ee));
+   bs.get("solid").add(tpl("boxC"),M4((sd<0?-(Lw+2):(Rw+2)),3.0,sd*8,1.6,0.25,0.06,sd*0.6),linCol(0xf2f2ee)); }
  }
 } else if(lm.t==="signal"){
  // 豪州型: 左側の柱+右側の柱、3灯(赤/黄/緑)・黒い背板
@@ -352,31 +354,33 @@ if(lm.t==="pedlight"){ // 押しボタン式横断歩道の信号
   });
  };
  for(const sd of [-1,1]){
-  const px=sd*(W+1.4);
+  const px=(sd<0?-(Lw+1.4):(Rw+1.4));
   bs.get("solid").add(tpl("cyl8"),M4(px,0,0,0.11,sd<0?6.2:3.6,0.11),linCol(0x3a3d40));
   head(px,sd<0?2.9:2.9,0.15);
  }
- bs.get("solid").add(tpl("boxC"),M4(-W*0.6-0.7,6.0,0,W*0.9+1.4,0.14,0.14),linCol(0x3a3d40));
- head(-W*0.45,5.3,0.15);
- // 停止線
- bs.get("solid").add(tpl("box"),M4(-W/2,0.005,3.5,W,0.012,0.4),linCol(0xf2f0e6));
+ bs.get("solid").add(tpl("boxC"),M4(-Lw*0.6-0.7,6.0,0,Lw*0.9+1.4,0.14,0.14),linCol(0x3a3d40));
+ head(-Lw*0.45,5.3,0.15); if(Lw>6) head(-Lw*0.8,5.3,0.15);
+ if(M1>0.8){ bs.get("solid").add(tpl("cyl8"),M4(M1/2,0,0,0.11,3.6,0.11),linCol(0x3a3d40)); head(M1/2,2.9,0.15); }   // 中央分離帯の信号
+ // 停止線 + 横断歩道 (停止線の先, 分離帯は除く)
+ bs.get("solid").add(tpl("box"),M4(-Lw/2,0.005,3.5,Lw,0.012,0.4),linCol(0xf2f0e6));
+ for(let x=-Lw+0.5;x<Rw-0.4;x+=1.1){ if(M1>0.3&&x>-0.3&&x<M1+0.3) continue; bs.get("solid").add(tpl("box"),M4(x,0.006,1.2,0.55,0.012,2.6),linCol(0xf2f0e6)); }
  g.userData.setRed=(red)=>{ for(const L of lamps){ const on= red? L.i===0 : L.i===2; L.m.material.color.setHex(on?L.c:0x161616); } };
  g.userData.setRed(false);
 } else if(lm.t==="grid"){
- const base=new THREE.Mesh(new THREE.BoxGeometry(W*2,0.02,3.4),lam(0x17191d)); base.position.y=0.03; g.add(base);
- for(let i=0;i<7;i++) bs.get("solid").add(tpl("box"),M4(0,0.02,-1.4+i*0.47,W*2,0.06,0.14),linCol(0x7d8288));
+ const base=new THREE.Mesh(new THREE.BoxGeometry(Fw,0.02,3.4),lam(0x17191d)); base.position.set(Cw,0.03,0); g.add(base);
+ for(let i=0;i<7;i++) bs.get("solid").add(tpl("box"),M4(Cw,0.02,-1.4+i*0.47,Fw,0.06,0.14),linCol(0x7d8288));
  for(const sd of [-1,1]){ // 境界フェンスが道路と交差する
-  const pts=[]; for(let x=W+1.5;x<160;x+=7){ bs.get("solid").add(tpl("box"),M4(sd*x,0,0,0.07,1.25,0.07),linCol(0x5a4a3a,0.1)); pts.push([sd*x,0,0]); }
-  bs.get("solid").add(tpl("box"),M4(sd*(W+1),0,0,0.25,1.4,1.0),linCol(0xc2c4c4));
+  const pts=[]; for(let x=(sd<0?Lw:Rw)+1.5;x<160;x+=7){ bs.get("solid").add(tpl("box"),M4(sd*x,0,0,0.07,1.25,0.07),linCol(0x5a4a3a,0.1)); pts.push([sd*x,0,0]); }
+  bs.get("solid").add(tpl("box"),M4((sd<0?-(Lw+1):(Rw+1)),0,0,0.25,1.4,1.0),linCol(0xc2c4c4));
   this._wireLocal(g,pts,[0.6,1.0],0.03);
  }
- signBoard("warn","cow",-(W+2.2),2.6,-30,1.3,1.3);
+ signBoard("warn","cow",-(Lw+2.2),2.6,-30,1.3,1.3);
 } else if(lm.t==="bridge"||lm.t==="river"){
  const wet=/Katherine River|Elizabeth River|Gawler River|Broughton River|Adelaide River/.test(lm.n);
  for(const sd of [-1,1]){ // W-ビーム ガードレール
-  for(let z=-22;z<=22;z+=2) bs.get("solid").add(tpl("box"),M4(sd*(W+0.9),0,z,0.12,0.75,0.12),linCol(0xa8aaa8));
-  bs.get("solid").add(tpl("box"),M4(sd*(W+0.85),0.5,0,0.06,0.3,46),linCol(0xc9cbc9));
-  bs.get("solid").add(tpl("box"),M4(sd*(W+0.8),-1.2,0,0.6,1.2,40),linCol(0xb8b6ae));
+  for(let z=-22;z<=22;z+=2) bs.get("solid").add(tpl("box"),M4((sd<0?-(Lw+0.9):(Rw+0.9)),0,z,0.12,0.75,0.12),linCol(0xa8aaa8));
+  bs.get("solid").add(tpl("box"),M4((sd<0?-(Lw+0.85):(Rw+0.85)),0.5,0,0.06,0.3,46),linCol(0xc9cbc9));
+  bs.get("solid").add(tpl("box"),M4((sd<0?-(Lw+0.8):(Rw+0.8)),-1.2,0,0.6,1.2,40),linCol(0xb8b6ae));
  }
  if(lm.t==="river"){
   const bed=new THREE.Mesh(new THREE.PlaneGeometry(420,22),lam(wet?0x8a7a5a:0xd8bb8c));
@@ -384,25 +388,25 @@ if(lm.t==="pedlight"){ // 押しボタン式横断歩道の信号
   if(wet){
    bs.get("water").add(tpl("box"),M4(0,-2.0,0,420,0.02,14),linCol(0x4d6a5c));
   } else for(let i=0;i<40;i++) PR.rock(bs,rndr(-200,200),-2.2,rndr(-9,9),0.5,0xc9b08a);
-  for(let i=0;i<22;i++){ const x=(rnd()<0.5?-1:1)*rndr(W+6,190), z=(rnd()<0.5?-1:1)*rndr(11,16); PR.tree(bs,x,-1.2,z,"redgum",rndr(0.7,1.1)); }
+  for(let i=0;i<22;i++){ const x=(rnd()<0.5?-1:1)*rndr(Rw+6,190), z=(rnd()<0.5?-1:1)*rndr(11,16); PR.tree(bs,x,-1.2,z,"redgum",rndr(0.7,1.1)); }
   for(const sd of [-1,1]){ const bank=new THREE.Mesh(new THREE.PlaneGeometry(420,8),lam(0x9a7a55)); bank.rotation.x=-Math.PI/2+sd*0.25; bank.position.set(0,-1.2,sd*14.5); g.add(bank); }
  }
- signBoard("green",lm.n.slice(0,22),-(W+2.6),2.4,-34,3.6,0.9);
+ signBoard("green",lm.n.slice(0,22),-(Lw+2.6),2.4,-34,3.6,0.9);
 } else if(lm.t==="camp"){
- signBoard("blue","REST AREA\n500 m",-(W+3),2.6,60,3.2,1.6);
- const pad=new THREE.Mesh(new THREE.BoxGeometry(28,0.06,60),lam(0x9a7a5a)); pad.position.set(W+18,0.0,0); g.add(pad);
- bs.get("solid").add(tpl("box"),M4(W+16,0,-8,4,0.75,1.4),linCol(0x8a6a4a));
- for(const dx of [-1.8,1.8]) for(const dz of [-1.6,1.6]) bs.get("solid").add(tpl("box"),M4(W+16+dx,0,-8+dz,0.1,2.6,0.1),linCol(0x6a6a6a));
- bs.get("corr").add(tpl("gable"),M4(W+16,2.6,-8,4.4,0.7,4.6),linCol(0x55635a),3);
- PR.tank(bs,W+24,0,6,0.9);
- bs.get("solid").add(tpl("cyl8"),M4(W+13,0,4,0.35,0.9,0.35),linCol(0x2e6b3a));
- for(let i=0;i<6;i++) PR.tree(bs,W+rndr(8,40),0,rndr(-28,28),rnd()<0.5?"redgum":"ghost",0.8);
- if(rnd()<0.6){ const tn=new THREE.Mesh(new THREE.ConeGeometry(1.8,1.5,4),lam(0x2f6b3a)); tn.position.set(W+22,0.75,14); g.add(tn); }
+ signBoard("blue","REST AREA\n500 m",-(Lw+3),2.6,60,3.2,1.6);
+ const pad=new THREE.Mesh(new THREE.BoxGeometry(28,0.06,60),lam(0x9a7a5a)); pad.position.set(Rw+18,0.0,0); g.add(pad);
+ bs.get("solid").add(tpl("box"),M4(Rw+16,0,-8,4,0.75,1.4),linCol(0x8a6a4a));
+ for(const dx of [-1.8,1.8]) for(const dz of [-1.6,1.6]) bs.get("solid").add(tpl("box"),M4(Rw+16+dx,0,-8+dz,0.1,2.6,0.1),linCol(0x6a6a6a));
+ bs.get("corr").add(tpl("gable"),M4(Rw+16,2.6,-8,4.4,0.7,4.6),linCol(0x55635a),3);
+ PR.tank(bs,Rw+24,0,6,0.9);
+ bs.get("solid").add(tpl("cyl8"),M4(Rw+13,0,4,0.35,0.9,0.35),linCol(0x2e6b3a));
+ for(let i=0;i<6;i++) PR.tree(bs,Rw+rndr(8,40),0,rndr(-28,28),rnd()<0.5?"redgum":"ghost",0.8);
+ if(rnd()<0.6){ const tn=new THREE.Mesh(new THREE.ConeGeometry(1.8,1.5,4),lam(0x2f6b3a)); tn.position.set(Rw+22,0.75,14); g.add(tn); }
 } else if(lm.t==="roadhouse"){
- PR.roadhouse(bs,W+22,0,0,-Math.PI/2);
- signBoard("brown",lm.n.toUpperCase().slice(0,18)+"\nFUEL · FOOD",W+4,3.4,-24,4.2,1.7);
- for(let i=0;i<5;i++) PR.tree(bs,W+rndr(30,70),0,rndr(-40,40),"redgum",0.9);
- PR.windmill(bs,W+52,0,-22);
+ PR.roadhouse(bs,Rw+22,0,0,-Math.PI/2);
+ signBoard("brown",lm.n.toUpperCase().slice(0,18)+"\nFUEL · FOOD",Rw+4,3.4,-24,4.2,1.7);
+ for(let i=0;i<5;i++) PR.tree(bs,Rw+rndr(30,70),0,rndr(-40,40),"redgum",0.9);
+ PR.windmill(bs,Rw+52,0,-22);
 }
 bs.toGroup(g);
 return g;
@@ -445,9 +449,10 @@ sl.team=o.tm; sl.mesh.visible=true;
 sl.mesh.userData.hullM.color.setHSL(o.tm.hue/360,0.6,0.55);
 const rp=this.roadPoint(clamp(this.s+o.rel,0,this.road.builtS-this.SEG));
 let latT=-2.4;
-if(o.tm.status==="dnf") latT=-11;
-else if(o.tm.yieldT>0) latT=-4.9;
-else if(o.tm.passing) latT=2.4;
+const multi=rp.m1>0.3||rp.ow||rp.L>6;   // 片側2車線以上・分離帯あり: 追い越しは自分側の空いている車線
+if(o.tm.status==="dnf") latT=-(rp.L+6);
+else if(o.tm.yieldT>0) latT=-(rp.L-0.1);
+else if(o.tm.passing) latT= multi? (this.lateral>-rp.L/2? -(rp.L-1.75) : -1.75) : 2.4;
 o.tm.latV=lerp(o.tm.latV,latT,clamp(dtR*1.5,0,1));
 const nx=Math.cos(rp.h), nz=Math.sin(rp.h);
 sl.mesh.position.set(rp.x+nx*o.tm.latV,rp.y,rp.z+nz*o.tm.latV);
@@ -552,18 +557,22 @@ return {grade:g.grade,curv:g.curv};
 },
 ensureRoad(upTo){
 const r=this.road, CHUNK=200;
-while(r.builtS<upTo+CHUNK+50){
+while(r.builtS<upTo+CHUNK+900){
 const last=r.pts[r.pts.length-1];
 const sN=r.builtS+this.SEG;
 const gen=this.advanceGen(sN);
 const km=this.kmOfS(sN);
 const macroSlope=Route.inZone(km)?0:profileAt(km).slope;
-const grade=gen.grade+macroSlope;
+const grade0=gen.grade+macroSlope;
 const h=last.h+gen.curv*this.SEG;
-const y=last.y+grade*this.SEG;
+// 路面高さ = 地形に沿った基準高さ yb + 立体交差の持ち上げ bh (等倍ゾーン内のみ)
+const yb=(last.yb!=null?last.yb:last.y)+grade0*this.SEG;
+const bm= P.mode==="race"&&Route.inZone(km)? OsmRoute.bumpAt(km) : null, bh=bm?bm.h:0;
+const y=yb+bh, grade=grade0+(bh-(last.bh||0))/this.SEG;
 const x=last.x+Math.sin(h)*this.SEG;
 const z=last.z-Math.cos(h)*this.SEG;
-r.pts.push({x,z,y,h,g:grade,c:gen.curv});
+const pr= P.mode==="race"? OsmRoute.profAt(km) : OsmRoute.DEF_PROF;
+r.pts.push({x,z,y,h,g:grade,c:gen.curv,L:pr.L,m1:pr.m1,R:pr.R,ow:pr.ow,dual:pr.dual,yb,bh,deck:!!(bm&&bm.deck)});
 r.builtS=sN;
 }
 while(true){
@@ -586,7 +595,9 @@ const i=clamp(Math.floor(s/this.SEG),0,r.pts.length-2);
 const t=clamp((s-i*this.SEG)/this.SEG,0,1);
 const a=r.pts[i], b=r.pts[i+1];
 let dh=b.h-a.h;
-return { x:lerp(a.x,b.x,t), y:lerp(a.y,b.y,t), z:lerp(a.z,b.z,t), h:a.h+dh*t, g:lerp(a.g,b.g,t), c:lerp(a.c||0,b.c||0,t) };
+return { x:lerp(a.x,b.x,t), y:lerp(a.y,b.y,t), z:lerp(a.z,b.z,t), h:a.h+dh*t, g:lerp(a.g,b.g,t), c:lerp(a.c||0,b.c||0,t),
+ L:lerp(a.L||5,b.L||5,t), m1:lerp(a.m1||0,b.m1||0,t), R:lerp(a.R||5,b.R||5,t), ow:t<0.5?!!a.ow:!!b.ow, dual:t<0.5?!!a.dual:!!b.dual,
+ bh:lerp(a.bh||0,b.bh||0,t), deck:t<0.5?!!a.deck:!!b.deck };
 },
 /* 区間 [s-w, s+w] の最大曲率 (地形帯の内側クランプ用) */
 maxCurv(s,w){
@@ -599,7 +610,7 @@ buildRoadChunk(s0,s1){ return Scenery.buildChunk(this,s0,s1); },
 resetRoad(){
  if(this.road) for(const c of this.road.chunks){ this.scene.remove(c.mesh); c.mesh.traverse(ch=>{ if(ch.geometry) ch.geometry.dispose(); }); }
  const es=Engine.st, km=es?es.km:0;
- this.road={pts:[{x:0,z:0,y:0,h:0,g:0,c:0}],builtS:0,chunks:[]};
+ this.road={pts:[{x:0,z:0,y:0,h:0,g:0,c:0,L:5,m1:0,R:5}],builtS:0,chunks:[]};
  this.branches=[]; this.junctions=[]; this.prog=null; this.doneMan=new Set(); this.lastGenKm=-1; this.osmTown=null;
  this.s=320; this.visOrigin=Route.vis(km)-this.s;
  // 現在地より手前の動作は実行済み扱い
@@ -640,7 +651,11 @@ branchAt(x,z){
    if(d<bd){ bd=d; hit={b,i,t,d,y:a.y+(c.y-a.y)*t,along:(i+t)*b.step}; }
   }
  }
- return hit&&hit.d<=hit.b.half+1.2? hit : null;
+ if(hit&&hit.d<=hit.b.half+1.2) return hit;
+ // 隅切り (交差点の角の舗装) の上も分岐の一部
+ for(const b of this.branches){ if(Math.abs(b.sJ-this.s)>60) continue;
+  for(const f of b.fillets||[]){ if(Math.hypot(f.C[0]-x,f.C[1]-z)<8.5) return {b,i:0,t:0,d:0,y:b.pts[0].y,along:0}; } }
+ return null;
 },
 update(dtR){
 const es=Engine.st; if(!es) return;
@@ -659,9 +674,9 @@ this.iProj=pr.i; this.s=pr.s; this.lateral=pr.lat;
 this.relHeading=Math.atan2(Math.sin(this.ch-pr.h),Math.cos(this.ch-pr.h));
 es.progRate= vv>0.3? clamp((this.s-sPrev)/(vv*dtR),-1,1) : 1;
 this.ensureRoad(this.s+2400);
-const pHere=this.roadPoint(this.s);
+const pHere=this.roadPoint(this.s), pHere0=pHere;
 // 分岐道路 (脇道・曲がり損ね)
-const onMain=Math.abs(this.lateral)<=this.ROAD_W+0.4;
+const onMain=this.lateral>=-(pHere0.L+0.4)&&this.lateral<=pHere0.R+0.4;
 const br=onMain? null : this.branchAt(this.cx,this.cz);
 if(br&&!this.onBranch){ this.onBranch=br.b; this.branchWarned=false; }
 if(!br&&this.onBranch&&onMain) { if(this.branchWarned) Radio.push("ルートに復帰しました。","前方誘導車"); this.onBranch=null; }
@@ -873,7 +888,8 @@ for(let i=this.roadTrains.length-1;i>=0;i--){
 const rt=this.roadTrains[i];
 rt.sVis-=27*dtR;
 const rp=this.roadPoint(clamp(rt.sVis,0,this.road.builtS-this.SEG));
-rt.mesh.position.set(rp.x+Math.cos(rp.h)*2.6,rp.y,rp.z+Math.sin(rp.h)*2.6);
+const rl= rp.ow? 60 : rp.m1+(rp.dual? Math.max(2.6,rp.L-1.75) : 2.6);   // 対向車線 (分離帯の向こう側)
+rt.mesh.position.set(rp.x+Math.cos(rp.h)*rl,rp.y,rp.z+Math.sin(rp.h)*rl);
 rt.mesh.rotation.y=-rp.h;
 const rel=rt.sVis-this.s;
 if(!rt.warned&&rel<180){ rt.warned=true; Snd.horn(); }

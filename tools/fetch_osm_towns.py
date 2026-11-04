@@ -553,6 +553,135 @@ def town_frame_heading(D_prog, prog, d):
     return H
 
 
+LANE_W = 3.5
+
+
+def way_lanes(G, w):
+    """車線数 (一方通行=その向きの車線数 / 対面通行=片側の車線数)"""
+    tg = G.ways[w]['tags']; hw = tg.get('highway', '').replace('_link', '')
+    ow = tg.get('oneway') in ('yes', 'true', '1', '-1') or G.is_rab(w)
+    try: n = int(str(tg.get('lanes', '')).split(';')[0])
+    except ValueError: n = 0
+    if n <= 0: n = 2 if (ow and hw in ('trunk', 'primary', 'motorway')) else 1
+    return n if ow else max(1, n // 2)
+
+
+def way_half(G, w):
+    """交差道路の半幅 m (width タグ優先)"""
+    tg = G.ways[w]['tags']
+    try: return round(max(2.2, min(9.0, float(str(tg.get('width', '')).replace('m', '').strip()) / 2)), 2)
+    except ValueError: pass
+    if tg.get('highway') == 'service': return 2.6
+    ow = tg.get('oneway') in ('yes', 'true', '1', '-1') or G.is_rab(w)
+    n = way_lanes(G, w)
+    return round(max(2.8, n * LANE_W / (2 if ow else 1)), 2)
+
+
+def arm_shape(G, n, nb, w, used, b0, length=150.0):
+    """交差道路を同じ名前の道で length m までたどった形 → [[方位(町の座標系 rad), 長さ m], ...]"""
+    out = []; L = 0.0; pn, cur, wid = n, nb, w
+    nm = G.wname(w)
+    while True:
+        d = G.dist(pn, cur); L += d
+        bb = round(math.radians(G.bearing(pn, cur)) - b0, 3)
+        if out and abs(out[-1][0] - bb) < 0.02: out[-1][1] = round(out[-1][1] + d, 1)
+        else: out.append([bb, round(d, 1)])
+        if L >= length: break
+        b_in = G.bearing(pn, cur); best = None
+        for m, w2 in G.neighbours(cur):
+            if m == pn or (cur, m) in used: continue
+            a = abs(wrap(G.bearing(cur, m) - b_in))
+            k = (0 if (G.wname(w2) == nm and nm) or w2 == wid else 1, a)
+            if a < 60 and (best is None or k < best[0]): best = (k, m, w2)
+        if best is None: break
+        pn, cur, wid = cur, best[1], best[2]
+    return out
+
+
+def carriageway_profile(G, path, kmof):
+    """上下線分離 (一方通行で右側に対向の同名道路) と多車線の区間 → [[km 始, km 終, 片側車線数, 分離帯幅 m], ...]"""
+    named = {}
+    for wid, wy in G.ways.items():
+        nm = G.wname(wid)
+        if nm: named.setdefault(nm, []).append(wid)
+    segs = []
+    for i in range(len(path) - 1):
+        a, b = path[i], path[i + 1]; w = G_edge_way(G, a, b)
+        if w is None: continue
+        tg = G.ways[w]['tags']; hw = tg.get('highway', '').replace('_link', '')
+        L = G.dist(a, b)
+        if hw in ('service', 'living_street') or L < 1.0 or G.is_rab(w):
+            segs.append((i, 0, 0.0)); continue
+        n = way_lanes(G, w)
+        ow = tg.get('oneway') in ('yes', 'true', '1')
+        med = None
+        if ow and G.wname(w):
+            (x1, y1), (x2, y2) = G.xy[a], G.xy[b]
+            mx, my = (x1 + x2) / 2, (y1 + y2) / 2; br = G.bearing(a, b)
+            rx, ry = math.sin(math.radians(br + 90)), math.cos(math.radians(br + 90))   # 右方向 (左側通行 → 対向は右)
+            best = None
+            for w2 in named.get(G.wname(w), []):
+                if w2 == w or G.ways[w2]['tags'].get('oneway') not in ('yes', 'true', '1'): continue
+                ns = [q for q in G.ways[w2]['nodes'] if q in G.xy]
+                for c, d in zip(ns, ns[1:]):
+                    if abs(wrap(G.bearing(c, d) - br - 180)) > 35: continue
+                    (cx, cy), (dx, dy) = G.xy[c], G.xy[d]; ex, ey = dx - cx, dy - cy; LL = ex * ex + ey * ey or 1
+                    tt = max(0, min(1, ((mx - cx) * ex + (my - cy) * ey) / LL)); px, py = cx + ex * tt, cy + ey * tt
+                    side = (px - mx) * rx + (py - my) * ry; dd = math.hypot(px - mx, py - my)
+                    if side > 3 and dd < 60 and (best is None or dd < best): best = dd
+            if best is not None: med = max(0.6, min(25.0, best - n * LANE_W))
+        if med is not None: segs.append((i, n, med))
+        elif not ow and n >= 2: segs.append((i, n, 0.0))
+        else: segs.append((i, 0, 0.0))
+    # 分離帯が 14 m を超える = 上下線が別の道 → 片側だけの一方通行として扱う (-1)
+    raw = []
+    for i, n, med in segs:
+        k0, k1 = kmof(i), kmof(i + 1)
+        if k1 <= k0 or n <= 0: continue
+        raw.append([k0, k1, min(n, 3), -1.0 if med > 14 else med])
+    out = []
+    for r in raw:   # 30 m 未満の隙間は埋め、同じ車線数で分離帯が近い区間は結合 (長さ加重平均)
+        if out and out[-1][2] == r[2] and r[0] - out[-1][1] < 0.03 and (out[-1][3] < 0) == (r[3] < 0) and abs(out[-1][3] - r[3]) < 6:
+            o = out[-1]; Lo = o[1] - o[0]; Ln = r[1] - r[0]
+            o[3] = (o[3] * Lo + r[3] * Ln) / (Lo + Ln); o[1] = r[1]
+        else: out.append(list(r))
+    return [[round(a, 4), round(b, 4), n, round(m, 1)] for a, b, n, m in out if b - a >= 0.06]
+
+
+def _seg_cross(A, B, C, D):
+    (x1, y1), (x2, y2), (x3, y3), (x4, y4) = A, B, C, D
+    den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+    if abs(den) < 1e-9: return None
+    t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / den; u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / den
+    return t if 0 <= t <= 1 and 0 <= u <= 1 else None
+
+
+def bridge_spans(G, path, kmof, b0):
+    """経路の橋区間 (bridge=yes) と、その下を通る道路 → [[km 始, km 終, [[km, 方位, 名前, 半幅], ...]], ...]"""
+    spans = []
+    for i in range(len(path) - 1):
+        w = G_edge_way(G, path[i], path[i + 1])
+        if w is None or G.ways[w]['tags'].get('bridge') in (None, 'no'): continue
+        k0, k1 = kmof(i), kmof(i + 1)
+        if spans and k0 - spans[-1][1] < 0.015: spans[-1][1] = k1; spans[-1][3].append(i)
+        else: spans.append([k0, k1, [], [i]])
+    on = set(path)
+    for sp in spans:
+        for i in sp[3]:
+            A, B = G.xy[path[i]], G.xy[path[i + 1]]
+            for wid, wy in G.ways.items():
+                if wy['tags'].get('bridge') not in (None, 'no'): continue
+                ns = [q for q in wy['nodes'] if q in G.xy]
+                for c, d in zip(ns, ns[1:]):
+                    if c in on or d in on: continue
+                    tt = _seg_cross(A, B, G.xy[c], G.xy[d])
+                    if tt is None: continue
+                    km = kmof(i) + (kmof(i + 1) - kmof(i)) * tt
+                    sp[2].append([round(km, 4), round(math.radians(G.bearing(c, d)) - b0, 3), G.wname(wid)[:22], way_half(G, wid)])
+        del sp[3]
+    return [[round(a, 4), round(b, 4), u] for a, b, u in spans if b - a >= 0.01]
+
+
 def build_town(G, t):
     path, marks, log = route_town(G, t)
     prog, vd, vh, b0, total = fillet(G, path)
@@ -593,7 +722,7 @@ def build_town(G, t):
     for k in range(1, len(path)):
         w = G_edge_way(G, path[k - 1], path[k]); w0 = G_edge_way(G, path[k - 2], path[k - 1]) if k > 1 else None
         if w is not None and G.is_rab(w) and not (w0 is not None and G.is_rab(w0)): rab.append(kmof(k - 1))
-    # 交差道路の腕 (経路外の車道・名前付き or 主要道路)
+    # 交差道路の腕 (経路外の車道・名前付き or 主要道路): [km, 方位, 名前, 半幅, 形状[[方位, 長さ],...]]
     arms = []
     used = set()
     for a_, b_ in zip(path, path[1:]): used.add((a_, b_)); used.add((b_, a_))
@@ -603,11 +732,14 @@ def build_town(G, t):
             tg = G.ways[w]['tags']; hw = tg.get('highway', '').replace('_link', '')
             if hw not in ARM_CLASSES and not G.is_rab(w) and not tg.get('name'): continue
             b = math.radians(G.bearing(n, nb)) - b0
-            arms.append([kmof(i), round(b, 4), G.wname(w)[:22]])
+            shape = arm_shape(G, n, nb, w, used, b0)
+            arms.append([kmof(i), round(b, 4), G.wname(w)[:22], way_half(G, w), shape])
     arms.sort(key=lambda a: a[0])
+    prof = carriageway_profile(G, path, kmof)
+    bridges = bridge_spans(G, path, kmof, b0)
     flat = [v for L, k in prog for v in (round(L, 2), round(k, 6))]
     out = {'name': t['name'], 'km0': round(km0, 4), 'len': round(total, 1), 'zone': t.get('zone', True),
-           'prog': flat, 'man': man, 'sig': sig, 'ped': ped, 'rab': rab, 'arms': arms}
+           'prog': flat, 'man': man, 'sig': sig, 'ped': ped, 'rab': rab, 'arms': arms, 'prof': prof, 'bridges': bridges}
     if cs: out['cs'] = {k: v for k, v in cs.items() if v is not None}
     out.update(extra)
     return out, log
