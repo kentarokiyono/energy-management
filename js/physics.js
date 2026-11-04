@@ -104,10 +104,9 @@ const Pelec=F*Math.max(0,v)+Pcu+Pctrl;
 const eff=Pelec>1? F*Math.max(0,v)/Pelec : 0;
 return {F,Pelec,Vb,eff,vMax};
 }
-function csCloseAbs(km){
-let h=km/65, day=1, avail=8.5;
-while(h>avail){ h-=avail; day++; avail=9; }
-return (day-1)*24+(day===1?8.5:8)+h;
+function csCloseAbs(km){ // Route Notes の公式クローズ時刻 (Day1=8/24 からの通算時間)
+const c=RP_CS.find(c=>Math.abs(c.km-km)<1); if(c) return Route.absHour(c.close);
+return 6*24+12;
 }
 function fmtAbsH(h){ const d=Math.floor(h/24)+1, hh=Math.floor(h%24), mm=Math.floor((h%1)*60);
 return `Day${d} ${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}`; }
