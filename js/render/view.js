@@ -7,7 +7,7 @@ roadTrains:[], escortLead:null, escortChase:null,
 pitGroup:null, inPit:false, pitBlend:0,
 fireGroup:null, fireOn:false, speedLines:[],
 s:0, lateral:-2.4, cam:0, carSlope:0, upcomingGrade:0, redSignalKm:null,
-SEG:5, ROAD_W:5.0, SHOULDER:8.5,
+SEG:2.5, ROAD_W:5.0, SHOULDER:8.5, visOrigin:0, branches:[], junctions:[],
 gen:{grade:0,targetGrade:0,gradeRemain:400,curv:0,targetCurv:0,curvRemain:600},
 init(){
 const canvas=document.getElementById("three-canvas");
@@ -54,12 +54,9 @@ for(let i=0;i<12;i++){
 }
 this.aiPool=[];
 for(let i=0;i<6;i++){ const m=this.mkAICar(); m.visible=false; this.scene.add(m); this.aiPool.push({mesh:m,team:null}); }
-this.road={pts:[{x:0,z:0,y:0,h:0,g:0}],builtS:0,chunks:[]};
-this.s=320; this.lateral=-2.4; this.roadTrains.length=0;
-this.relHeading=0; this.prevRoadH=0; this.genY=0; this.rollT=0;
-this.gen={grade:0,targetGrade:0,gradeRemain:400,curv:0,targetCurv:0,curvRemain:600};
+this.roadTrains.length=0; this.rollT=0;
 this.lmMap.clear(); this.redSignalKm=null; this.inPit=false; this.pitBlend=0; this.fireOn=false;
-this.ensureRoad(this.s+1500);
+this.resetRoad();
 addEventListener("resize",()=>{
 this.camera.aspect=innerWidth/innerHeight; this.camera.updateProjectionMatrix();
 this.renderer.setSize(innerWidth,innerHeight);
@@ -320,7 +317,26 @@ const signBoard=(kind,text,x,y,z,w,h)=>{
  m.position.set(x,y,z); g.add(m);
  bs.get("solid").add(tpl("box"),M4(x,0,z-0.05,0.08,y-h/2+0.1,0.08),linCol(0x9a9da0));
 };
-if(lm.t==="signal"){
+if(lm.t==="pedlight"){ // 押しボタン式横断歩道の信号
+ for(const sd of [-1,1]){ bs.get("solid").add(tpl("cyl8"),M4(sd*(W+1.2),0,0,0.09,3.4,0.09),linCol(0x3a3d40));
+  bs.get("solid").add(tpl("boxC"),M4(sd*(W+1.2),2.9,0.12,0.4,0.9,0.25),linCol(0x1c1c1c)); }
+ for(let k=0;k<8;k++) bs.get("solid").add(tpl("box"),M4(-W+0.6+k*1.25,0.005,0,0.6,0.012,3.0),linCol(0xf2f0e6));
+} else if(lm.t==="floodway"){ // フラッドウェイ: 深さ標柱 + 注意標識 (路面は浅いくぼみ)
+ for(const sd of [-1,1]) for(const z of [-30,30]){
+  bs.get("solid").add(tpl("box"),M4(sd*(W+1.6),0,z,0.12,2.0,0.12),linCol(0xf2f2ee));
+  for(let k=0;k<4;k++) bs.get("solid").add(tpl("box"),M4(sd*(W+1.6),0.3+k*0.4,z+0.07,0.13,0.18,0.02),linCol(k%2?0xd11a1a:0xf2f2ee)); }
+ signBoard("warn","FLOOD\nWAY",-(W+2.4),2.4,60,1.3,1.3);
+} else if(lm.t==="rail"){ // 鉄道: 跨線橋(The Ghan) または踏切
+ if(/overpass|bridge|Bridge/i.test(lm.n)){
+  bs.get("solid").add(tpl("boxC"),M4(0,7.2,0,W*2+24,1.4,9,0),linCol(0xb8b6ae));
+  for(const sd of [-1,1]) bs.get("solid").add(tpl("box"),M4(sd*(W+5),0,0,2,6.5,8),linCol(0xa9a69e));
+  bs.get("solid").add(tpl("boxC"),M4(0,8.1,-3.2,W*2+24,0.15,0.25),linCol(0x6b5a4a));
+ } else {
+  for(const z of [-0.75,0.75]) bs.get("solid").add(tpl("boxC"),M4(0,0.06,z,60,0.12,0.12),linCol(0x6b6b6b));
+  for(const sd of [-1,1]){ bs.get("solid").add(tpl("cyl8"),M4(sd*(W+2),0,sd*8,0.1,3.2,0.1),linCol(0xf2f2ee));
+   bs.get("solid").add(tpl("boxC"),M4(sd*(W+2),3.0,sd*8,1.6,0.25,0.06,sd*0.6),linCol(0xf2f2ee)); }
+ }
+} else if(lm.t==="signal"){
  // 豪州型: 左側の柱+右側の柱、3灯(赤/黄/緑)・黒い背板
  const lamps=[];
  const head=(x,y,z)=>{
@@ -409,11 +425,10 @@ return g;
 },
 updateAITeams(es,dtR){
 if(P.mode!=="race"||!es.teams||!this.aiPool){ if(this.aiPool) this.aiPool.forEach(sl=>sl.mesh.visible=false); return; }
-const ts=P.timeScale;
 const near=[];
 for(const tm of es.teams){
 if(tm.status==="pre") continue;
-const rel=(tm.km-es.km)*1000/ts;
+const rel=Route.visDist(es.km,tm.km);
 if(Math.abs(rel)<1200) near.push({tm,rel});
 }
 near.sort((a,b)=>Math.abs(a.rel)-Math.abs(b.rel));
@@ -463,115 +478,194 @@ OT.ask(behind.tm, this.roadTrains.some(rt=>rt.sVis>this.s-150&&rt.sVis<this.s+70
 }
 }
 },
-advanceGen(){
+/* ---- 視覚距離 s ⇔ ルート km ---- */
+kmOfS(s){ return clamp(Route.kmAtVis(this.visOrigin+s),0,TOTAL_KM); },
+sOfKm(km){ return Route.vis(km)-this.visOrigin; },
+/* ルートノートの動作 → 曲率プログラム [{len, k}] */
+turnProgram(m){
+ const D=Math.PI/180, arc=(deg,r)=>({len:Math.abs(deg*D)*r, k:deg*D/(Math.abs(deg*D)*r)});
+ switch(m.turn){
+  case "L": return [arc(-90,12)];
+  case "R": return [arc(90,12)];
+  case "veerL": return [arc(-30,40)];
+  case "veerR": return [arc(30,40)];
+  case "uturn": return [arc(90,9),{len:8,k:0},arc(90,9)];
+  case "rab": { const c=m.exit==="R"?180:m.exit==="L"?0:90; return [arc(-40,14),arc(c+80,13),arc(-40,14)]; }
+  default: return [];   // keepS/keepL/keepR: 進路は直進 (分岐だけ作る)
+ }
+},
+advanceGen(sNext){
 const g=this.gen;
-const km=Engine.st?Engine.st.km:0;
-const tp=townProx(km);
-const mid=(km>950&&km<2150);
+const km=this.kmOfS(sNext);
+const zone=Route.inZone(km);
+// 地形の勾配
 g.gradeRemain-=this.SEG;
 if(g.gradeRemain<=0){
-const flatBias= mid?0.75:0.45;
-if(Math.random()<flatBias){ g.targetGrade=0; g.gradeRemain=400+Math.random()*1400; }
-else{
-const mag= mid?(0.005+Math.random()*0.015):(0.01+Math.random()*0.03);
-g.targetGrade=(Math.random()<0.5?-1:1)*mag;
-g.gradeRemain=150+Math.random()*650;
+ const mid=(km>950&&km<2150);
+ const flatBias= zone?1:(mid?0.75:0.45);
+ if(Math.random()<flatBias){ g.targetGrade=0; g.gradeRemain=400+Math.random()*1400; }
+ else{ const mag= mid?(0.005+Math.random()*0.015):(0.01+Math.random()*0.03);
+  g.targetGrade=(Math.random()<0.5?-1:1)*mag; g.gradeRemain=150+Math.random()*650; }
+ if(this.genY>25) g.targetGrade=Math.min(g.targetGrade,-0.006);
+ if(this.genY<-25) g.targetGrade=Math.max(g.targetGrade,0.006);
 }
-if(this.genY>25) g.targetGrade=Math.min(g.targetGrade,-0.006);
-if(this.genY<-25) g.targetGrade=Math.max(g.targetGrade,0.006);
-}
-g.grade+=clamp(g.targetGrade-g.grade,-0.0008,0.0008)*this.SEG;
+g.grade+=clamp(g.targetGrade-g.grade,-0.0008,0.0008)*this.SEG*(zone?0.3:1);
 this.genY=(this.genY||0)+g.grade*this.SEG;
+// ルートノートの右左折: 区間に入ったら曲率プログラムを実行
+if(!this.prog&&P.mode==="race"){
+ const m=RP_MANEUVERS.find(m=>m.km>this.lastGenKm-1e-9&&m.km<=km&&!this.doneMan.has(m));
+ if(m){ this.doneMan.add(m); this.prog=this.turnProgram(m).map(p=>({...p})); g.curv=0; g.targetCurv=0; g.curvRemain=60;
+  this.junctions.push({s:sNext,km:m.km,m,h:this.road.pts[this.road.pts.length-1].h}); }
+}
+this.lastGenKm=km;
+if(this.prog&&this.prog.length){
+ const p=this.prog[0]; p.len-=this.SEG; const k=p.k; if(p.len<=0) this.prog.shift(); if(!this.prog.length) this.prog=null;
+ return {grade:g.grade,curv:k};
+}
+// 等倍ゾーン(町中)は直線、それ以外は緩いカーブを自動生成
 g.curvRemain-=this.SEG;
 if(g.curvRemain<=0){
-const towny=tp<12;
-const straightBias= mid?0.85:(towny?0.35:0.65);
-if(Math.random()<straightBias){ g.targetCurv=0; g.curvRemain=towny?150+Math.random()*300:600+Math.random()*1800; }
-else{
-const r= towny?(220+Math.random()*500):(900+Math.random()*1800);
-g.targetCurv=(Math.random()<0.5?-1:1)/r;
-g.curvRemain=120+Math.random()*380;
-}
+ const tp=townProx(km), towny=tp<12, mid=(km>950&&km<2150);
+ const straightBias= zone?1:(mid?0.85:(towny?0.35:0.65));
+ if(Math.random()<straightBias){ g.targetCurv=0; g.curvRemain=towny?150+Math.random()*300:600+Math.random()*1800; }
+ else{ const r= towny?(220+Math.random()*500):(900+Math.random()*1800);
+  g.targetCurv=(Math.random()<0.5?-1:1)/r; g.curvRemain=120+Math.random()*380; }
 }
 g.curv+=clamp(g.targetCurv-g.curv,-0.00002,0.00002)*this.SEG;
-return g;
+return {grade:g.grade,curv:g.curv};
 },
 ensureRoad(upTo){
 const r=this.road, CHUNK=200;
 while(r.builtS<upTo+CHUNK+50){
 const last=r.pts[r.pts.length-1];
-const gen=this.advanceGen();
-const macroSlope=Engine.st?profileAt(Engine.st.km).slope:0;
+const sN=r.builtS+this.SEG;
+const gen=this.advanceGen(sN);
+const km=this.kmOfS(sN);
+const macroSlope=Route.inZone(km)?0:profileAt(km).slope;
 const grade=gen.grade+macroSlope;
 const h=last.h+gen.curv*this.SEG;
 const y=last.y+grade*this.SEG;
 const x=last.x+Math.sin(h)*this.SEG;
 const z=last.z-Math.cos(h)*this.SEG;
-r.pts.push({x,z,y,h,g:grade});
-r.builtS+=this.SEG;
+r.pts.push({x,z,y,h,g:grade,c:gen.curv});
+r.builtS=sN;
 }
 while(true){
 const lastEnd=r.chunks.length? r.chunks[r.chunks.length-1].endS:0;
 if(lastEnd>=upTo || lastEnd+CHUNK>r.builtS) break;
 const mesh=this.buildRoadChunk(lastEnd,lastEnd+CHUNK);
-r.chunks.push({startS:lastEnd,endS:lastEnd+CHUNK,mesh});
+r.chunks.push({startS:lastEnd,endS:lastEnd+CHUNK,mesh,branches:mesh.userData.branches||[]});
 this.scene.add(mesh);
 }
-while(r.chunks.length&&r.chunks[0].endS<this.s-300){
+while(r.chunks.length&&r.chunks[0].endS<this.s-400){
 const c=r.chunks.shift();
 this.scene.remove(c.mesh);
 c.mesh.traverse(ch=>{ if(ch.geometry) ch.geometry.dispose(); });
+for(const b of c.branches){ const i=this.branches.indexOf(b); if(i>=0) this.branches.splice(i,1); }
 }
 },
 roadPoint(s){
 const r=this.road;
 const i=clamp(Math.floor(s/this.SEG),0,r.pts.length-2);
-const t=(s-i*this.SEG)/this.SEG;
+const t=clamp((s-i*this.SEG)/this.SEG,0,1);
 const a=r.pts[i], b=r.pts[i+1];
-return { x:lerp(a.x,b.x,t), y:lerp(a.y,b.y,t), z:lerp(a.z,b.z,t), h:lerp(a.h,b.h,t), g:lerp(a.g,b.g,t) };
+let dh=b.h-a.h;
+return { x:lerp(a.x,b.x,t), y:lerp(a.y,b.y,t), z:lerp(a.z,b.z,t), h:a.h+dh*t, g:lerp(a.g,b.g,t), c:lerp(a.c||0,b.c||0,t) };
+},
+/* 区間 [s-w, s+w] の最大曲率 (地形帯の内側クランプ用) */
+maxCurv(s,w){
+ const r=this.road, i0=clamp(Math.floor((s-w)/this.SEG),0,r.pts.length-1), i1=clamp(Math.ceil((s+w)/this.SEG),0,r.pts.length-1);
+ let mp=0, mn=0; for(let i=i0;i<=i1;i++){ const c=r.pts[i].c||0; if(c>mp) mp=c; if(-c>mn) mn=-c; }
+ return [mp,mn];
 },
 buildRoadChunk(s0,s1){ return Scenery.buildChunk(this,s0,s1); },
-/* 現在kmで道路と景観を作り直す(ワープ/デバッグ用) */
+/* 現在kmで道路と景観を作り直す (スタート/ワープ/デバッグ用) */
 resetRoad(){
  if(this.road) for(const c of this.road.chunks){ this.scene.remove(c.mesh); c.mesh.traverse(ch=>{ if(ch.geometry) ch.geometry.dispose(); }); }
- this.road={pts:[{x:0,z:0,y:0,h:0,g:0}],builtS:0,chunks:[]};
- this.s=320; this.lateral=-2.4; this.relHeading=0; this.prevRoadH=0; this.genY=0;
+ const es=Engine.st, km=es?es.km:0;
+ this.road={pts:[{x:0,z:0,y:0,h:0,g:0,c:0}],builtS:0,chunks:[]};
+ this.branches=[]; this.junctions=[]; this.prog=null; this.doneMan=new Set(); this.lastGenKm=-1;
+ this.s=320; this.visOrigin=Route.vis(km)-this.s;
+ // 現在地より手前の動作は実行済み扱い
+ for(const m of RP_MANEUVERS) if(m.km<this.kmOfS(0)) this.doneMan.add(m);
+ this.lastGenKm=this.kmOfS(0);
+ this.lateral=-2.4; this.relHeading=0; this.prevRoadH=0; this.genY=0;
  this.gen={grade:0,targetGrade:0,gradeRemain:400,curv:0,targetCurv:0,curvRemain:600};
  for(const [,e] of this.lmMap) this.scene.remove(e.mesh); this.lmMap.clear();
  this.ensureRoad(this.s+1500); Horizon.lastKm=-1e9;
+ const p=this.roadPoint(this.s);
+ this.cx=p.x+Math.cos(p.h)*this.lateral; this.cz=p.z+Math.sin(p.h)*this.lateral; this.ch=p.h; this.iProj=Math.floor(this.s/this.SEG);
+ this.onBranch=null;
+},
+/* 本線への射影 (直前インデックス近傍のみ探索: 折り返しで反対側に飛ばない) */
+project(x,z){
+ const P=this.road.pts, n=P.length; let best=null, bd=1e18;
+ const i0=clamp(this.iProj-30,0,n-2), i1=clamp(this.iProj+30,0,n-2);
+ for(let i=i0;i<=i1;i++){
+  const a=P[i], b=P[i+1], dx=b.x-a.x, dz=b.z-a.z, L2=dx*dx+dz*dz||1;
+  const t=clamp(((x-a.x)*dx+(z-a.z)*dz)/L2,0,1), px=a.x+dx*t, pz=a.z+dz*t;
+  const d=(x-px)**2+(z-pz)**2+Math.abs(i-this.iProj)*0.02;
+  if(d<bd){ bd=d; best={i,t,px,pz}; }
+ }
+ const a=P[best.i], b=P[best.i+1];
+ const h=a.h+(b.h-a.h)*best.t;
+ const lat=(x-best.px)*Math.cos(h)+(z-best.pz)*Math.sin(h);
+ return {s:(best.i+best.t)*this.SEG, lat, h, i:best.i};
+},
+/* 分岐道路への距離 */
+branchAt(x,z){
+ let hit=null, bd=1e9;
+ for(const b of this.branches){
+  if(Math.abs(b.sJ-this.s)>b.len+80) continue;
+  const P=b.pts;
+  for(let i=0;i<P.length-1;i++){
+   const a=P[i], c=P[i+1], dx=c.x-a.x, dz=c.z-a.z, L2=dx*dx+dz*dz||1;
+   const t=clamp(((x-a.x)*dx+(z-a.z)*dz)/L2,0,1), d=Math.hypot(a.x+dx*t-x,a.z+dz*t-z);
+   if(d<bd){ bd=d; hit={b,i,t,d,y:a.y+(c.y-a.y)*t,along:(i+t)*b.step}; }
+  }
+ }
+ return hit&&hit.d<=hit.b.half+1.2? hit : null;
 },
 update(dtR){
 const es=Engine.st; if(!es) return;
-if(this.relHeading===undefined){ this.relHeading=0; this.prevRoadH=this.roadPoint(this.s).h; }
+if(this.cx===undefined) this.resetRoad();
 const vv=es.v;
+// ---- ワールド座標での運動 (分岐/Uターンに対応) ----
 if(vv>0.3){
-const yawRate=Input.steer*clamp(6.5/Math.max(vv,4),0.12,1.0);
-this.relHeading+=yawRate*dtR;
-es.gLat=(yawRate*vv)/9.81;
+ const yawRate=Input.steer*clamp(6.5/Math.max(vv,4),0.12,1.0);
+ this.ch+=yawRate*dtR;
+ es.gLat=(yawRate*vv)/9.81;
 } else es.gLat=0;
-this.s+=vv*Math.cos(this.relHeading)*dtR;
+this.cx+=Math.sin(this.ch)*vv*dtR; this.cz-=Math.cos(this.ch)*vv*dtR;
+const sPrev=this.s;
+const pr=this.project(this.cx,this.cz);
+this.iProj=pr.i; this.s=pr.s; this.lateral=pr.lat;
+this.relHeading=Math.atan2(Math.sin(this.ch-pr.h),Math.cos(this.ch-pr.h));
+es.progRate= vv>0.3? clamp((this.s-sPrev)/(vv*dtR),-1,1) : 1;
 this.ensureRoad(this.s+2400);
 const pHere=this.roadPoint(this.s);
-this.relHeading-=(pHere.h-this.prevRoadH);
-this.prevRoadH=pHere.h;
-this.relHeading=clamp(this.relHeading,-1.1,1.1);
-this.lateral+=Math.sin(this.relHeading)*vv*dtR;
-this.lateral=clamp(this.lateral,-30,30);
+// 分岐道路 (脇道・曲がり損ね)
+const onMain=Math.abs(this.lateral)<=this.ROAD_W+0.4;
+const br=onMain? null : this.branchAt(this.cx,this.cz);
+if(br&&!this.onBranch){ this.onBranch=br.b; this.branchWarned=false; }
+if(!br&&this.onBranch&&onMain) { if(this.branchWarned) Radio.push("ルートに復帰しました。","前方誘導車"); this.onBranch=null; }
+if(this.onBranch&&br&&!this.branchWarned&&br.along>12){
+ this.branchWarned=true; Snd.alarm();
+ const b=this.onBranch;
+ Radio.push(b.wrong? `⚠ ルートを外れました!(${b.name||"脇道"}) 安全な場所でUターンして戻ってください。` : `⚠ 脇道(${b.name||"t/o"})に入っています。Uターンして本線へ戻ってください。`,"前方誘導車");
+ toast("⚠ ルート外走行中 ― Uターンして戻る","#f59e0b");
+}
+es.offRoute=!!this.onBranch;
 this.carSlope=Math.atan(pHere.g);
 const ahead=this.roadPoint(this.s+300);
 this.upcomingGrade= Math.abs(ahead.g)>0.02 ? Math.sign(ahead.g) : 0;
-this.csBayRel=null;
-for(const cp of ROUTE){
-if(!cp.cp) continue;
-const rel=(cp.km-es.km)*1000/P.timeScale;
-if(rel>-260&&rel<950){ this.csBayRel=rel; this.csBayCp=cp; break; }
-}
-const nearBay=this.csBayRel!==null&&Math.abs(this.csBayRel)<240&&this.lateral<0;
-es.offroad=Math.abs(this.lateral)>this.ROAD_W+0.3 && !nearBay && !es.camp && es.stopTimer<=0;
+const site=Scenery.pavedSite(this,this.s,this.lateral);
+es.offroad=!onMain && !br && !site && !es.camp && es.stopTimer<=0;
 if(es.offroad&&es.v>1) es.v=Math.max(0,es.v-clamp(es.v*0.12,0.2,2.5)*dtR);
+const carY= br? br.y : site? pHere.y+site.y : pHere.y;
 const nx=Math.cos(pHere.h), nz=Math.sin(pHere.h);
-const hCar=pHere.h+this.relHeading;
-this.car.position.set(pHere.x+nx*this.lateral, pHere.y, pHere.z+nz*this.lateral);
+const hCar=this.ch;
+this.car.position.set(this.cx, carY, this.cz);
 this.car.rotation.y=-hCar;
 this.car.rotation.x=-Math.atan(pHere.g)*0.8+clamp(-es.gLong*0.025,-0.045,0.045);
 const wantTilt=(es.camp||es.stopTimer>0||StopMenu.mode==="charge")&&!es.disconnected;
@@ -593,13 +687,7 @@ this.pitGroup.visible=true;
 this.pitGroup.position.set(this.car.position.x+nx*-11,pHere.y,this.car.position.z+nz*-11);
 this.pitGroup.rotation.y=-pHere.h;
 } else this.pitGroup.visible=false;
-if(this.csBayRel!==null&&this.csBayCp){
-this.bayGroup.visible=true;
-const bp=this.roadPoint(clamp(this.s+this.csBayRel,0,this.road.builtS-this.SEG));
-const bnx=Math.cos(bp.h), bnz=Math.sin(bp.h);
-this.bayGroup.position.set(bp.x+bnx*-16,bp.y,bp.z+bnz*-16);
-this.bayGroup.rotation.y=-bp.h;
-} else this.bayGroup.visible=false;
+this.bayGroup.visible=false;
 if(this.fireOn){
 this.fireGroup.position.copy(this.car.position);
 this.fireGroup.rotation.y=this.car.rotation.y;
@@ -706,9 +794,11 @@ updateEnvironment(es,pHere,alt,hor){
 },
 updateLandmarks(es){
 const range=1000;
-const interactive=P.timeScale<=2;
+const visNow=Route.vis(es.km);
 for(const lm of LANDMARKS){
-const distVis=(lm.km-es.km)*1000/P.timeScale;
+if(lm.t==="hwmarker"||lm.t==="distsign"||lm.t==="warn"||lm.t==="otl"||lm.t==="works"||lm.t==="gravel"||lm.t==="tower"||lm.t==="solarfarm") continue; // チャンク側で生成
+const distVis=Route.vis(lm.km)-visNow;
+const interactive=Route.inZone(lm.km);
 const key=lm.km+"_"+lm.t;
 if(distVis>-80 && distVis<range){
 let ent=this.lmMap.get(key);
@@ -719,7 +809,7 @@ if(lm.t==="signal"&&interactive&&Math.random()<0.4){ ent.red=true; }
 this.lmMap.set(key,ent);
 this.scene.add(mesh);
 }
-const sVis=this.s+distVis;
+const sVis=this.sOfKm(lm.km);
 const rp=this.roadPoint(clamp(sVis,0,this.road.builtS-this.SEG));
 ent.mesh.position.set(rp.x,rp.y,rp.z);
 ent.mesh.rotation.y=-rp.h;
@@ -738,8 +828,8 @@ if(ent){ this.scene.remove(ent.mesh); this.lmMap.delete(key); }
 }
 },
 updateRoadTrains(es,dtR){
-if(P.mode==="race"&&!es.camp){
-es.nextRoadTrainH-=dtR*P.timeScale/3600;
+if(P.mode==="race"&&!es.camp&&!Route.inZone(es.km)){
+es.nextRoadTrainH-=dtR*Route.scaleAt(es.km)/3600;
 if(es.nextRoadTrainH<=0){
 es.nextRoadTrainH=1/Math.max(0.1,PRO.trainPerHour*(0.7+0.6*Math.random()));
 const t=this.mkRoadTrain();

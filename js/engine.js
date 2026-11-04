@@ -9,7 +9,7 @@ soc:clamp(PRO.startSoc,0,1), whUsed:0, whGen:0, ahUsed:0,
 powerMode:false, gLat:0, gLong:0, signal:0,
 stopTimer:0, stopKind:"", stopExtra:"",
 morningPenaltyMin:0, extensionMin:0, extWarned:false,
-passedCP:new Set(), finished:false, trailered:false,
+passedCP:new Set(), finished:false, trailered:false, competing:true, dcDone:false, offRoute:false, progRate:1,
 drivingHours:0, penaltySec:0, limitTimer:0,
 windSpeed:PRO.windBase, windDirWorld:Math.PI/2,
 lastSolar:0, lastAmp:0, lastMotorW:0, lastIbat:0, lastNet:0, lastTcell:30, lastGeff:0,
@@ -166,7 +166,8 @@ s.stopTimer-=dtS; s.v=0;
 if(s.stopTimer<=0){
 if(s.stopKind==="tire"&&s.burst){ s.burst=false; toast("🛞 タイヤ交換完了!","#34d399"); }
 if(s.stopKind==="check"){ if(s.fault){ s.fault=null; s.faultAnnounced=false; toast("🔍 不具合を修理しました!","#34d399"); } else toast("🔍 機器チェック完了。異常なし","#34d399"); }
-if(s.stopKind==="cp") toast("点検完了!ベイから自走で道路に復帰してください","#34d399");
+if(s.stopKind==="cp") toast("点検完了!係員の指示に従ってコントロールストップを出てください","#34d399");
+if(s.stopKind==="driver") toast("🔁 ドライバー交代完了。本線へ戻ってください","#34d399");
 s.stopKind=""; s.tiltLocked=false;
 }
 } else if(P.mode==="race" && !isRaceHours && !StopMenu.active){
@@ -240,7 +241,7 @@ const Fnet=Ftrac-Froll-Fdrag-Fslope-Fbrake-Fcorner;
 s.v=Math.max(0,s.v+Fnet/mEff*dtR);
 if(dtR>0) s.gLong=(Fnet/mEff)/9.81;
 Pmotor = mm.Pelec - Pregen;
-const dKm=s.v*dtS/1000;
+const dKm=s.v*dtS/1000*(s.progRate==null?1:s.progRate);   // 本線上の前進分のみ (脇道/逆走では進まない)
 const prev=s.km;
 s.km=Math.min(TOTAL_KM,s.km+dKm);
 if(s.v>0.5) s.drivingHours+=dtS/3600;
@@ -312,15 +313,26 @@ if(s.km>=TOTAL_KM && !s.finished){ s.finished=true; showResult(); }
 radioLogic(dtS){
 const s=this.st;
 if(P.mode!=="race") return;
-let next=null;
-for(const c of ROUTE) if(c.cp&&!s.passedCP.has(c.km)&&c.km>s.km){ next=c; break; }
+// ルートノートの右左折・分岐の予告 (500m / 150m 手前)
+const nm=Route.nextManeuver(s.km);
+if(nm&&nm.name&&!nm.name.startsWith("(")){
+ const d=(nm.km-s.km)*1000, act={L:"左折",R:"右折",veerL:"左へ",veerR:"右へ",rab:"ラウンドアバウト",keepL:"左車線キープ",keepR:"右車線キープ",keepS:"直進維持",uturn:"構内で転回"}[nm.turn]||"";
+ const key="man_"+nm.km;
+ if(d<500&&d>150&&!s.radioCd[key+"a"]){ s.radioCd[key+"a"]=true; Radio.push(`${Math.round(d/50)*50}m 先 ${act} ― ${nm.name}${nm.note?`(${nm.note})`:""}`,"前方誘導車"); }
+ if(d<150&&!s.radioCd[key+"b"]){ s.radioCd[key+"b"]=true; Radio.push(`まもなく${act}!${nm.name}`,"前方誘導車"); }
+}
+const next=RP_CS.find(c=>!s.passedCP.has(c.km)&&c.km>s.km);
 if(next){
 const d=next.km-s.km;
 if(d<10 && !s.radioCd["cs10_"+next.km]){ s.radioCd["cs10_"+next.km]=true;
-Radio.push(`あと${d.toFixed(0)}km(${(s.v*3.6).toFixed(0)}km/h)でコントロールストップ「${next.name}」です。`); }
-if(d<2 && !s.radioCd["cs2_"+next.km]){ s.radioCd["cs2_"+next.km]=true;
-Radio.push(`まもなくコントロールストップ。減速して道路左側のベイへ進入し、停車してください。`,"前方誘導車"); }
+Radio.push(`あと${d.toFixed(0)}kmでコントロールストップ${next.n}「${next.name}」(${next.note})。クローズ ${fmtAbsH(Route.absHour(next.close))}。`); }
+if(d<1.2 && !s.radioCd["cs2_"+next.km]){ s.radioCd["cs2_"+next.km]=true;
+ const seq=RP_MANEUVERS.filter(m=>m.km>s.km&&m.km<=next.km+0.01&&m.name&&!m.name.startsWith("(")).map(m=>({L:"左折",R:"右折",veerL:"左へ",veerR:"右へ"}[m.turn]||"")+" "+m.name).join(" → ");
+Radio.push(`まもなくCS${next.n}。構内は25km/h、係員の指示に従ってSTOP枠で停車。${seq?"経路: "+seq:""}`,"前方誘導車"); }
 }
+const dc=RP_RULES.driverChange;
+if(!s.dcDone&&dc.km-s.km<2&&dc.km>s.km&&!s.radioCd.dc){ s.radioCd.dc=true;
+ Radio.push(`${dc.name}(${dc.km}km)で強制ドライバー交代。左車線からロードトレイン駐車帯へ入り、奥まで進んで停車してください。`,"前方誘導車"); }
 s.nextAdvice-=dtS;
 if(s.nextAdvice<=0 && s.v>3){
 s.nextAdvice=1200;
@@ -354,40 +366,68 @@ return out;
 },
 checkEvents(prev,curr,dtS,dtR){
 const s=this.st;
-if(!s.cpPending){
-for(const cp of ROUTE){
-if(!cp.cp||s.passedCP.has(cp.km)) continue;
-if(cp.km>curr-1){
-const bayRel=(cp.km-curr)*1000/P.timeScale;
-if(bayRel<950&&bayRel>-100) s.cpPending=cp;
-break;
+if(P.mode!=="race") return;
+// ---- コントロールストップ (Route Notes の敷地内で停車) ----
+if(s.stopTimer<=0&&!s.offRoute){
+ for(const c of RP_CS){
+  if(s.passedCP.has(c.km)) continue;
+  if(curr>=c.km-0.07&&curr<=c.km+0.12&&s.v<0.8){ this.beginCS(c,false); break; }
+  if(curr>c.km+0.3){ this.beginCS(c,true); break; }
+  if(c.km>curr) break;
+ }
 }
+// ---- 192 km Emerald Springs 強制ドライバー交代 ----
+const dc=RP_RULES.driverChange;
+if(!s.dcDone){
+ if(curr>=dc.km-0.02&&curr<=dc.km+dc.len&&s.v<0.5&&View.lateral<-View.ROAD_W-1&&s.stopTimer<=0){
+  s.dcDone=true; s.stopTimer=dc.minutes*60; s.stopKind="driver"; s.v=0; s.throttleSet=0;
+  Snd.chime(); toast(`🔁 ${dc.name} 強制ドライバー交代 (${dc.minutes}分)`,"#34d399");
+ } else if(curr>dc.km+dc.len+0.05){
+  s.dcDone=true; s.penaltySec+=dc.penaltyMin*60; Snd.alarm();
+  Radio.push(`⚠ ${dc.name} の強制ドライバー交代を実施しませんでした。${dc.penaltyMin}分のペナルティです。`,"Event Official");
+  toast(`⚠ ドライバー交代未実施 +${dc.penaltyMin}分`,"#ef4444");
+ }
 }
+// ---- 時間制限 → トレーラー輸送 (競技外として継続) ----
+const abs=(s.day-1)*24+s.hour;
+if(!s.trailering){
+ for(const co of RP_RULES.cutoffs){
+  if(curr<co.km && abs>Route.absHour(co.by)){ this.trailerTo(Route.csByN(1),`${co.name} を ${fmtAbsH(Route.absHour(co.by)).slice(5)} までに通過できず`); return; }
+ }
+ if(RP_RULES.katherineBySunset && s.day===1 && curr<322 && s.hour>=this.sunsetHour(profileAt(curr).lat)){ this.trailerTo(Route.csByN(1),"日没までに Katherine へ到達できず"); return; }
+ for(const c of RP_CS){
+  if(!s.passedCP.has(c.km) && curr<c.km && abs>Route.absHour(c.close)){ this.trailerTo(c,`CS${c.n} ${c.name} の公式クローズ(${fmtAbsH(Route.absHour(c.close))})に間に合わず`); return; }
+ }
+ const sat=RP_RULES.saturdayNoSouthOfPA;
+ if(s.day>=sat.day && curr>=sat.km && curr<TOTAL_KM-0.5){ this.trailerTo({n:10,name:"Victoria Park",km:TOTAL_KM-0.3},"土曜日は Port Augusta 以南を走行できません"); return; }
 }
-if(s.cpPending && s.stopTimer<=0){
-const cp=s.cpPending;
-const bayRel=(cp.km-curr)*1000/P.timeScale;
-if(bayRel<60 && bayRel>-140 && View.lateral<-8 && s.v<0.8){
-this.beginCS(cp,false);
-} else if(bayRel<-300){
-this.beginCS(cp,true);
-}
-}
+},
+/* トレーラーで目的地手前まで輸送 (所要時間 = 距離 / 80 km/h)。以後は競技外 */
+trailerTo(c,reason){
+ const s=this.st; if(!c) return;
+ s.trailering=true; s.competing=false;
+ const target=Math.max(s.km,c.km-0.5), hours=(target-s.km)/80;
+ Radio.push(`🚚 ${reason}。トレーラーで ${c.name} へ輸送します(約${fmtDur(hours)})。以後は競技外です。`,"Event Official");
+ toast(`🚚 トレーラー輸送 → ${c.name}`,"#f59e0b");
+ s.hour+=hours; while(s.hour>=24){ s.hour-=24; s.day++; s.dayOfYear++; }
+ s.km=target; s.v=0; s.throttleSet=0;
+ for(const cc of RP_CS) if(cc.km<target) s.passedCP.add(cc.km);
+ if(target>RP_RULES.driverChange.km) s.dcDone=true;
+ if(typeof View!=="undefined"&&View.scene){ View.resetRoad(); }
+ setTimeout(()=>{ s.trailering=false; },50);
 },
 beginCS(cp,missed){
 const s=this.st;
 s.passedCP.add(cp.km); s.cpPending=null;
-s.stopTimer=30*60; s.stopKind="cp"; s.cpName=cp.name; s.v=0; s.throttleSet=0;
+s.stopTimer=30*60; s.stopKind="cp"; s.cpName=`CS${cp.n} ${cp.name}`; s.v=0; s.throttleSet=0;
 Snd.chime();
-if(missed){ toast("🚨 コントロールストップを通過!その場で30分点検となります","#f59e0b"); }
-else toast(`🛑 ${cp.name} 到着 ― 30分の強制点検`,"#fbbf24");
-TiltDecide.open();
-if(cp.km===2720){
 const abs=(s.day-1)*24+s.hour;
-s.absHourAtPA=abs;
-if(abs > 4*24+11){ s.trailered=true; showResult(); }
-else Radio.push("Port Augusta 11:00デッドライン通過!ソーラーフィニッシュ確定です!");
-}
+if(missed){ toast("🚨 コントロールストップの敷地に入らず通過!その場で30分点検となります","#f59e0b");
+ Radio.push(`⚠ CS${cp.n} ${cp.name} に正しく入場しませんでした。`,"Event Official"); }
+else toast(`🛑 CS${cp.n} ${cp.name} 到着 ― 30分の強制点検`,"#fbbf24");
+if(cp.open && abs<Route.absHour(cp.open)) Radio.push(`CS${cp.n} はまだオープン前(${fmtAbsH(Route.absHour(cp.open))})です。`,"Event Official");
+TiltDecide.open();
+if(cp.n===9){ s.absHourAtPA=abs; Radio.push("Port Augusta 通過!大陸横断おめでとう!","Event Official"); }
 },
 enterCamp(){
 const s=this.st;
