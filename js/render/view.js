@@ -202,6 +202,11 @@ for(const [wx,wz,wy] of winkPos){
   wk.position.set(wx,wy!=null?wy:(isW?0.50:0.55),wz);body.add(wk);
   (wx<0?g.userData.winkL:g.userData.winkR).push(wm);
 }
+// 後端の両角: 透明レンズのブレーキランプ兼ウインカー/ハザード (諸元 lamps.rearCombo: [x, z, y, 幅])
+if(LP&&LP.rearCombo){ g.userData.rearCombo=[];
+ for(const [x,z,y,w] of LP.rearCombo){ const m=new THREE.MeshBasicMaterial({color:0xd8dde2,transparent:true,opacity:.55});
+  const ln=new THREE.Mesh(new THREE.BoxGeometry(w||0.18,0.03,0.06),m); ln.position.set(x,y,z); body.add(ln);
+  g.userData.rearCombo.push({m,side:x<0?-1:1}); } }
 g.add(body);
 return {group:g, body, canopy:g.userData.canopy};
 },
@@ -773,6 +778,11 @@ if(es.burst&&es.v>2) this.car.position.y+=Math.random()*0.04;
 if(this.car.userData.brakeMat)
 this.car.userData.brakeMat.color.setHex((es.brakePhys>0.05||es.brakeRegen>0.05)?0xff2222:0x4a0505);
 updateWinkers(this.car,es);
+if(this.car.userData.rearCombo){ const on=(performance.now()%800)<400, L=es.signal===-1||es.signal===2, R=es.signal===1||es.signal===2, brk=es.brakePhys>0.05||es.brakeRegen>0.05;
+ for(const c of this.car.userData.rearCombo){ const blink=(c.side<0?L:R);
+  if(blink&&on){ c.m.color.setHex(0xffa012); c.m.opacity=1; }           // ウインカー/ハザード点灯 (点滅の明)
+  else if(brk){ c.m.color.setHex(0xff1a1a); c.m.opacity=1; }            // ブレーキ
+  else { c.m.color.setHex(0xd8dde2); c.m.opacity=.55; } } }             // 消灯: 透明なレンズ
 View.updateDash(es);
 if(View.yokeMesh) View.yokeMesh.rotation.z=-Input.steer*.9;
 // ヨーク回転: 右ステア→右へ回転(車の右旋回と同じ向き)
