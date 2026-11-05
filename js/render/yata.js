@@ -101,6 +101,13 @@ b.idx.push(a,c,e,c,d,e);
 const cid=bS.v.length/3;bS.v.push(0,(zBell(1)+zHull(1))/2,O.L-HL);bS.uv.push(O.L,.9);
 for(let r=0;r<n;r++){const a=vid(bS,Pp,Uv,i,r),c=vid(bS,Pp,Uv,i,(r+1)%n);bS.idx.push(cid,a,c);}}
 finish(bW);finish(bO);finish(bS);
+// ナンバープレート (後端の平らな面)
+if(BD.plate){ const cv=document.createElement("canvas"); cv.width=256; cv.height=92; const c=cv.getContext("2d");
+ c.fillStyle="#f4f1ea"; c.fillRect(0,0,256,92); c.strokeStyle="#c2410c"; c.lineWidth=6; c.strokeRect(4,4,248,84);
+ c.fillStyle="#111"; c.font="bold 58px Arial,sans-serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillText(BD.plate,128,50);
+ const tx=new THREE.CanvasTexture(cv); tx.encoding=THREE.sRGBEncoding;
+ const pl=new THREE.Mesh(new THREE.PlaneGeometry(.30,.108),new THREE.MeshStandardMaterial({map:tx,roughness:.6,side:DS}));
+ pl.position.set(0,zHull(1)-.075,O.L-HL+.004); grp.add(pl); }
 }
 /* ==== パネル翼(ハルより≥6cm上の独立フラット面=構造的にZファイティング不可) ==== */
 {
