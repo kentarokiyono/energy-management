@@ -21,7 +21,9 @@ const O=Object.assign({L:5,noseTip:.23,canopyX:1.83,canopyLen:1.55,canopyW:.44,c
  BD.canopy?{canopyX:BD.canopy.x,canopyLen:BD.canopy.len,canopyW:BD.canopy.w,canopyTop:BD.canopy.top}:{});
 const PF=BD.profiles||{};
 const LIV=!!BD.livery;                       // 実車の塗り分け (側面: 白地・上縁オレンジ・下端黒・後部の黒ストライプ)
-const BF=BD.sectionBottom;
+const BF0=BD.sectionBottom, BFE=BD.sectionBottomEnd!=null?BD.sectionBottomEnd:BF0;
+const BF=BF0;   // 断面の底辺の割合 (後端に向けて BFE へ: 後端の面を長方形にできる)
+const bfAt=u=>BF0==null?null: BF0+(BFE-BF0)*clamp((u-0.72)/0.28,0,1)**2;
 const PG=BD.panelGap!=null?BD.panelGap:0.06;   // パネルと胴体上面のすき間 [m]                   // 断面: 底辺の幅の割合 (台形断面, 上ほど広い)。未指定なら丸い断面
 if(LIV){ O.seg=120; O.side=26; }
 if(!YATA_CACHE.tex){
@@ -79,13 +81,13 @@ const u=i/O.seg,xl=u*O.L,wh=hullW(u),zb=zBell(u),hd=zHull(u),zPos=xl-HL;
 const pts=[],typ=[];
 pts.push(new THREE.Vector3(0,zb,zPos));
 for(let r=1;r<=O.side;r++){const t=r/O.side;
-pts.push(BF!=null? new THREE.Vector3(wh*(BF+(1-BF)*t),zb+(hd-zb)*t,zPos) : new THREE.Vector3(wh*Math.pow(Math.sin(t*Math.PI/2),.85),zb+(hd-zb)*Math.pow(t,1.25),zPos));typ.push("S");}
+pts.push(BF!=null? new THREE.Vector3(wh*(bfAt(u)+(1-bfAt(u))*t),zb+(hd-zb)*t,zPos) : new THREE.Vector3(wh*Math.pow(Math.sin(t*Math.PI/2),.85),zb+(hd-zb)*Math.pow(t,1.25),zPos));typ.push("S");}
 for(let d=1;d<=O.deckK;d++){const s2=d/O.deckK;
 pts.push(new THREE.Vector3(wh*(1-s2),hd,zPos));typ.push("K");}
 for(let d=O.deckK-1;d>=1;d--){const s2=d/O.deckK;
 pts.push(new THREE.Vector3(-wh*(1-s2),hd,zPos));typ.push("K");}
 for(let r=O.side-1;r>=1;r--){const t=r/O.side;
-pts.push(BF!=null? new THREE.Vector3(-wh*(BF+(1-BF)*t),zb+(hd-zb)*t,zPos) : new THREE.Vector3(-wh*Math.pow(Math.sin(t*Math.PI/2),.85),zb+(hd-zb)*Math.pow(t,1.25),zPos));typ.push("S");}
+pts.push(BF!=null? new THREE.Vector3(-wh*(bfAt(u)+(1-bfAt(u))*t),zb+(hd-zb)*t,zPos) : new THREE.Vector3(-wh*Math.pow(Math.sin(t*Math.PI/2),.85),zb+(hd-zb)*Math.pow(t,1.25),zPos));typ.push("S");}
 typ.push("S");
 Pp.push(pts);Uv.push(pts.map(p=>new THREE.Vector2(xl,p.x+.9)));TYP.push(typ);
 }
