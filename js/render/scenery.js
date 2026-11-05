@@ -10,9 +10,10 @@ kmOfS(view,s){ return view.kmOfS(s); },
 /* 横オフセットを道路断面に合わせる: ±ROAD_W 以遠は左端 L / 右端 R からの距離として扱う */
 warpOff(p,off){ const W=5; if(off<=-W+0.01) return off-((p.L||W)-W); if(off>=W-0.01) return off+((p.R||W)-W); return off; },
 /* 走行可能な舗装敷地 (CS構内・ドライバー交代の駐車帯・ゴール) → {y} */
+/* 橋の下の川・海 (建物・電柱を置かない範囲) */
+waterSite(view,s,lat){ const km=view.kmOfS(s); return Math.abs(lat)<190&&Route.real(km)&&[-0.015,0,0.015].some(d=>OsmRoute.waterAt(km+d)); },
 pavedSite(view,s,lat){
  const km=view.kmOfS(s);
- if(Math.abs(lat)<190&&Route.real(km)&&[-0.015,0,0.015].some(d=>OsmRoute.waterAt(km+d))) return {water:true};   // 橋の下の川・海には建物を置かない
  for(const c of RP_CS){ const osm=OsmRoute.townAt(c.km); if(Math.abs(km-c.km)<(osm?0.045:0.16)&&Math.abs(lat)<(osm?14:24)) return {y:0.02,cs:c}; }
  const dc=RP_RULES.driverChange;
  if(km>dc.km-0.03&&km<dc.km+dc.len+0.03&&lat<-view.ROAD_W+0.5&&lat>-view.ROAD_W-16) return {y:0.02,dc:true};
@@ -198,7 +199,7 @@ brNear(view,s,w=0,sd=0){
 upWind(pos,idx){ for(let i=0;i<idx.length;i+=3){ const a=idx[i]*3,b=idx[i+1]*3,c=idx[i+2]*3;
   const ny=(pos[b+2]-pos[a+2])*(pos[c]-pos[a])-(pos[b]-pos[a])*(pos[c+2]-pos[a+2]); if(ny<0){ const t=idx[i+1]; idx[i+1]=idx[i+2]; idx[i+2]=t; } } },
 /* 沿道の柱など: 道路にかかる場合は前後にずらして置く (置けなければ null) */
-clearAt(view,s,off,sd){ for(const d of [0,6,-6,12,-12]){ if(this.brNear(view,s+d,0,sd)) continue; const ps=this.pavedSite(view,s+d,off); if(ps&&ps.water) continue; const q=this.at(view,s+d,off); if(this.roadClear(view,q.x,q.z,s+d)) return q; } return null; },
+clearAt(view,s,off,sd){ for(const d of [0,6,-6,12,-12]){ if(this.brNear(view,s+d,0,sd)) continue; if(this.waterSite(view,s+d,off)) continue; const q=this.at(view,s+d,off); if(this.roadClear(view,q.x,q.z,s+d)) return q; } return null; },
 /* 本線が同じ場所を再び通る (ループ・上下線の往復) 区間: 後から通る側の路面は先の路面/分岐の下へ沈めて重ね描きを避ける */
 rowHidden(view,s){
  const P=view.road.pts, i0=Math.round(s/view.SEG); if(i0>=P.length) return false;
@@ -354,7 +355,7 @@ urban(ctx,kind){
    const lotW= kind==="darwin_cbd"? rndr(30,44) : kind==="adelaide"? rndr(17,21) : rndr(18,26);
    if(nearSide(s)){ s+=lotW; continue; }
    const off=sd*rndr(oa,ob), q=this.at(view,s,off), y=q.y-0.05;
-   if(q.blockedFar||this.pavedSite(view,s,off)){ s+=lotW; continue; }
+   if(q.blockedFar||this.pavedSite(view,s,off)||this.waterSite(view,s,off)){ s+=lotW; continue; }
    if(kind==="darwin_cbd"){ // 高層ビルは敷地の四隅も道路にかからないこと
     if([[-12,-12],[12,-12],[-12,12],[12,12]].some(([a,c])=>this.at(view,s+a,off+c).blockedFar)){ s+=lotW; continue; }
     PR.tower(bs,q.x,y,q.z,q.face,rnd()<0.55?"resi":"office"); }
@@ -390,7 +391,7 @@ townOverlay(ctx){
   for(const [oa,ob] of [[SH+16,SH+26],[SH+50,SH+62],[SH+95,SH+120]]){
    if(rnd()<0.35) continue;
    const off=sd*rndr(oa,ob), q=this.at(view,s,off), y=q.y-0.05;
-   if(q.blockedFar||this.pavedSite(view,s,off)) continue;
+   if(q.blockedFar||this.pavedSite(view,s,off)||this.waterSite(view,s,off)) continue;
    if(tk==="cooberpedy"){ rnd()<0.5? PR.mullock(bs,q.x,y,q.z,0.6) : PR.houseOutback(bs,q.x,y,q.z,q.face); }
    else if(Math.abs(off)<SH+30 && rnd()<(tk==="alice"||tk==="ptaugusta"?0.3:0.12)) PR.shopStrip(bs,q.x,y,q.z,q.face,2+Math.floor(rnd()*2));
    else PR.houseOutback(bs,q.x,y,q.z,q.face);

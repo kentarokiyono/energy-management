@@ -768,7 +768,8 @@ this.upcomingGrade= Math.abs(ahead.g)>0.02 ? Math.sign(ahead.g) : 0;
 const site=Scenery.pavedSite(this,this.s,this.lateral);
 es.offroad=!onMain && !br && !site && !es.camp && es.stopTimer<=0;
 if(es.offroad&&es.v>1) es.v=Math.max(0,es.v-clamp(es.v*0.12,0.2,2.5)*dtR);
-const carY= br? br.y : site? pHere.y+site.y : pHere.y;
+let carY= br? br.y : site? pHere.y+(site.y||0) : pHere.y;
+if(!Number.isFinite(carY)) carY=pHere.y;   // 高さが壊れても画面全体を道連れにしない
 const nx=Math.cos(pHere.h), nz=Math.sin(pHere.h);
 const hCar=this.ch;
 this.car.position.set(this.cx, carY, this.cz);
