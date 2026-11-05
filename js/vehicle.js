@@ -24,7 +24,7 @@ const VEH=(()=>{
   PRO.kt=(Mo.vNom||96)/(PRO.noLoadRpm/60*2*Math.PI)/PRO.tireR; PRO.motorVnom=Mo.vNom||96;
   // パワーモード: 無負荷回転数を上げた (逆起電力係数が小さい) 特性。力定数も同じ比で小さくなる
   if(Mo.powerNoLoadRpm){ PRO.rpmPower=Mo.powerNoLoadRpm; PRO.ktPower=PRO.kt*PRO.noLoadRpm/Mo.powerNoLoadRpm; }
-  if(Mo.ecoMaxA&&Mo.powerMaxA) PRO.modeMaxA=[Mo.ecoMaxA,Mo.powerMaxA]; }
+  if(Mo.ecoMaxA&&Mo.powerMaxA) { PRO.modeMaxA=[Mo.ecoMaxA,Mo.powerMaxA]; P.motorMaxA=Mo.ecoMaxA; } }
  const So=S.solar; if(So){ if(So.area) P.arrayArea=So.area; if(So.cellEff) P.cellEff=So.cellEff; if(So.mpptEff) P.mpptEff=So.mpptEff; }
  const Ba=S.battery; if(Ba&&Ba.series){ PRO.vFull=Ba.series*(Ba.cellVmax||4.2); PRO.vEmpty=Ba.series*(Ba.cellVmin||3.0);
   if(Ba.cellAh) P.batteryWh=Math.round(Ba.series*Ba.parallel*Ba.cellAh*(Ba.cellVnom||3.7)); }
