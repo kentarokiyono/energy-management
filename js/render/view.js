@@ -97,27 +97,53 @@ if(SB&&SB.wheels){ const tm=new THREE.MeshStandardMaterial({color:0x111316,rough
   g.add(wg); g.userData.wheels.push({g:wg,r,front:z<0}); } }
 // ---- コックピット内装(ドライバーカメラで体感) ----
 const cock=new THREE.Group();
-const carbon=new THREE.MeshStandardMaterial({color:0x14181d,roughness:.6});
-const rim=new THREE.Mesh(new THREE.TorusGeometry(1,.045,8,40),carbon);
-rim.rotation.x=Math.PI/2; rim.scale.set(.23,.8,1); rim.position.set(0,.66,-.67); cock.add(rim);
-// ヨークピボット(ステア連動で回転)
+const carbon=new THREE.MeshLambertMaterial({color:0x0b0d10});
+const E0=(VEH.active&&VEH.spec.eye)||[0,.84,-.45];
+const deckY=SB&&SB.profiles? .68 : .62;
+// 計器盤カウル (ハンドルの奥, 前方視界の下端) と両側のコクピット壁
+for(const sd of [-1,1]){ const wall=new THREE.Mesh(new THREE.BoxGeometry(.03,.22,.9),carbon); wall.position.set(E0[0]+sd*.27,deckY-.06,E0[2]-.15); cock.add(wall);
+ const pad=new THREE.Mesh(new THREE.BoxGeometry(.06,.035,.7),new THREE.MeshLambertMaterial({color:0x1a1d22})); pad.position.set(E0[0]+sd*.26,deckY+.05,E0[2]-.1); cock.add(pad); }
+// ステアリング (F1 型): 平らな上下辺・両側のグリップ・中央の表示部・シフトランプ・ボタン・ロータリー・パドル
 this.yokePivot=new THREE.Group();
-this.yokePivot.position.set(0,.56,-.95); this.yokePivot.rotation.x=-.35;
+this.yokePivot.position.set(E0[0],E0[1]-.27,E0[2]-.44); this.yokePivot.rotation.x=.22;
+const wheel=new THREE.Group();
 const rr=(sh,x,y,w,h,r)=>{sh.moveTo(x+r,y);sh.lineTo(x+w-r,y);sh.quadraticCurveTo(x+w,y,x+w,y+r);
 sh.lineTo(x+w,y+h-r);sh.quadraticCurveTo(x+w,y+h,x+w-r,y+h);sh.lineTo(x+r,y+h);
 sh.quadraticCurveTo(x,y+h,x,y+h-r);sh.lineTo(x,y+r);sh.quadraticCurveTo(x,y,x+r,y);};
-const ys=new THREE.Shape(); rr(ys,-.16,-.11,.32,.22,.06);
-const yh=new THREE.Path(); rr(yh,-.125,-.075,.25,.15,.04); ys.holes.push(yh);
-const yoke=new THREE.Mesh(new THREE.ExtrudeGeometry(ys,{depth:.025,bevelEnabled:false}),carbon);
-this.yokeMesh=yoke;
-this.yokePivot.add(yoke);
-// ライブ計器(ヨーク開口内に収まりハンドルと一体回転)
+// 本体: 上辺が少し広い台形に近い板 (下辺は平ら)
+const bodyS=new THREE.Shape(); bodyS.moveTo(-.105,-.065); bodyS.lineTo(.105,-.065); bodyS.quadraticCurveTo(.125,-.065,.125,-.045);
+bodyS.lineTo(.13,.045); bodyS.quadraticCurveTo(.13,.07,.105,.07); bodyS.lineTo(-.105,.07); bodyS.quadraticCurveTo(-.13,.07,-.13,.045);
+bodyS.lineTo(-.125,-.045); bodyS.quadraticCurveTo(-.125,-.065,-.105,-.065);
+const wb=new THREE.Mesh(new THREE.ExtrudeGeometry(bodyS,{depth:.03,bevelEnabled:true,bevelSize:.004,bevelThickness:.004,bevelSegments:2}),carbon);
+wb.position.z=-.03; wheel.add(wb);
+// グリップ (ゴム): 縦長のカプセルを外へ少し傾ける
+const rub=new THREE.MeshLambertMaterial({color:0x050506});
+for(const sd of [-1,1]){
+ const gp=new THREE.Mesh(new THREE.CylinderGeometry(.022,.024,.13,14),rub); gp.position.set(sd*.152,-.005,-.012); gp.rotation.z=-sd*.12; wheel.add(gp);
+ for(const yy of [.065,-.075]){ const cap=new THREE.Mesh(new THREE.SphereGeometry(.022,12,8),rub); cap.position.set(sd*(.152+sd*yy*-.12)+0,yy-.005,-.012); wheel.add(cap); }
+ // パドル (裏側)
+ const pd=new THREE.Mesh(new THREE.BoxGeometry(.05,.06,.004),new THREE.MeshStandardMaterial({color:0x6b7178,roughness:.35,metalness:.6})); pd.position.set(sd*.085,.02,-.045); wheel.add(pd);
+}
+// シフトランプ (上辺): 速度に応じて緑→赤→青
+this.shiftLeds=[];
+for(let i=0;i<10;i++){ const m=new THREE.MeshBasicMaterial({color:0x101010}); const led=new THREE.Mesh(new THREE.CircleGeometry(.0055,10),m);
+ led.position.set(-.054+i*.012,.058,.0045); wheel.add(led); this.shiftLeds.push({m,c:i<4?0x22ff55:i<8?0xff2222:0x3388ff}); }
+// ボタン・ロータリースイッチ
+const btn=(x,y,c,r)=>{ const b=new THREE.Mesh(new THREE.CylinderGeometry(r||.0065,r||.0065,.006,14),new THREE.MeshStandardMaterial({color:c,roughness:.4})); b.rotation.x=Math.PI/2; b.position.set(x,y,.004); wheel.add(b); };
+[[-.098,.035,0xd11a1a],[-.098,.008,0xf6c400],[-.098,-.019,0x1f6fd1],[.098,.035,0x22a54a],[.098,.008,0xffffff],[.098,-.019,0xf97316]].forEach(([x,y,c])=>btn(x,y,c));
+for(const x of [-.045,0,.045]){ btn(x,-.045,0x2a2d31,.011); const tick=new THREE.Mesh(new THREE.BoxGeometry(.002,.008,.002),new THREE.MeshBasicMaterial({color:0xffffff})); tick.position.set(x,-.039,.008); wheel.add(tick); }
+this.yokeMesh=wheel;
+this.yokePivot.add(wheel);
+// 表示部 (ライブ計器・ハンドルと一体で回転)
 this.dashCanvas=document.createElement("canvas"); this.dashCanvas.width=512; this.dashCanvas.height=160;
 this.dashTex=new THREE.CanvasTexture(this.dashCanvas);
-const dash=new THREE.Mesh(new THREE.PlaneGeometry(.20,.0625),
+const dash=new THREE.Mesh(new THREE.PlaneGeometry(.112,.035),
 new THREE.MeshBasicMaterial({map:this.dashTex,side:THREE.DoubleSide}));
-dash.position.set(0,0,0.02);
-this.yokePivot.add(dash);
+dash.position.set(0,.02,.0045);
+wheel.add(dash);
+// ステアリングコラム
+const col=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.32,10),new THREE.MeshStandardMaterial({color:0x4a4f55,metalness:.6,roughness:.4}));
+col.rotation.x=Math.PI/2-.22; col.position.set(0,-.03,-.17); this.yokePivot.add(col);
 cock.add(this.yokePivot);
 body.add(cock);
 } else if(P.shape==="catamaran"){
@@ -523,12 +549,13 @@ if(g.gradeRemain<=0){
  const mid=(km>950&&km<2150);
  const flatBias= zone?1:(mid?0.75:0.45);
  if(Math.random()<flatBias){ g.targetGrade=0; g.gradeRemain=400+Math.random()*1400; }
- else{ const mag= mid?(0.005+Math.random()*0.015):(0.01+Math.random()*0.03);
+ else{ const mag= mid?(0.004+Math.random()*0.010):(0.006+Math.random()*0.018);
   g.targetGrade=(Math.random()<0.5?-1:1)*mag; g.gradeRemain=150+Math.random()*650; }
  if(this.genY>25) g.targetGrade=Math.min(g.targetGrade,-0.006);
  if(this.genY<-25) g.targetGrade=Math.max(g.targetGrade,0.006);
 }
-g.grade+=clamp(g.targetGrade-g.grade,-0.0008,0.0008)*this.SEG*(zone?0.3:1);
+// 縦断の曲率は半径 1 万 m 程度 (勾配変化 0.0001/m)。急だと坂の頂上の先の道路が数十 m で見えなくなる
+g.grade+=clamp(g.targetGrade-g.grade,-0.0001,0.0001)*this.SEG*(zone?0.3:1);
 // OSM の町区間 (等倍) は平坦: 道路が同じ場所を再び通るので、高さがずれると地形が別の区間の道路を覆う
 if(P.mode==="race"&&zone&&OsmRoute.townAt(km)){ g.grade*=0.85; g.targetGrade=0; g.gradeRemain=Math.max(g.gradeRemain,200); }
 this.genY=(this.genY||0)+g.grade*this.SEG;
@@ -773,7 +800,14 @@ const cx=this.car.position.x, cy=this.car.position.y, cz=this.car.position.z;
 camPos=new THREE.Vector3(cx+Math.sin(hCar)*0.3, cy+2.2, cz-Math.cos(hCar)*0.3);
 lookAt=new THREE.Vector3(cx-Math.sin(hCar)*60, cy+1.2, cz+Math.cos(hCar)*60);
 }
-if(this.canopyMesh) this.canopyMesh.visible=(this.cam!==2);
+if(this.canopyMesh){ // ドライバー視点: キャノピーを内側から見る (前窓はほぼ透明、屋根は濃いスモーク。照り返しなし)
+ const inside=this.cam===2, cm=this.canopyMesh;
+ if(!cm.userData.extMat){ cm.userData.extMat=cm.material;
+  const smoke=new THREE.MeshBasicMaterial({color:0x0a0f16,transparent:true,opacity:.22,depthWrite:false,side:THREE.DoubleSide});
+  cm.userData.inMat=[smoke,smoke]; }
+ cm.material= inside? cm.userData.inMat : cm.userData.extMat;
+ cm.visible=true; }
+if(this.shiftLeds&&this.cam===2){ const f=clamp(es.v*3.6/100,0,1)*10; this.shiftLeds.forEach((L,i)=>L.m.color.setHex(i<f? L.c : 0x101010)); }
 if(this.cam>=2) this.camera.position.copy(camPos);
 else this.camera.position.lerp(camPos,clamp(dtR*(this.cam===0?5:12),0,1));
 this.camera.lookAt(lookAt);

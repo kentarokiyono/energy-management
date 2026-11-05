@@ -433,8 +433,22 @@ wires(ctx,pts,heights,sag,color){
  const lm=this._lineMats[color]||(this._lineMats[color]=new THREE.LineBasicMaterial({color:new THREE.Color(color).convertSRGBToLinear(),transparent:true,opacity:0.8}));
  const l=new THREE.LineSegments(g,lm); l.matrixAutoUpdate=false; ctx.grp.add(l);
 },
+/* 点が道路 (本線のどの区間か・分岐道路) の上か → 最も近い道路の点 (外へずらす向きの計算用) か null */
+roadHit(view,x,z,pad){
+ const P=view.road.pts;
+ for(let i=0;i<P.length;i+=2){ const q=P[i], w=Math.max(q.L||5,q.R||5)+pad, dx=x-q.x, dz=z-q.z; if(dx*dx+dz*dz<w*w) return q; }
+ for(const b of view.branches){ if(Math.abs(x-b.cx)>b.R+b.half||Math.abs(z-b.cz)>b.R+b.half) continue;
+  for(const q of b.pts){ const dx=x-q.x, dz=z-q.z; if(dx*dx+dz*dz<(b.half+pad)**2) return q; } }
+ return null;
+},
 signMesh(ctx,q,kind,text,w,h,postH,off){
  const {bs}=ctx;
+ // 道路の上に立たないように: 重なっていれば最寄りの道路から離れる向きに最大 10 m ずらす。だめなら置かない
+ if(ctx.view&&kind!=="banner"){ let hit=this.roadHit(ctx.view,q.x,q.z,0.6);
+  if(hit){ let ok=false;
+   for(let k=1;k<=8&&!ok;k++){ const dx=q.x-hit.x, dz=q.z-hit.z, L=Math.hypot(dx,dz)||1; const nx2=q.x+dx/L*1.3, nz2=q.z+dz/L*1.3;
+    q=Object.assign({},q,{x:nx2,z:nz2}); hit=this.roadHit(ctx.view,q.x,q.z,0.6); if(!hit) ok=true; }
+   if(!ok) return; } }
  const ry=-q.h;
  const posts= w>2.2? [-w*0.35,w*0.35] : [0];
  for(const px of posts) bs.get("solid").add(tpl("box"),M4(q.x+q.nx*px,q.y,q.z+q.nz*px,0.08,postH,0.08,ry),linCol(0x9a9da0));
@@ -715,6 +729,7 @@ branches(ctx){
   if(t.km1<kmA||t.km0>=kmB) continue;
   for(const [k,hb,name,half,shape] of t.arms){
    if(k<kmA||k>=kmB||k<=t.km0+0.005||k>=t.km1-0.005||!Route.inZone(k)) continue;
+   if(k<RP_START.km+0.07) continue;   // スタート会場の出口まわりは交差道路を描かない (右折するだけ)
    const Hk=OsmRoute.H(t,k), ang=Math.atan2(Math.sin(hb-Hk),Math.cos(hb-Hk));
    if(Math.abs(ang)<0.2||Math.abs(ang)>2.9) continue;
    const atMan=RP_MANEUVERS.some(m=>m.osm===t&&Math.abs(m.km-k)<0.015);
