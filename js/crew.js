@@ -189,13 +189,14 @@ ensureBuilt(){
  if(this.built&&this.builtFor===View.car) return;
  this.built=true; this.builtFor=View.car; this.hots=[];
  const B=View.carBody, E=View.cockE0||[0,.84,-.45], dY=View.cockDeckY||.62;
- const hot=(id,label,mesh)=>{ mesh.userData.hot={id,label}; this.hots.push(mesh); B.add(mesh); return mesh; };
+ const hot=(id,label,mesh,parent)=>{ mesh.userData.hot={id,label}; this.hots.push(mesh); (parent||B).add(mesh); return mesh; };
  const M=(c,e)=>{ const m=new THREE.MeshStandardMaterial({color:c,roughness:.5,metalness:.2,emissive:0x000000}); m.userData.hl=true; return m; };
  // パーキングブレーキ (左足付近のレバー)
- const lv=new THREE.Group(); lv.position.set(E[0]-.17,dY-.1,E[2]-.55);
- const lvBar=new THREE.Mesh(new THREE.BoxGeometry(.025,.16,.025),M(0x8a8f96)); lvBar.position.y=.08; lv.add(lvBar);
- const lvKnob=new THREE.Mesh(new THREE.SphereGeometry(.025,10,8),M(0xd11a1a)); lvKnob.position.y=.17; lv.add(lvKnob);
- B.add(lv); this.lever=lv; hot("pbrake","パーキングブレーキ",lvKnob); lvBar.userData.hot={id:"pbrake",label:"パーキングブレーキ"}; this.hots.push(lvBar);
+ // キャノピー開口の内側 (左寄り) に、デッキより上まで出るように置く (車内から見える位置)
+ const lv=new THREE.Group(); lv.position.set(E[0]-.19,dY-.14,E[2]-.30);
+ const lvBar=new THREE.Mesh(new THREE.BoxGeometry(.03,.26,.03),M(0x8a8f96)); lvBar.position.y=.13; lv.add(lvBar);
+ const lvKnob=new THREE.Mesh(new THREE.SphereGeometry(.032,12,10),M(0xd11a1a)); lvKnob.position.y=.27;
+ B.add(lv); this.lever=lv; hot("pbrake","パーキングブレーキ",lvKnob,lv); lvBar.userData.hot={id:"pbrake",label:"パーキングブレーキ"}; this.hots.push(lvBar);
  // モタコンのスイッチボックス (左腕の左)
  const box=new THREE.Mesh(new THREE.BoxGeometry(.09,.05,.11),M(0x1d2227)); box.position.set(E[0]-.3,dY+.075,E[2]-.06); hot("motor","モタコン スイッチ",box);
  const tg=new THREE.Mesh(new THREE.BoxGeometry(.012,.04,.012),M(0xd0d4d8)); tg.position.set(E[0]-.3,dY+.11,E[2]-.06); B.add(tg); this.toggle=tg;
