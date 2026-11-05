@@ -753,8 +753,8 @@ const pHere=this.roadPoint(this.s), pHere0=pHere;
 // 分岐道路 (脇道・曲がり損ね)
 const onMain=this.lateral>=-(pHere0.L+0.4)&&this.lateral<=pHere0.R+0.4;
 const br=onMain? null : this.branchAt(this.cx,this.cz);
-if(br&&!this.onBranch){ this.onBranch=br.b; this.branchWarned=false; }
-if(!br&&this.onBranch&&onMain) { if(this.branchWarned) Radio.push("ルートに復帰しました。","前方誘導車"); this.onBranch=null; }
+if(br&&!this.onBranch&&!br.b.ring){ this.onBranch=br.b; this.branchWarned=false; }
+if((!br||br.b.ring)&&this.onBranch&&onMain) { if(this.branchWarned) Radio.push("ルートに復帰しました。","前方誘導車"); this.onBranch=null; }
 if(this.onBranch&&br&&!this.branchWarned&&br.along>12){
  this.branchWarned=true; Snd.alarm();
  const b=this.onBranch;

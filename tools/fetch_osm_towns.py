@@ -744,6 +744,94 @@ def bridge_spans(G, path, kmof, b0):
     return out
 
 
+def roundabouts(G, path, kmof, b0):
+    """経路が通るラウンドアバウト → [{ks:[[km 入, km 出],...], d, b, R, hw, lanes, arms}]
+    d/b: 最初の進入点から中心への距離 m と方位 (町の座標系 rad)。R: 中心から環道中心線まで m。hw: 環道の半幅 m
+    arms: [[名前, 半幅, 経路か(1/0), 向き(+1 環へ入る/-1 出る/0 対面), 一方通行の相方 index or -1, [[方位, 中心からの距離], ...]]]
+          折れ線は環との接点から外へ最大 90 m (同じ名前の道をたどる)"""
+    wrap = lambda v: (v + math.pi) % (2 * math.pi) - math.pi
+    out = []; i = 1
+    while i < len(path):
+        w = G_edge_way(G, path[i - 1], path[i])
+        if w is None or not G.is_rab(w): i += 1; continue
+        i0 = i - 1
+        while i < len(path):
+            w2 = G_edge_way(G, path[i - 1], path[i])
+            if w2 is None or not G.is_rab(w2): break
+            i += 1
+        i1 = i - 1
+        ring_ways, stack = set(), [G_edge_way(G, path[i0], path[i0 + 1])]
+        while stack:
+            cw = stack.pop()
+            if cw in ring_ways: continue
+            ring_ways.add(cw)
+            for n in G.ways[cw]['nodes']:
+                for w3 in G.node_ways.get(n, ()):
+                    if w3 not in ring_ways and G.is_rab(w3): stack.append(w3)
+        ring_nodes = []
+        for cw in ring_ways:
+            for n in G.ways[cw]['nodes']:
+                if n in G.xy and n not in ring_nodes: ring_nodes.append(n)
+        if len(ring_nodes) < 4: continue
+        cx = sum(G.xy[n][0] for n in ring_nodes) / len(ring_nodes); cy = sum(G.xy[n][1] for n in ring_nodes) / len(ring_nodes)
+        R = sum(math.hypot(G.xy[n][0] - cx, G.xy[n][1] - cy) for n in ring_nodes) / len(ring_nodes)
+        if R > 70: continue
+        same = next((r for r in out if math.hypot(r['_c'][0] - cx, r['_c'][1] - cy) < 5), None)
+        route_edges = {(path[i0 - 1], path[i0]) if i0 > 0 else None, (path[i1 + 1], path[i1]) if i1 + 1 < len(path) else None}
+        if same:
+            same['ks'].append([kmof(i0), kmof(i1)])
+            for a in same['arms']:
+                if a[6] in route_edges or (a[6][1], a[6][0]) in route_edges: a[2] = 1
+            continue
+        rw = next(iter(ring_ways)); lanes = way_lanes(G, rw)
+        hw = round(max(3.6, lanes * 4.2) / 2, 2)
+        ex, ey = G.xy[path[i0]]
+        d = math.hypot(cx - ex, cy - ey); bc = wrap(math.atan2(cx - ex, cy - ey) - b0)
+        polar = lambda q: [round(wrap(math.atan2(G.xy[q][0] - cx, G.xy[q][1] - cy) - b0), 4), round(math.hypot(G.xy[q][0] - cx, G.xy[q][1] - cy), 2)]
+        arms = []
+        for n in ring_nodes:
+            for nb, w3 in G.neighbours(n):
+                if G.is_rab(w3) or nb in ring_nodes: continue
+                tg = G.ways[w3]['tags']
+                if tg.get('highway') in ('service', 'footway', 'cycleway', 'path', 'track') or tg.get('area') == 'yes': continue
+                ow = tg.get('oneway')
+                fw = any(m == nb for m, ww in G.adj.get(n, []) if ww == w3)     # 環 → 外 へ通行可
+                bw = any(m == n for m, ww in G.adj.get(nb, []) if ww == w3)     # 外 → 環 へ通行可
+                dirn = 0 if (fw and bw) else (1 if bw else -1)
+                # 同じ名前の道を 90 m まで外へたどる
+                pts = [n, nb]; L = G.dist(n, nb); nm = G.wname(w3); prev, cur, cw = n, nb, w3
+                while L < 90:
+                    nxt = None
+                    for m, ww in G.neighbours(cur):
+                        if m == prev or m in pts or G.is_rab(ww): continue
+                        rc = lambda q: math.hypot(G.xy[q][0] - cx, G.xy[q][1] - cy)
+                        if rc(m) < rc(cur) - 1.0: continue   # 環の方へ戻る道 (上下線の相方) へは進まない
+                        if ww == cw or (nm and G.wname(ww) == nm): nxt = (m, ww); break
+                    if not nxt: break
+                    prev, cur, cw = cur, nxt[0], nxt[1]; pts.append(cur); L += G.dist(prev, cur)
+                pp = [polar(q) for q in pts]
+                if max(q[1] for q in pp) < R + hw + 4: continue   # 環に沿うだけで外へ出ない道 (環の一部) は腕にしない
+                arms.append([nm[:22], way_half(G, w3), 0, dirn, -1, pp, (n, nb)])
+        for a in arms:
+            if a[6] in route_edges or (a[6][1], a[6][0]) in route_edges: a[2] = 1
+        # 一方通行の上下線の組 (同じ名前・入と出・離れた点が近い)
+        for ia, a in enumerate(arms):
+            if a[3] != 1 or a[4] >= 0: continue
+            best, bd = -1, 1e9
+            for ib, b in enumerate(arms):
+                if b[3] != -1 or b[4] >= 0 or (a[0] and b[0] and a[0] != b[0]): continue
+                pa, pb = a[5][-1], b[5][-1]
+                xa = (pa[1] * math.sin(pa[0]), pa[1] * math.cos(pa[0])); xb = (pb[1] * math.sin(pb[0]), pb[1] * math.cos(pb[0]))
+                dd = math.hypot(xa[0] - xb[0], xa[1] - xb[1])
+                if dd < 60 and dd < bd: best, bd = ib, dd
+            if best >= 0: a[4] = best; arms[best][4] = ia
+        out.append({'_c': (cx, cy), 'ks': [[kmof(i0), kmof(i1)]], 'd': round(d, 2), 'b': round(bc, 4), 'R': round(R, 2), 'hw': hw, 'lanes': lanes, 'arms': arms})
+    for r in out:
+        del r['_c']
+        r['arms'] = [a[:6] for a in r['arms']]
+    return out
+
+
 def build_town(G, t):
     path, marks, log = route_town(G, t)
     prog, vd, vh, b0, total = fillet(G, path)
@@ -809,9 +897,10 @@ def build_town(G, t):
     arms.sort(key=lambda a: a[0])
     prof = carriageway_profile(G, path, kmof)
     bridges = bridge_spans(G, path, kmof, b0)
+    rabs = roundabouts(G, path, kmof, b0)
     flat = [v for L, k in prog for v in (round(L, 2), round(k, 6))]
     out = {'name': t['name'], 'km0': round(km0, 4), 'len': round(total, 1), 'zone': t.get('zone', True),
-           'prog': flat, 'man': man, 'sig': sig, 'ped': ped, 'rab': rab, 'arms': arms, 'prof': prof, 'bridges': bridges}
+           'prog': flat, 'man': man, 'sig': sig, 'ped': ped, 'rab': rab, 'arms': arms, 'prof': prof, 'bridges': bridges, 'rabs': rabs}
     if cs: out['cs'] = {k: v for k, v in cs.items() if v is not None}
     out.update(extra)
     return out, log

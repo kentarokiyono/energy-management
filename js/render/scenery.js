@@ -116,7 +116,7 @@ buildChunk(view,s0,s1){
  const signs=[];
  const ctx={view,grp,bs,signs,s0,s1,kmA,kmB,branches:[]};
  grp.userData.branches=ctx.branches;
- if(P.mode==="race") this.branches(ctx);
+ if(P.mode==="race"){ this.branches(ctx); this.roundabouts(ctx); }
  this._capBr=view.branches.filter(b=>b.sJ>s0-400&&b.sJ<s1+400);
  // ---- 路面 ----
  const roadMat=SceneMats.get(urban?"road_urban":"road_rural").mat;
@@ -724,6 +724,129 @@ makeBranch(ctx,sJ,angle,opt){
  ctx.branches.push(b); view.branches.push(b);
  return b;
 },
+/* ---- ラウンドアバウト (OSM の実形状): 環道・エプロン・中央島・流入路・分離島・Give Way 線と標識 ----
+ 環道と経路以外の流入路は分岐道路として登録 (走行可・標識/樹木の配置よけ)。経路の流入/流出は本線の帯がそのまま通る */
+roundabouts(ctx){
+ const {view,kmA,kmB,bs}=ctx, B=bs.get("solid");
+ if(!this._brMat) this.makeBranchMats();
+ if(!this._rabMats){ const lam=(c,o)=>new THREE.MeshLambertMaterial(Object.assign({color:new THREE.Color(c).convertSRGBToLinear(),side:THREE.DoubleSide},o||{}));
+  this._rabMats={ring:new THREE.MeshLambertMaterial({color:new THREE.Color(1.5,1.5,1.5),map:roadTex("urban"),side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4}),
+   apron:lam(0x9a5a44), kerb:lam(0xc9c5bb), soil:lam(0xa7764c), grassU:lam(0x6d8a3a), grassD:lam(0x9c6a42), line:lam(0xf2f0e6,{polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-6})}; }
+ const M=this._rabMats;
+ const mesh=(pos,idx,mat,uv)=>{ this.upWind(pos,idx); const g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); if(uv) g.setAttribute("uv",new THREE.Float32BufferAttribute(uv,2)); g.setIndex(idx); g.computeVertexNormals(); const m=new THREE.Mesh(g,mat); m.matrixAutoUpdate=false; m.receiveShadow=true; ctx.grp.add(m); return m; };
+ for(const t of OsmRoute.towns) for(const r of t.rabs||[]){
+  const k0=r.ks[0][0]; if(k0<kmA||k0>=kmB||!Route.real(k0)) continue;
+  const P0=view.roadPoint(view.sOfKm(k0)), off=P0.h-OsmRoute.H(t,k0), y=P0.y;
+  const a0=r.b+off, C={x:P0.x+Math.sin(a0)*r.d, z:P0.z-Math.cos(a0)*r.d};
+  const W=(b,rr)=>({x:C.x+Math.sin(b+off)*rr, z:C.z-Math.cos(b+off)*rr});
+  const urban=!!biomeAt(k0).urban, R=r.R, hw=r.hw, rOut=R+hw, rIn=R-hw, apron=Math.min(2.0,Math.max(0,rIn-2.5)), rIs=rIn-apron;
+  const N=Math.max(48,Math.round(R*3));
+  // 環道 (アスファルト): 2 車線なら車線境界の破線 (テクスチャの中央線) が出る
+  { const pos=[],uv=[],idx=[];
+   for(let i=0;i<=N;i++){ const b=i/N*Math.PI*2, ci=Math.sin(b), co=-Math.cos(b), v=b*R/12;
+    pos.push(C.x+ci*rIn,y+0.02,C.z+co*rIn, C.x+ci*rOut,y+0.02,C.z+co*rOut);
+    if(r.lanes>=2) uv.push(0.06,v, 0.94,v); else uv.push(0.1,v, 0.4,v);   // 外側線はテクスチャでなく別に描く (流入口で切るため)
+    if(i>0){ const q=(i-1)*2; idx.push(q,q+2,q+1, q+1,q+2,q+3); } }
+   mesh(pos,idx,M.ring,uv); }
+  // 環の外側の白線 (流入路の口は切る) と内側の白線
+  const mouths=r.arms.map(a=>{ const p=a[5][0]; return {b:p[0], w:(a[1]+1.5)/rOut}; });
+  const inMouth=(b)=>mouths.some(m=>Math.abs(Math.atan2(Math.sin(b-m.b),Math.cos(b-m.b)))<m.w);
+  for(const [rl,cut] of [[rOut-0.35,true],[rIn+0.3,false]]){ const n=Math.round(N*1.5);
+   for(let i=0;i<n;i++){ const b=(i+0.5)/n*Math.PI*2; if(cut&&inMouth(b)) continue;
+    const q=W(b-off,rl), L=2*Math.PI*rl/n; B.add(tpl("boxC"),M4(q.x,y+0.035,q.z,0.12,0.01,L*1.02,-(b+Math.PI/2)),linCol(0xf2f0e6)); } }
+  // エプロン (乗り上げ可の舗装) と中央島 (縁石 + 植栽)
+  if(rIs>0.8){
+   const ring=(r0,r1,y0,y1,mat)=>{ const pos=[],idx=[]; for(let i=0;i<=N;i++){ const b=i/N*Math.PI*2, ci=Math.sin(b), co=-Math.cos(b);
+     pos.push(C.x+ci*r0,y0,C.z+co*r0, C.x+ci*r1,y1,C.z+co*r1); if(i>0){ const q=(i-1)*2; idx.push(q,q+2,q+1, q+1,q+2,q+3); } } mesh(pos,idx,mat); };
+   if(apron>0.3){ ring(rIs,rIn,y+0.09,y+0.05,M.apron); ring(rIn,rIn,y+0.02,y+0.05,M.kerb); }
+   ring(rIs,rIs,y+0.05,y+0.22,M.kerb); ring(rIs-0.25,rIs,y+0.22,y+0.22,M.kerb);
+   { const pos=[C.x,y+0.24,C.z],idx=[]; for(let i=0;i<=N;i++){ const b=i/N*Math.PI*2; pos.push(C.x+Math.sin(b)*(rIs-0.25),y+0.22,C.z-Math.cos(b)*(rIs-0.25)); if(i>0) idx.push(0,i,i+1); } mesh(pos,idx,urban?M.grassU:M.grassD); }
+   srand(Math.floor(k0*1000)+77);
+   const nT=Math.min(9,Math.floor(rIs*rIs/40));
+   for(let i=0;i<nT;i++){ const b=rnd()*Math.PI*2, rr=Math.sqrt(rnd())*(rIs-3); if(rIs<4) break;
+    PR.tree(bs,C.x+Math.sin(b)*rr,y+0.22,C.z-Math.cos(b)*rr,"street",0.8); }
+  }
+  // 環そのものを走行可能な道として登録 (中心線の円。本線から外れても路外扱いにしない)
+  { const pts=[]; for(let i=0;i<=N;i++){ const b=i/N*Math.PI*2; pts.push({x:C.x+Math.sin(b)*R,z:C.z-Math.cos(b)*R,y:y+0.02}); }
+   const rb={pts,sJ:view.sOfKm(k0),kmJ:k0,len:2*Math.PI*R,half:hw,step:2*Math.PI*R/N,name:"",ring:true,surface:"asph",y0:y,side:0,dir:null,cx:C.x,cz:C.z,R:R+hw+4,fillets:[]};
+   ctx.branches.push(rb); view.branches.push(rb);
+   // 中央島の上に物を置かない (島全体を覆う円を登録)
+   const isl={pts:[{x:C.x,z:C.z,y},{x:C.x+0.01,z:C.z,y}],sJ:rb.sJ,kmJ:k0,len:2*R+40,half:Math.max(0.5,rIs),step:1,name:"",ring:true,island:true,surface:"asph",y0:y+0.22,side:0,dir:null,cx:C.x,cz:C.z,R:rIs+2,fillets:[]};
+   ctx.branches.push(isl); view.branches.push(isl); }
+  // 流入路: 中心線の折れ線 (世界座標), 環の外端から外へ
+  const line=(a)=>{ const ps=a[5].map(([b,rr])=>W(b,rr)); const out=[]; let started=false;
+   for(let i=0;i<ps.length;i++){ const rr=Math.hypot(ps[i].x-C.x,ps[i].z-C.z);
+    if(!started){ if(rr<rOut-0.8&&i<ps.length-1) continue; started=true;
+     if(i>0){ const p0=ps[i-1], r0=Math.hypot(p0.x-C.x,p0.z-C.z), t=clamp((rOut-0.8-r0)/((rr-r0)||1),0,1); out.push({x:p0.x+(ps[i].x-p0.x)*t,z:p0.z+(ps[i].z-p0.z)*t}); } }
+    out.push(ps[i]); }
+   // 2.5 m ごとに打ち直す
+   const res=[]; if(out.length<2) return res; res.push(out[0]); let acc=0;
+   for(let i=1;i<out.length;i++){ const a=out[i-1], c=out[i], L=Math.hypot(c.x-a.x,c.z-a.z); let d=2.5-acc;
+    while(d<=L){ res.push({x:a.x+(c.x-a.x)*d/L,z:a.z+(c.z-a.z)*d/L}); d+=2.5; } acc=(acc+L)%2.5; }
+   if(res.length<2) res.push(out[out.length-1]); return res; };
+  const lines=r.arms.map(line);
+  const pointAt=(L,d)=>{ const i=clamp(Math.floor(d/2.5),0,L.length-2), t=clamp(d/2.5-i,0,1), a=L[i], c=L[i+1]; return {x:a.x+(c.x-a.x)*t,z:a.z+(c.z-a.z)*t,dx:c.x-a.x,dz:c.z-a.z}; };
+  r.arms.forEach((a,ia)=>{ const [name,half,route,dirn]=a, L=lines[ia]; if(L.length<3) return;
+   if(!route){ // 経路でない流入路は道路として描く (一方通行は車線の中央だけ, 対面通行は中央線つき)
+    const pos=[],uv=[],idx=[]; let v=0;
+    for(let i=0;i<L.length;i++){ const p=L[Math.max(0,i-1)], c=L[Math.min(L.length-1,i+1)], dx=c.x-p.x, dz=c.z-p.z, l=Math.hypot(dx,dz)||1, rx=-dz/l, rz=dx/l;
+     if(i>0) v+=Math.hypot(L[i].x-L[i-1].x,L[i].z-L[i-1].z);
+     pos.push(L[i].x-rx*half,y+0.015,L[i].z-rz*half, L[i].x+rx*half,y+0.015,L[i].z+rz*half);
+     if(dirn===0) uv.push(0,v/12, 1,v/12); else uv.push(0.06,v/12, 0.44,v/12);
+     if(i>0){ const q=(i-1)*2; idx.push(q,q+1,q+2, q+1,q+3,q+2); } }
+    mesh(pos,idx,this._brMat.asph,uv);
+    const pts=L.map(q=>({x:q.x,z:q.z,y:y+0.015}));
+    const ab={pts,sJ:view.sOfKm(k0),kmJ:k0,len:(L.length-1)*2.5,half,step:2.5,name:name||"",wrong:true,surface:"asph",y0:y,side:0,dir:Math.atan2(L[2].x-L[0].x,-(L[2].z-L[0].z)),
+     cx:(L[0].x+L[L.length-1].x)/2,cz:(L[0].z+L[L.length-1].z)/2,R:(L.length-1)*1.25+20,fillets:[],rabArm:true};
+    ctx.branches.push(ab); view.branches.push(ab);
+    // 道路名
+    if(name&&(dirn!==1||a[4]<0)){ const q=pointAt(L,14), l=Math.hypot(q.dx,q.dz)||1, ux=q.dx/l, uz=q.dz/l, h=Math.atan2(ux,-uz);
+     this.signMesh(ctx,{x:q.x-uz*(half+2.2),z:q.z+ux*(half+2.2),y,h,nx:Math.cos(h),nz:Math.sin(h)},"green",name.slice(0,18),2.6,0.55,2.2); }
+   }
+   // Give Way: 環へ入る車線を横切る破線と、左側の標識
+   if(dirn>=0){ const q=pointAt(L,0.9), l=Math.hypot(q.dx,q.dz)||1, ox=q.dx/l, oz=q.dz/l;   // 外向き
+    const ix=-ox, iz=-oz, lx=iz, lz=-ix;   // 環へ向かう向き / その左
+    const w0= dirn===0? 0 : -half, w1=half;   // 左側通行: 入る車線は (環へ向かう向きの) 左半分 = 外向きの右側
+    const rxo=-oz, rzo=ox;   // 外向き右
+    for(let w=w0+0.3;w<w1-0.2;w+=1.2){ B.add(tpl("boxC"),M4(q.x+rxo*(w+0.3),y+0.03,q.z+rzo*(w+0.3),0.6,0.01,0.3,-Math.atan2(ix,-iz)+Math.PI/2),linCol(0xf2f0e6)); }
+    const hIn=Math.atan2(ix,-iz), sp=pointAt(L,2.5);
+    this.signMesh(ctx,{x:sp.x+lx*(half+1.4)*-1*-1,z:sp.z+lz*(half+1.4),y,h:hIn,nx:Math.cos(hIn),nz:Math.sin(hIn)},"giveway","",0.9,0.8,1.9);
+    // 予告 (ラウンドアバウトあり)
+    if(L.length>30){ const pq=pointAt(L,65); this.signMesh(ctx,{x:pq.x+lx*(half+1.6),z:pq.z+lz*(half+1.6),y,h:hIn,nx:Math.cos(hIn),nz:Math.sin(hIn)},"warn","rab",1.2,1.2,1.8); }
+   }
+  });
+  // 分離島: 上下線 (一方通行の組) の間 / 対面通行の流入路の中央の涙形
+  const island=(eA,eB)=>{ // eA, eB: 島の両側の縁 [{x,z}] (同じ数)
+   if(eA.length<2) return; const top=[],ti=[],wall=[],wi=[];
+   for(let i=0;i<eA.length;i++){ top.push(eA[i].x,y+0.17,eA[i].z, eB[i].x,y+0.17,eB[i].z); if(i>0){ const q=(i-1)*2; ti.push(q,q+1,q+2, q+1,q+3,q+2); } }
+   mesh(top,ti,urban?M.grassU:M.soil);
+   const rim=eA.concat(eB.slice().reverse(),[eA[0]]);
+   for(let i=0;i<rim.length;i++){ wall.push(rim[i].x,y,rim[i].z, rim[i].x,y+0.19,rim[i].z); if(i>0){ const q=(i-1)*2; wi.push(q,q+1,q+2, q+1,q+3,q+2); } }
+   mesh(wall,wi,M.kerb);
+   // 島を物の配置よけとして登録
+   const mid=eA.map((p,i)=>({x:(p.x+eB[i].x)/2,z:(p.z+eB[i].z)/2,y:y+0.17}));
+   const wmax=Math.max(...eA.map((p,i)=>Math.hypot(p.x-eB[i].x,p.z-eB[i].z)))/2;
+   const ib={pts:mid,sJ:view.sOfKm(k0),kmJ:k0,len:mid.length*2,half:wmax+0.3,step:2,name:"",ring:true,island:true,surface:"asph",y0:y+0.17,side:0,dir:null,cx:mid[0].x,cz:mid[0].z,R:mid.length*2+wmax+10,fillets:[]};
+   ctx.branches.push(ib); view.branches.push(ib);
+  };
+  r.arms.forEach((a,ia)=>{ const ib=a[4];
+   if(ib>ia){ const A=lines[ia], Bl=lines[ib]; if(A.length<3||Bl.length<3) return;
+    const hA=a[1], hB=r.arms[ib][1], eA=[], eB=[];
+    for(let d=0.6;d<46;d+=2){ const pa=pointAt(A,d), pb=pointAt(Bl,d), dx=pb.x-pa.x, dz=pb.z-pa.z, g=Math.hypot(dx,dz);
+     if(g<hA+hB+1.0) break; if(d>(A.length-1)*2.5||d>(Bl.length-1)*2.5) break;
+     const ux=dx/g, uz=dz/g; eA.push({x:pa.x+ux*(hA+0.3),z:pa.z+uz*(hA+0.3)}); eB.push({x:pb.x-ux*(hB+0.3),z:pb.z-uz*(hB+0.3)}); }
+    if(eA.length>=2){ const g=Math.hypot(eA[eA.length-1].x-eB[eB.length-1].x,eA[eA.length-1].z-eB[eB.length-1].z);   // 先端をとがらせる
+     const tip={x:(eA[eA.length-1].x+eB[eB.length-1].x)/2,z:(eA[eA.length-1].z+eB[eB.length-1].z)/2}; if(g>0.4){ eA.push(tip); eB.push(tip); } }
+    island(eA,eB);
+   } else if(a[3]===0&&a[4]<0){ const L=lines[ia]; if(L.length<6) return;   // 対面通行: 中央に涙形 (環側が太い)
+    const eA=[], eB=[]; const Ls=Math.min(16,(L.length-1)*2.5-2);
+    for(let d=0.8;d<=Ls;d+=1.6){ const q=pointAt(L,d), l=Math.hypot(q.dx,q.dz)||1, rx=-q.dz/l, rz=q.dx/l, t=(d-0.8)/(Ls-0.8), w=Math.max(0.05,(0.9+0.25*Math.min(1,a[1]/3.5))*Math.sqrt(Math.max(0,1-t))*Math.min(1,(d+0.4)/2));
+     eA.push({x:q.x-rx*w,z:q.z-rz*w}); eB.push({x:q.x+rx*w,z:q.z+rz*w}); }
+    island(eA,eB);
+   }
+  });
+ }
+},
 branches(ctx){
  const {view,kmA,kmB,s0,s1}=ctx;
  const D=Math.PI/180;
@@ -757,6 +880,7 @@ branches(ctx){
   for(const [k,hb,name,half,shape] of t.arms){
    if(k<kmA||k>=kmB||k<=t.km0+0.005||k>=t.km1-0.005||!Route.real(k)) continue;
    if(k<RP_START.km+0.07) continue;   // スタート会場の出口まわりは交差道路を描かない (右折するだけ)
+   if((t.rabs||[]).some(r=>r.ks.some(([q0,q1])=>k>q0-0.012&&k<q1+0.012))) continue;   // ラウンドアバウトの腕は roundabouts() で描く
    const Hk=OsmRoute.H(t,k), ang=Math.atan2(Math.sin(hb-Hk),Math.cos(hb-Hk));
    if(Math.abs(ang)<0.2||Math.abs(ang)>2.9) continue;
    const atMan=RP_MANEUVERS.some(m=>m.osm===t&&Math.abs(m.km-k)<0.015);
