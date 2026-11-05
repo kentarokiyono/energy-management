@@ -215,6 +215,73 @@ wall(i0,i1,off,h,mat,yBase=0,step=2){
  g.setIndex(idx); g.computeVertexNormals();
  const m=new THREE.Mesh(g,mat); m.castShadow=!mat.transparent; m.receiveShadow=true; return m;
 },
+/* 任意の折れ線に沿った垂直の壁 (pts: [{x,y,z}]) */
+wallLine(pts,h,mat,yBase=0){
+ const pos=[],uv=[],idx=[]; let acc=0;
+ for(let k=0;k<pts.length;k++){ const q=pts[k]; if(k>0) acc+=Math.hypot(q.x-pts[k-1].x,q.z-pts[k-1].z);
+  pos.push(q.x,q.y+yBase,q.z, q.x,q.y+yBase+h,q.z); uv.push(acc/4,0, acc/4,h/2);
+  if(k>0){ const r=(k-1)*2; idx.push(r,r+2,r+1, r+1,r+2,r+3); } }
+ const g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); g.setAttribute("uv",new THREE.Float32BufferAttribute(uv,2)); g.setIndex(idx); g.computeVertexNormals();
+ const m=new THREE.Mesh(g,mat); m.castShadow=!mat.transparent; m.receiveShadow=true; return m;
+},
+/* コース両側の連続バリア・ピットウォール・ピットレーン外側の壁 */
+buildBarriers(grp,bs,cs,steel,conc,fence){
+ const T=this.track(), n=T.n, HW=T.hw;
+ const A=HV_DATA.pit.map(p=>new THREE.Vector3(p[0],p[1],p[2]));
+ const [sa0,sa1]=this.stripRange();
+ const alOf=(x,z)=>x*T.sd[0]+z*T.sd[1], ltOf=(x,z)=>x*T.sr[0]+z*T.sr[1];
+ // 路端からバリアまでの距離 d[sd][i]: 既定 12 m / 急コーナーの外側 29 m (砂利・タイヤの外) / 内側 6 m
+ const D={1:new Float32Array(n).fill(12),[-1]:new Float32Array(n).fill(12)};
+ for(const [a,b,side,mx] of cs){ const a2=(a-10+n)%n, cnt=((b+14-a2)%n+n)%n;
+  for(let k=0;k<=cnt;k++){ const i=(a2+k)%n; D[-side][i]=Math.max(D[-side][i], mx>=1/45?29:16); D[side][i]=Math.min(D[side][i],6); } }
+ // 北側 (左) のドラッグストリップ横はストリップとの仕切り壁 (路端 +0.5 m)
+ const nearStrip=new Uint8Array(n), nearPit=new Uint8Array(n);
+ for(let i=0;i<n;i++){ const p=T.pts[i], al=alOf(p.x,p.z), lt=ltOf(p.x,p.z);
+  if(al>sa0-10&&al<sa1+10&&Math.abs(lt-ltOf(T.pts[0].x,T.pts[0].z))<30) nearStrip[i]=1;
+  // 南側 (右) にピットレーンが並ぶ区間 (ピットウォールに任せる)
+  let bd=1e9; for(const q of A){ const dx=q.x-p.x, dz=q.z-p.z; const d=dx*dx+dz*dz; if(d<bd) bd=d; }
+  if(Math.sqrt(bd)<HW[i]+16) nearPit[i]=1; }
+ for(let i=0;i<n;i++) if(nearStrip[i]) D[-1][i]=0.5;
+ // 平滑化 (急に出入りしない): 移動最大 → 移動平均
+ for(const sd of [1,-1]){ const d=D[sd], mxw=new Float32Array(n);
+  for(let i=0;i<n;i++){ let m=0; for(let k=-8;k<=8;k++) m=Math.max(m,d[(i+k+n)%n]); mxw[i]=nearStrip[i]&&sd<0?0.5:m; }
+  for(let it=0;it<4;it++) for(let i=0;i<n;i++) d[i]=nearStrip[i]&&sd<0?0.5:(mxw[(i-1+n)%n]+mxw[i]+mxw[(i+1)%n])/3, mxw.set(d); }
+ // 他の区間のコース・ピットレーンに入り込まないよう縮める
+ const clear=(x,z,i)=>{ for(let j=0;j<n;j+=2){ const dj=Math.min((j-i+n)%n,(i-j+n)%n); if(dj<45) continue; const q=T.pts[j]; if((q.x-x)**2+(q.z-z)**2<(HW[j]+5)**2) return false; } return true; };
+ const pitClear=(x,z)=>this.pitDist(x,z)>10.5;
+ const ptsOf=(sd,i0,i1)=>{ const out=[], cnt=((i1-i0)%n+n)%n; for(let k=0;k<=cnt;k++){ const i=(i0+k)%n, p=T.pts[i], r=T.right[i]; let o=HW[i]+D[sd][i];
+   const c=T.curv[i]; if(Math.abs(c)>1e-4&&Math.sign(c)===sd) o=Math.min(o,0.92/Math.abs(c));
+   while(o>HW[i]+1.5){ const x=p.x+r[0]*o*sd, z=p.z+r[1]*o*sd; if(clear(x,z,i)&&(sd<0||pitClear(x,z))) break; o-=1; }
+   out.push({x:p.x+r[0]*o*sd,y:p.y,z:p.z+r[1]*o*sd}); } return out; };
+ // 区間ごとに壁を作る (右はピット区間を除いた 1 本, 左は全周)
+ const runs=(mask)=>{ const out=[]; let st=-1; const first=mask.indexOf(0); if(first<0) return [[0,n-1]];
+  for(let k=0;k<=n;k++){ const i=(first+k)%n, on=k<n&&!mask[i]; if(on&&st<0) st=i; if(!on&&st>=0){ out.push([st,(i-1+n)%n]); st=-1; } } return out; };
+ for(const [i0,i1] of runs(nearPit)) grp.add(this.wallLine(ptsOf(1,i0,i1),0.75,steel,0.1));
+ { const ring=ptsOf(-1,0,n-1); ring.push(ring[0]);
+   // 北側: ストリップ横はコンクリ壁+フェンス、それ以外はアームコ
+   const seg=[]; let cur=null, kind=null;
+   for(let i=0;i<=n;i++){ const k=i%n, kd=nearStrip[k]?"c":"s"; if(kd!==kind){ if(cur) seg.push([kind,cur]); cur=cur?[cur[cur.length-1]]:[]; kind=kd; } cur.push(ring[i]); }
+   if(cur) seg.push([kind,cur]);
+   for(const [kd,pts] of seg){ if(pts.length<2) continue;
+    if(kd==="c"){ grp.add(this.wallLine(pts,1.1,conc)); grp.add(this.wallLine(pts,3.0,fence,1.1)); } else grp.add(this.wallLine(pts,0.75,steel,0.1)); } }
+ // ピットウォール: ピットレーンとコースの間、入口の分岐から出口の合流まで連続 (コース端とピットレーン内側の中間)
+ const edgeS=(q)=>{ const nt=this.nearestTrack(q.x,q.z); const tp=T.pts[nt.i], r=T.right[nt.i]; return {sep:(q.x-tp.x)*r[0]+(q.z-tp.z)*r[1]-HW[nt.i], r}; };
+ const pw=[], outer=[];
+ for(let k=0;k<A.length;k++){ const q=A[k], {sep,r}=edgeS(q);
+  const a=A[Math.max(0,k-1)], b=A[Math.min(A.length-1,k+1)], fx=b.x-a.x, fz=b.z-a.z, L=Math.hypot(fx,fz)||1, rx=-fz/L, rz=fx/L;   // ピットレーンの右 = 外側 (ガレージ側)
+  const gap=sep-3.0;                                   // コース端とピットレーン内側の間の幅
+  if(gap>0.9) pw.push({x:q.x-rx*(3.0+gap/2),y:q.y,z:q.z-rz*(3.0+gap/2)}); else if(pw.length&&!pw._end) pw._end=true;
+  const w1=lerp(3.0,9.0,clamp((sep-3)/8,0,1)), al=alOf(q.x,q.z);
+  outer.push(al<-218||al>218? {x:q.x+rx*(w1+0.8),y:q.y,z:q.z+rz*(w1+0.8)} : null); }
+ if(pw.length>2){ grp.add(this.wallLine(pw,1.1,conc)); grp.add(this.wallLine(pw,3.5,fence,1.1));
+  // 分岐/合流の先端: 黄色の衝撃吸収材
+  for(const e of [pw[0],pw[pw.length-1]]){ const nb=e===pw[0]?pw[1]:pw[pw.length-2], ry=-Math.atan2(nb.x-e.x,-(nb.z-e.z));
+   for(let k=0;k<3;k++) bs.get("solid").add(tpl("box"),M4(e.x-Math.sin(-ry)*k*0.01,e.y,e.z,1.2,1.0,0.9,ry),linCol(k%2?0x111111:0xf2c200));
+   bs.get("solid").add(tpl("box"),M4(e.x,e.y,e.z,1.25,1.02,2.6,ry),linCol(0xf2c200)); } }
+ // ピットレーンの外側 (ガレージ前以外) の低いコンクリ壁
+ let run=[]; const flush=()=>{ if(run.length>1) grp.add(this.wallLine(run,0.9,conc)); run=[]; };
+ for(const q of outer){ if(q) run.push(q); else flush(); } flush();
+},
 /* 曲率から コーナー区間 [i0,i1,side,maxCurv] */
 corners(){
  const T=this.track(), n=T.n, out=[]; let st=-1;
@@ -264,38 +331,22 @@ build(){
   grp.add(this.band(a2,b2,i=>-side*(HW[i]+2.2),i=>-side*(HW[i]+26),-0.04,gravel,{uvL:4}));
   // タイヤバリア(赤白ベルトカバー)
   const cnt=((b2-a2)%n+n)%n;
-  for(let k=0;k<cnt;k+=2){ const i=(a2+k)%n, p=T.pts[i], r=T.right[i];
-   const o=-side*(HW[i]+27.5), x=p.x+r[0]*o, z=p.z+r[1]*o;
-   bs.get("solid").add(tpl("cyl8"),M4(x,p.y,z,0.75,1.1,0.75),linCol(0x18181a));
-   bs.get("solid").add(tpl("box"),M4(x-r[0]*side*0.8,p.y+0.05,z-r[1]*side*0.8,0.05,1.05,3.2,-Math.atan2(T.fwd[i][0],-T.fwd[i][1])),linCol(Math.floor(k/2)%2?0xc8202a:0xeeeeee));
+  // 隙間なく並べる: 中心線の点の間を 1.4 m ごとに補間 (タイヤ直径 1.5 m)
+  let acc=0, cnt2=0;
+  for(let k=0;k<cnt;k++){ const i=(a2+k)%n, j=(i+1)%n, p=T.pts[i], q=T.pts[j], r=T.right[i], r2=T.right[j];
+   const oi=-side*(HW[i]+27.5), oj=-side*(HW[j]+27.5), xi=p.x+r[0]*oi, zi=p.z+r[1]*oi, xj=q.x+r2[0]*oj, zj=q.z+r2[1]*oj, L=Math.hypot(xj-xi,zj-zi);
+   while(acc<L){ const t=acc/L, x=xi+(xj-xi)*t, z=zi+(zj-zi)*t, y=p.y+(q.y-p.y)*t;
+    bs.get("solid").add(tpl("cyl8"),M4(x,y,z,0.75,1.1,0.75),linCol(0x18181a));
+    bs.get("solid").add(tpl("box"),M4(x-r[0]*side*0.8,y+0.05,z-r[1]*side*0.8,0.05,1.05,1.45,-Math.atan2(xj-xi,-(zj-zi))),linCol(Math.floor(cnt2/2)%2?0xc8202a:0xeeeeee));
+    acc+=1.4; cnt2++; }
+   acc-=L;
   }
  }
- // ガードレール(アームコ): 全周の外側, ストレートはコンクリ壁+デブリフェンス
+ // ガードレール(アームコ): コースの両側を全周連続。急コーナーの外側は砂利・タイヤバリアの外、ホームストレートは
+ // 南=ピットウォール (ピットレーン入口〜出口) / 北=ドラッグストリップとの仕切り壁 (コンクリ+デブリフェンス)
  const steel=L(0xb8bcc0), conc=L(0xd6d3cb); steel.side=conc.side=THREE.DoubleSide;
  const fence=new THREE.MeshLambertMaterial({map:this.fenceTex(),transparent:true,side:THREE.DoubleSide,alphaTest:0.25});
- const straight=[(n-150)%n,150];
- for(const [a,b,side,mx] of cs){
-  const a2=(a-8+n)%n, b2=(b+12)%n, o=i=>-side*(HW[i]+(mx<1/45?30:14));
-  grp.add(this.wall(a2,b2,o,0.75,steel,0.1));
- }
- // メインストレート: 南=ピットウォール / 北=ドラッグストリップとの仕切り壁
- { // ピットウォール: ピットレーンがコースから離れている区間のみ (入口/出口は開口)
-  const sepIdx=HV_DATA.pit.map(p=>{ const nt=this.nearestTrack(p[0],p[2]); const tp=T.pts[nt.i], r=T.right[nt.i]; return [nt.i,(p[0]-tp.x)*r[0]+(p[2]-tp.z)*r[1]-HW[nt.i]]; }).filter(q=>q[1]>6);
-  const w0=(sepIdx[0][0]+6)%n, w1=(sepIdx[sepIdx.length-1][0]-6+n)%n;
-  grp.add(this.wall(w0,w1,W(1.5),1.1,conc));
-  grp.add(this.wall(w0,w1,W(1.5),3.5,fence,1.1));
-  // ピット入口/出口: コース端に沿った白い区分線 (分岐点の手前/先 約90m)
-  for(const [i0,dir] of [[sepIdx[0][0],-1],[sepIdx[sepIdx.length-1][0],1]]){
-   for(let k=0;k<30;k++){ const i=(i0+dir*k+n)%n, p=T.pts[i], r=T.right[i], o=HW[i]+0.35;
-    bs.get("solid").add(tpl("box"),M4(p.x+r[0]*o,p.y+0.022,p.z+r[1]*o,0.25,0.01,3.1,-Math.atan2(T.fwd[i][0],-T.fwd[i][1])),linCol(0xf2f0e6)); }
-  }
- }
- { // 北=ドラッグストリップとの仕切り (ストリップ区間のみ)
-  const [sa0,sa1]=this.stripRange(), lc=T.pts[0].x*T.sr[0]+T.pts[0].z*T.sr[1];
-  const ia=this.nearestTrack(...this.SW(sa0+30,lc)).i, ib=this.nearestTrack(...this.SW(sa1-70,lc)).i;
-  grp.add(this.wall(ia,ib,i=>-(HW[i]+0.5),1.1,conc));
-  grp.add(this.wall(ia,ib,i=>-(HW[i]+0.5),3.0,fence,1.1));
- }
+ this.buildBarriers(grp,bs,cs,steel,conc,fence);
  this.buildStartFinish(grp,bs);
  this.buildPits(grp,bs);
  this.buildDragStrip(grp,bs);
@@ -459,7 +510,6 @@ buildDragStrip(grp,bs){
  const [px,pz]=this.SW(a0+60,O); bs.get("solid").add(tpl("box"),M4(px,0.02,pz,Hw*2-0.4,0.03,120,ry),linCol(0xb9b4a8));
  const [tx,tz]=this.SW(a0+125,O); bs.get("solid").add(tpl("box"),M4(tx,0,tz,0.35,2.6,0.35,ry),linCol(0x222222));
  for(let k=0;k<6;k++) bs.get("solid").add(tpl("boxC"),M4(tx,2.6+k*0.3,tz,0.55,0.22,0.3,ry),linCol(k<3?0xffb000:k<5?0x20c050:0xd02020));
- for(const sd of [-1,1]){ const [bx,bz]=this.SW(a0+527,O+sd*(Hw+4)); bs.get("solid").add(tpl("box"),M4(bx,0,bz,6,7,0.6,ry+Math.PI/2),linCol(0x1d1d1d)); }
  // センターライン
  for(let al=a0+5;al<a1-5;al+=6){ const [x,z]=this.SW(al,O); bs.get("solid").add(tpl("box"),M4(x,0.045,z,0.15,0.01,3,ry),linCol(0xf0eee6)); }
  // 試験マーキング (北東端から南西へ走行)
