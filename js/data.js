@@ -60,13 +60,13 @@ arrayArea:4.0, cellEff:0.24, mpptEff:0.98,
 batteryWh:3027, Cd:0.12, frontal:1.00,
 massDry:190, massDriver:68, Crr:0.004,
 motorMaxA:48, regenStrength:0.5, auxW:35,
-timeScale:60, infiniteBattery:false,
+timeScale:60, infiniteBattery:false, crewProc:true,
 uiMode:('ontouchstart' in window)?"mobile":"pc",
 };
 const PRO={
 startSoc:1.0, vFull:107.5, vEmpty:75.0,
 kt:4.3, noLoadRpm:900, ktPower:3.35, rpmPower:1060, tireR:0.26,
-stallBoost:2.0, stallBoostV:5,
+phaseMaxA:0 /* 0 = モーター最大電流の 2 倍 */, cAlpha:24000 /* N/rad, 3 輪合計 */, cdYawK:7,
 mRot:8, brakeMu:0.55, regenEff:0.92, airRho:0, rInternal:0.18,
 rWinding:0.12, ironK1:0.13, ironK2:0.00135, ctrlW:6, battCth:20000, battUA:4, albedo:0.28,
 tempOffset:0, windBase:6, solarScale:1.0, cloudFactor:1.0, dayOfYear:236,
@@ -75,4 +75,6 @@ trainPerHour:3.5, faultScale:1.0, gridRisk:1.0,
 noSpeedCap:0,
 };
 
+/* 2027 BWSC Event Regulations (Challenger): 2.4.2 太陽電池 6 m² 以下 / 2.5.2 蓄電 11 MJ 以下 */
+const REG={maxArea:6, maxWh:11e6/3600};
 const MODE_CFG={ event:{ duration:90, attractIdle:30, stamps:[[2.0,"🥇 GOLD","#fbbf24"],[1.4,"🥈 SILVER","#cbd5e1"],[0,"🥉 BRONZE","#d97706"]] }, race:{} };

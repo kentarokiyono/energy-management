@@ -84,25 +84,50 @@ return Tamb+G*(0.92-P.cellEff)/h;
 }
 // モーター: 銅損 I²R + 鉄損(k1ω+k2ω², 常時の機械的抗力) + コントローラ損失
 function motorIronW(v){ const w=Math.max(0,v)/PRO.tireR; return PRO.ironK1*w+PRO.ironK2*w*w; }
-function motorModel(I,v,soc,power){
-const Vb=VOC(soc);
-const kt=power?PRO.ktPower:PRO.kt;
-const noLoad=power?PRO.rpmPower:PRO.noLoadRpm;
-const vMax=noLoad*(Vb/96)/60*2*Math.PI*PRO.tireR;
-const boost=1+(PRO.stallBoost-1)*clamp((PRO.stallBoostV-v)/PRO.stallBoostV,0,1);
-let F=kt*I*boost;
-if(!PRO.noSpeedCap){
-const Pcap=Vb*I*0.97*PRO.stallBoost;
-if(v>0.5 && F*v>Pcap) F=Pcap/v;
-if(v>vMax*0.97) F*=clamp((vMax-v)/(vMax*0.03),0,1);
+/* ---- インホイール DC ブラシレスモーター (等価回路モデル) ----
+ kt [N/A]: 車輪の駆動力 / 相電流 (= トルク定数 / タイヤ半径)。逆起電力 E = kt·v [V]
+ 入力: DC 電流指令 I [A] (モーター最大電流で上限)。コントローラは DC 電力を相電流に変換し
+  (降圧で低速ほど相電流が大きくなる)、相電流は PRO.phaseMaxA と電圧 (Vb - E)/R で頭打ち。
+ 損失: 銅損 Iph²R + コントローラ (固定 + 1% of Pin)。鉄損は走行抵抗側 (motorIronW) で計上 */
+/* モードごとの電流上限 [A]: 諸元にエコ/パワーの上限があればそれ、無ければモーター最大電流 */
+function motorMaxA(power){ const M=PRO.modeMaxA; return M? (power?M[1]:M[0]) : P.motorMaxA; }
+function motorParams(power){
+ return {kt: power?PRO.ktPower:PRO.kt, R: PRO.rWinding*(power?1.15:1), rpm: power?PRO.rpmPower:PRO.noLoadRpm};
 }
-const Rw=PRO.rWinding*(power?1.15:1);
-const Iph=F/kt;
-const Pcu=Iph*Iph*Rw;
-const Pctrl=I>0.05? PRO.ctrlW+0.01*Vb*I : 0;
-const Pelec=F*Math.max(0,v)+Pcu+Pctrl;
+function motorModel(I,v,soc,power){
+const Vb=VOC(soc), mp=motorParams(power);
+// 無負荷回転数 (公称 96 V) と整合する逆起電力係数
+const ke=(PRO.motorVnom||96)/(mp.rpm/60*2*Math.PI*PRO.tireR);       // E = ke·v
+const E=ke*Math.max(0,v), vMax=Vb/ke;
+const phaseMax=PRO.phaseMaxA>0? PRO.phaseMaxA : 2*motorMaxA(power);
+const Pctrl0= I>0.05? PRO.ctrlW : 0;
+const Pin=Math.max(0,Vb*I*0.99-Pctrl0);            // 相側へ渡せる電力
+// Pin = (E + Iph·R)·Iph → Iph
+let Iph= Pin>0? (-E+Math.sqrt(E*E+4*mp.R*Pin))/(2*mp.R) : 0;
+Iph=Math.min(Iph,phaseMax,Math.max(0,(Vb-E)/mp.R));   // デューティ 100% まで
+const F=mp.kt*Iph;
+const Pcu=Iph*Iph*mp.R;
+const Pelec= Iph>0? F*Math.max(0,v)+Pcu+Pctrl0+0.01*Vb*I : 0;
 const eff=Pelec>1? F*Math.max(0,v)/Pelec : 0;
-return {F,Pelec,Vb,eff,vMax};
+return {F,Pelec,Vb,eff,vMax,Iph};
+}
+/* 回生: 相電流指令 Ir (回生強度×最大電流)。逆起電力が電圧降下を上回る分だけ発電。低速では効かない */
+function regenModel(cmd,v,soc,power){
+const Vb=VOC(soc), mp=motorParams(power);
+const ke=(PRO.motorVnom||96)/(mp.rpm/60*2*Math.PI*PRO.tireR), E=ke*Math.max(0,v);
+let Ir=cmd*P.regenStrength*motorMaxA(power);
+Ir=Math.min(Ir, Math.max(0,E/mp.R*0.5));           // 発電できる範囲 (E > Ir·R)
+const F=mp.kt*Ir;
+const Pgen=Math.max(0,(E-Ir*mp.R)*Ir*PRO.regenEff-(Ir>0.5?PRO.ctrlW:0));
+return {F,Pgen};
+}
+/* 旋回抵抗: タイヤのスリップ角 α = Fy/Cα による誘導抵抗 Fy·α (Cα: 全輪合計のコーナリングスティフネス) */
+function cornerDrag(m,gLat){ const Fy=m*9.81*Math.abs(gLat||0); return Fy*Fy/Math.max(1000,PRO.cAlpha); }
+/* ヨー角 β [rad] での抗力係数倍率。諸元に表 (aero.cdYaw: [[deg, 倍率],...]) があれば補間、無ければ 1 + kβ² */
+function cdYawFactor(beta){
+ const T=(typeof VEH!=="undefined"&&VEH.active&&VEH.spec.aero&&VEH.spec.aero.cdYaw)||null, d=Math.abs(beta)*180/Math.PI;
+ if(T){ if(d<=T[0][0]) return T[0][1]; for(let i=1;i<T.length;i++) if(d<=T[i][0]){ const a=T[i-1],b=T[i]; return a[1]+(b[1]-a[1])*(d-a[0])/(b[0]-a[0]); } return T[T.length-1][1]; }
+ return 1+PRO.cdYawK*beta*beta;
 }
 function csCloseAbs(km){ // Route Notes の公式クローズ時刻 (Day1=8/24 からの通算時間)
 const c=RP_CS.find(c=>Math.abs(c.km-km)<1); if(c) return Route.absHour(c.close);

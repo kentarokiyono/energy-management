@@ -80,6 +80,8 @@ function refreshSliderLabel(id){
 const s=SLIDERS.find(x=>x.id===id);
 const el=document.getElementById("val-"+id); if(!el) return;
 el.textContent = s.pct ? (P[id]*100).toFixed(1)+" %" : P[id]+(s.unit?" "+s.unit:"");
+if(id==="batteryWh"){ const over=P.batteryWh>REG.maxWh; el.textContent+=over?" ⚠ 11 MJ (3056 Wh) 超":""; el.style.color=over?"#fb7185":""; }
+if(id==="arrayArea"){ const over=P.arrayArea>REG.maxArea; el.textContent+=over?" ⚠ 6 m² 超":""; el.style.color=over?"#fb7185":""; }
 }
 function onSlider(id,v){ P[id]=parseFloat(v); refreshSliderLabel(id); refreshDerived(); }
 function refreshDerived(){

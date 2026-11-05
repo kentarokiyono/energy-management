@@ -236,6 +236,7 @@ pollGamepad();
 const k=Input.keys, es=Engine.st;
 if(Object.values(k).some(Boolean))window._lastAct=performance.now();
 if(!es) return;
+if(typeof Crew!=="undefined"&&Crew.busy()){ Input.steer=lerp(Input.steer,0,clamp(dt*6,0,1)); return; }   // 車外・乗降手順中は運転操作なし
 const up=(k["w"]||k["arrowup"]);
 const dn=(k["s"]||k["arrowdown"]);
 if(up) es.throttleSet=clamp(es.throttleSet+0.35*dt,0,1);

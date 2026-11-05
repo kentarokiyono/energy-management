@@ -5,6 +5,7 @@ let eventElapsed=0; const EVENT_DURATION=MODE_CFG.event.duration;
 function startGame(){
 Snd.init();
 Engine.init();
+if(typeof Crew!=="undefined") Crew.reset();
 Test.active=false;
 if(P.mode==="test"){
 Engine.st.hour=12;
@@ -45,7 +46,7 @@ initChart(); lastChartPush=0;
 running=true; paused=false; lastT=performance.now();
 requestAnimationFrame(loop);
 if(P.mode==="event") toast("🎪 90秒スコアアタック!B=ブースト","#22d3ee");
-else Radio.push("Day1 8:30 Darwinスタート!W/↑でスロットル開度を設定してください。まずは制限速度に注意。");
+else Radio.push("Day1 8:00 Darwinスタート!W/↑でスロットル開度を設定してください。まずは制限速度に注意。");
 }
 function loop(t){
 if(!running) return;
@@ -65,6 +66,7 @@ const es=Engine.st;
 let ts=Route.scaleAt(es.km);   // 右左折/信号/CS 付近は自動で等倍
 if(es.stopTimer>0) ts=Math.max(ts,300);
 if(es.camp) ts=Math.max(ts,es.disconnected?2400:300);
+if(typeof Crew!=="undefined"&&Crew.busy()) ts=Crew.timeScale(es,ts);
 const dtS=dtR*ts;
 const sub=Math.max(1,Math.ceil(dtS/60));
 for(let i=0;i<sub;i++) Engine.step(dtS/sub, i===0?dtR:0);
@@ -74,7 +76,7 @@ if(eventElapsed>=EVENT_DURATION&&!es.finished){ es.finished=true; showResult(); 
 }
 View.update(dtR);
 if(P.mode==="race"&&!es.finished&&!es.trailering) es.km=View.kmOfS(View.s);   // 走行位置(本線への射影)を正とする
-Snd.update(es.v, es.lastAmp/Math.max(P.motorMaxA,1), es.fire);
+Snd.update(es.v, es.lastAmp/Math.max(motorMaxA(es.powerMode),1), es.fire);
 updateHUD(); drawWind(); drawG();
 Perf.tick(dtR);
 if(t-lastChartPush>1500){ pushChart(); drawMap(); lastChartPush=t; }
