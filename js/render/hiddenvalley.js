@@ -439,7 +439,7 @@ buildGarages(grp,bs){
    at(al,FRONT+ID/2,4.7,ID,H1-4.7,BW-0.4);                                     // シャッター上の梁
    for(const sd of [-1,1]) at(al+sd*(BW/2-0.35),FRONT+ID/2,0,ID,4.7,0.5);     // 隔壁
    at(al,FRONT+ID/2,0.005,ID,0.02,BW-1.2,"box","solid",0x8b9096);             // エポキシ床
-   at(al,FRONT+0.25,4.25,0.5,0.45,BW-3.3,"box","corr",0xc9ccce);                 // 巻き上げたシャッター
+   at(al,FRONT-0.05,3.4,0.6,0.5,5.8,"box","solid",0xe8e2cf);                      // 巻き上げたシャッター (クリーム色)
    at(al,FRONT+ID-0.05,1.0,0.08,2.6,BW-1.4,"box","solid",team);               // 奥のチームバナー
    for(const dz of [-BW*0.3,0,BW*0.3]) at(al+dz,FRONT+ID/2,4.55,0.3,0.06,4,"boxC","emis",0xfdfdf2); // 天井照明
    for(const sd of [-1,1]){
@@ -463,7 +463,7 @@ buildGarages(grp,bs){
    const nP=2+Math.floor(rnd()*3);
    for(let q=0;q<nP;q++){ const [px,pz]=this.SW(al+rndr(-BW*0.35,BW*0.35),FRONT+rndr(1.5,8.5)); PR.person(bs,px,0.02,pz,rnd()*6.28,team===0xf0f0f0?0xdedede:team); }
   }
-  at(al,FRONT-0.06,4.8,0.12,1.1,BW-1.5,"box","solid",team);                   // ファサードの帯
+  this.garageFront(grp,bs,at,al,k,open);
  }
  // 2階ホスピタリティ (セットバック+バルコニー) と屋根
  const span=[AL0-BW/2,AL0+(NG-0.5)*BW], mid=(span[0]+span[1])/2, len=span[1]-span[0];
@@ -489,8 +489,6 @@ buildGarages(grp,bs){
  for(let r=0;r<6;r++) bs.get("emis").add(tpl("boxC"),M4(px+(T.sr[0])*0.52*(-1),11.3+r*1.05,pz+(T.sr[1])*0.52*(-1),1.6,0.6,0.02,ry),linCol(r%2?0xffb000:0xf6f6f6));
  // ガレージ前の看板 (チーム番号) ・ガレージ前に出したソーラーカーと押すクルー・オフィシャル (蛍光ベスト)
  for(let k=0;k<NG;k++){ if(k===towerK) continue; const al=AL0+k*BW, team=teams[k%teams.length];
-  const m=new THREE.Mesh(new THREE.PlaneGeometry(BW-2.2,0.9),new THREE.MeshLambertMaterial({map:this.textBoard("TEAM "+String(k+1).padStart(2,"0"),"#"+team.toString(16).padStart(6,"0"),(team===0xf0f0f0||team===0xd8d8d8||team===0xe5b324)?"#111111":"#ffffff")}));
-  const [mx,mz]=this.SW(al,FRONT-0.14); m.position.set(mx,5.35,mz); m.rotation.y=ry+Math.PI/2; grp.add(m);
   if(k%4===1){ const [cx,cz]=this.SW(al+rndr(-1,1),FRONT-5.5); PR.solarCar(bs,cx,0.02,cz,ry+Math.PI/2,rndPick(["cat","mono","cruiser"]),rndPick([0xffffff,team]));
    for(let q=0;q<4;q++){ const [px,pz]=this.SW(al+rndr(-2.5,2.5),FRONT-5.5+(q<2?-2.2:2.2)); PR.person(bs,px,0.02,pz,ry+(q<2?Math.PI:0),team===0xf0f0f0?0xdedede:team); } } }
  for(let k=0;k<10;k++){ const al=AL0+k*BW*3+6; const [px,pz]=this.SW(al,FRONT-11); PR.person(bs,px,0.02,pz,rnd()*6.28,0xff7a00); }
@@ -502,10 +500,90 @@ buildGarages(grp,bs){
   if(rnd()<0.8){ const [qx,qz]=this.SW(al,6.3); PR.person(bs,qx,0.02,qz,ry,teams[k%teams.length]); }
  }
 },
+/* ガレージの表 (実物の写真に合わせる): 濃緑のブロック壁・中央の巻き上げシャッター・両脇の白い通用口・壁のガレージ番号・
+ コンクリの梁とケーブルラック・蛍光灯、シャッター上のチーム看板 (ゼッケン・国旗・チーム名・車名)、2 階手すりの国旗/横断幕、ゴミ箱 */
+TEAMS:[ // ガレージ番号順。実在が分かっているチームのみ実名、他は仮
+ {no:"12",cc:"AUS"},{no:"3",cc:"NLD"},{no:"7",cc:"BEL"},{no:"21",cc:"USA"},{no:"8",cc:"GBR"},{no:"33",cc:"DEU"},{no:"15",cc:"CHN"},{no:"40",cc:"JPN"},
+ {no:"99",cc:"ROU",team:"SOLIS UTCN",car:"Hyperion"},{no:"61",cc:"JPN",team:"WAKAYAMA UNIVERSITY SOLAR CAR TEAM",car:"YATA"},
+ {no:"5",cc:"NLD"},{no:"18",cc:"AUS"},{no:"27",cc:"ITA"},{no:"44",cc:"SWE"},{no:"9",cc:"CHE"},{no:"0",cc:"AUS"},{no:"71",cc:"FRA"},{no:"2",cc:"BEL"},
+ {no:"88",cc:"CHN"},{no:"16",cc:"USA"},{no:"23",cc:"JPN"},{no:"30",cc:"GBR"},{no:"55",cc:"DEU"},{no:"64",cc:"NLD"},{no:"77",cc:"AUS"},{no:"11",cc:"JPN"},{no:"36",cc:"ITA"},{no:"48",cc:"USA"},{no:"52",cc:"CHE"},{no:"95",cc:"SWE"}],
+flag(c,cc,x,y,w,h){ const v=(cols)=>cols.forEach((k,i)=>{ c.fillStyle=k; c.fillRect(x+i*w/cols.length,y,w/cols.length+0.5,h); }), hz=(cols)=>cols.forEach((k,i)=>{ c.fillStyle=k; c.fillRect(x,y+i*h/cols.length,w,h/cols.length+0.5); });
+ switch(cc){
+  case "JPN": c.fillStyle="#fff"; c.fillRect(x,y,w,h); c.fillStyle="#bc002d"; c.beginPath(); c.arc(x+w/2,y+h/2,h*0.3,0,7); c.fill(); break;
+  case "ROU": v(["#002b7f","#fcd116","#ce1126"]); break; case "BEL": v(["#000","#fdda24","#ef3340"]); break; case "ITA": v(["#009246","#fff","#ce2b37"]); break; case "FRA": v(["#0055a4","#fff","#ef4135"]); break;
+  case "NLD": hz(["#ae1c28","#fff","#21468b"]); break; case "DEU": hz(["#000","#dd0000","#ffce00"]); break;
+  case "SWE": c.fillStyle="#006aa7"; c.fillRect(x,y,w,h); c.fillStyle="#fecc00"; c.fillRect(x+w*0.31,y,w*0.16,h); c.fillRect(x,y+h*0.4,w,h*0.2); break;
+  case "CHE": c.fillStyle="#da291c"; c.fillRect(x,y,w,h); c.fillStyle="#fff"; c.fillRect(x+w/2-h*0.1,y+h*0.2,h*0.2,h*0.6); c.fillRect(x+w/2-h*0.3,y+h*0.4,h*0.6,h*0.2); break;
+  case "CHN": c.fillStyle="#de2910"; c.fillRect(x,y,w,h); c.fillStyle="#ffde00"; c.beginPath(); c.arc(x+w*0.18,y+h*0.28,h*0.14,0,7); c.fill(); break;
+  case "USA": hz(["#b22234","#fff","#b22234","#fff","#b22234","#fff","#b22234"]); c.fillStyle="#3c3b6e"; c.fillRect(x,y,w*0.42,h*0.55); break;
+  case "GBR": case "AUS": c.fillStyle="#012169"; c.fillRect(x,y,w,h); { const ux=cc==="AUS"?w*0.5:w, uy=cc==="AUS"?h*0.5:h; c.fillStyle="#fff"; c.fillRect(x,y+uy*0.38,ux,uy*0.24); c.fillRect(x+ux*0.42,y,ux*0.16,uy); c.fillStyle="#c8102e"; c.fillRect(x,y+uy*0.44,ux,uy*0.12); c.fillRect(x+ux*0.46,y,ux*0.08,uy); }
+   if(cc==="AUS"){ c.fillStyle="#fff"; for(const [px,py] of [[0.25,0.75],[0.75,0.3],[0.62,0.55],[0.85,0.5],[0.75,0.8]]){ c.beginPath(); c.arc(x+w*px,y+h*py,h*0.05,0,7); c.fill(); } } break;
+  default: c.fillStyle="#888"; c.fillRect(x,y,w,h);
+ }
+ c.strokeStyle="rgba(0,0,0,0.25)"; c.lineWidth=2; c.strokeRect(x,y,w,h);
+},
+teamSign(t){ // 1024×256 の看板テクスチャ
+ const key="sign"+t.no+t.cc; this._tb=this._tb||{}; if(this._tb[key]) return this._tb[key];
+ const cv=document.createElement("canvas"); cv.width=1024; cv.height=256; const c=cv.getContext("2d");
+ c.fillStyle="#f7f7f4"; c.fillRect(0,0,1024,256);
+ c.fillStyle="#f5a23c"; c.fillRect(0,214,720,42);                                  // 下のオレンジ帯
+ c.fillStyle="#1d1d1d"; c.font="bold 22px Arial,Helvetica,sans-serif"; c.textBaseline="middle"; c.textAlign="left"; c.fillText("Challenger Class",40,236);
+ c.fillStyle="#22357a"; c.textAlign="center"; c.font="bold 112px Arial Narrow,Arial,Helvetica,sans-serif"; c.fillText(t.no,105,92);
+ this.flag(c,t.cc,32,152,54,36); c.font="bold 38px Arial,Helvetica,sans-serif"; c.textAlign="left"; c.fillText(t.cc,96,172);
+ c.fillStyle="#c9c9c9"; c.fillRect(200,24,3,170);
+ const name=t.team||("TEAM "+t.no), car=t.car||"";
+ c.fillStyle="#22357a"; const MW=520; let fs=52; c.font=`bold ${fs}px Arial Narrow,Arial,Helvetica,sans-serif`;
+ const words=name.split(" "); let l1=name, l2="";
+ const wrap=()=>{ l1=name; l2=""; if(c.measureText(name).width>MW){ let a=""; for(const w of words){ if(c.measureText((a+" "+w).trim()).width<MW) a=(a+" "+w).trim(); else break; } l1=a; l2=name.slice(a.length).trim(); } };
+ wrap(); while(fs>26&&(c.measureText(l1).width>MW||c.measureText(l2).width>MW)){ fs-=2; c.font=`bold ${fs}px Arial Narrow,Arial,Helvetica,sans-serif`; wrap(); }   // 2 行に収まるまで縮める
+ c.fillText(l1,232,58); if(l2) c.fillText(l2,232,106);
+ c.font="bold 44px Arial,Helvetica,sans-serif"; c.fillText(car,232,l2?166:150);
+ // オーストラリアの地図 (オレンジ) とレースのルート
+ c.fillStyle="#f5a23c"; c.beginPath();
+ const AU=[[0.10,0.45],[0.30,0.30],[0.45,0.10],[0.55,0.25],[0.62,0.12],[0.70,0.05],[0.80,0.35],[0.95,0.55],[0.88,0.80],[0.70,0.90],[0.58,0.78],[0.45,0.72],[0.30,0.80],[0.12,0.80]];
+ AU.forEach(([u,v],i)=>{ const X=790+u*200, Y=18+v*150; i?c.lineTo(X,Y):c.moveTo(X,Y); }); c.closePath(); c.fill();
+ c.beginPath(); c.arc(790+0.78*200,18+1.0*150,8,0,7); c.fill();   // タスマニア
+ c.strokeStyle="#5b6fa8"; c.lineWidth=3; c.setLineDash([4,5]); c.beginPath(); c.moveTo(790+0.62*200,18+0.14*150); c.lineTo(790+0.64*200,18+0.5*150); c.lineTo(790+0.66*200,18+0.82*150); c.stroke(); c.setLineDash([]);
+ c.fillStyle="#22357a"; c.font="bold 22px Arial,Helvetica,sans-serif"; c.textAlign="center"; c.fillText("WORLD SOLAR CHALLENGE",890,214);
+ const tx=new THREE.CanvasTexture(cv); tx.encoding=THREE.sRGBEncoding; tx.anisotropy=8; this._tb[key]=tx; return tx;
+},
+garageFront(grp,bs,at,al,k,open){
+ const T=this.track(), ry=-Math.atan2(T.sd[0],-T.sd[1])+Math.PI, FRONT=24, BW=this.GARAGE_W, H1=6.2, DW=5.8, DH=3.4, GREEN=0x2f4f43;
+ const t=this.TEAMS[k%this.TEAMS.length], pw=(BW-DW)/2;
+ for(const sd of [-1,1]){ const ac=al+sd*(DW/2+pw/2);
+  at(ac,FRONT-0.2,0,0.4,3.7,pw-0.1,"box","solid",GREEN);                                 // 濃緑のブロック壁
+  for(let r=1;r<9;r++) at(ac,FRONT-0.405,r*0.41,0.01,0.02,pw-0.15,"box","solid",0x27443a);   // 目地
+  at(ac+sd*0.2,FRONT-0.42,0,0.04,2.1,0.95,"box","solid",0xf2f2ee);                        // 白い通用口
+  at(ac+sd*0.2-sd*0.35,FRONT-0.45,1.0,0.03,0.05,0.12,"box","solid",0x9a9da0); }           // ドアノブ
+ at(al,FRONT-0.25,3.7,0.5,H1-3.7,BW-0.05,"box","solid",0xb7b2a6);                        // コンクリの梁 (壁上部)
+ at(al,FRONT-0.22,DH,0.45,3.7-DH,DW,"box","solid",GREEN);                                // 開口上の壁
+ at(al,FRONT-0.75,4.75,0.5,0.06,BW-0.2,"box","solid",0x8f969c);                          // ケーブルラック
+ at(al,FRONT-0.65,4.95,0.28,0.14,1.3,"box","emis",0xf4f4ea);                             // 蛍光灯
+ if(!open) at(al,FRONT-0.08,0,0.06,DH,DW,"box","corr",0xe8e2cf);                         // 閉じたシャッター
+ // ガレージ番号 (壁に白で)
+ { const key="gno"+(k+1); this._tb=this._tb||{}; let tx=this._tb[key];
+  if(!tx){ const cv=document.createElement("canvas"); cv.width=128; cv.height=128; const c=cv.getContext("2d"); c.fillStyle="#f4f4f0"; c.font="bold 96px Georgia,serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillText(String(k+1),64,70);
+   tx=new THREE.CanvasTexture(cv); tx.encoding=THREE.sRGBEncoding; this._tb[key]=tx; }
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(0.9,0.9),new THREE.MeshLambertMaterial({map:tx,transparent:true,depthWrite:false}));
+  const [x,z]=this.SW(al-DW/2-0.7,FRONT-0.42); m.position.set(x,2.6,z); m.rotation.y=ry+Math.PI/2; grp.add(m); }
+ // チーム看板 (シャッターの真上)
+ { const m=new THREE.Mesh(new THREE.PlaneGeometry(4.2,1.05),new THREE.MeshLambertMaterial({map:this.teamSign(t)}));
+  const [x,z]=this.SW(al,FRONT-0.56); m.position.set(x,DH+0.12+0.52,z); m.rotation.y=ry+Math.PI/2; grp.add(m); }
+ // 2 階の手すりに国旗とチームの横断幕
+ if(k%3!==1){ const fcv=document.createElement("canvas"); fcv.width=192; fcv.height=128; this.flag(fcv.getContext("2d"),t.cc,0,0,192,128);
+  const ft=new THREE.CanvasTexture(fcv); ft.encoding=THREE.sRGBEncoding;
+  const fm=new THREE.Mesh(new THREE.PlaneGeometry(4.2,2.4),new THREE.MeshLambertMaterial({map:ft,side:THREE.DoubleSide}));
+  const [x,z]=this.SW(al+3.2,FRONT-0.1); fm.position.set(x,H1+0.35+1.0,z); fm.rotation.y=ry+Math.PI/2; grp.add(fm);
+  const bn=new THREE.Mesh(new THREE.PlaneGeometry(6.6,2.0),new THREE.MeshLambertMaterial({map:this.textBoard(t.team||("TEAM "+t.no),"#ffffff","#22357a"),side:THREE.DoubleSide}));
+  const [bx,bz]=this.SW(al-2.4,FRONT-0.1); bn.position.set(bx,H1+0.35+1.1,bz); bn.rotation.y=ry+Math.PI/2; grp.add(bn); }
+ // ゴミ箱 (ウィリービン) とコーン
+ at(al-DW/2-1.9,FRONT-0.9,0,0.65,1.05,0.6,"box","solid",0x1f3a2c); at(al-DW/2-1.9,FRONT-0.9,1.05,0.72,0.05,0.66,"box","solid",0x173024);
+ if(open&&k%2===0){ const [cx,cz]=this.SW(al,FRONT-1.2); bs.get("solid").add(tpl("cone7"),M4(cx,0,cz,0.22,0.75,0.22),linCol(0xff5a00)); }
+},
 textBoard(text,bg,fg){
  const key=text+bg+fg; this._tb=this._tb||{}; if(this._tb[key]) return this._tb[key];
  const cv=document.createElement("canvas"); cv.width=1024; cv.height=96; const c=cv.getContext("2d");
- c.fillStyle=bg; c.fillRect(0,0,1024,96); c.fillStyle=fg; c.font="bold 64px Arial,Helvetica,sans-serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillText(text,512,52);
+ c.fillStyle=bg; c.fillRect(0,0,1024,96); c.fillStyle=fg; let fs=64; c.font=`bold ${fs}px Arial,Helvetica,sans-serif`; while(fs>24&&c.measureText(text).width>980){ fs-=2; c.font=`bold ${fs}px Arial,Helvetica,sans-serif`; } c.textAlign="center"; c.textBaseline="middle"; c.fillText(text,512,52);   // 入りきらなければ文字を小さく
  const t=new THREE.CanvasTexture(cv); t.encoding=THREE.sRGBEncoding; t.anisotropy=8; this._tb[key]=t; return t;
 },
 /* ピットレーン路面: 速度制限線・ファスト/ワーキングレーン区分線・ピットボックス */
