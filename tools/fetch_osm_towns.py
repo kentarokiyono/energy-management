@@ -723,14 +723,24 @@ def build_town(G, t):
         w = G_edge_way(G, path[k - 1], path[k]); w0 = G_edge_way(G, path[k - 2], path[k - 1]) if k > 1 else None
         if w is not None and G.is_rab(w) and not (w0 is not None and G.is_rab(w0)): rab.append(kmof(k - 1))
     # 交差道路の腕 (経路外の車道・名前付き or 主要道路): [km, 方位, 名前, 半幅, 形状[[方位, 長さ],...]]
+    # 主要なものだけ残す: 幹線 (trunk/primary/secondary)、ルートが曲がる交差点、信号のある交差点の交差道路
     arms = []
     used = set()
     for a_, b_ in zip(path, path[1:]): used.add((a_, b_)); used.add((b_, a_))
+    man_km = [kmof(m.get('rab_i', m['i'])) for m in marks if m['cp'].get('man') is not None or m['cp'].get('leave') is not None]
+    man_km += [kmof(m['leave_i']) for m in marks if 'leave_i' in m]
+    MAJOR = {'motorway', 'trunk', 'primary', 'secondary'}
     for i, n in enumerate(path):
+        k = kmof(i)
+        at_man = any(abs(k - q) < 0.025 for q in man_km)
+        at_sig = any(abs(k - q) < 0.03 for q in sig)
         for nb, w in G.neighbours(n):
             if (n, nb) in used: continue   # 経路自身が通る辺 (2 回目の通過を含む)
-            tg = G.ways[w]['tags']; hw = tg.get('highway', '').replace('_link', '')
-            if hw not in ARM_CLASSES and not G.is_rab(w) and not tg.get('name'): continue
+            tg = G.ways[w]['tags']; hw0 = tg.get('highway', ''); hw = hw0.replace('_link', '')
+            if G.is_rab(w): continue        # ラウンドアバウトの環道そのもの (経路外の部分) は描かない
+            if hw0.endswith('_link') and not at_man: continue
+            keep = (hw in MAJOR) or at_man or (at_sig and hw in ARM_CLASSES and tg.get('name'))
+            if not keep: continue
             b = math.radians(G.bearing(n, nb)) - b0
             shape = arm_shape(G, n, nb, w, used, b0)
             arms.append([kmof(i), round(b, 4), G.wname(w)[:22], way_half(G, w), shape])

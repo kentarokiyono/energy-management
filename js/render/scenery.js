@@ -339,7 +339,7 @@ urban(ctx,kind){
  if(kind!=="parklands"&&kind!=="darwin_cbd") for(const k of [-0.9,0,0.9]) this.wires(ctx,poles.map(p=>[p[0]+p[3]*k,p[1],p[2]+p[4]*k]),[0],0.35,0x222222);
  // 交差する脇道 (110m毎)
  const sideStreets=[];
- if(kind!=="parklands") for(let s=Math.ceil(s0/110)*110+40;s<s1;s+=110) sideStreets.push(s);   // 脇道そのものは branches() で作る (敷地割りはここを避ける)
+ if(kind!=="parklands") for(let s=Math.ceil(s0/330)*330+40;s<s1;s+=330) sideStreets.push(s);   // 脇道そのものは branches() で作る (敷地割りはここを避ける)
  const nearSide=(s)=>sideStreets.some(x=>Math.abs(x-s)<11);
  // 敷地割り
  const rows= kind==="darwin_cbd"? [[24,34],[66,90],[120,160],[200,260]]
@@ -724,7 +724,7 @@ branches(ctx){
  }
  // 市街地 (OSM 区間外) の交差する脇道 110 m ごと: 隅切り・縁石・止まれ線つきの分岐道路として作る
  const uk=biomeAt((kmA+kmB)/2).urban;
- if(uk&&uk!=="parklands") for(let s=Math.ceil(s0/110)*110+40;s<s1;s+=110){
+ if(uk&&uk!=="parklands") for(let s=Math.ceil(s0/330)*330+40;s<s1;s+=330){
   const kk=view.kmOfS(s); if(OsmRoute.townAt(kk)&&Route.inZone(kk)) continue;
   if(this.brNear(view,s,10)) continue;
   for(const sd of [-1,1]) this.makeBranch(ctx,s,sd*90*D,{len:180,half:4,sign:false});
@@ -794,7 +794,9 @@ sites(ctx){
  // スタート: State Square (Darwin) ― Parliament House 前
  if(kmA<=0.001&&ctx.s0<view.sOfKm(0.01)){
   const s0=view.sOfKm(0);
-  this.padRibbon(ctx,s0-200,s0+40,-30,30,0xc9c4b8);
+  // 会場の舗装は直後の右折 (実形状) にかからないように手前で止め、幅も道路の外 12 m まで
+  const sTurn=Math.min(...RP_MANEUVERS.filter(m=>m.km<0.2).map(m=>view.sOfKm(m.km)),s0+40);
+  this.padRibbon(ctx,s0-200,sTurn-14,-(W+7),W+7,0xc9c4b8);
   this.banner(ctx,s0,0,16,"BRIDGESTONE WORLD SOLAR CHALLENGE — START","#ffffff","#c8102e",5.2);
   const ph=this.at(view,s0-60,-62);   // Parliament House (白い大きな立方体の建物・列柱)
   bs.get("solid").add(boxMetric(70,26,50),M4(ph.x,ph.y,ph.z,1,1,1,ph.face),linCol(0xf4f2ec));
