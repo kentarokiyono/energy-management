@@ -21,12 +21,14 @@ pavedSite(view,s,lat){
 salt(km,off){ return off>110 && featureAt(km).some(f=>f.id==="salt_lake"&&Math.sign(off)===f.side); },
 /* 地表の高さ (道路中心高さ基準の相対値) */
 groundRel(x,z,off,bio,km){
+ if(this._rowWd>0) return -this._rowWd-0.6;           // 水面の橋: 下は川底/海 (水面は bridges() で描く)
  if(this._rowBh>0&&(this._rowDeck||Math.abs(off)>=view_SH()+3.4)) return -this._rowBh-0.18;   // 立体交差: 盛土の外/橋桁の下は元の地面
  if(this.salt(km,off)) return -0.25;
- if(Route.inZone(km)) return -0.18;      // 等倍ゾーン(町中の右左折区間)は平坦: 他の道路区間を地形が覆わないように
+ const zf=Route.zoneFade(km);      // 等倍ゾーン(町中の右左折区間)は平坦: 他の道路区間を地形が覆わないように。境界は滑らかに
+ if(zf<=0) return -0.18;
  const a=Math.abs(off);
  const urb=bio.urban?0.25:1;
- const h=-0.18+terrainH(x,z,a,bio.hill*urb);
+ const h=-0.18+terrainH(x,z,a,bio.hill*urb*zf);
  return Math.min(h,this.branchCap(x,z));
 },
 /* 分岐道路の周囲は道路面より下へ (地形が脇道を埋めないように) — 戻り値は本線行の高さ基準 */
@@ -47,7 +49,7 @@ branchCap(x,z){
 groundY(view,s,off){
  const p=view.roadPoint(clamp(s,0,view.road.builtS-0.01)), nx=Math.cos(p.h), nz=Math.sin(p.h);
  const km=this.kmOfS(view,s), bio=biomeAt(km), SH=view.SHOULDER;
- this._rowY=p.y; this._rowBh=p.bh||0; this._rowDeck=!!p.deck;
+ this._rowY=p.y; this._rowBh=p.bh||0; this._rowDeck=!!p.deck; this._rowWd=p.wd||0;
  const sd=Math.sign(off)||1, a=Math.abs(off)-SH;
  if(a<=0) return p.y+(bio.urban?0.15:-0.05);
  let i=0; while(i<TERRAIN_OFFS.length-2 && TERRAIN_OFFS[i+1]<a) i++;
@@ -63,7 +65,7 @@ ribbon(view,s0,s1,cols,mat,rowFn,step){
  for(let s=s0;s<=s1+0.01;s+=step){
   const p=view.roadPoint(Math.min(s,view.road.builtS-0.01)), nx=Math.cos(p.h), nz=Math.sin(p.h);
   const rd=rowFn(s,p);
-  this._rowY=p.y; this._rowBh=p.bh||0; this._rowDeck=!!p.deck;
+  this._rowY=p.y; this._rowBh=p.bh||0; this._rowDeck=!!p.deck; this._rowWd=p.wd||0;
   const [cp,cn]=view.maxCurv(s,45), limR=cp>1/700?0.9/cp:1e9, limL=cn>1/700?0.9/cn:1e9;
   for(const c0 of cols){
    let off= c0.offFn? c0.offFn(p) : c0.warp===false? c0.off : this.warpOff(p,c0.off);
@@ -529,10 +531,27 @@ bridges(ctx){
     for(const [lat,c] of [[-(ps.L+1.6),0xc8c6be],[ps.R+1.6,0xc8c6be]]){ const x=ps.x+nx*lat, z=ps.z+nz*lat;
      B.add(tpl("box"),M4(x,ps.y-0.05,z,0.35,1.05,e+0.05,-ps.h),linCol(c));
      B.add(tpl("box"),M4(x,ps.y+0.98,z,0.45,0.12,e+0.05,-ps.h),linCol(0xdedcd4)); } }
-   // 立体交差
-   for(const [ku,hb,name,uh] of under||[]){
-    if(ku<kmA||ku>=kmB) continue;
-    const su=view.sOfKm(ku), p=view.roadPoint(su), base=p.y-(p.bh||0), half=uh||3.5;
+   // 水面の橋: 水面・川底へ下りる岸・橋脚 (35 m ごと)・路面下の床版
+   const wt=OsmRoute.waterAt((k0+k1)/2);
+   if(wt){
+    const sa2=Math.max(view.sOfKm(wt.k0),ctx.s0), sb2=Math.min(view.sOfKm(wt.k1),ctx.s1);
+    if(sb2>sa2){
+     if(!this._waterMat) this._waterMat=new THREE.MeshLambertMaterial({color:new THREE.Color(0x3f6f7a).convertSRGBToLinear(),transparent:true,opacity:0.92});
+     const pos=[],idx=[]; let n=0;
+     for(let s=sa2;s<=sb2+0.01;s+=5){ const q=view.roadPoint(Math.min(s,sb2)), nx=Math.cos(q.h), nz=Math.sin(q.h), y=q.y-(q.bh||0)-3.2;
+      pos.push(q.x-nx*180,y,q.z-nz*180, q.x+nx*180,y,q.z+nz*180); if(n>0){ const v=(n-1)*2; idx.push(v,v+1,v+2, v+1,v+3,v+2); } n++; }
+     this.upWind(pos,idx); const g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx); g.computeVertexNormals();
+     const m=new THREE.Mesh(g,this._waterMat); m.matrixAutoUpdate=false; ctx.grp.add(m);
+     for(let s=Math.ceil(sa2/35)*35;s<sb2;s+=35){ const q=view.roadPoint(s), c=(q.R-q.L)/2, x=q.x+Math.cos(q.h)*c, z=q.z+Math.sin(q.h)*c, top=q.y-0.9, bot=q.y-(q.wd||4)-1.2;
+      B.add(tpl("box"),M4(x,bot,z,(q.L+q.R)*0.7,top-bot,2.2,-q.h),linCol(0xb2afa6)); }
+     for(let s=sa2;s<sb2;s+=5){ const e=Math.min(5,sb2-s), q=view.roadPoint(s+e/2), c=(q.R-q.L)/2;   // 床版
+      B.add(tpl("boxC"),M4(q.x+Math.cos(q.h)*c,q.y-0.5,q.z+Math.sin(q.h)*c,q.L+q.R+3.4,0.9,e+0.1,-q.h),linCol(0xbab7ae)); }
+    }
+   }
+   // 立体交差 (道路・鉄道)
+   for(const [ku,hb,name,uh,kind] of under||[]){
+    if(ku<kmA||ku>=kmB||kind==="water") continue;
+    const su=view.sOfKm(ku), p=view.roadPoint(su), base=p.y-(p.bh||0), half=kind==="rail"? 1.9 : (uh||3.5);
     const Hk=OsmRoute.H(t,ku), hu=p.h+(hb-Hk), ux=Math.sin(hu), uz=-Math.cos(hu);
     const deckW=p.L+p.R+3.6, cLat=(p.R-p.L)/2, nx=Math.cos(p.h), nz=Math.sin(p.h);
     const cx=p.x+nx*cLat, cz=p.z+nz*cLat;
@@ -550,7 +569,13 @@ bridges(ctx){
     this.upWind(pos,idx);
     const g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); g.setAttribute("uv",new THREE.Float32BufferAttribute(uv,2)); g.setIndex(idx); g.computeVertexNormals();
     if(!this._brMat) this.makeBranchMats();
-    const m=new THREE.Mesh(g,this._brMat.asph); m.receiveShadow=true; m.matrixAutoUpdate=false; ctx.grp.add(m);
+    if(kind==="rail"){ // 線路: 道床 (砂利)・枕木・レール 2 本
+     if(!this._ballastMat) this._ballastMat=new THREE.MeshLambertMaterial({color:new THREE.Color(0x7c776c).convertSRGBToLinear(),map:detailTex(),side:THREE.DoubleSide});
+     const m=new THREE.Mesh(g,this._ballastMat); m.receiveShadow=true; m.matrixAutoUpdate=false; ctx.grp.add(m);
+     for(let d=-L;d<=L;d+=0.65){ const x=p.x+ux*d, z=p.z+uz*d; B.add(tpl("box"),M4(x,base+0.03,z,2.4,0.12,0.22,-hu+Math.PI/2),linCol(0x5a4a3a)); }
+     for(const sd of [-0.72,0.72]){ const x=p.x+Math.cos(hu)*sd, z=p.z+Math.sin(hu)*sd; B.add(tpl("boxC"),M4(x,base+0.22,z,0.07,0.14,2*L,-hu),linCol(0x8f9399)); }
+    } else {
+    const m=new THREE.Mesh(g,this._brMat.asph); m.receiveShadow=true; m.matrixAutoUpdate=false; ctx.grp.add(m); }
     if(name){ const q={x:p.x+ux*(-24)+Math.cos(hu)*(half+2),z:p.z+uz*(-24)+Math.sin(hu)*(half+2),y:base,h:hu,nx:Math.cos(hu),nz:Math.sin(hu)}; this.signMesh(ctx,q,"green",name.slice(0,18),2.6,0.55,2.2); }
    }
   }
@@ -714,14 +739,14 @@ branches(ctx){
  const near=(k)=>RP_MANEUVERS.some(m=>Math.abs(m.km-k)<0.08);
  const osmHere=(k)=>OsmRoute.townAt(k)&&Route.inZone(k);
  for(const e of Route.eventsIn(kmA,kmB,"sideroad")){
-  if(near(e.km)||osmHere(e.km)) continue;
+  if(near(e.km)||osmHere(e.km)||this.brNear(view,view.sOfKm(e.km),25)) continue;   // 縮尺区間で脇道が数 m 間隔に並ばないように
   const dirt=/station|track|dirt|H\/S|homestead|quarry|stn|camp/i.test(e.t);
   const name=e.t.replace(/\b(t\/o|on|left|right|Straight ahead|Exit|Turn off).*$/i,"").trim().slice(0,22);
   this.makeBranch(ctx,view.sOfKm(e.km),(e.v==="R"?1:-1)*(80+rnd()*20)*D,{name,surface:dirt?"gravel":"asph",half:dirt?3.0:3.6,len:200});
  }
  // 信号交差点の交差道路 (左右とも)
  for(const e of Route.eventsIn(kmA,kmB,"signal")){
-  if(near(e.km)||osmHere(e.km)) continue;
+  if(near(e.km)||osmHere(e.km)||this.brNear(view,view.sOfKm(e.km),25)) continue;
   for(const sd of [-1,1]) this.makeBranch(ctx,view.sOfKm(e.km),sd*90*D,{name:sd<0?e.t.split(/Traffic|traffic/)[0].trim().slice(0,20):"",len:160});
  }
  // OSM 区間の交差道路 (実際の向き)。動作地点の腕は曲がり損ねの道として扱う
