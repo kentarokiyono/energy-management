@@ -97,15 +97,24 @@ if(SB&&SB.wheels){ const tm=new THREE.MeshStandardMaterial({color:0x111316,rough
   g.add(wg); g.userData.wheels.push({g:wg,r,front:z<0}); } }
 // ---- コックピット内装(ドライバーカメラで体感) ----
 const cock=new THREE.Group();
-const carbon=new THREE.MeshLambertMaterial({color:0x0b0d10});
+// カーボン調 (2x2 綾織) の質感: 濃いグレー〜黒
+if(!View._carbonTex){ const cv=document.createElement("canvas"); cv.width=cv.height=128; const c=cv.getContext("2d");
+ c.fillStyle="#0d0f12"; c.fillRect(0,0,128,128);
+ for(let y=0;y<16;y++) for(let x=0;x<16;x++){ const on=((x+y)>>1)%2===0; const g=c.createLinearGradient(x*8,y*8,x*8+(on?8:0),y*8+(on?0:8));
+  g.addColorStop(0,on?"#1d2126":"#121418"); g.addColorStop(1,on?"#121418":"#1d2126"); c.fillStyle=g; c.fillRect(x*8,y*8,8,8); }
+ const t=new THREE.CanvasTexture(cv); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(6,6); t.encoding=THREE.sRGBEncoding; View._carbonTex=t; }
+const carbon=new THREE.MeshStandardMaterial({color:0x9aa0a8,map:View._carbonTex,roughness:.45,metalness:.15,envMapIntensity:.4});
 const E0=(VEH.active&&VEH.spec.eye)||[0,.84,-.45];
 const deckY=SB&&SB.profiles? .68 : .62;
 // 計器盤カウル (ハンドルの奥, 前方視界の下端) と両側のコクピット壁
+// コクピット開口の内張り (キャノピーの下の床面・前方のダッシュ面)
+{ const fl=new THREE.Mesh(new THREE.BoxGeometry(.5,.012,1.25),carbon); fl.position.set(E0[0],deckY-.17,E0[2]-.45); cock.add(fl);   // 床 (デッキより下)
+  const dsh=new THREE.Mesh(new THREE.BoxGeometry(.46,.07,.05),carbon); dsh.position.set(E0[0],deckY+.035,E0[2]-.78); cock.add(dsh); }
 for(const sd of [-1,1]){ const wall=new THREE.Mesh(new THREE.BoxGeometry(.03,.22,.9),carbon); wall.position.set(E0[0]+sd*.27,deckY-.06,E0[2]-.15); cock.add(wall);
- const pad=new THREE.Mesh(new THREE.BoxGeometry(.06,.035,.7),new THREE.MeshLambertMaterial({color:0x1a1d22})); pad.position.set(E0[0]+sd*.26,deckY+.05,E0[2]-.1); cock.add(pad); }
+ const pad=new THREE.Mesh(new THREE.BoxGeometry(.06,.035,.7),carbon); pad.position.set(E0[0]+sd*.26,deckY+.05,E0[2]-.1); cock.add(pad); }
 // ステアリング (F1 型): 平らな上下辺・両側のグリップ・中央の表示部・シフトランプ・ボタン・ロータリー・パドル
 this.yokePivot=new THREE.Group();
-this.yokePivot.position.set(E0[0],E0[1]-.27,E0[2]-.44); this.yokePivot.rotation.x=.22;
+this.yokePivot.position.set(E0[0],Math.max(E0[1]-.27,deckY+.04),E0[2]-.44); this.yokePivot.rotation.x=.22;
 const wheel=new THREE.Group();
 const rr=(sh,x,y,w,h,r)=>{sh.moveTo(x+r,y);sh.lineTo(x+w-r,y);sh.quadraticCurveTo(x+w,y,x+w,y+r);
 sh.lineTo(x+w,y+h-r);sh.quadraticCurveTo(x+w,y+h,x+w-r,y+h);sh.lineTo(x+r,y+h);
