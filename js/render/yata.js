@@ -5,7 +5,7 @@ const YATA_CACHE={};
 function yataLivery(u,zn){
  if(u<0.045) return "O";                                   // 先端
  if(zn>0.86) return "O";                                   // 上縁のオレンジ
- if(u<0.34&&zn<0.16+0.25*Math.max(0,0.12-u)/0.12) return "O";   // 前半の下縁 (オレンジの縁取り)
+ if(u<0.10&&zn<0.35) return "O";                           // 先端の下側 (下から見たオレンジのノーズ)
  if(u>=0.34&&zn<0.09) return "K";                          // 下端の黒
  if(u>0.60&&zn<0.09+Math.min(1,(u-0.60)/0.02)*0.13) return "K";  // 後部で段差状に太くなる黒
  const st=(z0,z1,us)=>zn>=z0&&zn<z1&&u>us-(zn-z0)*0.08;   // 後部の黒ストライプ (前端が斜め)
