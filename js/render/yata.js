@@ -21,7 +21,8 @@ const O=Object.assign({L:5,noseTip:.23,canopyX:1.83,canopyLen:1.55,canopyW:.44,c
  BD.canopy?{canopyX:BD.canopy.x,canopyLen:BD.canopy.len,canopyW:BD.canopy.w,canopyTop:BD.canopy.top}:{});
 const PF=BD.profiles||{};
 const LIV=!!BD.livery;                       // 実車の塗り分け (側面: 白地・上縁オレンジ・下端黒・後部の黒ストライプ)
-const BF=BD.sectionBottom;                   // 断面: 底辺の幅の割合 (台形断面, 上ほど広い)。未指定なら丸い断面
+const BF=BD.sectionBottom;
+const PG=BD.panelGap!=null?BD.panelGap:0.06;   // パネルと胴体上面のすき間 [m]                   // 断面: 底辺の幅の割合 (台形断面, 上ほど広い)。未指定なら丸い断面
 if(LIV){ O.seg=120; O.side=26; }
 if(!YATA_CACHE.tex){
 let cv=document.createElement("canvas");cv.width=cv.height=256;
@@ -109,14 +110,14 @@ if(BD.plate){ const cv=document.createElement("canvas"); cv.width=256; cv.height
  c.fillStyle="#111"; c.font="bold 58px Arial,sans-serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillText(BD.plate,128,50);
  const tx=new THREE.CanvasTexture(cv); tx.encoding=THREE.sRGBEncoding;
  const pl=new THREE.Mesh(new THREE.PlaneGeometry(.30,.108),new THREE.MeshStandardMaterial({map:tx,roughness:.6,side:DS}));
- pl.position.set(0,zHull(1)-.075,O.L-HL+.004); grp.add(pl); }
+ pl.position.set(0,zHull(1)-.062,O.L-HL+.004); grp.add(pl); }
 }
 /* ==== パネル翼(ハルより≥6cm上の独立フラット面=構造的にZファイティング不可) ==== */
 {
 const bA=mkB(matArray),bO=mkB(matOrange),PW=6,Gp=[],Uv=[];
 for(let i=0;i<=O.seg;i++){
 const u=i/O.seg,xl=u*O.L,wa=halfW(u);
-const ap=Math.max(zPanel(u),zHull(u)+0.06),zPos=xl-HL;
+const ap=Math.max(zPanel(u),zHull(u)+PG),zPos=xl-HL;
 const row=[];
 for(let j=0;j<=PW;j++){const x=wa*(j/PW*2-1);row.push(new THREE.Vector3(x,ap,zPos));}
 Gp.push(row);Uv.push(row.map(p=>new THREE.Vector2(xl,p.x+.9)));
@@ -140,7 +141,7 @@ finish(bA);finish(bO);
 let canopy=null;
 if(BD.canopyShape==="yata61"){
  // 横: 前は低く斜めに立ち上がり、上面は丸く平ら、後端はほぼ垂直。前: 側面が立った細い形 (上は丸い)
- const uC=O.canopyX/O.L, apC=Math.max(zPanel(uC),zHull(uC)+0.06), Hc=O.canopyTop-apC+0.03;
+ const uC=O.canopyX/O.L, apC=Math.max(zPanel(uC),zHull(uC)+PG), Hc=O.canopyTop-apC+0.03;
  const z0=O.canopyX-O.canopyLen/2-HL, Lc=O.canopyLen, NU=40, NT=28;
  const hf=u=> u<0.5? Math.sin(Math.PI/2*Math.pow(u/0.5,0.8)) : u<0.93? 1-0.08*Math.pow((u-0.5)/0.43,2) : 0.92*(1-(u-0.93)/0.07*0.25);
  const wf=u=> u<0.35? 0.55+0.45*Math.sin(Math.PI/2*u/0.35) : 1;
@@ -176,7 +177,7 @@ if(BD.canopyShape==="yata61"){
   lg.position.set(sd*(O.canopyW/2+0.004),apC-0.03+Hc*hf(u)*0.55,z0+u*Lc); lg.rotation.y=sd*Math.PI/2; canopy.add(lg); }
 } else {
 const uC=O.canopyX/O.L;
-const apC=Math.max(zPanel(uC),zHull(uC)+0.06);
+const apC=Math.max(zPanel(uC),zHull(uC)+PG);
 const cg=new THREE.SphereGeometry(1,48,24);
 {const p=cg.attributes.position;
 for(let i=0;i<p.count;i++){const z=p.getZ(i),f=z>0?1-.45*z*z:1-.25*z*z;
