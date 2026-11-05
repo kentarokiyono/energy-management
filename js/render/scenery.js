@@ -1,4 +1,5 @@
 "use strict";
+const view_SH=()=>View.SHOULDER;
 /* ============ チャンク単位の地形・道路・景観生成 ============
  視覚空間の距離 s[m] と実距離 km の対応: km = 現在km + (s - View.s) * timeScale / 1000 */
 const TERRAIN_OFFS=[0,3.5,7,12,18,26,38,55,80,115,165,235,330,460,640,900];
@@ -6,10 +7,12 @@ const SKIRT_OFF=1500;
 const _sc=new THREE.Color(), _sv=new THREE.Color();
 const Scenery={
 kmOfS(view,s){ return view.kmOfS(s); },
+/* 横オフセットを道路断面に合わせる: ±ROAD_W 以遠は左端 L / 右端 R からの距離として扱う */
+warpOff(p,off){ const W=5; if(off<=-W+0.01) return off-((p.L||W)-W); if(off>=W-0.01) return off+((p.R||W)-W); return off; },
 /* 走行可能な舗装敷地 (CS構内・ドライバー交代の駐車帯・ゴール) → {y} */
 pavedSite(view,s,lat){
  const km=view.kmOfS(s);
- for(const c of RP_CS) if(Math.abs(km-c.km)<0.16&&Math.abs(lat)<24) return {y:0.02,cs:c};
+ for(const c of RP_CS){ const osm=OsmRoute.townAt(c.km); if(Math.abs(km-c.km)<(osm?0.045:0.16)&&Math.abs(lat)<(osm?14:24)) return {y:0.02,cs:c}; }
  const dc=RP_RULES.driverChange;
  if(km>dc.km-0.03&&km<dc.km+dc.len+0.03&&lat<-view.ROAD_W+0.5&&lat>-view.ROAD_W-16) return {y:0.02,dc:true};
  if(km>RP_FINISH.km-0.12&&Math.abs(lat)<40) return {y:0.02,finish:true};
@@ -18,6 +21,7 @@ pavedSite(view,s,lat){
 salt(km,off){ return off>110 && featureAt(km).some(f=>f.id==="salt_lake"&&Math.sign(off)===f.side); },
 /* 地表の高さ (道路中心高さ基準の相対値) */
 groundRel(x,z,off,bio,km){
+ if(this._rowBh>0&&(this._rowDeck||Math.abs(off)>=view_SH()+3.4)) return -this._rowBh-0.18;   // 立体交差: 盛土の外/橋桁の下は元の地面
  if(this.salt(km,off)) return -0.25;
  if(Route.inZone(km)) return -0.18;      // 等倍ゾーン(町中の右左折区間)は平坦: 他の道路区間を地形が覆わないように
  const a=Math.abs(off);
@@ -43,11 +47,11 @@ branchCap(x,z){
 groundY(view,s,off){
  const p=view.roadPoint(clamp(s,0,view.road.builtS-0.01)), nx=Math.cos(p.h), nz=Math.sin(p.h);
  const km=this.kmOfS(view,s), bio=biomeAt(km), SH=view.SHOULDER;
- this._rowY=p.y;
+ this._rowY=p.y; this._rowBh=p.bh||0; this._rowDeck=!!p.deck;
  const sd=Math.sign(off)||1, a=Math.abs(off)-SH;
  if(a<=0) return p.y+(bio.urban?0.15:-0.05);
  let i=0; while(i<TERRAIN_OFFS.length-2 && TERRAIN_OFFS[i+1]<a) i++;
- const hAt=(o)=>{ const oo=SH+o; if(o===0) return bio.urban?0.15:-0.05; return this.groundRel(p.x+nx*oo*sd,p.z+nz*oo*sd,oo*sd,bio,km); };
+ const hAt=(o)=>{ const oo=SH+o; if(o===0) return bio.urban?0.15:-0.05; const ow=this.warpOff(p,oo*sd); return this.groundRel(p.x+nx*ow,p.z+nz*ow,oo*sd,bio,km); };
  const o0=TERRAIN_OFFS[i], o1=TERRAIN_OFFS[i+1];
  return p.y+lerp(hAt(o0),hAt(o1),clamp((a-o0)/(o1-o0),0,1));
 },
@@ -59,10 +63,12 @@ ribbon(view,s0,s1,cols,mat,rowFn,step){
  for(let s=s0;s<=s1+0.01;s+=step){
   const p=view.roadPoint(Math.min(s,view.road.builtS-0.01)), nx=Math.cos(p.h), nz=Math.sin(p.h);
   const rd=rowFn(s,p);
-  this._rowY=p.y;
+  this._rowY=p.y; this._rowBh=p.bh||0; this._rowDeck=!!p.deck;
   const [cp,cn]=view.maxCurv(s,45), limR=cp>1/700?0.9/cp:1e9, limL=cn>1/700?0.9/cn:1e9;
   for(const c0 of cols){
-   const c=(c0.off>limR||-c0.off>limL)? Object.assign({},c0,{off:c0.off>0?Math.min(c0.off,limR):-Math.min(-c0.off,limL)}) : c0;
+   let off= c0.offFn? c0.offFn(p) : c0.warp===false? c0.off : this.warpOff(p,c0.off);
+   if(off>limR) off=limR; if(-off>limL) off=-limL;
+   const c=Object.assign({},c0,{off,off0:c0.off!=null?c0.off:off});
    const x=p.x+nx*c.off, z=p.z+nz*c.off;
    const a=rd.at(c,x,z);
    pos.push(x,p.y+a.y,z); uv.push(a.u!=null?a.u:x*0.25, a.v!=null?a.v:z*0.25);
@@ -111,7 +117,26 @@ buildChunk(view,s0,s1){
  // ---- 路面 ----
  const roadMat=SceneMats.get(urban?"road_urban":"road_rural").mat;
  const white=new THREE.Color(1,1,1);
- grp.add(this.ribbon(view,s0,s1,[{off:-W},{off:0},{off:W}],roadMat,(s)=>({at:(c)=>({y:0,u:(c.off+W)/(2*W),v:s/12,c:white})})));
+ // 自分側の車道 [-L,0] と対向側 [m1,R]。2車線道路はテクスチャの左右半分 (中央の破線が中央線)、
+ // 上下線分離/多車線は各車道に全幅 (両端の実線 + 車線境界の破線)
+ const uOf=(p,k,right)=> p.dual? k : (right? 0.5+k*0.5 : k*0.5);
+ const hid=new Map(), sink=(s)=>{ const k=Math.round(s*4); if(!hid.has(k)) hid.set(k,P.mode==="race"&&this.rowHidden(view,s)?-0.12:0); return hid.get(k); };
+ grp.add(this.ribbon(view,s0,s1,[{offFn:p=>-p.L,k:0},{offFn:p=>-p.L/2,k:0.5},{offFn:()=>0,k:1}],roadMat,(s,p)=>{ const y=sink(s); return {at:(c)=>({y,u:uOf(p,c.k,false),v:s/12,c:white})}; }));
+ grp.add(this.ribbon(view,s0,s1,[{offFn:p=>p.m1,k:0},{offFn:p=>(p.m1+p.R)/2,k:0.5},{offFn:p=>p.R,k:1}],roadMat,(s,p)=>{ const y=sink(s); return {at:(c)=>({y,u:p.ow?0.25:uOf(p,c.k,true),v:s/12,c:white})}; }));
+ ctx.sink=sink;
+ // 中央分離帯 (縁石 + 芝/コンクリート)
+ if(view.road.pts.slice(Math.floor(s0/view.SEG),Math.ceil(s1/view.SEG)+1).some(q=>(q.m1||0)>0.3)){
+  const gm=SceneMats.get("ground").mat;
+  grp.add(this.ribbon(view,s0,s1,[{offFn:()=>0,t:"k"},{offFn:p=>Math.min(0.2,p.m1/2),t:"k"},{offFn:p=>Math.min(0.25,p.m1/2),t:"g"},{offFn:p=>Math.max(p.m1-0.25,p.m1/2),t:"g"},{offFn:p=>Math.max(p.m1-0.2,p.m1/2),t:"k"},{offFn:p=>p.m1,t:"k"}],gm,(s,p)=>{
+   const wide=p.m1>3, open=this.mouthAt(view,s,0), h=(p.m1>0.3&&!open)?0.15:0, bio=biomeAt(this.kmOfS(view,s)), sk=ctx.sink(s);
+   if(sk) return {at:()=>{ _sc.setHex(0x3b3c40).convertSRGBToLinear(); return {y:sk-0.05,c:_sc,veg:[0,0,0,0],misc:[0,0,0]}; }};
+   return {at:(c)=>{
+    const isEdge=(c.t==="k"&&(c.off<0.01||c.off>p.m1-0.01));
+    if(open){ _sc.setHex(0x3b3c40).convertSRGBToLinear(); _sv.setHex(bio.veg).convertSRGBToLinear(); return {y:0.004,c:_sc,veg:[_sv.r,_sv.g,_sv.b,0],misc:[0,0,0]}; }   // 交差点では分離帯を切る
+    _sc.setHex(c.t==="k"?0xc9c5ba:(wide?bio.soil:0xb3aea2)).convertSRGBToLinear(); _sv.setHex(bio.veg).convertSRGBToLinear();
+    return {y:isEdge?0.005:h,c:_sc,veg:[_sv.r,_sv.g,_sv.b,c.t==="g"&&wide?Math.min(0.6,bio.cov+0.25):0],misc:[0,0.1,0]}; }};
+  }));
+ }
  // ---- 路肩 / 歩道 ----
  const gmat=SceneMats.get("ground").mat;
  const shoulderCols=(sd)=> urban?
@@ -120,9 +145,11 @@ buildChunk(view,s0,s1){
  for(const sd of [-1,1]){
   let cols=shoulderCols(sd); if(sd<0) cols=cols.slice().reverse();
   grp.add(this.ribbon(view,s0,s1,cols,gmat,(s)=>{
-   const km=this.kmOfS(view,s), bio=biomeAt(km);
+   const km=this.kmOfS(view,s), bio=biomeAt(km), mouth=this.mouthAt(view,s,sd), sk=ctx.sink(s);
+   if(sk) return {at:()=>{ _sc.setHex(0x8d8b85).convertSRGBToLinear(); return {y:sk-0.05,c:_sc,veg:[0,0,0,0],misc:[0,0,0]}; }};   // 先に通った道路の下へ
    return {at:(c)=>{
     let y=-0.05, soil=0x9a6a42, cov=0.08, vg=bio.soil, misc=[0,0.15,0];
+    if(mouth&&bio.urban&&c.off0!=null&&Math.abs(c.off0)<=SH+0.01){ _sc.setHex(c.t==="gut"?0x8d8b85:0xb9b4a8).convertSRGBToLinear(); _sv.setHex(vg).convertSRGBToLinear(); return {y:0.0,c:_sc,veg:[_sv.r,_sv.g,_sv.b,0],misc:[0,0,0]}; }   // 交差点口: 縁石を下げる (歩道の切り下げ)
     if(c.t==="grav"){ soil=bio.urban?0x8f8a7a:0x8a6a50; _sc.setHex(soil).lerp(_sv.setHex(bio.soil),0.35); soil=_sc.getHex(); }
     if(c.t==="gut"){ y=-0.02; soil=0x8d8b85; cov=0; misc=[0,0,0]; }
     if(c.t==="kerb"||c.t==="path"){ y=0.15; soil=0xb9b4a8; cov=0; misc=[0,0,0]; }
@@ -138,15 +165,15 @@ buildChunk(view,s0,s1){
   grp.add(this.ribbon(view,s0,s1,cols,gmat,(s)=>{
    const km=this.kmOfS(view,s), bio=biomeAt(km);
    return {at:(c,x,z)=>{
-    const y= c.skirt? -38 : (Math.abs(c.off)<SH+0.1? (bio.urban?0.15:-0.05) : this.groundRel(x,z,c.off,bio,km));
-    const a=this.groundAttrs(bio,c.off,km,!bio.urban);
+    const y= c.skirt? -38 : (Math.abs(c.off0)<SH+0.1&&!this._rowDeck? Math.min(bio.urban?0.15:-0.05,this.branchCap(x,z)) : this.groundRel(x,z,c.off0,bio,km));
+    const a=this.groundAttrs(bio,c.off0,km,!bio.urban);
     return {y,c:a.c,veg:a.veg,misc:a.misc};
    }};
   }));
  }
  // ---- 景観オブジェクト ----
  this.buildOcc(ctx); this._ctxOcc=ctx.occ;
- if(P.mode==="race") this.sites(ctx);
+ if(P.mode==="race"){ this.sites(ctx); this.bridges(ctx); }
  if(urban) this.urban(ctx,urban); else this.rural(ctx);
  this.townOverlay(ctx);
  this.features(ctx);
@@ -157,19 +184,55 @@ buildChunk(view,s0,s1){
  return grp;
 },
 /* 分岐道路の入口付近か (街灯・ガイドポスト・フェンスを置かない) */
-brNear(view,s,w=0){ for(const b of view.branches){ if(Math.abs(b.sJ-s)<b.half+4+w) return true; } return RP_MANEUVERS.some(m=>Math.abs(view.sOfKm(m.km)-s)<30+w); },
+brNear(view,s,w=0,sd=0){
+ for(const b of view.branches){
+  if(b.mouth){ if(s>=b.mouth.sA-4-w&&s<=b.mouth.sB+4+w&&(!sd||b.side===sd)) return true; }
+  else if(Math.abs(b.sJ-s)<b.half+4+w) return true;
+ }
+ return RP_MANEUVERS.some(m=>Math.abs(view.sOfKm(m.km)-s)<30+w);
+},
+/* 三角形の向きを上向き (+Y) にそろえる (DoubleSide の Lambert は裏面が暗くなるため) */
+upWind(pos,idx){ for(let i=0;i<idx.length;i+=3){ const a=idx[i]*3,b=idx[i+1]*3,c=idx[i+2]*3;
+  const ny=(pos[b+2]-pos[a+2])*(pos[c]-pos[a])-(pos[b]-pos[a])*(pos[c+2]-pos[a+2]); if(ny<0){ const t=idx[i+1]; idx[i+1]=idx[i+2]; idx[i+2]=t; } } },
+/* 沿道の柱など: 道路にかかる場合は前後にずらして置く (置けなければ null) */
+clearAt(view,s,off,sd){ for(const d of [0,6,-6,12,-12]){ if(this.brNear(view,s+d,0,sd)) continue; const q=this.at(view,s+d,off); if(this.roadClear(view,q.x,q.z,s+d)) return q; } return null; },
+/* 本線が同じ場所を再び通る (ループ・上下線の往復) 区間: 後から通る側の路面は先の路面/分岐の下へ沈めて重ね描きを避ける */
+rowHidden(view,s){
+ const P=view.road.pts, i0=Math.round(s/view.SEG); if(i0>=P.length) return false;
+ const q=P[i0];
+ for(let i=Math.max(0,i0-1600);i<i0-40;i+=2){ const o=P[i], w=Math.max(o.L||5,o.R||5)-0.5, dx=o.x-q.x, dz=o.z-q.z; if(dx*dx+dz*dz<w*w&&Math.abs(o.y-q.y)<1.5) return true; }
+ for(const b of view.branches){ if(b.sJ>=s-30) continue; const B=b.pts; for(let i=0;i<B.length;i+=2){ const dx=B[i].x-q.x, dz=B[i].z-q.z; if(dx*dx+dz*dz<(b.half-0.5)**2) return true; } }
+ return false;
+},
+/* 交差点口 (本線の路肩・縁石・分離帯を切る区間) */
+mouthAt(view,s,sd){ for(const b of view.branches){ const m=b.mouth; if(m&&s>=m.sA&&s<=m.sB&&(!sd||b.side===sd)) return true; } return false; },
+/* 点 (x,z) が分岐道路・隅切りの上でないか (沿道の柱・樹木の配置用) */
+roadClear(view,x,z,s){
+ for(const b of view.branches){
+  if(Math.abs(b.sJ-s)>b.len+60) continue;
+  for(const f of b.fillets||[]){ const dx=f.C[0]-x, dz=f.C[1]-z; if(dx*dx+dz*dz<121) return false; }
+  const P=b.pts, r=b.half+1.3;
+  for(let i=0;i<P.length;i+=2){ const dx=P[i].x-x, dz=P[i].z-z; if(dx*dx+dz*dz<(r+2.5)*(r+2.5)){
+   for(let k=Math.max(0,i-2);k<Math.min(P.length-1,i+2);k++){ const a=P[k],c=P[k+1],ex=c.x-a.x,ez=c.z-a.z,L2=ex*ex+ez*ez||1,t=clamp(((x-a.x)*ex+(z-a.z)*ez)/L2,0,1);
+    if((a.x+ex*t-x)**2+(a.z+ez*t-z)**2<r*r) return false; } } }
+ }
+ // 本線の他の区間 (ループ・並走) の上
+ const P=view.road.pts, i0=Math.round(s/view.SEG);
+ for(let i=Math.max(0,i0-300);i<Math.min(P.length,i0+300);i+=2){ if(Math.abs(i-i0)<24) continue; const q=P[i], w=Math.max(q.L||5,q.R||5)+1.2, dx=q.x-x, dz=q.z-z; if(dx*dx+dz*dz<w*w) return false; }
+ return true;
+},
 /* 道路(本線の他区間・分岐)との重なり判定用の占有グリッド */
 buildOcc(ctx){
  const view=ctx.view, CS=4, near=new Set(), far=new Set();
  const mark=(set,x,z,R)=>{ for(let dx=-R;dx<=R;dx+=CS) for(let dz=-R;dz<=R;dz+=CS){ if(dx*dx+dz*dz>R*R) continue; set.add(Math.floor((x+dx)/CS)+","+Math.floor((z+dz)/CS)); } };
  const P=view.road.pts, i0=Math.max(0,Math.floor((ctx.s0-400)/view.SEG)), i1=Math.min(P.length-1,Math.ceil((ctx.s1+400)/view.SEG));
- for(let i=i0;i<=i1;i+=2){ mark(near,P[i].x,P[i].z,view.ROAD_W+3); mark(far,P[i].x,P[i].z,view.ROAD_W+15); }
+ for(let i=i0;i<=i1;i+=2){ const hw=Math.max(P[i].L||5,P[i].R||5); mark(near,P[i].x,P[i].z,hw+3); mark(far,P[i].x,P[i].z,hw+15); }
  for(const b of view.branches) if(Math.abs(b.sJ-(ctx.s0+ctx.s1)/2)<b.len+500) for(const q of b.pts){ mark(near,q.x,q.z,b.half+3); mark(far,q.x,q.z,b.half+15); }
  ctx.occ={near,far,CS,
   // own: 自分の区間(sOwn 付近)は除外して判定
-  hit:(x,z,kind,sOwn,offOwn)=>{ const set=kind==="far"?far:near; if(!set.has(Math.floor(x/CS)+","+Math.floor(z/CS))) return false;
+  hit:(x,z,kind,sOwn,offOwn,hwOwn)=>{ const set=kind==="far"?far:near; if(!set.has(Math.floor(x/CS)+","+Math.floor(z/CS))) return false;
    // 自分の区間由来のヒットを除く: 本線の同じ区間までの距離が十分あれば他区間/分岐との重なり
-   const ownR=(kind==="far"?view.ROAD_W+15:view.ROAD_W+3);
+   const ownR=(kind==="far"?15:3)+(hwOwn||view.ROAD_W);
    if(Math.abs(offOwn)>ownR+2){ // 自分の区間とは十分離れている → 他道路に重なっている
     return true; }
    return false; }};
@@ -177,11 +240,11 @@ buildOcc(ctx){
 /* 位置ヘルパ: s, 横オフセット → ワールド座標 & 道路向き */
 at(view,s,off){
  const p=view.roadPoint(clamp(s,0,view.road.builtS-0.01)), nx=Math.cos(p.h), nz=Math.sin(p.h);
- const x=p.x+nx*off, z=p.z+nz*off;
+ const wo=this.warpOff(p,off), x=p.x+nx*wo, z=p.z+nz*wo;
  const occ=this._ctxOcc;
  return { x, z, y:this.groundY(view,s,off), h:p.h, nx, nz, fx:Math.sin(p.h), fz:-Math.cos(p.h),
   face: off<0? -p.h-Math.PI/2 : -p.h+Math.PI/2,
-  blocked: occ? occ.hit(x,z,"near",s,off) : false, blockedFar: occ? occ.hit(x,z,"far",s,off) : false };
+  blocked: occ? occ.hit(x,z,"near",s,wo,Math.max(p.L||5,p.R||5)) : false, blockedFar: occ? occ.hit(x,z,"far",s,wo,Math.max(p.L||5,p.R||5)) : false };
 },
 floraWeights(km){
  const b=biomeAt(km), w={};
@@ -230,8 +293,8 @@ rural(ctx){
  // ガイドポスト (20m毎・左=赤/右=白 反射板)
  const g0=Math.ceil(s0/20)*20;
  for(let s=g0;s<s1;s+=20) for(const sd of [-1,1]){
-  if(this.brNear(view,s)) continue;
-  const q=this.at(view,s,sd*(W+2.3)); PR.guidePost(bs,q.x,q.y+0.03,q.z,-q.h,sd<0);
+  if(this.brNear(view,s,0,sd)) continue;
+  const q=this.at(view,s,sd*(W+2.3)); if(!this.roadClear(view,q.x,q.z,s)) continue; PR.guidePost(bs,q.x,q.y+0.03,q.z,-q.h,sd<0);
  }
  // 牧場の境界フェンス (農地は常時/内陸は時々)
  const w=this.floraWeights(this.kmOfS(view,(s0+s1)/2));
@@ -239,7 +302,7 @@ rural(ctx){
  if(rnd()<fenceP){
   for(const sd of [-1,1]){
    const off=sd*(SH+rndr(14,22)), pts=[];
-   for(let s=Math.ceil(s0/8)*8;s<s1;s+=8){ if(this.brNear(view,s)){ this.wires(ctx,pts,[0.55,0.95],0.02,0x6b5d4f); pts.length=0; continue; } const q=this.at(view,s,off); PR.fencePost(bs,q.x,q.y,q.z,-q.h); pts.push([q.x,q.y,q.z]); }
+   for(let s=Math.ceil(s0/8)*8;s<s1;s+=8){ const q=this.at(view,s,off); if(this.brNear(view,s,8,sd)||!this.roadClear(view,q.x,q.z,s)){ this.wires(ctx,pts,[0.55,0.95],0.02,0x6b5d4f); pts.length=0; continue; } PR.fencePost(bs,q.x,q.y,q.z,-q.h); pts.push([q.x,q.y,q.z]); }
    this.wires(ctx,pts,[0.55,0.95],0.02,0x6b5d4f);
   }
  }
@@ -256,33 +319,27 @@ urban(ctx,kind){
  const {view,bs,s0,s1}=ctx, SH=view.SHOULDER, W=view.ROAD_W;
  // 街路樹 / 街灯
  for(let s=Math.ceil(s0/30)*30;s<s1;s+=30) for(const sd of [-1,1]){
-  if(this.brNear(view,s)) continue;
-  const q=this.at(view,s,sd*(SH-0.8));
+  if(this.brNear(view,s,0,sd)) continue;
+  const q=this.at(view,s,sd*(SH-0.8)); if(!this.roadClear(view,q.x,q.z,s)) continue;
   PR.streetLight(bs,q.x,q.y,q.z,-sd*q.nx,-sd*q.nz);
  }
  for(let s=Math.ceil(s0/16)*16+8;s<s1;s+=16) for(const sd of [-1,1]){
   if(rnd()<0.25) continue;
-  if(this.brNear(view,s)) continue;
-  const q=this.at(view,s,sd*(SH-1.6));
+  if(this.brNear(view,s,0,sd)) continue;
+  const q=this.at(view,s,sd*(SH-1.6)); if(!this.roadClear(view,q.x,q.z,s)) continue;
   if(kind.startsWith("darwin")) PR.palm(bs,q.x,q.y,q.z,0.75); else PR.tree(bs,q.x,q.y,q.z,"street",0.8);
  }
  // 電柱+電線 (アデレード=ストビーポール)
  const poles=[];
  for(let s=Math.ceil(s0/40)*40;s<s1;s+=40){
-  const q=this.at(view,s,-(SH+1.0));
+  const q=this.clearAt(view,s,-(SH+1.0),-1); if(!q) continue;
   const top=kind==="adelaide"? PR.stobie(bs,q.x,q.y,q.z,-q.h) : PR.woodPole(bs,q.x,q.y,q.z,-q.h);
   poles.push([q.x,top,q.z,q.nx,q.nz]);
  }
  if(kind!=="parklands"&&kind!=="darwin_cbd") for(const k of [-0.9,0,0.9]) this.wires(ctx,poles.map(p=>[p[0]+p[3]*k,p[1],p[2]+p[4]*k]),[0],0.35,0x222222);
  // 交差する脇道 (110m毎)
  const sideStreets=[];
- if(kind!=="parklands") for(let s=Math.ceil(s0/110)*110+40;s<s1;s+=110){
-  sideStreets.push(s);
-  for(const sd of [-1,1]){
-   const q0=this.at(view,s,sd*(SH+1)), L=180;
-   bs.get("solid").add(tpl("box"),M4(q0.x+sd*q0.nx*L/2,q0.y-0.16,q0.z+sd*q0.nz*L/2,8,0.18,L,-q0.h+Math.PI/2),linCol(0x3b3c3f));
-  }
- }
+ if(kind!=="parklands") for(let s=Math.ceil(s0/330)*330+40;s<s1;s+=330) sideStreets.push(s);   // 脇道そのものは branches() で作る (敷地割りはここを避ける)
  const nearSide=(s)=>sideStreets.some(x=>Math.abs(x-s)<11);
  // 敷地割り
  const rows= kind==="darwin_cbd"? [[24,34],[66,90],[120,160],[200,260]]
@@ -294,8 +351,10 @@ urban(ctx,kind){
    const lotW= kind==="darwin_cbd"? rndr(30,44) : kind==="adelaide"? rndr(17,21) : rndr(18,26);
    if(nearSide(s)){ s+=lotW; continue; }
    const off=sd*rndr(oa,ob), q=this.at(view,s,off), y=q.y-0.05;
-   if(q.blockedFar){ s+=lotW; continue; }
-   if(kind==="darwin_cbd"){ PR.tower(bs,q.x,y,q.z,q.face,rnd()<0.55?"resi":"office"); }
+   if(q.blockedFar||this.pavedSite(view,s,off)){ s+=lotW; continue; }
+   if(kind==="darwin_cbd"){ // 高層ビルは敷地の四隅も道路にかからないこと
+    if([[-12,-12],[12,-12],[-12,12],[12,12]].some(([a,c])=>this.at(view,s+a,off+c).blockedFar)){ s+=lotW; continue; }
+    PR.tower(bs,q.x,y,q.z,q.face,rnd()<0.55?"resi":"office"); }
    else if(kind==="darwin_sub"){
     const ind=km>5&&km<10.5;
     if(ind&&rnd()<0.8) PR.shed(bs,q.x,y,q.z,q.face);
@@ -328,7 +387,7 @@ townOverlay(ctx){
   for(const [oa,ob] of [[SH+16,SH+26],[SH+50,SH+62],[SH+95,SH+120]]){
    if(rnd()<0.35) continue;
    const off=sd*rndr(oa,ob), q=this.at(view,s,off), y=q.y-0.05;
-   if(q.blockedFar) continue;
+   if(q.blockedFar||this.pavedSite(view,s,off)) continue;
    if(tk==="cooberpedy"){ rnd()<0.5? PR.mullock(bs,q.x,y,q.z,0.6) : PR.houseOutback(bs,q.x,y,q.z,q.face); }
    else if(Math.abs(off)<SH+30 && rnd()<(tk==="alice"||tk==="ptaugusta"?0.3:0.12)) PR.shopStrip(bs,q.x,y,q.z,q.face,2+Math.floor(rnd()*2));
    else PR.houseOutback(bs,q.x,y,q.z,q.face);
@@ -341,7 +400,7 @@ townOverlay(ctx){
  if(lots.length>2){
   const poles=[];
   for(let s=Math.ceil(s0/40)*40;s<s1;s+=40){ if(!townKind(this.kmOfS(view,s))) continue;
-   const q=this.at(view,s,-(SH+3)); poles.push([q.x,PR.woodPole(bs,q.x,q.y,q.z,-q.h),q.z,q.nx,q.nz]); }
+   const q=this.clearAt(view,s,-(SH+3),-1); if(!q) continue; poles.push([q.x,PR.woodPole(bs,q.x,q.y,q.z,-q.h),q.z,q.nx,q.nz]); }
   for(const k of [-0.8,0.8]) this.wires(ctx,poles.map(p=>[p[0]+p[3]*k,p[1],p[2]+p[4]*k]),[0],0.35,0x222222);
  }
 },
@@ -374,8 +433,22 @@ wires(ctx,pts,heights,sag,color){
  const lm=this._lineMats[color]||(this._lineMats[color]=new THREE.LineBasicMaterial({color:new THREE.Color(color).convertSRGBToLinear(),transparent:true,opacity:0.8}));
  const l=new THREE.LineSegments(g,lm); l.matrixAutoUpdate=false; ctx.grp.add(l);
 },
+/* 点が道路 (本線のどの区間か・分岐道路) の上か → 最も近い道路の点 (外へずらす向きの計算用) か null */
+roadHit(view,x,z,pad){
+ const P=view.road.pts;
+ for(let i=0;i<P.length;i+=2){ const q=P[i], w=Math.max(q.L||5,q.R||5)+pad, dx=x-q.x, dz=z-q.z; if(dx*dx+dz*dz<w*w) return q; }
+ for(const b of view.branches){ if(Math.abs(x-b.cx)>b.R+b.half||Math.abs(z-b.cz)>b.R+b.half) continue;
+  for(const q of b.pts){ const dx=x-q.x, dz=z-q.z; if(dx*dx+dz*dz<(b.half+pad)**2) return q; } }
+ return null;
+},
 signMesh(ctx,q,kind,text,w,h,postH,off){
  const {bs}=ctx;
+ // 道路の上に立たないように: 重なっていれば最寄りの道路から離れる向きに最大 10 m ずらす。だめなら置かない
+ if(ctx.view&&kind!=="banner"){ let hit=this.roadHit(ctx.view,q.x,q.z,0.6);
+  if(hit){ let ok=false;
+   for(let k=1;k<=8&&!ok;k++){ const dx=q.x-hit.x, dz=q.z-hit.z, L=Math.hypot(dx,dz)||1; const nx2=q.x+dx/L*1.3, nz2=q.z+dz/L*1.3;
+    q=Object.assign({},q,{x:nx2,z:nz2}); hit=this.roadHit(ctx.view,q.x,q.z,0.6); if(!hit) ok=true; }
+   if(!ok) return; } }
  const ry=-q.h;
  const posts= w>2.2? [-w*0.35,w*0.35] : [0];
  for(const px of posts) bs.get("solid").add(tpl("box"),M4(q.x+q.nx*px,q.y,q.z+q.nz*px,0.08,postH,0.08,ry),linCol(0x9a9da0));
@@ -420,6 +493,17 @@ roadSigns(ctx){
     ctx.bs.get("solid").add(tpl("box"),M4(q.x,q.y,q.z,0.1,1.0,0.1,-q.h),linCol(0x9a9da0)); }
   }
  }
+ // 右左折の路面矢印 (動作の 15 m / 40 m 手前, 曲がる側の車線)
+ for(const m of Route.maneuversIn(kmA-0.1,kmB+0.1)){
+  if(!/^(L|R|veerL|veerR)$/.test(m.turn)) continue;
+  const left=m.turn==="L"||m.turn==="veerL";
+  for(const back of [15,40]){
+   const sq=sAt(m.km)-back; if(sq<ctx.s0||sq>=ctx.s1) continue;
+   const p=view.roadPoint(sq), [,cn]=view.maxCurv(sq,45), effL=Math.min(p.L||5, cn>1/700? 0.9/cn : 1e9);   // 急カーブ手前で路面を細めるクランプと同じ
+   const multi=effL>6.2, lat= multi? (left? -(effL-1.75) : -1.75) : -Math.min(2.4,effL/2);
+   this.laneArrow(ctx,sq,lat,left?-1:1);
+  }
+ }
  // 右左折の予告標識 (緑) と動作地点の矢印
  for(const m of Route.maneuversIn(kmA-0.2,kmB)){
   if(!m.name||m.name.startsWith("(")) continue;
@@ -428,42 +512,187 @@ roadSigns(ctx){
    const q=this.at(view,sq,-(W+4.2)); this.signMesh(ctx,q,"green",arrow+m.name.slice(0,20),4.4,1.0,2.2); }
  }
 },
-/* ---- 分岐道路 (脇道 t/o・信号の交差道路・曲がり損ね) ---- */
+makeBranchMats(){
+ this._brMat={
+  asph:new THREE.MeshLambertMaterial({color:new THREE.Color(1.5,1.5,1.5),map:roadTex("urban"),side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-2}),
+  gravel:new THREE.MeshLambertMaterial({color:new THREE.Color(0x9c7450).convertSRGBToLinear(),map:detailTex(),side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-2})};
+},
+/* ---- OSM の橋: 欄干 (全区間) と、下を道路がくぐる立体交差 (橋桁・橋台・下の道路) ---- */
+bridges(ctx){
+ const {view,kmA,kmB,bs}=ctx, B=bs.get("solid");
+ for(const t of OsmRoute.towns){
+  for(const [k0,k1,under] of t.bridges||[]){
+   if(k1<kmA||k0>=kmB||!Route.inZone((k0+k1)/2)) continue;
+   // 欄干: 橋の区間を 5 m ごとの箱で (左右とも路端の外)
+   const sa=Math.max(view.sOfKm(Math.max(k0,kmA)),ctx.s0), sb=Math.min(view.sOfKm(Math.min(k1,kmB)),ctx.s1);
+   for(let s=sa;s<sb;s+=2.5){ const e=Math.min(2.5,sb-s), ps=view.roadPoint(s+e/2), nx=Math.cos(ps.h), nz=Math.sin(ps.h), fx=Math.sin(ps.h), fz=-Math.cos(ps.h);
+    for(const [lat,c] of [[-(ps.L+1.6),0xc8c6be],[ps.R+1.6,0xc8c6be]]){ const x=ps.x+nx*lat, z=ps.z+nz*lat;
+     B.add(tpl("box"),M4(x,ps.y-0.05,z,0.35,1.05,e+0.05,-ps.h),linCol(c));
+     B.add(tpl("box"),M4(x,ps.y+0.98,z,0.45,0.12,e+0.05,-ps.h),linCol(0xdedcd4)); } }
+   // 立体交差
+   for(const [ku,hb,name,uh] of under||[]){
+    if(ku<kmA||ku>=kmB) continue;
+    const su=view.sOfKm(ku), p=view.roadPoint(su), base=p.y-(p.bh||0), half=uh||3.5;
+    const Hk=OsmRoute.H(t,ku), hu=p.h+(hb-Hk), ux=Math.sin(hu), uz=-Math.cos(hu);
+    const deckW=p.L+p.R+3.6, cLat=(p.R-p.L)/2, nx=Math.cos(p.h), nz=Math.sin(p.h);
+    const cx=p.x+nx*cLat, cz=p.z+nz*cLat;
+    // 橋桁 (路面の下, 下の道路の幅 + 余裕)
+    B.add(tpl("boxC"),M4(cx,p.y-0.75,cz,deckW,1.4,half*2+7,-p.h),linCol(0xb7b4aa));
+    for(const sd of [-1,1]) B.add(tpl("boxC"),M4(cx+Math.sin(p.h)*sd*(half+3.2),p.y-1.7,cz-Math.cos(p.h)*sd*(half+3.2),deckW-1,0.6,0.6,-p.h),linCol(0x9d9a90));
+    // 橋台 (下の道路の両側の壁)
+    for(const sd of [-1,1]){ const ox=Math.cos(hu)*sd*(half+2.4), oz=Math.sin(hu)*sd*(half+2.4);
+     B.add(tpl("box"),M4(p.x+ox,base-0.2,p.z+oz,1.2,(p.bh||0)-0.6,deckW+4,-hu+Math.PI/2),linCol(0xa9a69c)); }
+    // 下の道路 (くぐる道路, 走行はしない)
+    const L=110, pos=[],uv=[],idx=[];
+    for(let i=0;i<=44;i++){ const d=-L+i*(2*L/44), x=p.x+ux*d, z=p.z+uz*d, rx=Math.cos(hu), rz=Math.sin(hu);
+     pos.push(x-rx*half,base+0.02,z-rz*half, x+rx*half,base+0.02,z+rz*half); uv.push(0,i*(2*L/44)/12, 1,i*(2*L/44)/12);
+     if(i>0){ const q=(i-1)*2; idx.push(q,q+1,q+2, q+1,q+3,q+2); } }
+    this.upWind(pos,idx);
+    const g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); g.setAttribute("uv",new THREE.Float32BufferAttribute(uv,2)); g.setIndex(idx); g.computeVertexNormals();
+    if(!this._brMat) this.makeBranchMats();
+    const m=new THREE.Mesh(g,this._brMat.asph); m.receiveShadow=true; m.matrixAutoUpdate=false; ctx.grp.add(m);
+    if(name){ const q={x:p.x+ux*(-24)+Math.cos(hu)*(half+2),z:p.z+uz*(-24)+Math.sin(hu)*(half+2),y:base,h:hu,nx:Math.cos(hu),nz:Math.sin(hu)}; this.signMesh(ctx,q,"green",name.slice(0,18),2.6,0.55,2.2); }
+   }
+  }
+ }
+},
+/* 路面の矢印 (dir: -1=左折 / 1=右折 / 0=直進)。白い箱を路面に並べて描く */
+laneArrow(ctx,s,lat,dir){
+ const view=ctx.view, p=view.roadPoint(s), nx=Math.cos(p.h), nz=Math.sin(p.h), fx=Math.sin(p.h), fz=-Math.cos(p.h), y=p.y+0.013, col=linCol(0xf2f0e6), B=ctx.bs.get("solid");
+ const P=(a,l)=>[p.x+nx*(lat+l)+fx*a, p.z+nz*(lat+l)+fz*a];
+ const box=(a,l,w,len,rot)=>{ const [x,z]=P(a,l); B.add(tpl("box"),M4(x,y,z,w,0.01,len,-p.h+(rot||0)),col); };
+ box(-1.2,0,0.22,3.4);                                   // 軸
+ if(dir===0){ box(1.0,-0.3,0.2,1.0,-0.6); box(1.0,0.3,0.2,1.0,0.6); return; }
+ box(0.6,dir*0.55,1.1,0.22);                             // 曲がる腕
+ box(0.95,dir*1.15,0.2,0.9,dir*0.75); box(0.25,dir*1.15,0.2,0.9,-dir*0.75);   // 矢じり
+},
+/* ---- 分岐道路 (脇道 t/o・信号の交差道路・曲がり損ね) ----
+ ・路端から始め、角は隅切り (2 次ベジェの円弧) で本線とつなぐ。市街地は隅切りに縁石
+ ・opt.shape: [[本線方向からの相対角 rad, 長さ m], ...] (OSM の実形状)。無ければ直線 + わずかな揺らぎ
+ ・本線の別の区間 (ループ・並走) に重なったところで打ち切る */
 makeBranch(ctx,sJ,angle,opt){
  const view=ctx.view, p=view.roadPoint(sJ), h0=(opt.h!=null?opt.h:p.h);
- const h=h0+angle, W=view.ROAD_W, half=opt.half||3.6, step=5;
- const fx=Math.sin(h), fz=-Math.cos(h);
- const start= opt.fromCentre? [p.x,p.z] : [p.x+Math.cos(p.h)*Math.sign(angle||1)*Math.abs(Math.sin(angle))*(W-0.5), p.z+Math.sin(p.h)*Math.sign(angle||1)*Math.abs(Math.sin(angle))*(W-0.5)];
- const pts=[]; let x=start[0], z=start[1], hh=h, wob=(rnd()-0.5)*0.004;
- const len=opt.len||220;
- const jf=[Math.sin(p.h),-Math.cos(p.h)], jr=[Math.cos(p.h),Math.sin(p.h)];
- for(let d=0;d<=len;d+=step){
-  const along=(x-p.x)*jf[0]+(z-p.z)*jf[1], lat=(x-p.x)*jr[0]+(z-p.z)*jr[1];
-  const y=p.y+0.012;   // 分岐道路は接続点の高さで平坦 (周囲の地形を下げて合わせる)
-  pts.push({x,z,y});
-  if(d>30) hh+=wob;
-  x+=Math.sin(hh)*step; z-=Math.cos(hh)*step;
+ const half=opt.half||3.6, step=2.5, len=opt.len||220;
+ const side=Math.sin(h0+angle-p.h)>=0?1:-1;                    // 分岐が出る側 (右 +1 / 左 -1)
+ const edge= side>0? p.R : p.L;
+ const nX=Math.cos(p.h), nZ=Math.sin(p.h), fX=Math.sin(p.h), fZ=-Math.cos(p.h);   // 本線の右向き法線 / 前方
+ const urban=!!biomeAt(view.kmOfS(sJ)).urban;
+ const start= opt.fromCentre? [p.x,p.z] : [p.x+nX*side*(edge-0.4), p.z+nZ*side*(edge-0.4)];
+ // 既にある分岐と付け根が重なり、同じ向きに出るもの (上下線分離の交差道路・同じ道の重複) は作らない
+ const hd=h0+angle;
+ for(const o of view.branches){ if(o.dir==null||Math.abs(o.sJ-sJ)>60) continue;
+  const da=Math.abs(Math.atan2(Math.sin(o.dir-hd),Math.cos(o.dir-hd))); if(da>0.45) continue;
+  const dx=o.pts[0].x-start[0], dz=o.pts[0].z-start[1], perp=Math.abs(dx*(-Math.cos(hd))-dz*Math.sin(hd));   // 分岐の向きに対する横ずれ
+  if(perp<half+o.half&&Math.hypot(dx,dz)<60) return null; }
+ // 中心線
+ const segs= opt.shape&&opt.shape.length? opt.shape.map(([a,l])=>[h0+a-(opt.shapeRef||0),l]) : [[h0+angle,len]];
+ const pts=[]; let x=start[0], z=start[1], wob=opt.shape?0:(rnd()-0.5)*0.004, hh=segs[0][0], acc=0;
+ pts.push({x,z,y:p.y+0.012});
+ const P=view.road.pts, iJ=Math.round(sJ/view.SEG);
+ const clash=(x,z,d)=>{ // 本線の他の区間に重なるか (分岐の付け根の前後は除く)
+  if(d<half+edge+6) return false;
+  for(let i=Math.max(0,iJ-400);i<Math.min(P.length,iJ+400);i+=2){
+   if(Math.abs(i-iJ)*view.SEG<half+edge+4) continue;
+   const q=P[i], dx=q.x-x, dz=q.z-z, w=Math.max(q.L||5,q.R||5)+1;
+   if(dx*dx+dz*dz<w*w) return true;
+  }
+  // 既にある別の分岐道路 (同じ道を反対側の交差点から作ったもの等) に入ったら打ち切る
+  for(const o of view.branches){ if(Math.abs(o.sJ-sJ)<3) continue;
+   if(Math.abs(x-o.cx)>o.R+half||Math.abs(z-o.cz)>o.R+half) continue;
+   const w=o.half+half*0.6;
+   for(let i=0;i<o.pts.length-1;i+=2){ const dx=o.pts[i].x-x, dz=o.pts[i].z-z; if(dx*dx+dz*dz>=w*w) continue;
+    // 交わるだけ (X 字) なら続ける。同じ向き/逆向きに重なって走る場合だけ打ち切る
+    const ox=o.pts[i+1].x-o.pts[i].x, oz=o.pts[i+1].z-o.pts[i].z, oh=Math.atan2(ox,-oz), da=Math.abs(Math.atan2(Math.sin(oh-hh),Math.cos(oh-hh)));
+    if(da<0.5||da>Math.PI-0.5) return true; } }
+  return false;
+ };
+ for(const [hs,l] of segs){
+  let d=0; hh=hs;
+  while(d<l-1e-6&&acc<len){
+   const st=Math.min(step,l-d); if(!opt.shape&&acc>30) hh+=wob;
+   x+=Math.sin(hh)*st; z-=Math.cos(hh)*st; d+=st; acc+=st;
+   if(clash(x,z,acc)) { acc=len; break; }
+   pts.push({x,z,y:p.y+0.012});
+  }
+  if(acc>=len) break;
  }
- const b={pts,sJ,kmJ:view.kmOfS(sJ),len,half,step,name:opt.name||"",wrong:!!opt.wrong,surface:opt.surface||"asph",y0:p.y,
-  cx:(pts[0].x+pts[pts.length-1].x)/2, cz:(pts[0].z+pts[pts.length-1].z)/2, R:len/2+40};
- // メッシュ
+ if(pts.length<3) return null;
+ const b={pts,sJ,kmJ:view.kmOfS(sJ),len:acc,half,step,name:opt.name||"",wrong:!!opt.wrong,surface:opt.surface||"asph",y0:p.y,side,dir:hd,
+  cx:(pts[0].x+pts[pts.length-1].x)/2, cz:(pts[0].z+pts[pts.length-1].z)/2, R:acc/2+40};
+ // メッシュ (帯)
  const pos=[],uv=[],idx=[];
+ let vacc=0;
  for(let i=0;i<pts.length;i++){
   const a=pts[Math.max(0,i-1)], c=pts[Math.min(pts.length-1,i+1)];
   const dx=c.x-a.x, dz=c.z-a.z, L=Math.hypot(dx,dz)||1, rx=-dz/L, rz=dx/L;
+  if(i>0) vacc+=Math.hypot(pts[i].x-pts[i-1].x,pts[i].z-pts[i-1].z);
   pos.push(pts[i].x-rx*half,pts[i].y,pts[i].z-rz*half, pts[i].x+rx*half,pts[i].y,pts[i].z+rz*half);
-  uv.push(0,i*step/12, 1,i*step/12);
+  uv.push(0,vacc/12, 1,vacc/12);
   if(i>0){ const q=(i-1)*2; idx.push(q,q+1,q+2, q+1,q+3,q+2); }
  }
+ // 隅切り: 本線の路端線と分岐の側線の交点 C を制御点に、路端上の A から側線上の B へ 2 次ベジェ
+ const rc= opt.fromCentre||opt.noFillet? 0 : (urban? 6 : 10);
+ const fil=[];
+ if(rc>0){
+  const u0=[pts[1].x-pts[0].x, pts[1].z-pts[0].z], ul=Math.hypot(u0[0],u0[1])||1, ux=u0[0]/ul, uz=u0[1]/ul;
+  const vx=-uz, vz=ux;                                   // 分岐の右向き法線
+  const ex=p.x+nX*side*edge, ez=p.z+nZ*side*edge;       // 路端線上の点
+  for(const sg of [-1,1]){
+   // 側線: start + v*sg*half + u*t / 路端線: e + f*s → 交点
+   const sx=start[0]+vx*sg*half, sz=start[1]+vz*sg*half;
+   const det=fX*(-uz)-fZ*(-ux); if(Math.abs(det)<0.3) continue;   // 斜めすぎる側は隅切りしない
+   const rx=sx-ex, rz=sz-ez, sP=(rx*(-uz)-rz*(-ux))/det, tP=(fX*rz-fZ*rx)/det;
+   if(Math.abs(sP)>half/Math.abs(det)+3||tP<-3||tP>half/Math.abs(det)+3) continue;   // 交点が付け根から外れる (形状が崩れる) 場合は省く
+   const C=[ex+fX*sP, ez+fZ*sP];
+   const dirA=Math.sign((sx-start[0])*fX+(sz-start[1])*fZ)||sg;   // 側線がずれている向きへ路端を進む
+   const cosT=dirA*(fX*ux+fZ*uz), rcE= cosT>0.4? rc*Math.max(0.25,Math.sqrt(1-cosT*cosT)) : rc;   // 鋭角の角は小さな隅切り (細長いトゲにしない)
+   const A=[C[0]+fX*dirA*rcE, C[1]+fZ*dirA*rcE], B=[C[0]+ux*Math.max(rcE,tP+rcE*0.6), C[1]+uz*Math.max(rcE,tP+rcE*0.6)];
+   const curve=[]; for(let k=0;k<=8;k++){ const t=k/8, m0=(1-t)*(1-t), m1=2*(1-t)*t, m2=t*t; curve.push([m0*A[0]+m1*C[0]+m2*B[0], m0*A[1]+m1*C[1]+m2*B[1]]); }
+   fil.push({C,curve,A,B});
+   const base=pos.length/3; pos.push(C[0],p.y+0.011,C[1]); uv.push(0.25,0);
+   for(const q of curve){ pos.push(q[0],p.y+0.011,q[1]); uv.push(0.25,0.15); }
+   for(let k=0;k<8;k++) idx.push(base,base+1+k,base+2+k);
+  }
+ }
+ b.fillets=fil;
+ // 本線沿いの交差点口 (縁石・ガイドポスト等を置かない区間)
+ const along=(q)=>(q[0]-p.x)*fX+(q[1]-p.z)*fZ;
+ let ma=-half-1, mb=half+1; for(const f of fil){ const v=along(f.A); ma=Math.min(ma,v); mb=Math.max(mb,v); }
+ b.mouth={sA:sJ+ma-1, sB:sJ+mb+1};
+ this.upWind(pos,idx);
  const g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); g.setAttribute("uv",new THREE.Float32BufferAttribute(uv,2)); g.setIndex(idx); g.computeVertexNormals();
- const nn=g.attributes.normal; for(let i=0;i<nn.count;i++) if(nn.getY(i)<0) nn.setXYZ(i,-nn.getX(i),-nn.getY(i),-nn.getZ(i));
- if(!this._brMat) this._brMat={
-  asph:new THREE.MeshLambertMaterial({map:roadTex("urban"),side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1}),
-  gravel:new THREE.MeshLambertMaterial({color:new THREE.Color(0x9c7450).convertSRGBToLinear(),map:detailTex(),side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1})};
- const m=new THREE.Mesh(g,this._brMat[b.surface]); m.receiveShadow=true; m.matrixAutoUpdate=false;
+ if(!this._brMat) this.makeBranchMats();
+ const m=new THREE.Mesh(g,this._brMat[b.surface==="gravel"?"gravel":"asph"]); m.receiveShadow=true; m.matrixAutoUpdate=false;
  ctx.grp.add(m);
- // 道路名標識 (分岐の入口)
- if(opt.name&&opt.sign!==false){ const q={x:start[0]+fx*6+Math.cos(h)*(half+1.5),z:start[1]+fz*6+Math.sin(h)*(half+1.5),y:p.y,h:h,nx:Math.cos(h),nz:Math.sin(h)};
+ // 市街地: 隅切りと分岐の両側に縁石・歩道 (本線の縁石は交差点口で切れる)
+ if(urban&&!opt.fromCentre&&b.surface!=="gravel"){
+  const kp=[],ki=[];
+  const strip=(line,outX,outZ)=>{ // line: [[x,z],...] / 外側方向
+   const base=kp.length/3;
+   for(let i=0;i<line.length;i++){ const [qx,qz]=line[i], o=outX(i), oz=outZ(i);
+    kp.push(qx,p.y+0.15,qz, qx+o*2.2,p.y+0.15,qz+oz*2.2); if(i>0){ const q=base+(i-1)*2; ki.push(q,q+1,q+2, q+1,q+3,q+2); } }
+  };
+  for(const f of fil){ // 隅切りの外側 = 交点 C から遠ざかる向き
+   const cv=f.curve; strip(cv,(i)=>{ const dx=cv[i][0]-f.C[0], dz=cv[i][1]-f.C[1], l=Math.hypot(dx,dz)||1; return dx/l; },(i)=>{ const dx=cv[i][0]-f.C[0], dz=cv[i][1]-f.C[1], l=Math.hypot(dx,dz)||1; return dz/l; });
+  }
+  for(const sg of [-1,1]){ // 分岐の側線の外側 (隅切りの終点 B から先)
+   const line=[]; const sk=Math.ceil(rc/step)+1;
+   for(let i=sk;i<pts.length;i+=2){ const a=pts[Math.max(0,i-1)], c=pts[Math.min(pts.length-1,i+1)], dx=c.x-a.x, dz=c.z-a.z, L=Math.hypot(dx,dz)||1; line.push([pts[i].x+(-dz/L)*sg*half, pts[i].z+(dx/L)*sg*half, -dz/L*sg, dx/L*sg]); }
+   if(line.length>1) strip(line.map(q=>[q[0],q[1]]),(i)=>line[i][2],(i)=>line[i][3]);
+  }
+  if(ki.length){ this.upWind(kp,ki); const kg=new THREE.BufferGeometry(); kg.setAttribute("position",new THREE.Float32BufferAttribute(kp,3)); kg.setIndex(ki); kg.computeVertexNormals();
+   if(!this._kerbMat) this._kerbMat=new THREE.MeshLambertMaterial({color:new THREE.Color(0xb9b4a8).convertSRGBToLinear(),side:THREE.DoubleSide});
+   const km=new THREE.Mesh(kg,this._kerbMat); km.matrixAutoUpdate=false; km.receiveShadow=true; ctx.grp.add(km); }
+ }
+ // 止まれ線 (分岐側から本線へ出る車線, 隅切りの終わり)
+ if(!opt.fromCentre&&b.surface!=="gravel"&&pts.length>4){
+  const i=Math.min(pts.length-2,Math.ceil((rc+1.5)/step)), a=pts[i-1], c=pts[i+1], dx=c.x-a.x, dz=c.z-a.z, L=Math.hypot(dx,dz)||1;
+  const rx=-dz/L, rz=dx/L;   // 本線へ向かう車は分岐の +r 側 (左側通行)
+  ctx.bs.get("solid").add(tpl("box"),M4(pts[i].x+rx*half/2,p.y+0.014,pts[i].z+rz*half/2,half*0.95,0.01,0.35,-Math.atan2(dx,-dz)),linCol(0xf2f0e6));
+ }
+ // 道路名標識 (分岐の入口, 隅切りの外側)
+ if(opt.name&&opt.sign!==false){ const hb=segs[0][0], cs=Math.cos(hb), sn=Math.sin(hb);
+  const q={x:start[0]+Math.sin(hb)*(rc+3)+cs*(half+1.8),z:start[1]-Math.cos(hb)*(rc+3)+sn*(half+1.8),y:p.y,h:hb,nx:cs,nz:sn};
   this.signMesh(ctx,q,"green",opt.name.slice(0,18),2.6,0.55,2.2); }
  ctx.branches.push(b); view.branches.push(b);
  return b;
@@ -498,13 +727,22 @@ branches(ctx){
  // OSM 区間の交差道路 (実際の向き)。動作地点の腕は曲がり損ねの道として扱う
  for(const t of OsmRoute.towns){
   if(t.km1<kmA||t.km0>=kmB) continue;
-  for(const [k,hb,name] of t.arms){
+  for(const [k,hb,name,half,shape] of t.arms){
    if(k<kmA||k>=kmB||k<=t.km0+0.005||k>=t.km1-0.005||!Route.inZone(k)) continue;
-   const ang=Math.atan2(Math.sin(hb-OsmRoute.H(t,k)),Math.cos(hb-OsmRoute.H(t,k)));
+   if(k<RP_START.km+0.07) continue;   // スタート会場の出口まわりは交差道路を描かない (右折するだけ)
+   const Hk=OsmRoute.H(t,k), ang=Math.atan2(Math.sin(hb-Hk),Math.cos(hb-Hk));
    if(Math.abs(ang)<0.2||Math.abs(ang)>2.9) continue;
    const atMan=RP_MANEUVERS.some(m=>m.osm===t&&Math.abs(m.km-k)<0.015);
-   this.makeBranch(ctx,view.sOfKm(k),ang,{name,wrong:atMan,len:atMan?200:120,sign:!!name&&!atMan});
+   const L=atMan?200:150;
+   this.makeBranch(ctx,view.sOfKm(k),ang,{name,wrong:atMan,len:L,half:half||3.5,shape,shapeRef:Hk,sign:!!name&&!atMan,noFillet:atMan});   // ルートが曲がる交差点は路端が曲線なので隅切りしない
   }
+ }
+ // 市街地 (OSM 区間外) の交差する脇道 110 m ごと: 隅切り・縁石・止まれ線つきの分岐道路として作る
+ const uk=biomeAt((kmA+kmB)/2).urban;
+ if(uk&&uk!=="parklands") for(let s=Math.ceil(s0/330)*330+40;s<s1;s+=330){
+  const kk=view.kmOfS(s); if(OsmRoute.townAt(kk)&&Route.inZone(kk)) continue;
+  if(this.brNear(view,s,10)) continue;
+  for(const sd of [-1,1]) this.makeBranch(ctx,s,sd*90*D,{len:180,half:4,sign:false});
  }
  // ラウンドアバウトの他の出口
  for(const j of view.junctions){ if(j.s>=s0&&j.s<s1&&j.m.turn==="rab"&&!j.osm&&!j.rabBuilt){ j.rabBuilt=true;
@@ -535,7 +773,8 @@ sites(ctx){
   const sc=sAt(c.km); if(sc<ctx.s0-150||sc>=ctx.s1+150) continue;
   if(c.km<kmA||c.km>=kmB) continue;      // 1チャンクで一度だけ
   const padCol={weigh:0x8a8780,roadhouse:0x9a8a74,lot:0x8d8b85,park:0x8d8b85,oval:0x8d8b85}[c.site]||0x8d8b85;
-  this.padRibbon(ctx,sc-150,sc+150,-24,24,padCol);
+  if(OsmRoute.townAt(c.km)) this.padRibbon(ctx,sc-45,sc+45,-14,14,padCol);   // 実形状の町: 敷地の道路そのものを使うので停止位置まわりだけ
+  else this.padRibbon(ctx,sc-150,sc+150,-24,24,padCol);
   if(c.site==="park"||c.site==="oval"){ // 芝のオーバル
    const q=this.at(view,sc,40); const m=new THREE.Mesh(new THREE.CircleGeometry(1,48),new THREE.MeshLambertMaterial({color:new THREE.Color(0x6f9a3f).convertSRGBToLinear()}));
    m.scale.set(45,30,1); m.rotation.x=-Math.PI/2; m.position.set(q.x,q.y+0.01,q.z); ctx.grp.add(m);
@@ -570,7 +809,9 @@ sites(ctx){
  // スタート: State Square (Darwin) ― Parliament House 前
  if(kmA<=0.001&&ctx.s0<view.sOfKm(0.01)){
   const s0=view.sOfKm(0);
-  this.padRibbon(ctx,s0-200,s0+40,-30,30,0xc9c4b8);
+  // 会場の舗装は直後の右折 (実形状) にかからないように手前で止め、幅も道路の外 12 m まで
+  const sTurn=Math.min(...RP_MANEUVERS.filter(m=>m.km<0.2).map(m=>view.sOfKm(m.km)),s0+40);
+  this.padRibbon(ctx,s0-200,sTurn-14,-(W+7),W+7,0xc9c4b8);
   this.banner(ctx,s0,0,16,"BRIDGESTONE WORLD SOLAR CHALLENGE — START","#ffffff","#c8102e",5.2);
   const ph=this.at(view,s0-60,-62);   // Parliament House (白い大きな立方体の建物・列柱)
   bs.get("solid").add(boxMetric(70,26,50),M4(ph.x,ph.y,ph.z,1,1,1,ph.face),linCol(0xf4f2ec));

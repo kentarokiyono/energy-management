@@ -13,13 +13,21 @@ const SLIDERS = [
 { id:"mpptEff",    label:"MPPT効率",        min:0.90, max:0.995, step:0.005, unit:"", pct:true },
 { id:"auxW",       label:"補機消費電力",     min:10, max:150, step:5, unit:"W" },
 ];
+/* 実車諸元の読み込み状態 (手元で開いたときだけ表示。公開サイトでは出さない) */
+function vehStatusHtml(){
+ if(VEH.active) return '<div class="text-[10px] text-amber-300 mt-1">● 実車諸元を使用中</div>';
+ const local=location.protocol==="file:"||/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+ if(!local) return '';
+ const why= window.__vehPrivMissing? 'js/data/vehicle-private.js が見つかりません' : 'vehicle-private.js は読めましたが VEHICLE_PRIVATE がありません';
+ return '<div class="text-[10px] text-rose-300 mt-1">○ 実車諸元: 未読込 ('+why+')</div>';
+}
 function buildSetupUI(){
 const sc=document.getElementById("shape-cards"); sc.innerHTML="";
 for(const k in BODY_SHAPES){ const s=BODY_SHAPES[k];
 sc.innerHTML+=`<div class="card-select ${k===P.shape?'active':''}" data-shape="${k}" onclick="selectShape('${k}')">
 <div class="font-bold text-sm text-cyan-200">${s.name}</div>
 <div class="text-[10px] text-cyan-100/50">${s.desc}</div>
-<div class="text-[10px] mono text-cyan-400 mt-1">Cd ${s.Cd} / A ${s.frontal}m²</div></div>`;
+<div class="text-[10px] mono text-cyan-400 mt-1">Cd ${s.Cd} / A ${s.frontal}m²</div>${k==="wadai"?vehStatusHtml():''}</div>`;
 }
 const pc=document.getElementById("panel-cards"); pc.innerHTML="";
 for(const k in PANEL_TYPES){ const s=PANEL_TYPES[k];

@@ -207,7 +207,7 @@ const crr = (s.burst?8:1)*Phys.crr(s.v);
 const Froll=crr*m*9.81*Math.cos(View.carSlope)+motorIronW(s.v)/Math.max(s.v,0.5);
 const phi=s.windDirWorld-prof.bearing+Math.PI;
 const head=s.windSpeed*Math.cos(phi); s.lastHead=head;
-const cross=s.windSpeed*Math.sin(phi);
+const cross=s.windSpeed*Math.sin(phi); s.lastCross=cross;
 const vApp=Math.max(0,s.v+head);
 const yaw=Math.atan2(Math.abs(cross),Math.max(s.v,1));
 const cdEff=P.Cd*(1+Math.abs(yaw)*1.2);

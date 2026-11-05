@@ -80,11 +80,55 @@ init(){
  this.apply();
 },
 townAt(km){ for(const t of this.towns) if(km>=t.km0&&km<=t.km1) return t; return null; },
+/* 道路断面: L=左端(自車線側, 正の値) / m1=中央分離帯の右端 (分離帯は 0..m1) / R=右端 / ow=対向車線なし
+ 既定は片側1車線の 2 車線道路 (L=R=5)。区間の両端 40 m で既定値から滑らかに変化 */
+DEF_PROF:{L:5,m1:0,R:5,ow:false,dual:false},
+_profSegs(t){
+ if(t._ps) return t._ps;
+ const S=(t.prof||[]).map(([a,b,n,med])=>({a,b,n,med})).sort((x,y)=>x.a-y.a);
+ for(let i=1;i<S.length;i++) if(S[i].a-S[i-1].b<0.05&&S[i].a>S[i-1].b){ const g=(S[i-1].b+S[i].a)/2; S[i-1].b=g; S[i].a=g; }   // 短い隙間は埋める
+ return (t._ps=S);
+},
+profAt(km){
+ const t=this.townAt(km); if(!t||!t.prof||!t.prof.length) return this.DEF_PROF;
+ // ルートが曲がる交差点の前後 (±12 m で既定断面, 42 m で元に戻る) は 2 車線道路にする: 上下線が角で一緒に曲がらないように
+ let wT=1; for(const m of RP_MANEUVERS){ if(m.osm!==t||!/^(L|R|veerL|veerR|uturn|rab)$/.test(m.turn)) continue; const d=Math.abs(km-m.km); if(d<0.042) wT=Math.min(wT,clamp((d-0.012)/0.03,0,1)); }
+ if(wT<1){ const v=this._profRaw(t,km), D=this.DEF_PROF; if(wT<=0) return D; return {L:D.L+(v.L-D.L)*wT, m1:v.m1*wT, R:D.R+(v.R-D.R)*wT, ow:v.ow&&wT>0.5, dual:v.dual}; }
+ return this._profRaw(t,km);
+},
+_profRaw(t,km){
+ const S=this._profSegs(t), TP=0.04, D=this.DEF_PROF;
+ const val=(g)=>{ const L=Math.max(4.6,g.n*3.5), ow=g.med<0, m1=ow?0:g.med; return {L,m1,R:ow?0.8:m1+L,ow}; };
+ const mix=(a,b,w)=>({L:a.L+(b.L-a.L)*w, m1:a.m1+(b.m1-a.m1)*w, R:a.R+(b.R-a.R)*w, ow:(w<0.5?a.ow:b.ow), dual:true});
+ for(let i=0;i<S.length;i++){
+  const g=S[i]; if(km<g.a||km>g.b) continue;
+  const prev=i>0&&Math.abs(S[i-1].b-g.a)<1e-6? val(S[i-1]) : D, next=i<S.length-1&&Math.abs(S[i+1].a-g.b)<1e-6? val(S[i+1]) : D, v=val(g);
+  // 区間の始まり/終わりの TP で前後の断面からなめらかに変化 (隣接区間との境界は中点で 0.5)
+  const da=(km-g.a)/TP, db=(g.b-km)/TP;
+  if(da<1) return mix(prev,v,prev===D? da : 0.5+0.5*da);
+  if(db<1) return mix(next,v,next===D? db : 0.5+0.5*db);
+  return mix(v,v,1);
+ }
+ return D;
+},
 H(t,km){
  const d=clamp((km-t.km0)*1000,0,t.len), D=t.D;
  let lo=0, hi=D.length-1;
  while(hi-lo>1){ const m=(lo+hi)>>1; if(D[m]<=d) lo=m; else hi=m; }
  return t.H[lo]+(d-D[lo])*(t.K[lo]||0);
+},
+/* 立体交差: 経路の橋で下を道路がくぐる所は路面を持ち上げる → {h:高さ m, deck:橋桁の上か}
+ 下の道路の幅 + 4 m を平らな橋桁、その前後 90 m をなめらかな坂 (約 6 %) にする */
+CLEAR:5.6, RAMP:0.09,
+bumpAt(km){
+ const t=this.townAt(km); if(!t||!t.bridges||!t.bridges.length) return null;
+ let h=0, deck=false;
+ for(const [k0,k1,under] of t.bridges) for(const [ku,,,uh] of under||[]){
+  const dS=((uh||3.5)+4)/1000, d=Math.abs(km-ku);
+  if(d<=dS){ h=this.CLEAR; deck=true; continue; }
+  if(d<dS+this.RAMP){ const x=(d-dS)/this.RAMP; h=Math.max(h,this.CLEAR*0.5*(1+Math.cos(Math.PI*x))); }
+ }
+ return h>0? {h,deck} : null;
 },
 /* ノート km → OSM km: 動作の対応点で区分線形 (両端は傾き 1 で外挿) */
 mapper(t){
@@ -126,6 +170,8 @@ apply(){
    e.km=k; e.osm=true;
   }
   for(const row of RN_ROWS) if(inT(row[0])) row[0]=+f(row[0]).toFixed(3);
+  // ノートに無い OSM の信号も置く (等倍ゾーンの交差点)
+  for(const k of t.sig||[]){ if(!RN_EVENTS.some(e=>(e.k==="signal"||e.k==="pedlight")&&Math.abs(e.km-k)<0.06)) RN_EVENTS.push({km:k,k:"signal",t:"(OSM) Traffic lights",osm:true}); }
  }
  RP_MANEUVERS.sort((a,b)=>a.km-b.km); RN_EVENTS.sort((a,b)=>a.km-b.km);
 },
