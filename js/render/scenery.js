@@ -12,6 +12,7 @@ warpOff(p,off){ const W=5; if(off<=-W+0.01) return off-((p.L||W)-W); if(off>=W-0
 /* 走行可能な舗装敷地 (CS構内・ドライバー交代の駐車帯・ゴール) → {y} */
 pavedSite(view,s,lat){
  const km=view.kmOfS(s);
+ if(Math.abs(lat)<190&&Route.real(km)&&[-0.015,0,0.015].some(d=>OsmRoute.waterAt(km+d))) return {water:true};   // 橋の下の川・海には建物を置かない
  for(const c of RP_CS){ const osm=OsmRoute.townAt(c.km); if(Math.abs(km-c.km)<(osm?0.045:0.16)&&Math.abs(lat)<(osm?14:24)) return {y:0.02,cs:c}; }
  const dc=RP_RULES.driverChange;
  if(km>dc.km-0.03&&km<dc.km+dc.len+0.03&&lat<-view.ROAD_W+0.5&&lat>-view.ROAD_W-16) return {y:0.02,dc:true};
@@ -197,7 +198,7 @@ brNear(view,s,w=0,sd=0){
 upWind(pos,idx){ for(let i=0;i<idx.length;i+=3){ const a=idx[i]*3,b=idx[i+1]*3,c=idx[i+2]*3;
   const ny=(pos[b+2]-pos[a+2])*(pos[c]-pos[a])-(pos[b]-pos[a])*(pos[c+2]-pos[a+2]); if(ny<0){ const t=idx[i+1]; idx[i+1]=idx[i+2]; idx[i+2]=t; } } },
 /* 沿道の柱など: 道路にかかる場合は前後にずらして置く (置けなければ null) */
-clearAt(view,s,off,sd){ for(const d of [0,6,-6,12,-12]){ if(this.brNear(view,s+d,0,sd)) continue; const q=this.at(view,s+d,off); if(this.roadClear(view,q.x,q.z,s+d)) return q; } return null; },
+clearAt(view,s,off,sd){ for(const d of [0,6,-6,12,-12]){ if(this.brNear(view,s+d,0,sd)) continue; const ps=this.pavedSite(view,s+d,off); if(ps&&ps.water) continue; const q=this.at(view,s+d,off); if(this.roadClear(view,q.x,q.z,s+d)) return q; } return null; },
 /* 本線が同じ場所を再び通る (ループ・上下線の往復) 区間: 後から通る側の路面は先の路面/分岐の下へ沈めて重ね描きを避ける */
 rowHidden(view,s){
  const P=view.road.pts, i0=Math.round(s/view.SEG); if(i0>=P.length) return false;
@@ -524,7 +525,7 @@ bridges(ctx){
  const {view,kmA,kmB,bs}=ctx, B=bs.get("solid");
  for(const t of OsmRoute.towns){
   for(const [k0,k1,under] of t.bridges||[]){
-   if(k1<kmA||k0>=kmB||!Route.inZone((k0+k1)/2)) continue;
+   if(k1<kmA||k0>=kmB||!Route.real((k0+k1)/2)) continue;
    // 欄干: 橋の区間を 5 m ごとの箱で (左右とも路端の外)
    const sa=Math.max(view.sOfKm(Math.max(k0,kmA)),ctx.s0), sb=Math.min(view.sOfKm(Math.min(k1,kmB)),ctx.s1);
    for(let s=sa;s<sb;s+=2.5){ const e=Math.min(2.5,sb-s), ps=view.roadPoint(s+e/2), nx=Math.cos(ps.h), nz=Math.sin(ps.h), fx=Math.sin(ps.h), fz=-Math.cos(ps.h);
@@ -737,7 +738,7 @@ branches(ctx){
  for(const t of RP_TRAPS){ if(t.km>=kmA&&t.km<kmB&&!t.dummy) this.makeBranch(ctx,view.sOfKm(t.km),(t.side==="R"?90:-90)*D,{wrong:true,name:t.name,len:240}); }
  // 脇道 (t/o) — すべて走行可能
  const near=(k)=>RP_MANEUVERS.some(m=>Math.abs(m.km-k)<0.08);
- const osmHere=(k)=>OsmRoute.townAt(k)&&Route.inZone(k);
+ const osmHere=(k)=>OsmRoute.townAt(k)&&Route.real(k);
  for(const e of Route.eventsIn(kmA,kmB,"sideroad")){
   if(near(e.km)||osmHere(e.km)||this.brNear(view,view.sOfKm(e.km),25)) continue;   // 縮尺区間で脇道が数 m 間隔に並ばないように
   const dirt=/station|track|dirt|H\/S|homestead|quarry|stn|camp/i.test(e.t);
@@ -753,7 +754,7 @@ branches(ctx){
  for(const t of OsmRoute.towns){
   if(t.km1<kmA||t.km0>=kmB) continue;
   for(const [k,hb,name,half,shape] of t.arms){
-   if(k<kmA||k>=kmB||k<=t.km0+0.005||k>=t.km1-0.005||!Route.inZone(k)) continue;
+   if(k<kmA||k>=kmB||k<=t.km0+0.005||k>=t.km1-0.005||!Route.real(k)) continue;
    if(k<RP_START.km+0.07) continue;   // スタート会場の出口まわりは交差道路を描かない (右折するだけ)
    const Hk=OsmRoute.H(t,k), ang=Math.atan2(Math.sin(hb-Hk),Math.cos(hb-Hk));
    if(Math.abs(ang)<0.2||Math.abs(ang)>2.9) continue;
@@ -765,7 +766,7 @@ branches(ctx){
  // 市街地 (OSM 区間外) の交差する脇道 110 m ごと: 隅切り・縁石・止まれ線つきの分岐道路として作る
  const uk=biomeAt((kmA+kmB)/2).urban;
  if(uk&&uk!=="parklands") for(let s=Math.ceil(s0/330)*330+40;s<s1;s+=330){
-  const kk=view.kmOfS(s); if(OsmRoute.townAt(kk)&&Route.inZone(kk)) continue;
+  const kk=view.kmOfS(s); if(OsmRoute.townAt(kk)&&Route.real(kk)) continue;
   if(this.brNear(view,s,10)) continue;
   for(const sd of [-1,1]) this.makeBranch(ctx,s,sd*90*D,{len:180,half:4,sign:false});
  }

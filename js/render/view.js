@@ -567,7 +567,7 @@ turnProgram(m){
 advanceGen(sNext){
 const g=this.gen;
 const km=this.kmOfS(sNext);
-const zone=Route.inZone(km);
+const zone=Route.real(km);
 // 地形の勾配
 g.gradeRemain-=this.SEG;
 if(g.gradeRemain<=0){
@@ -626,17 +626,17 @@ const last=r.pts[r.pts.length-1];
 const sN=r.builtS+this.SEG;
 const gen=this.advanceGen(sN);
 const km=this.kmOfS(sN);
-const macroSlope=Route.inZone(km)?0:profileAt(km).slope;
+const macroSlope=Route.real(km)?0:profileAt(km).slope;
 const grade0=gen.grade+macroSlope;
 const h=last.h+gen.curv*this.SEG;
 // 路面高さ = 地形に沿った基準高さ yb + 立体交差の持ち上げ bh (等倍ゾーン内のみ)
 const yb=(last.yb!=null?last.yb:last.y)+grade0*this.SEG;
-const bm= P.mode==="race"&&Route.inZone(km)? OsmRoute.bumpAt(km) : null, bh=bm?bm.h:0;
+const bm= P.mode==="race"&&Route.real(km)? OsmRoute.bumpAt(km) : null, bh=bm?bm.h:0;
 const y=yb+bh, grade=grade0+(bh-(last.bh||0))/this.SEG;
 const x=last.x+Math.sin(h)*this.SEG;
 const z=last.z-Math.cos(h)*this.SEG;
 const pr= P.mode==="race"? OsmRoute.profAt(km) : OsmRoute.DEF_PROF;
-const wt= P.mode==="race"&&Route.inZone(km)? OsmRoute.waterAt(km) : null;
+const wt= P.mode==="race"&&Route.real(km)? OsmRoute.waterAt(km) : null;
 r.pts.push({x,z,y,h,g:grade,c:gen.curv,L:pr.L,m1:pr.m1,R:pr.R,ow:pr.ow,dual:pr.dual,yb,bh,deck:!!(bm&&bm.deck)||!!wt,wd:wt?wt.depth*wt.edge:0});
 r.builtS=sN;
 }
@@ -846,7 +846,7 @@ else { if(this.cam>=2) this.camera.position.copy(camPos);
 else this.camera.position.lerp(camPos,clamp(dtR*(this.cam===0?5:12),0,1));
 this.camera.lookAt(lookAt); }
 // 予備の地面: OSM の町区間 (平坦) では路面のすぐ下に置き、急な右左折の内側で地形の帯が縮んでできる隙間を塞ぐ
-const flatTown=P.mode==="race"&&Route.inZone(es.km)&&OsmRoute.townAt(es.km);
+const flatTown=P.mode==="race"&&Route.real(es.km)&&OsmRoute.townAt(es.km);
 const nearWater=flatTown&&[-0.3,-0.15,0,0.15,0.3,0.45].some(d=>OsmRoute.waterAt(es.km+d));   // 水面の橋の近くでは川底より下へ
 this.ground.position.set(pHere.x,(pHere.y-(pHere.bh||0))-(flatTown?(nearWater?7:0.3):60),pHere.z);
 const alt=es.sunAlt||0, az=(es.sunAz||0);
