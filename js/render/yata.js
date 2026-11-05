@@ -1,6 +1,17 @@
 "use strict";
 /* ============ ④ YATA(61)プロシージャルhull ============ */
 const YATA_CACHE={};
+/* 側面の塗り分け (u: 0=先端 1=後端, zn: 0=下端 1=上端) → "O"オレンジ / "K"黒 / "W"白 */
+function yataLivery(u,zn){
+ if(u<0.045) return "O";                                   // 先端
+ if(zn>0.86) return "O";                                   // 上縁のオレンジ
+ if(u<0.34&&zn<0.16+0.25*Math.max(0,0.12-u)/0.12) return "O";   // 前半の下縁 (オレンジの縁取り)
+ if(u>=0.34&&zn<0.09) return "K";                          // 下端の黒
+ if(u>0.60&&zn<0.09+Math.min(1,(u-0.60)/0.02)*0.13) return "K";  // 後部で段差状に太くなる黒
+ const st=(z0,z1,us)=>zn>=z0&&zn<z1&&u>us-(zn-z0)*0.08;   // 後部の黒ストライプ (前端が斜め)
+ if(st(0.40,0.52,0.70)||st(0.62,0.73,0.80)) return "K";
+ return "W";
+}
 /* BD (任意): 車両諸元の body。{L, noseTip, canopy:{x,len,w,top}, orangeU, skirtZ, profiles:{halfW,hullW,zPanel,zHull,zBell}}
  profiles は [u (0=先端,1=後端), 値 m] の列 (halfW/hullW は半幅, z* は地面からの高さ) */
 function buildYATA(BD){
@@ -9,6 +20,9 @@ const O=Object.assign({L:5,noseTip:.23,canopyX:1.83,canopyLen:1.55,canopyW:.44,c
  BD.L!=null?{L:BD.L}:{}, BD.noseTip!=null?{noseTip:BD.noseTip}:{}, BD.orangeU!=null?{orangeU:BD.orangeU}:{}, BD.skirtZ!=null?{skirtZ:BD.skirtZ}:{},
  BD.canopy?{canopyX:BD.canopy.x,canopyLen:BD.canopy.len,canopyW:BD.canopy.w,canopyTop:BD.canopy.top}:{});
 const PF=BD.profiles||{};
+const LIV=!!BD.livery;                       // 実車の塗り分け (側面: 白地・上縁オレンジ・下端黒・後部の黒ストライプ)
+const BF=BD.sectionBottom;                   // 断面: 底辺の幅の割合 (台形断面, 上ほど広い)。未指定なら丸い断面
+if(LIV){ O.seg=120; O.side=26; }
 if(!YATA_CACHE.tex){
 let cv=document.createElement("canvas");cv.width=cv.height=256;
 let g=cv.getContext("2d");g.fillStyle="#0b0f13";g.fillRect(0,0,256,256);
@@ -41,7 +55,7 @@ const zBell=spl(PF.zBell||[[0,O.noseTip],[.12,.20],[.30,.145],[.60,.15],[.80,.20
 const HL=O.L/2;   // 車体中心 (z=0) から先端までの距離
 const DS=THREE.DoubleSide;
 const matWhite=new THREE.MeshStandardMaterial({color:0xe8eaee,roughness:.5,side:DS,envMapIntensity:.3});
-const matOrange=new THREE.MeshStandardMaterial({color:0xf27316,roughness:.45,side:DS,envMapIntensity:.35});
+const matOrange=new THREE.MeshStandardMaterial({color:BD.livery?0xe2560a:0xf27316,roughness:.45,side:DS,envMapIntensity:.35});
 const matSkirt=new THREE.MeshStandardMaterial({color:0x101216,roughness:.5,side:DS});
 const matArray=new THREE.MeshPhysicalMaterial({color:0x0b0e12,roughness:.42,clearcoat:.5,clearcoatRoughness:.25,map:T.cell,side:DS,envMapIntensity:.35});
 const grp=new THREE.Group();
@@ -64,20 +78,22 @@ const u=i/O.seg,xl=u*O.L,wh=hullW(u),zb=zBell(u),hd=zHull(u),zPos=xl-HL;
 const pts=[],typ=[];
 pts.push(new THREE.Vector3(0,zb,zPos));
 for(let r=1;r<=O.side;r++){const t=r/O.side;
-pts.push(new THREE.Vector3(wh*Math.pow(Math.sin(t*Math.PI/2),.85),zb+(hd-zb)*Math.pow(t,1.25),zPos));typ.push("S");}
+pts.push(BF!=null? new THREE.Vector3(wh*(BF+(1-BF)*t),zb+(hd-zb)*t,zPos) : new THREE.Vector3(wh*Math.pow(Math.sin(t*Math.PI/2),.85),zb+(hd-zb)*Math.pow(t,1.25),zPos));typ.push("S");}
 for(let d=1;d<=O.deckK;d++){const s2=d/O.deckK;
 pts.push(new THREE.Vector3(wh*(1-s2),hd,zPos));typ.push("K");}
 for(let d=O.deckK-1;d>=1;d--){const s2=d/O.deckK;
 pts.push(new THREE.Vector3(-wh*(1-s2),hd,zPos));typ.push("K");}
 for(let r=O.side-1;r>=1;r--){const t=r/O.side;
-pts.push(new THREE.Vector3(-wh*Math.pow(Math.sin(t*Math.PI/2),.85),zb+(hd-zb)*Math.pow(t,1.25),zPos));typ.push("S");}
+pts.push(BF!=null? new THREE.Vector3(-wh*(BF+(1-BF)*t),zb+(hd-zb)*t,zPos) : new THREE.Vector3(-wh*Math.pow(Math.sin(t*Math.PI/2),.85),zb+(hd-zb)*Math.pow(t,1.25),zPos));typ.push("S");}
 typ.push("S");
 Pp.push(pts);Uv.push(pts.map(p=>new THREE.Vector2(xl,p.x+.9)));TYP.push(typ);
 }
 for(let i=0;i<O.seg;i++)for(let r=0;r<R;r++){
 const r2=(r+1)%R,u=i/O.seg;
 const zm=(Pp[i][r].y+Pp[i][r2].y)/2;
-const b=TYP[i][r]==="K"?bS:(u<O.orangeU?bO:(zm<O.skirtZ?bS:bW));
+let b=TYP[i][r]==="K"?bS:(u<O.orangeU?bO:(zm<O.skirtZ?bS:bW));
+if(LIV&&TYP[i][r]!=="K"){ const uc=(i+.5)/O.seg, zb2=zBell(uc), hd2=zHull(uc), zn=clamp((zm-zb2)/Math.max(.01,hd2-zb2),0,1);
+ const c=yataLivery(uc,zn); b= c==="O"?bO : c==="K"?bS : bW; }
 const a=vid(b,Pp,Uv,i,r),c=vid(b,Pp,Uv,i,r2),d=vid(b,Pp,Uv,i+1,r2),e=vid(b,Pp,Uv,i+1,r);
 b.idx.push(a,c,e,c,d,e);
 }
@@ -113,7 +129,43 @@ finish(bA);finish(bO);
 }
 /* ==== キャノピー ==== */
 let canopy=null;
-{
+if(BD.canopyShape==="yata61"){
+ // 横: 前は低く斜めに立ち上がり、上面は丸く平ら、後端はほぼ垂直。前: 側面が立った細い形 (上は丸い)
+ const uC=O.canopyX/O.L, apC=Math.max(zPanel(uC),zHull(uC)+0.06), Hc=O.canopyTop-apC+0.03;
+ const z0=O.canopyX-O.canopyLen/2-HL, Lc=O.canopyLen, NU=40, NT=28;
+ const hf=u=> u<0.5? Math.sin(Math.PI/2*Math.pow(u/0.5,0.8)) : u<0.93? 1-0.08*Math.pow((u-0.5)/0.43,2) : 0.92*(1-(u-0.93)/0.07*0.25);
+ const wf=u=> u<0.35? 0.55+0.45*Math.sin(Math.PI/2*u/0.35) : 1;
+ const pos=[],uv=[],grp0=[],grp1=[], NN=n=>{ const r=[]; return r; };
+ const vtx=(iu,it)=>iu*(NT+1)+it;
+ for(let iu=0;iu<=NU;iu++){ const u=iu/NU, h=Hc*hf(u), a=O.canopyW/2*wf(u), z=z0+u*Lc;
+  for(let it=0;it<=NT;it++){ const t=Math.PI*it/NT, c=Math.cos(t), sn=Math.sin(t), n=4;
+   const x=a*Math.sign(c)*Math.pow(Math.abs(c),2/n), y=apC-0.03+h*Math.pow(sn,2/n);
+   pos.push(x,y,z); uv.push(u,it/NT); } }
+ const winU=[0.10,0.55];
+ for(let iu=0;iu<NU;iu++) for(let it=0;it<NT;it++){ const a=vtx(iu,it),b=vtx(iu,it+1),c=vtx(iu+1,it+1),d=vtx(iu+1,it);
+  const u=(iu+.5)/NU, t=(it+.5)/NT*Math.PI, side=Math.abs(Math.cos(t))>0.45, hy=Math.sin(t);
+  const win= side&&u>winU[0]+0.25*(1-hy)*0&&u<winU[1]-(hy>0.75?0.12:0)&&hy>0.2&&hy<0.9;
+  (win?grp0:grp1).push(a,b,d,b,c,d); }
+ // 後端の面 (ほぼ垂直) と前端
+ const capFan=(iu)=>{ const ci=pos.length/3; let sx=0,sy=0,sz=0; for(let it=0;it<=NT;it++){ const k=vtx(iu,it)*3; sx+=pos[k]; sy+=pos[k+1]; sz+=pos[k+2]; }
+  pos.push(0,apC-0.03,sz/(NT+1)); uv.push(0,0); for(let it=0;it<NT;it++) grp1.push(ci,vtx(iu,it),vtx(iu,it+1)); };
+ capFan(NU); capFan(0);
+ const cg=new THREE.BufferGeometry(); cg.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); cg.setAttribute("uv",new THREE.Float32BufferAttribute(uv,2));
+ cg.setIndex(grp0.concat(grp1)); cg.addGroup(0,grp0.length,0); cg.addGroup(grp0.length,grp1.length,1); cg.computeVertexNormals();
+ canopy=new THREE.Mesh(cg,[
+  new THREE.MeshPhysicalMaterial({color:0x232528,roughness:.3,clearcoat:.4,envMapIntensity:.15,side:DS}),   // 横窓 (濃いグレー)
+  new THREE.MeshPhysicalMaterial({color:0x050607,roughness:.35,clearcoat:.5,envMapIntensity:.2,side:DS})]);  // 本体 (黒)
+ canopy.castShadow=true; grp.add(canopy);
+ // 「61 YATA」(キャノピー後半の両側)
+ if(!YATA_CACHE.logo){ const cv=document.createElement("canvas"); cv.width=256; cv.height=160; const c=cv.getContext("2d");
+  c.font="italic bold 78px Arial Black,Arial,sans-serif"; c.textAlign="center";
+  const g1=c.createLinearGradient(0,10,0,80); g1.addColorStop(0,"#ff6a00"); g1.addColorStop(1,"#ffd21f"); c.fillStyle=g1; c.fillText("61",120,74);
+  c.font="italic bold 58px Arial Black,Arial,sans-serif"; c.fillStyle="#ffd21f"; c.fillText("YATA",128,140);
+  YATA_CACHE.logo=new THREE.CanvasTexture(cv); YATA_CACHE.logo.encoding=THREE.sRGBEncoding; }
+ for(const sd of [-1,1]){ const u=0.74, a=O.canopyW/2*wf(u)*Math.pow(Math.abs(Math.cos(Math.PI*0.3)),.5);
+  const lg=new THREE.Mesh(new THREE.PlaneGeometry(0.34,0.21),new THREE.MeshBasicMaterial({map:YATA_CACHE.logo,transparent:true,side:DS,depthWrite:false}));
+  lg.position.set(sd*(O.canopyW/2+0.004),apC-0.03+Hc*hf(u)*0.55,z0+u*Lc); lg.rotation.y=sd*Math.PI/2; canopy.add(lg); }
+} else {
 const uC=O.canopyX/O.L;
 const apC=Math.max(zPanel(uC),zHull(uC)+0.06);
 const cg=new THREE.SphereGeometry(1,48,24);

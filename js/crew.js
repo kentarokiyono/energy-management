@@ -225,7 +225,8 @@ ensureBuilt(){
  // 乗り込む (車外から: 車体全体の当たり判定)
  const bd=new THREE.Mesh(new THREE.BoxGeometry(1.6,1.0,5.6),new THREE.MeshBasicMaterial({visible:false})); bd.position.set(0,.5,0); bd.userData.hot={id:"board",label:"乗り込む"}; this.boardBox=bd; B.add(bd);
  // キャノピーの回転軸 (左の付け根)
- const cm=View.canopyMesh; if(cm){ cm.geometry.computeBoundingBox(); const bb=cm.geometry.boundingBox; this.canopyPivot=new THREE.Vector3(bb.min.x,dY,(bb.min.z+bb.max.z)/2); this.canopyOpen=0; }
+ // キャノピーの回転軸: 前端の下 (前へ跳ね上げる)
+ const cm=View.canopyMesh; if(cm){ cm.geometry.computeBoundingBox(); const bb=cm.geometry.boundingBox; this.canopyPivot=new THREE.Vector3(0,bb.min.y,bb.min.z); this.canopyOpen=0; }
 },
 syncVisual(){
  if(!this.built||!this.st) return;
@@ -243,8 +244,9 @@ syncVisual(){
  // キャノピー: 左の付け根を軸に開く
  const cm=View.canopyMesh;
  if(cm&&this.canopyPivot){ const target=s.canopy?1:0; this.canopyOpen+= (target-this.canopyOpen)*0.15;
-  const th=this.canopyOpen*1.9, P0=this.canopyPivot, c=Math.cos(th), sn=Math.sin(th);
-  cm.rotation.z=th; cm.position.set(P0.x-(c*P0.x-sn*P0.y), P0.y-(sn*P0.x+c*P0.y), 0); }
+  // 前端を軸に後ろ側を持ち上げる: x 軸まわりに -θ。position = P0 - R·P0
+  const th=this.canopyOpen*1.25, P0=this.canopyPivot;
+  cm.rotation.set(-th,0,0); const rp=P0.clone().applyEuler(cm.rotation); cm.position.set(P0.x-rp.x,P0.y-rp.y,P0.z-rp.z); }
 },
 /* ---------- 車外の小物 (チームの机・本部の計測ボタン・点検ポイント) ---------- */
 buildSite(){
