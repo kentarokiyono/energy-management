@@ -205,16 +205,18 @@ let Pmotor=0, I_cmd=0;
 if(!parked && (P.mode!=="race"||isRaceHours)){
 const m=massTotal(), mEff=m+PRO.mRot;
 const crr = (s.burst?8:1)*Phys.crr(s.v);
-const Froll=crr*m*9.81*Math.cos(View.carSlope)+motorIronW(s.v)/Math.max(s.v,0.5);
+// 勾配は実際の標高 (ルートの標高データ) だけで計算する。見た目の道路の起伏は使わない
+const slope=prof.slope; s.physSlope=slope;
+const Froll=crr*m*9.81*Math.cos(slope)+motorIronW(s.v)/Math.max(s.v,0.5);
 const phi=s.windDirWorld-prof.bearing+Math.PI;
 const head=s.windSpeed*Math.cos(phi); s.lastHead=head;
 const cross=s.windSpeed*Math.sin(phi); s.lastCross=cross;
 const vApp=Math.max(0,s.v+head);
 const yaw=Math.atan2(Math.abs(cross),Math.max(s.v,1));
-const cdEff=P.Cd*(1+Math.abs(yaw)*1.2);
+const cdEff=P.Cd*cdYawFactor(yaw);
 const Fdrag=0.5*rho*cdEff*P.frontal*vApp*vApp;
-const Fcorner=0.15*m*9.81*(s.gLat||0)*(s.gLat||0);
-const Fslope=m*9.81*Math.sin(View.carSlope);
+const Fcorner=cornerDrag(m,s.gLat);
+const Fslope=m*9.81*Math.sin(slope);
 s.lastYawDeg=Math.abs(yaw)*180/Math.PI;
 let thr=s.throttleSet;
 if(s.brakePhys>0.05||s.brakeRegen>0.05){ thr=0; s.throttleSet=0; }
@@ -231,17 +233,20 @@ const mm=motorModel(I_cmd,s.v,s.soc,s.powerMode);
 let Ftrac=mm.F;
 let Fbrake=0, Pregen=0;
 if(s.brakePhys>0) Fbrake += s.brakePhys*PRO.brakeMu*m*9.81;
-if(s.brakeRegen>0){
-const lowSpd=clamp(s.v/2.2,0,1);
-const Fr=s.brakeRegen*P.regenStrength*clamp(40+s.v*3,0,180)*lowSpd;
-Fbrake+=Fr;
-const Ir=Fr/PRO.kt;
-Pregen=Math.max(0,Fr*s.v*PRO.regenEff-Ir*Ir*PRO.rWinding);
-}
+let Fr=0;
+if(s.brakeRegen>0){ const rg=regenModel(s.brakeRegen,s.v,s.soc,s.powerMode); Fr=rg.F; Fbrake+=Fr; Pregen=rg.Pgen; }
 const Fnet=Ftrac-Froll-Fdrag-Fslope-Fbrake-Fcorner;
 s.v=Math.max(0,s.v+Fnet/mEff*dtR);
 if(dtR>0) s.gLong=(Fnet/mEff)/9.81;
-Pmotor = mm.Pelec - Pregen;
+// 速度は実時間 dtR で変わるが、電力量はゲーム内時間 dtS で積算する。加減速 (運動エネルギーの出入り) の分は
+// 実時間でしか起きないので dtR/dtS 倍する (×1 なら同じ)。一定速度を保つ分 (走行抵抗とつり合う力) はそのまま。
+const kT= dtS>0? dtR/dtS : 1;
+let fM=1, fR=1;                                     // 定常分の割合
+if(Fnet>0&&Ftrac>0) fM=clamp(1-Fnet/Ftrac,0,1);     // 加速中: 駆動力のうち加速に使った分
+if(Fnet<0&&Fr>0) fR=clamp(1-(-Fnet)/Fr,0,1);        // 減速中: 回生のうち運動エネルギーを回収した分
+const PmotorNow=mm.Pelec-Pregen;
+Pmotor = mm.Pelec*(fM+(1-fM)*kT) - Pregen*(fR+(1-fR)*kT);
+s.lastMotorNow=PmotorNow;
 const dKm=s.v*dtS/1000*(s.progRate==null?1:s.progRate);   // 本線上の前進分のみ (脇道/逆走では進まない)
 const prev=s.km;
 s.km=Math.min(TOTAL_KM,s.km+dKm);
@@ -260,7 +265,7 @@ if(View.redSignalKm!=null && prev<View.redSignalKm && s.km>=View.redSignalKm && 
 Snd.alarm(); toast("🚨 赤信号を通過しました!","#ef4444"); View.redSignalKm=null;
 }
 } else { s.v=Math.max(0,s.v-3*dtR); I_cmd=0; Pmotor=0; }
-s.lastAmp=I_cmd; s.lastMotorW=Math.max(0,Pmotor);
+s.lastAmp=I_cmd; s.lastMotorW=Math.max(0,s.lastMotorNow!=null?s.lastMotorNow:Pmotor); s.lastMotorNow=null;
 let Paux = s.disconnected ? 0 : (s.camp?2:P.auxW);
 if(s.fault&&s.fault.type==="aux") Paux+=150;
 const Pnet = s.disconnected ? 0 : (Pmotor+Paux-Psolar);

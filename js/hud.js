@@ -158,7 +158,7 @@ tb.style.color=es.Tbat>55?"#ef4444":es.Tbat>45?"#fbbf24":"";
 document.getElementById("hud-wind").innerHTML=`${es.windSpeed.toFixed(1)} m/s`;
 const prof=profileAt(es.km);
 document.getElementById("hud-elev").textContent=prof.elev.toFixed(0)+" m";
-document.getElementById("hud-slope").textContent=(Math.tan(View.carSlope)*100).toFixed(1)+" %";
+document.getElementById("hud-slope").textContent=(Math.tan(Engine.st&&Engine.st.physSlope!=null?Engine.st.physSlope:View.carSlope)*100).toFixed(1)+" %";
 document.getElementById("hud-temp").textContent=(es.Tamb||30).toFixed(0)+"°C / ρ"+(es.lastRho||1.17).toFixed(3);
 document.getElementById("hud-geff").textContent=es.lastGeff.toFixed(0)+" W/m²";
 if(P.mode==="race"&&es.teams){

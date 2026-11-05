@@ -117,7 +117,7 @@ this.grade=grade;
 const m=massTotal(), mEff=m+PRO.mRot;
 const Froll=Phys.crr(this.v)*m*9.81+motorIronW(this.v)/Math.max(this.v,0.5);
 const Fdrag=0.5*Phys.airDensity(20,Tamb)*P.Cd*P.frontal*this.v*this.v;
-const Fcorner=0.15*m*9.81*(es.gLat||0)*(es.gLat||0);
+const Fcorner=cornerDrag(m,es.gLat);
 const Fslope=m*9.81*grade;
 let thr=es.throttleSet;
 if(es.brakePhys>0.05||es.brakeRegen>0.05){ thr=0; es.throttleSet=0; }
@@ -126,10 +126,7 @@ const mmT=motorModel(I_cmd,this.v,es.soc,es.powerMode);
 const Ftrac=mmT.F;
 let Fbrake=0,Pregen=0;
 if(es.brakePhys>0) Fbrake+=es.brakePhys*PRO.brakeMu*m*9.81;
-if(es.brakeRegen>0){ const lowSpd=clamp(this.v/2.2,0,1);
-const Fr=es.brakeRegen*P.regenStrength*clamp(40+this.v*3,0,180)*lowSpd;
-const Ir=Fr/PRO.kt;
-Fbrake+=Fr; Pregen=Math.max(0,Fr*this.v*PRO.regenEff-Ir*Ir*PRO.rWinding); }
+if(es.brakeRegen>0){ const rg=regenModel(es.brakeRegen,this.v,es.soc,es.powerMode); Fbrake+=rg.F; Pregen=rg.Pgen; }
 if(offTrack&&this.v>1) Fbrake+=m*clamp(this.v*0.12,0.2,2.5);
 const FnetT=Ftrac-Froll-Fdrag-Fslope-Fbrake-Fcorner;
 this.v=Math.max(0,this.v+FnetT/mEff*dtR);
