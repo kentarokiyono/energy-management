@@ -97,7 +97,7 @@ TOWNS = [
         {'km': 2719.80, 'turn': 'R', 'onto': 'Augusta Terrace', 'man': 2719.80},
         {'km': 2720.00, 'turn': 'R', 'onto': '@service', 'man': 2720.00, 'anchor': True, 'lot': 80, 'uturnMan': 2720.42},
         {'km': 2720.55, 'turn': 'R', 'onto': 'Augusta Terrace', 'man': 2720.55},
-        {'km': 2720.80, 'turn': 'rab', 'onto': 'Carlton Parade|Calton Parade', 'man': 2720.80},
+        {'km': 2720.80, 'turn': 'rab', 'onto': 'Carlton Parade|Calton Parade', 'man': 2720.80, 'bearing': 215},
         {'km': 2721.00, 'turn': 'L', 'onto': 'Victoria Parade', 'man': 2721.00},
         {'km': 2721.50, 'end': True},
     ]},
@@ -776,6 +776,21 @@ def roundabouts(G, path, kmof, b0):
         cx = sum(G.xy[n][0] for n in ring_nodes) / len(ring_nodes); cy = sum(G.xy[n][1] for n in ring_nodes) / len(ring_nodes)
         R = sum(math.hypot(G.xy[n][0] - cx, G.xy[n][1] - cy) for n in ring_nodes) / len(ring_nodes)
         if R > 70: continue
+        # junction タグの無い環の一部 (環に沿うだけの道) も環に含める
+        grown = True
+        while grown:
+            grown = False
+            for n in list(ring_nodes):
+                for w3 in G.node_ways.get(n, ()):
+                    if w3 in ring_ways: continue
+                    ns3 = [q for q in G.ways[w3]['nodes'] if q in G.xy]
+                    if len(ns3) >= 2 and all(abs(math.hypot(G.xy[q][0] - cx, G.xy[q][1] - cy) - R) < 3.5 for q in ns3):
+                        ring_ways.add(w3); grown = True
+                        for q in ns3:
+                            if q not in ring_nodes: ring_nodes.append(q)
+        # 経路が環を進む区間を、タグの無い部分も含めて伸ばす
+        while i1 + 1 < len(path) and G_edge_way(G, path[i1], path[i1 + 1]) in ring_ways: i1 += 1
+        i = i1 + 1
         same = next((r for r in out if math.hypot(r['_c'][0] - cx, r['_c'][1] - cy) < 5), None)
         route_edges = {(path[i0 - 1], path[i0]) if i0 > 0 else None, (path[i1 + 1], path[i1]) if i1 + 1 < len(path) else None}
         if same:
