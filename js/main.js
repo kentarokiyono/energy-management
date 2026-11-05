@@ -46,7 +46,7 @@ initChart(); lastChartPush=0;
 running=true; paused=false; lastT=performance.now();
 requestAnimationFrame(loop);
 if(P.mode==="event") toast("🎪 90秒スコアアタック!B=ブースト","#22d3ee");
-else Radio.push("Day1 8:30 Darwinスタート!W/↑でスロットル開度を設定してください。まずは制限速度に注意。");
+else Radio.push("Day1 8:00 Darwinスタート!W/↑でスロットル開度を設定してください。まずは制限速度に注意。");
 }
 function loop(t){
 if(!running) return;

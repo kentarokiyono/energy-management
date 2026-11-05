@@ -75,4 +75,6 @@ trainPerHour:3.5, faultScale:1.0, gridRisk:1.0,
 noSpeedCap:0,
 };
 
+/* 2027 BWSC Event Regulations (Challenger): 2.4.2 太陽電池 6 m² 以下 / 2.5.2 蓄電 11 MJ 以下 */
+const REG={maxArea:6, maxWh:11e6/3600};
 const MODE_CFG={ event:{ duration:90, attractIdle:30, stamps:[[2.0,"🥇 GOLD","#fbbf24"],[1.4,"🥈 SILVER","#cbd5e1"],[0,"🥉 BRONZE","#d97706"]] }, race:{} };

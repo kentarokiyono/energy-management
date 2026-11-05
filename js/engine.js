@@ -4,7 +4,7 @@ st:null,
 init(){
 this.st={
 km:0, v:0,
-day:1, hour:8.5, dayOfYear:PRO.dayOfYear,
+day:1, hour:8.0, dayOfYear:PRO.dayOfYear,
 soc:clamp(PRO.startSoc,0,1), whUsed:0, whGen:0, ahUsed:0,
 powerMode:false, gLat:0, gLong:0, signal:0,
 stopTimer:0, stopKind:"", stopExtra:"",
@@ -42,7 +42,9 @@ factor:squall?0.15:0.45 });
 }
 return plan.sort((a,b)=>a.start-b.start);
 },
-raceStartHour(){ return (this.st.day===1?8.5:8.0) + this.st.morningPenaltyMin/60; },
+raceStartHour(){ return 8.0 + this.st.morningPenaltyMin/60; },   // 2027 Reg 3.21.1-2: 毎日 08:00 (超過ペナルティ分だけ遅らせる)
+/* 17:00 超過の翌朝ペナルティ (Reg 3.21.4): 10 分までは 1 分/分、それ以降は 2 分/分 */
+extPenaltyMin(ext){ return Math.ceil(Math.min(ext,10)+2*Math.max(0,ext-10)); },
 initTeams(){
 const NAMES=["Nuon","Twente","Tokai","Michigan","Punch","Sonnenwagen","Stanford","Blue Sky","Kogakuin","EcoPhoton","W.Sydney","Antakari","Bochum","TopDutch","Illini","JU Solar","Halmstad","SiamTech","Goko","Apollo"];
 const arr=[];
@@ -60,12 +62,12 @@ return arr;
 },
 updateTeams(dtS){
 const s=this.st;
-const startH=(s.day===1?8.5:8.0);
+const startH=8.0;
 const racing=s.hour>=startH&&s.hour<17;
 for(const tm of s.teams){
 if(tm.status==="dnf"||tm.status==="fin") continue;
 if(tm.status==="pre"){
-if(s.day>1 || s.hour>=8.5+Math.max(0,tm.delayH)){
+if(s.day>1 || s.hour>=8.0+Math.max(0,tm.delayH)){
 tm.status="run";
 if(tm.delayH<0&&s.day===1) tm.km=Math.min(420,-tm.delayH*tm.spd*0.9);
 } else continue;
@@ -125,7 +127,7 @@ chargingAllowed(){
 const s=this.st;
 const prof=profileAt(s.km);
 const sunset=this.sunsetHour(prof.lat);
-return (s.hour>=6&&s.hour<8) || (s.hour>=17&&s.hour<sunset) || (s.hour>=this.raceStartHour()&&s.hour<17);
+return (s.hour>=6.25&&s.hour<8) || (s.hour>=17&&s.hour<sunset) || (s.hour>=this.raceStartHour()&&s.hour<17);
 },
 step(dtS,dtR){
 const s=this.st;
@@ -159,11 +161,15 @@ Radio.push(ev.type==="squall"?"⚠ スコールに入ります!日射が大き�
 }
 if(P.mode==="race") this.updateTeams(dtS);
 const startH=this.raceStartHour();
-const isRaceHours = s.hour>=startH && s.hour<17+(s.extensionMin/60);
+const isRaceHours = s.hour>=startH && s.hour<17;
 let parked = s.stopTimer>0 || StopMenu.active;
 if(typeof Crew!=="undefined"&&Crew.locked()){ parked=true; s.v=0; s.throttleSet=0; }   // 乗降手順中・発車許可待ち
 if(s.stopTimer>0){
-if(!s.stopHold) s.stopTimer-=dtS; s.v=0;   // stopHold: CS で計測開始ボタンを押すまで計時しない
+// stopHold: CS で計測開始ボタンを押すまで計時しない。CS の計時は 17:00 で止まり 08:00 に再開 (Reg 3.27.9)
+const csPaused= s.stopKind==="cp" && (s.hour>=17 || s.hour<8);
+if(csPaused&&!s.csPauseMsg){ s.csPauseMsg=true; Radio.push("17:00 です。コントロールストップの計時は停止し、翌朝 08:00 に再開します。","Event Official"); }
+if(!csPaused) s.csPauseMsg=false;
+if(!s.stopHold&&!csPaused) s.stopTimer-=dtS; s.v=0;
 if(s.stopTimer<=0){
 if(s.stopKind==="tire"&&s.burst){ s.burst=false; toast("🛞 タイヤ交換完了!","#34d399"); }
 if(s.stopKind==="check"){ if(s.fault){ s.fault=null; s.faultAnnounced=false; toast("🔍 不具合を修理しました!","#34d399"); } else toast("🔍 機器チェック完了。異常なし","#34d399"); }
@@ -172,18 +178,20 @@ if(s.stopKind==="driver") toast("🔁 ドライバー交代完了。本線へ戻
 s.stopKind=""; s.tiltLocked=false;
 }
 } else if(P.mode==="race" && !isRaceHours && !StopMenu.active){
-if(!s.camp && s.hour>=17 && s.v>1){
+const sunsetNow=this.sunsetHour(prof.lat);
+if(!s.camp && s.hour>=17 && s.v>1 && s.hour<sunsetNow){   // Reg 3.21.4: 17:00 以降も日没までは走れる (翌朝の開始が遅れる)
 s.extensionMin+=dtS/60;
-if(!s.extWarned){ Radio.push("17:00を超過しています。最大10分、翌朝遅延ペナルティ付きで延長可能です。"); s.extWarned=true; }
-if(s.extensionMin>=10){ s.morningPenaltyMin=10; this.enterCamp(); parked=true; }
+if(!s.extWarned){ Radio.push("17:00 を超過しています。10 分までは 1 分につき 1 分、それ以降は 2 分、翌朝のスタートが遅れます。日没後は走行禁止です。"); s.extWarned=true; }
+if(s.extensionMin>=10&&!s.extWarned2){ Radio.push("超過 10 分。ここからは 1 分につき 2 分のペナルティです。","チーフ"); s.extWarned2=true; }
 } else {
-if(!s.camp && s.hour>=17){ s.morningPenaltyMin=Math.min(10,Math.round(s.extensionMin)); this.enterCamp(); }
+if(!s.camp && s.hour>=17){ s.morningPenaltyMin=this.extPenaltyMin(s.extensionMin); if(s.hour>=sunsetNow&&s.v>1) Radio.push("日没です。直ちに停車してください。","Event Official"); this.enterCamp(); }
 if(!s.camp && s.hour<startH) s.camp=true;
 parked=true; s.v=Math.max(0,s.v-3*dtR);
 }
 }
 const sunset=this.sunsetHour(prof.lat);
-s.disconnected = s.camp && (s.hour>=sunset || s.hour<6);
+// Reg 3.28.8-9: 電池は 19:15 までに切り離して封印、06:15 まで解除できない (夜間の CS も同じ)
+s.disconnected = (s.camp || (s.stopKind==="cp"&&s.stopTimer>0)) && (s.hour>=19.25 || s.hour<6.25);
 const tilted = parked || s.camp;
 const sol=this.solarCalc(prof.lat,s.hour,tilted);
 const Tamb=ambientTemp(prof.lat,s.hour);
@@ -309,7 +317,7 @@ this.radioLogic(dtS);
 if(s.camp){
 const st2=this.raceStartHour();
 if(s.hour>=st2 && s.hour<17){
-s.camp=false; s.extensionMin=0; s.extWarned=false; s.tiltLocked=false;
+s.camp=false; s.extensionMin=0; s.extWarned=false; s.extWarned2=false; s.tiltLocked=false;
 Radio.push(`Day${s.day} スタート!${s.morningPenaltyMin>0?`(延長ペナルティ+${s.morningPenaltyMin}分)`:""}今日も安全第一で。`);
 s.morningPenaltyMin=0;
 }
@@ -461,7 +469,7 @@ const prof=profileAt(s.km);
 let wh=0;
 const sunset=this.sunsetHour(prof.lat);
 for(let h=17;h<sunset;h+=0.25){ const g=this.solarCalc(prof.lat,h,true); wh+=P.arrayArea*P.cellEff*0.92*P.mpptEff*g.G*0.25*PRO.solarScale; }
-for(let h=6;h<st2;h+=0.25){ const g=this.solarCalc(prof.lat,h,true); wh+=P.arrayArea*P.cellEff*0.92*P.mpptEff*g.G*0.25*PRO.solarScale; }
+for(let h=6.25;h<st2;h+=0.25){ const g=this.solarCalc(prof.lat,h,true); wh+=P.arrayArea*P.cellEff*0.92*P.mpptEff*g.G*0.25*PRO.solarScale; }
 s.soc=clamp(s.soc+wh*0.5/P.batteryWh,0,1);
 s.whGen+=wh*0.5;
 if(s.hour>=17){ s.day++; s.dayOfYear++; }
