@@ -502,19 +502,40 @@ buildGarages(grp,bs){
 },
 /* ガレージの表 (実物の写真に合わせる): 濃緑のブロック壁・中央の巻き上げシャッター・両脇の白い通用口・壁のガレージ番号・
  コンクリの梁とケーブルラック・蛍光灯、シャッター上のチーム看板 (ゼッケン・国旗・チーム名・車名)、2 階手すりの国旗/横断幕、ゴミ箱 */
-TEAMS:[ // ガレージ番号順 (null = 看板なし)。2025 年大会 Challenger クラスの参加チーム (番号は確認できたもののみ。配置は 9 番 SOLIS 以外は仮)
- {no:"3",cc:"NLD",team:"BRUNEL SOLAR TEAM",car:"Nuna 13"},{no:"21",cc:"NLD",team:"SOLAR TEAM TWENTE",car:"RED Discover"},{no:"8",cc:"BEL",team:"INNOPTUS SOLAR TEAM",car:"Infinite Apollo"},
- {no:"7",cc:"DEU",team:"TEAM SONNENWAGEN AACHEN",car:"Covestro Æthon"},{no:"",cc:"JPN",team:"TOKAI UNIVERSITY SOLAR CAR TEAM",car:"Tokai Challenger"},{no:"",cc:"AUS",team:"WESTERN SYDNEY SOLAR TEAM",car:"Unlimited 6.0"},
- {no:"2",cc:"USA",team:"UNIVERSITY OF MICHIGAN SOLAR CAR TEAM",car:"Millennium"},{no:"46",cc:"SWE",team:"JU SOLAR TEAM",car:"Nova Lumina"},
- {no:"99",cc:"ROU",team:"SOLIS UTCN",car:"Hyperion"},{no:"61",cc:"JPN",team:"WAKAYAMA UNIVERSITY SOLAR CAR TEAM",car:"YATA"},
- {no:"",cc:"CAN",team:"ECLIPSE ÉTS",car:"Éclipse 12"},{no:"85",cc:"CHE",team:"αCENTAURI SOLAR RACING",car:"Silvretta"},{no:"48",cc:"HUN",team:"JOHN VON NEUMANN UNIVERSITY",car:"NMS-1"},
- {no:"88",cc:"JPN",team:"KOGAKUIN UNIVERSITY SOLAR TEAM",car:"Cygnus"},{no:"",cc:"KOR",team:"SEOUL NATIONAL UNIVERSITY SOLAR CAR TEAM",car:"SNUONE"},
- null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],
+TEAMS:[ // ガレージ番号順 (null = 空き)。2025 年大会 Challenger クラス 26 チーム (順位順、9 番 SOLIS・10 番 和歌山大は写真より)。番号は確認できたもののみ
+ {no:"",cc:"NLD",team:"BRUNEL SOLAR TEAM",car:"Nuna 13"},
+ {no:"",cc:"NLD",team:"SOLAR TEAM TWENTE",car:"RED Discover"},
+ {no:"8",cc:"BEL",team:"INNOPTUS SOLAR TEAM",car:"Infinite Apollo"},
+ {no:"7",cc:"DEU",team:"TEAM SONNENWAGEN AACHEN",car:"Convestro Æthon"},
+ {no:"",cc:"JPN",team:"TOKAI UNIVERSITY SOLAR CAR TEAM",car:"Tokai Challenger"},
+ {no:"",cc:"AUS",team:"WESTERN SYDNEY SOLAR TEAM",car:"Unlimited 6.0"},
+ {no:"2",cc:"USA",team:"UNIVERSITY OF MICHIGAN SOLAR CAR TEAM",car:"Millennium"},
+ {no:"46",cc:"SWE",team:"JU SOLAR TEAM",car:"Nova Lumina"},
+ {no:"99",cc:"ROU",team:"SOLIS UTCN",car:"Hyperion"},
+ {no:"61",cc:"JPN",team:"WAKAYAMA UNIVERSITY SOLAR CAR TEAM",car:"YATA"},
+ {no:"",cc:"CAN",team:"ECLIPSE ÉTS",car:"Éclipse 12"},
+ {no:"48",cc:"HUN",team:"JOHN VON NEUMANN UNIVERSITY",car:"NMS-1"},
+ {no:"85",cc:"CHE",team:"αCENTAURI",car:"Silvretta"},
+ {no:"",cc:"SWE",team:"CHALMERS SOLAR TEAM",car:"Arvaker"},
+ {no:"88",cc:"JPN",team:"KOGAKUIN UNIVERSITY SOLAR TEAM",car:"Cygnus"},
+ {no:"",cc:"JPN",team:"OSAKA INSTITUTE OF TECHNOLOGY TEAM REGALIA",car:"Screwera"},
+ {no:"",cc:"NLD",team:"TOP DUTCH SOLAR RACING",car:"Green IV"},
+ {no:"",cc:"KOR",team:"SEOUL NATIONAL UNIVERSITY",car:"SNUONE"},
+ {no:"",cc:"AUS",team:"ANU SOLAR RACING",car:"Monty"},
+ {no:"",cc:"USA",team:"THE IRON LION SOLAR CAR TEAM",car:"Aurora"},
+ {no:"",cc:"DEU",team:"TUFAST ECO",car:"LUX025"},
+ {no:"",cc:"KOR",team:"SNU SOLO",car:"Pado"},
+ {no:"",cc:"AUS",team:"ADELAIDE UNIVERSITY SOLAR RACING TEAM",car:"Lumen III"},
+ {no:"",cc:"SWE",team:"HALMSTAD UNIVERSITY SOLAR TEAM",car:"H6"},
+ {no:"",cc:"IND",team:"AGNIRATH",car:"Aagneya"},
+ {no:"",cc:"AUS",team:"SOUTH AUSTRALIAN SOLAR VEHICLE ASSOCIATION",car:"Sun Sprite"},
+ null,null,null,null],
 flag(c,cc,x,y,w,h){ const v=(cols)=>cols.forEach((k,i)=>{ c.fillStyle=k; c.fillRect(x+i*w/cols.length,y,w/cols.length+0.5,h); }), hz=(cols)=>cols.forEach((k,i)=>{ c.fillStyle=k; c.fillRect(x,y+i*h/cols.length,w,h/cols.length+0.5); });
  switch(cc){
   case "JPN": c.fillStyle="#fff"; c.fillRect(x,y,w,h); c.fillStyle="#bc002d"; c.beginPath(); c.arc(x+w/2,y+h/2,h*0.3,0,7); c.fill(); break;
   case "ROU": v(["#002b7f","#fcd116","#ce1126"]); break; case "BEL": v(["#000","#fdda24","#ef3340"]); break; case "ITA": v(["#009246","#fff","#ce2b37"]); break; case "FRA": v(["#0055a4","#fff","#ef4135"]); break;
   case "NLD": hz(["#ae1c28","#fff","#21468b"]); break; case "HUN": hz(["#ce2939","#fff","#477050"]); break;
+  case "IND": hz(["#ff9933","#fff","#138808"]); c.strokeStyle="#000080"; c.lineWidth=2; c.beginPath(); c.arc(x+w/2,y+h/2,h*0.12,0,7); c.stroke(); break;
   case "CAN": v(["#d52b1e","#fff","#fff","#d52b1e"]); c.fillStyle="#d52b1e"; c.beginPath(); c.moveTo(x+w/2,y+h*0.22); c.lineTo(x+w*0.6,y+h*0.62); c.lineTo(x+w*0.4,y+h*0.62); c.closePath(); c.fill(); c.fillRect(x+w/2-w*0.015,y+h*0.6,w*0.03,h*0.18); break;
   case "KOR": c.fillStyle="#fff"; c.fillRect(x,y,w,h); c.fillStyle="#cd2e3a"; c.beginPath(); c.arc(x+w/2,y+h/2,h*0.25,Math.PI,0); c.fill(); c.fillStyle="#0047a0"; c.beginPath(); c.arc(x+w/2,y+h/2,h*0.25,0,Math.PI); c.fill();
    c.fillStyle="#000"; for(const [px,py] of [[0.18,0.22],[0.82,0.22],[0.18,0.78],[0.82,0.78]]) c.fillRect(x+w*px-w*0.06,y+h*py-h*0.08,w*0.12,h*0.16); break; case "DEU": hz(["#000","#dd0000","#ffce00"]); break;
