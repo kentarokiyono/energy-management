@@ -127,6 +127,15 @@ if(wl){ wl.style.color=lc; wr.style.color=rc; }
 const wl2=document.getElementById("wl2"), wr2=document.getElementById("wr2");
 if(wl2){ wl2.style.color=lc; wr2.style.color=rc; }
 }
+/* 後端の両角の透明レンズ: ウインカー/ハザード (点滅) が優先、次にブレーキ (赤)、消灯時は透明 (レース・予選共通) */
+function updateRearCombo(carGroup,es){
+if(!carGroup||!carGroup.userData.rearCombo) return;
+const on=(performance.now()%800)<400, L=es.signal===-1||es.signal===2, R=es.signal===1||es.signal===2, brk=es.brakePhys>0.05||es.brakeRegen>0.05;
+for(const c of carGroup.userData.rearCombo){ const blink=(c.side<0?L:R);
+ if(blink&&on){ c.m.color.setHex(0xffa012); c.m.opacity=1; }
+ else if(brk){ c.m.color.setHex(0xff1a1a); c.m.opacity=1; }
+ else { c.m.color.setHex(0xd8dde2); c.m.opacity=.55; } }
+}
 function applyTouchMode(){
 const on=(P.uiMode==="mobile");
 document.getElementById("touch-ui").classList.toggle("hidden",!on);

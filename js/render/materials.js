@@ -139,7 +139,7 @@ TEX.shop=_tex(cv); return TEX.shop;
 const SIGN_CACHE=new Map();
 function signTex(kind,text){
 const key=kind+"|"+text; if(SIGN_CACHE.has(key)) return SIGN_CACHE.get(key);
-let W=512,H=256; if(kind==="speed"){W=256;H=320;} if(kind==="banner"){W=512;H=160;} if(kind==="warn"){W=256;H=256;}
+let W=512,H=256; if(kind==="speed"){W=256;H=320;} if(kind==="banner"){W=512;H=160;} if(kind==="warn"){W=256;H=256;} if(kind==="giveway"){W=256;H=230;}
 const [cv,c]=_cv(W,H);
 const rr=(x,y,w,h,r)=>{ c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); };
 c.textAlign="center"; c.textBaseline="middle";
@@ -161,6 +161,19 @@ if(kind==="green"||kind==="blue"||kind==="brown"){
  c.fillStyle="#d71920"; c.beginPath(); c.arc(W/2,H/2,108,0,7); c.fill();
  c.fillStyle="#fff"; c.beginPath(); c.arc(W/2,H/2,82,0,7); c.fill();
  c.fillStyle="#111"; c.font=`bold ${text.length>2?78:100}px Arial,Helvetica,sans-serif`; c.fillText(text,W/2,H/2+6);
+} else if(kind==="giveway"){   // 逆三角 (赤枠・白地) GIVE WAY
+ c.fillStyle="#d71920"; c.beginPath(); c.moveTo(8,14); c.lineTo(W-8,14); c.lineTo(W/2,H-8); c.closePath(); c.fill();
+ c.fillStyle="#fff"; c.beginPath(); c.moveTo(56,40); c.lineTo(W-56,40); c.lineTo(W/2,H-58); c.closePath(); c.fill();
+ c.fillStyle="#111"; c.font="bold 30px Arial,Helvetica,sans-serif"; c.fillText("GIVE",W/2,76); c.fillText("WAY",W/2,112);
+} else if(kind==="warn"&&text==="rab"){   // ラウンドアバウト予告 (黄ひし形・3 本の回る矢印)
+ c.save(); c.translate(W/2,H/2); c.rotate(Math.PI/4);
+ c.fillStyle="#f6c400"; rr(-86,-86,172,172,14); c.fill(); c.strokeStyle="#111"; c.lineWidth=7; rr(-78,-78,156,156,10); c.stroke(); c.restore();
+ c.save(); c.translate(W/2,H/2); c.strokeStyle="#111"; c.fillStyle="#111"; c.lineWidth=11;
+ for(let k=0;k<3;k++){ const a0=k*2*Math.PI/3-Math.PI/2+0.35, a1=a0+1.45;
+  c.beginPath(); c.arc(0,0,44,a0,a1); c.stroke();
+  const hx=Math.cos(a1)*44, hy=Math.sin(a1)*44, tx=-Math.sin(a1), ty=Math.cos(a1);
+  c.beginPath(); c.moveTo(hx+tx*20,hy+ty*20); c.lineTo(hx-ty*16-tx*4,hy+tx*16-ty*4); c.lineTo(hx+ty*16-tx*4,hy-tx*16-ty*4); c.closePath(); c.fill(); }
+ c.restore();
 } else if(kind==="warn"){
  c.save(); c.translate(W/2,H/2); c.rotate(Math.PI/4);
  c.fillStyle="#f6c400"; rr(-86,-86,172,172,14); c.fill(); c.strokeStyle="#111"; c.lineWidth=7; rr(-78,-78,156,156,10); c.stroke(); c.restore();

@@ -7,7 +7,7 @@ km:0, v:0,
 day:1, hour:8.0, dayOfYear:PRO.dayOfYear,
 soc:clamp(PRO.startSoc,0,1), whUsed:0, whGen:0, ahUsed:0,
 powerMode:false, gLat:0, gLong:0, signal:0,
-stopTimer:0, stopKind:"", stopExtra:"",
+stopTimer:0, stopKind:"", stopExtra:"", damage:{aero:0,n:0}, crashed:false, crashReason:"", hitCd:0,
 morningPenaltyMin:0, extensionMin:0, extWarned:false,
 passedCP:new Set(), finished:false, trailered:false, competing:true, dcDone:false, offRoute:false, progRate:1,
 drivingHours:0, penaltySec:0, limitTimer:0,
@@ -41,6 +41,42 @@ factor:squall?0.15:0.45 });
 }
 }
 return plan.sort((a,b)=>a.start-b.start);
+},
+/* チャプター (コントロールストップの 2 km 手前から): 標準ペース (巡航 70 km/h・8〜17 時走行・CS 30 分・夜は傾けて充電) で
+ スタートからそこまで進めたときの 日・時刻・電池残量 を見積もる */
+CHAPTER_KMH:70,
+chapterState(targetKm){
+ const s=this.st, V=this.CHAPTER_KMH/3.6, dt=0.05, m=massTotal(), Wh=Math.max(500,P.batteryWh);
+ const pv=(G)=>P.arrayArea*P.cellEff*P.mpptEff*G*PRO.solarScale*0.92;
+ const Pd=(Phys.crr(V)*m*9.81+0.5*1.17*P.Cd*P.frontal*V*V)*V/0.95+P.auxW;
+ const doy0=s.dayOfYear, km0=s.km;
+ let day=1, h=8.0, km=0, soc=clamp(PRO.startSoc,0,1), stopH=0, next=0, dc=false;
+ const cs=RP_CS.filter(c=>c.km<targetKm), dck=RP_RULES.driverChange.km;
+ const sol=(tilted)=>{ s.dayOfYear=doy0+day-1; s.km=km; const pr=profileAt(km); return pv(this.solarCalc(pr.lat,h,tilted,pr.lon,pr.elev).G); };
+ for(let guard=0;guard<20000&&km<targetKm;guard++){
+  if(h>=17){ // 夜: 日没まで傾けて充電、翌朝 6〜8 時も充電
+   const pr=profileAt(km), sunset=this.sunsetHour(pr.lat,pr.lon);
+   for(let t=17;t<sunset;t+=0.25){ h=t; soc=Math.min(1,soc+sol(true)*0.25/Wh); }
+   day++; for(let t=6;t<8;t+=0.25){ h=t; soc=Math.min(1,soc+sol(true)*0.25/Wh); } h=8.0; continue; }
+  if(stopH>0){ soc=Math.min(1,soc+sol(true)*dt/Wh); stopH-=dt; h+=dt; continue; }
+  km+=V*3.6*dt; soc=clamp(soc+(sol(false)-Pd)*dt/Wh,0.03,1); h+=dt;
+  if(next<cs.length&&km>=cs[next].km){ km=cs[next].km; next++; stopH=0.5; }
+  if(!dc&&km>=dck){ dc=true; stopH=Math.max(stopH,RP_RULES.driverChange.minutes/60); }
+ }
+ s.dayOfYear=doy0; s.km=km0;
+ return {day,hour:clamp(h,8,16.9),soc};
+},
+/* チャプター開始: CS n (1〜9) の 2 km 手前に置き、通過済みの CS・ドライバー交代・他チームの位置をそろえる */
+applyChapter(n){
+ const c=RP_CS.find(q=>q.n===n); if(!c) return;
+ const s=this.st, km=Math.max(0.5,c.km-2), st=this.chapterState(km);
+ s.km=km; s.day=st.day; s.hour=st.hour; s.dayOfYear=PRO.dayOfYear+st.day-1; s.soc=st.soc;
+ for(const q of RP_CS) if(q.km<km) s.passedCP.add(q.km);
+ if(RP_RULES.driverChange.km<km) s.dcDone=true;
+ s.camp=false; s.stopTimer=0;
+ for(const tm of s.teams||[]){ tm.status="run"; tm.km=clamp(km+(tm.spd-this.CHAPTER_KMH)/this.CHAPTER_KMH*Math.min(km,500)+(Math.random()-0.5)*40,0,TOTAL_KM-1);   // 速いチームは少し前、遅いチームは後ろ (最大 ±数百 km)
+  for(const cp of ROUTE) if(cp.cp&&cp.km<tm.km) tm.cs.add(cp.km); }
+ s.chapter=n;
 },
 raceStartHour(){ return 8.0 + this.st.morningPenaltyMin/60; },   // 2027 Reg 3.21.1-2: 毎日 08:00 (超過ペナルティ分だけ遅らせる)
 /* 17:00 超過の翌朝ペナルティ (Reg 3.21.4): 10 分までは 1 分/分、それ以降は 2 分/分 */
@@ -175,6 +211,7 @@ if(s.stopKind==="tire"&&s.burst){ s.burst=false; toast("🛞 タイヤ交換完�
 if(s.stopKind==="check"){ if(s.fault){ s.fault=null; s.faultAnnounced=false; toast("🔍 不具合を修理しました!","#34d399"); } else toast("🔍 機器チェック完了。異常なし","#34d399"); }
 if(s.stopKind==="cp") toast("点検完了!係員の指示に従ってコントロールストップを出てください","#34d399");
 if(s.stopKind==="driver") toast("🔁 ドライバー交代完了。本線へ戻ってください","#34d399");
+if(s.stopKind==="repair"){ s.damage.aero*=0.3; toast("🔧 応急修理完了。残った損傷で空気抵抗が "+(s.damage.aero*100).toFixed(1)+" % 増えています","#34d399"); }
 s.stopKind=""; s.tiltLocked=false;
 }
 } else if(P.mode==="race" && !isRaceHours && !StopMenu.active){
@@ -221,7 +258,7 @@ const head=s.windSpeed*Math.cos(phi); s.lastHead=head;
 const cross=s.windSpeed*Math.sin(phi); s.lastCross=cross;
 const vApp=Math.max(0,s.v+head);
 const yaw=Math.atan2(Math.abs(cross),Math.max(s.v,1));
-const cdEff=P.Cd*cdYawFactor(yaw);
+const cdEff=P.Cd*cdYawFactor(yaw)*(1+((s.damage&&s.damage.aero)||0));   // 接触による破損で空気抵抗が増える
 const Fdrag=0.5*rho*cdEff*P.frontal*vApp*vApp;
 const Fcorner=cornerDrag(m,s.gLat);
 const Fslope=m*9.81*Math.sin(slope);
@@ -450,6 +487,26 @@ s.camp=true; s.v=0;
 Radio.push(`Day${s.day} 走行終了。その場でキャンプ設営、日没までティルト充電を行います。`);
 if(typeof Crew!=="undefined") Crew.onCamp();
 TiltDecide.open();
+},
+/* 当たり判定の結果 (View から): 軽い接触 = 警告 / 破損 = 停車して修理・空力悪化 / 大破 = リタイア */
+collision(hit){
+ const s=this.st; if(!s||s.crashed||s.fire||hit.level==="touch") return;
+ const now=performance.now(); if(now<(s.hitCd||0)&&hit.level==="light") return;
+ const what=COLLIDE_WHAT[hit.kind]||"障害物", kmh=(hit.vn*3.6).toFixed(0);
+ if(hit.level==="light"){ s.hitCd=now+2500; Snd.alarm(); toast(`⚠ ${what}に接触 (${kmh} km/h)`,"#f59e0b"); Radio.push(`${what}に軽く接触しました (${kmh} km/h)。車体を確認しながら走行を続けてください。`,"チーフ"); return; }
+ if(hit.level==="damage"&&s.stopKind==="repair"&&s.stopTimer>0) return;   // 修理停車中の重ねた判定は数えない
+ if(hit.level==="damage"){
+  const f=clamp((hit.vn-Collide.LIGHT)/(Collide.HEAVY-Collide.LIGHT),0,1), add=0.03+0.12*f, rep=Math.round(15+45*f);
+  s.damage.aero+=add; s.damage.n++; s.v=0; s.throttleSet=0;
+  s.stopTimer=rep*60; s.stopKind="repair"; s.hitCd=now+4000;
+  Snd.bang(); toast(`💥 ${what}と衝突 (${kmh} km/h)・車体破損`,"#ef4444");
+  Radio.push(`${what}と衝突 (${kmh} km/h)。車体が破損しました。停車して応急修理 (${rep} 分)。空気抵抗 +${(add*100).toFixed(0)} %。`,"チーフ");
+  return; }
+ s.crashed=true; s.v=0; s.throttleSet=0;
+ s.crashReason= hit.kind==="person"? `歩行者と接触する重大事故 (${kmh} km/h)` : `${what}と激突 (${kmh} km/h)・車両大破`;
+ Snd.bang(); Snd.alarm(); toast("💥 事故 ― リタイア","#ef4444");
+ Radio.push(s.crashReason+"。レースを続けられません。","チーフ");
+ setTimeout(()=>showResult(),1800);
 },
 ignite(reason){
 const s=this.st;

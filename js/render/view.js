@@ -567,7 +567,7 @@ turnProgram(m){
 advanceGen(sNext){
 const g=this.gen;
 const km=this.kmOfS(sNext);
-const zone=Route.inZone(km);
+const zone=Route.real(km);
 // 地形の勾配
 g.gradeRemain-=this.SEG;
 if(g.gradeRemain<=0){
@@ -621,22 +621,26 @@ return {grade:g.grade,curv:g.curv};
 },
 ensureRoad(upTo){
 const r=this.road, CHUNK=200;
-while(r.builtS<upTo+CHUNK+900){
+// OSM の町区間では、町の終わりまで道路の形を先に作る (ループ・往復で後から通る区間の上に景観を置かないため)
+let ahead=upTo+CHUNK+900;
+if(P.mode==="race"){ const kA=this.kmOfS(upTo), kB=this.kmOfS(ahead+300);
+ for(const t of OsmRoute.towns) if(t.km1>kA&&t.km0<kB&&Route.real(Math.max(t.km0,kA))) ahead=Math.max(ahead,Math.min(this.sOfKm(t.km1)+60,upTo+12000)); }
+while(r.builtS<ahead){
 const last=r.pts[r.pts.length-1];
 const sN=r.builtS+this.SEG;
 const gen=this.advanceGen(sN);
 const km=this.kmOfS(sN);
-const macroSlope=Route.inZone(km)?0:profileAt(km).slope;
+const macroSlope=Route.real(km)?0:profileAt(km).slope;
 const grade0=gen.grade+macroSlope;
 const h=last.h+gen.curv*this.SEG;
 // 路面高さ = 地形に沿った基準高さ yb + 立体交差の持ち上げ bh (等倍ゾーン内のみ)
 const yb=(last.yb!=null?last.yb:last.y)+grade0*this.SEG;
-const bm= P.mode==="race"&&Route.inZone(km)? OsmRoute.bumpAt(km) : null, bh=bm?bm.h:0;
+const bm= P.mode==="race"&&Route.real(km)? OsmRoute.bumpAt(km) : null, bh=bm?bm.h:0;
 const y=yb+bh, grade=grade0+(bh-(last.bh||0))/this.SEG;
 const x=last.x+Math.sin(h)*this.SEG;
 const z=last.z-Math.cos(h)*this.SEG;
 const pr= P.mode==="race"? OsmRoute.profAt(km) : OsmRoute.DEF_PROF;
-const wt= P.mode==="race"&&Route.inZone(km)? OsmRoute.waterAt(km) : null;
+const wt= P.mode==="race"&&Route.real(km)? OsmRoute.waterAt(km) : null;
 r.pts.push({x,z,y,h,g:grade,c:gen.curv,L:pr.L,m1:pr.m1,R:pr.R,ow:pr.ow,dual:pr.dual,yb,bh,deck:!!(bm&&bm.deck)||!!wt,wd:wt?wt.depth*wt.edge:0});
 r.builtS=sN;
 }
@@ -652,6 +656,7 @@ const c=r.chunks.shift();
 this.scene.remove(c.mesh);
 c.mesh.traverse(ch=>{ if(ch.geometry) ch.geometry.dispose(); });
 for(const b of c.branches){ const i=this.branches.indexOf(b); if(i>=0) this.branches.splice(i,1); }
+if(typeof Collide!=="undefined") Collide.removeOwner(c.mesh);
 }
 },
 roadPoint(s){
@@ -674,6 +679,7 @@ buildRoadChunk(s0,s1){ return Scenery.buildChunk(this,s0,s1); },
 /* 現在kmで道路と景観を作り直す (スタート/ワープ/デバッグ用) */
 resetRoad(){
  if(this.road) for(const c of this.road.chunks){ this.scene.remove(c.mesh); c.mesh.traverse(ch=>{ if(ch.geometry) ch.geometry.dispose(); }); }
+ if(typeof Collide!=="undefined") Collide.clear();
  const es=Engine.st, km=es?es.km:0;
  this.road={pts:[{x:0,z:0,y:0,h:0,g:0,c:0,L:5,m1:0,R:5}],builtS:0,chunks:[]};
  this.branches=[]; this.junctions=[]; this.prog=null; this.doneMan=new Set(); this.lastGenKm=-1; this.osmTown=null;
@@ -732,6 +738,7 @@ if(vv>0.3){
  this.ch+=yawRate*dtR;
  es.gLat=(yawRate*vv)/9.81;
 } else es.gLat=0;
+const cx0=this.cx, cz0=this.cz;   // 当たり判定の掃引用
 this.cx+=Math.sin(this.ch)*vv*dtR; this.cz-=Math.cos(this.ch)*vv*dtR;
 // 横風 (諸元があるとき): 横方向に押される。タイヤの横すべりで遅れて効く。旋回と合わせて転倒余裕を監視
 if(VEH.active&&VEH.spec.chassis&&P.mode==="race"){
@@ -743,6 +750,12 @@ if(VEH.active&&VEH.spec.chassis&&P.mode==="race"){
  if(es.tipRatio>0.8&&!(this.tipWarnT>0)){ this.tipWarnT=8; Snd.alarm(); Radio.push(`⚠ 横転の危険!横加速度 ${(aLat/9.81).toFixed(2)} G (転倒限界の ${(es.tipRatio*100).toFixed(0)} %)。減速してください。`,"チーフ"); }
  if(this.tipWarnT>0) this.tipWarnT-=dtR;
 } else es.tipRatio=0;
+// 当たり判定 (レースモード): 沿道の固定物・壁・他の車両・人
+if(P.mode==="race"&&typeof Collide!=="undefined"&&Collide.enabled&&!es.fire&&!(typeof Crew!=="undefined"&&Crew.busy()&&Crew.phase==="outside")){
+ const st={x:this.cx,z:this.cz,h:this.ch,v:es.v}, [L,W]=carDims();
+ const hit=Collide.sweep(cx0,cz0,st,L,W,this.dynColliders(es));
+ if(hit){ this.cx=st.x; this.cz=st.z; es.v=st.v; Engine.collision(hit); }
+}
 const sPrev=this.s;
 const pr=this.project(this.cx,this.cz);
 this.iProj=pr.i; this.s=pr.s; this.lateral=pr.lat;
@@ -753,8 +766,8 @@ const pHere=this.roadPoint(this.s), pHere0=pHere;
 // 分岐道路 (脇道・曲がり損ね)
 const onMain=this.lateral>=-(pHere0.L+0.4)&&this.lateral<=pHere0.R+0.4;
 const br=onMain? null : this.branchAt(this.cx,this.cz);
-if(br&&!this.onBranch){ this.onBranch=br.b; this.branchWarned=false; }
-if(!br&&this.onBranch&&onMain) { if(this.branchWarned) Radio.push("ルートに復帰しました。","前方誘導車"); this.onBranch=null; }
+if(br&&!this.onBranch&&!br.b.ring){ this.onBranch=br.b; this.branchWarned=false; }
+if((!br||br.b.ring)&&this.onBranch&&onMain) { if(this.branchWarned) Radio.push("ルートに復帰しました。","前方誘導車"); this.onBranch=null; }
 if(this.onBranch&&br&&!this.branchWarned&&br.along>12){
  this.branchWarned=true; Snd.alarm();
  const b=this.onBranch;
@@ -768,7 +781,8 @@ this.upcomingGrade= Math.abs(ahead.g)>0.02 ? Math.sign(ahead.g) : 0;
 const site=Scenery.pavedSite(this,this.s,this.lateral);
 es.offroad=!onMain && !br && !site && !es.camp && es.stopTimer<=0;
 if(es.offroad&&es.v>1) es.v=Math.max(0,es.v-clamp(es.v*0.12,0.2,2.5)*dtR);
-const carY= br? br.y : site? pHere.y+site.y : pHere.y;
+let carY= br? br.y : site? pHere.y+(site.y||0) : pHere.y;
+if(!Number.isFinite(carY)) carY=pHere.y;   // 高さが壊れても画面全体を道連れにしない
 const nx=Math.cos(pHere.h), nz=Math.sin(pHere.h);
 const hCar=this.ch;
 this.car.position.set(this.cx, carY, this.cz);
@@ -786,11 +800,7 @@ if(es.burst&&es.v>2) this.car.position.y+=Math.random()*0.04;
 if(this.car.userData.brakeMat)
 this.car.userData.brakeMat.color.setHex((es.brakePhys>0.05||es.brakeRegen>0.05)?0xff2222:0x4a0505);
 updateWinkers(this.car,es);
-if(this.car.userData.rearCombo){ const on=(performance.now()%800)<400, L=es.signal===-1||es.signal===2, R=es.signal===1||es.signal===2, brk=es.brakePhys>0.05||es.brakeRegen>0.05;
- for(const c of this.car.userData.rearCombo){ const blink=(c.side<0?L:R);
-  if(blink&&on){ c.m.color.setHex(0xffa012); c.m.opacity=1; }           // ウインカー/ハザード点灯 (点滅の明)
-  else if(brk){ c.m.color.setHex(0xff1a1a); c.m.opacity=1; }            // ブレーキ
-  else { c.m.color.setHex(0xd8dde2); c.m.opacity=.55; } } }             // 消灯: 透明なレンズ
+updateRearCombo(this.car,es);
 View.updateDash(es);
 if(View.yokeMesh) View.yokeMesh.rotation.z=-Input.steer*.9;
 // ヨーク回転: 右ステア→右へ回転(車の右旋回と同じ向き)
@@ -844,9 +854,10 @@ if(typeof Crew!=="undefined"){ Crew.update(dtR); }
 if(typeof Crew!=="undefined"&&Crew.camera(this)){}   // 乗降手順・車外歩行の視点
 else { if(this.cam>=2) this.camera.position.copy(camPos);
 else this.camera.position.lerp(camPos,clamp(dtR*(this.cam===0?5:12),0,1));
+if(!Number.isFinite(this.camera.position.x+this.camera.position.y+this.camera.position.z)&&Number.isFinite(camPos.x+camPos.y+camPos.z)) this.camera.position.copy(camPos);   // 一度でも壊れた値になると補間で戻らない (画面が真っ黒のまま) ため
 this.camera.lookAt(lookAt); }
 // 予備の地面: OSM の町区間 (平坦) では路面のすぐ下に置き、急な右左折の内側で地形の帯が縮んでできる隙間を塞ぐ
-const flatTown=P.mode==="race"&&Route.inZone(es.km)&&OsmRoute.townAt(es.km);
+const flatTown=P.mode==="race"&&Route.real(es.km)&&OsmRoute.townAt(es.km);
 const nearWater=flatTown&&[-0.3,-0.15,0,0.15,0.3,0.45].some(d=>OsmRoute.waterAt(es.km+d));   // 水面の橋の近くでは川底より下へ
 this.ground.position.set(pHere.x,(pHere.y-(pHere.bh||0))-(flatTown?(nearWater?7:0.3):60),pHere.z);
 const alt=es.sunAlt||0, az=(es.sunAz||0);
@@ -969,6 +980,19 @@ const ent=this.lmMap.get(key);
 if(ent){ this.scene.remove(ent.mesh); this.lmMap.delete(key); }
 }
 }
+},
+/* 動く障害物 (他チームの車・誘導車・ロードトレイン): 回転箱 {x,z,h,L,W,v} */
+dynColliders(es){
+ const out=[], add=(m,L,W,v,kind)=>{ if(!m||!m.visible) return;
+  if(!m.userData._cz){ // メッシュの原点から車体中心までのずれ (ローカル z) を一度だけ測る
+   const q=m.position.clone(), r=m.rotation.y; m.position.set(0,0,0); m.rotation.y=0; m.updateMatrixWorld(true);
+   const b=new THREE.Box3().setFromObject(m); m.userData._cz=[(b.min.x+b.max.x)/2,(b.min.z+b.max.z)/2]; m.position.copy(q); m.rotation.y=r; m.updateMatrixWorld(true); }
+  const [ox,oz]=m.userData._cz, c=Math.cos(m.rotation.y), sn=Math.sin(m.rotation.y);
+  out.push({t:2,x:m.position.x+ox*c+oz*sn,z:m.position.z-ox*sn+oz*c,h:-m.rotation.y,L,W,v,kind}); };
+ for(const sl of this.aiPool||[]) if(sl.team) add(sl.mesh,4.9,1.8,(sl.team.spd||0)/3.6,"vehicle");
+ add(this.escortLead,5.6,2.0,es.v,"vehicle"); add(this.escortChase,5.6,2.0,es.v,"vehicle");
+ for(const rt of this.roadTrains) add(rt.mesh,53,2.6,-27,"vehicle");
+ return out;
 },
 updateRoadTrains(es,dtR){
 if(P.mode==="race"&&!es.camp&&!Route.inZone(es.km)){

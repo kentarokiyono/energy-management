@@ -1,11 +1,12 @@
 "use strict";
+const VEH_PRIV_REV=5;   // vehicle-private.js の必要な版 (rev)。古い版は設定画面で警告
 /* ============ 車両諸元の差し替え ============
  js/data/vehicle-private.js (git 管理外) が VEHICLE_PRIVATE を定義していれば、その値で
  車体形状 (和大型モノハル) と走行の物理 (質量・タイヤ・制動・操舵・横風・転倒余裕) を置き換える。
  ファイルが無いときは従来の汎用モデルのまま。値そのものはこのファイルに書かない。 */
 const VEH=(()=>{
  const S=(typeof VEHICLE_PRIVATE!=="undefined"&&VEHICLE_PRIVATE)||null;
- const v={active:!!S, spec:S||{}};
+ const v={active:!!S, spec:S||{}, rev:(S&&S.rev)||0, revNeed:VEH_PRIV_REV};
  if(!S) return v;
  const M=S.mass||{}, T=S.tyre||{}, B=S.brake||{}, A=S.aero||{};
  if(M.dry!=null) P.massDry=M.dry;
@@ -24,7 +25,7 @@ const VEH=(()=>{
   PRO.kt=(Mo.vNom||96)/(PRO.noLoadRpm/60*2*Math.PI)/PRO.tireR; PRO.motorVnom=Mo.vNom||96;
   // パワーモード: 無負荷回転数を上げた (逆起電力係数が小さい) 特性。力定数も同じ比で小さくなる
   if(Mo.powerNoLoadRpm){ PRO.rpmPower=Mo.powerNoLoadRpm; PRO.ktPower=PRO.kt*PRO.noLoadRpm/Mo.powerNoLoadRpm; }
-  if(Mo.ecoMaxA&&Mo.powerMaxA) PRO.modeMaxA=[Mo.ecoMaxA,Mo.powerMaxA]; }
+  if(Mo.ecoMaxA&&Mo.powerMaxA) { PRO.modeMaxA=[Mo.ecoMaxA,Mo.powerMaxA]; P.motorMaxA=Mo.ecoMaxA; } }
  const So=S.solar; if(So){ if(So.area) P.arrayArea=So.area; if(So.cellEff) P.cellEff=So.cellEff; if(So.mpptEff) P.mpptEff=So.mpptEff; }
  const Ba=S.battery; if(Ba&&Ba.series){ PRO.vFull=Ba.series*(Ba.cellVmax||4.2); PRO.vEmpty=Ba.series*(Ba.cellVmin||3.0);
   if(Ba.cellAh) P.batteryWh=Math.round(Ba.series*Ba.parallel*Ba.cellAh*(Ba.cellVnom||3.7)); }
