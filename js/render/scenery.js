@@ -190,15 +190,73 @@ buildChunk(view,s0,s1){
  }
  // ---- 景観オブジェクト ----
  this.buildOcc(ctx); this._ctxOcc=ctx.occ;
+ this.buildSurf(ctx); this.guardPR(); this._guard=ctx;
  if(P.mode==="race"){ this.sites(ctx); this.bridges(ctx); }
  if(urban) this.urban(ctx,urban); else this.rural(ctx);
  this.townOverlay(ctx);
  this.features(ctx);
  this.roadSigns(ctx);
- this._ctxOcc=null; this._capBr=null;
+ this._ctxOcc=null; this._capBr=null; this._guard=null;
  bs.toGroup(grp);
  for(const sg of signs) grp.add(sg);
  return grp;
+},
+/* 路面 (本線の全区間・分岐・環道) の空間索引: 景観オブジェクトを道路の上に置かないための最終チェック用 */
+buildSurf(ctx){
+ const view=ctx.view, G=8, cells=new Map(), RP=view.road.pts;
+ const c0=view.roadPoint(clamp((ctx.s0+ctx.s1)/2,0,view.road.builtS-0.01)), BOX=520;
+ const put=(x,z,item)=>{ const k=Math.floor(x/G)+","+Math.floor(z/G); let a=cells.get(k); if(!a) cells.set(k,a=[]); a.push(item); };
+ for(let i=0;i<RP.length;i++){ const q=RP[i]; if(Math.abs(q.x-c0.x)>BOX||Math.abs(q.z-c0.z)>BOX) continue; if((q.bh||0)>3) continue;   // 橋の上の路面は下の物と干渉しない
+  put(q.x,q.z,{m:1,x:q.x,z:q.z,h:q.h,L:q.L||5,R:q.R||5}); }
+ for(const b of view.branches){ if(b.island) continue; if(Math.abs(b.cx-c0.x)>BOX+b.R||Math.abs(b.cz-c0.z)>BOX+b.R) continue;
+  const B=b.pts; for(let i=0;i<B.length-1;i++){ const a=B[i], c=B[i+1]; put((a.x+c.x)/2,(a.z+c.z)/2,{m:0,a,c,hw:b.half}); } }
+ // これから作る分岐道路 (先のチャンクの交差道路) の路面も予測して入れる: 先に置いた街路樹・街灯が後で道路の上にならないように
+ const D=Math.PI/180, seg=(sJ,ang,len,hw,shape,ref)=>{ if(sJ<0||sJ>=view.road.builtS-1) return; const p=view.roadPoint(sJ);
+  if(Math.abs(p.x-c0.x)>BOX+len||Math.abs(p.z-c0.z)>BOX+len) return;
+  const segs= shape&&shape.length? shape.map(([a2,l])=>[p.h+a2-(ref||0),l]) : [[p.h+ang,len]];
+  const side=Math.sin(ang)>=0?1:-1, edge=(side>0?p.R:p.L)||5;   // makeBranch と同じく路端から出す
+  let x=p.x+Math.cos(p.h)*side*(edge-0.4), z=p.z+Math.sin(p.h)*side*(edge-0.4), acc=0;
+  for(const [hh,l] of segs){ let d=0; while(d<l&&acc<len){ const st=Math.min(4,l-d); const nx=x+Math.sin(hh)*st, nz=z-Math.cos(hh)*st;
+    put((x+nx)/2,(z+nz)/2,{m:0,a:{x,z},c:{x:nx,z:nz},hw}); x=nx; z=nz; d+=st; acc+=st; } } };
+ if(P.mode==="race"){
+  const sA=ctx.s1, sB=Math.min(view.road.builtS-1,ctx.s1+1000), kA=view.kmOfS(sA), kB=view.kmOfS(sB);
+  for(const t of OsmRoute.towns){ if(t.km1<kA||t.km0>=kB) continue;
+   for(const [k,hb,name,half,shape] of t.arms){ if(k<kA||k>=kB||!Route.real(k)) continue; const Hk=OsmRoute.H(t,k), ang=Math.atan2(Math.sin(hb-Hk),Math.cos(hb-Hk));
+    const atMan=RP_MANEUVERS.some(m=>m.osm===t&&Math.abs(m.km-k)<0.015); seg(view.sOfKm(k),ang,atMan?200:150,(half||3.5)+0.4,shape,Hk); }
+   // ラウンドアバウト: 環・中央島・流入路
+   for(const r of t.rabs||[]){ const k0=r.ks[0][0]; if(k0<kA-0.3||k0>=kB+0.25||!Route.real(k0)) continue; const s0r=view.sOfKm(k0); if(s0r>=view.road.builtS-1) continue;
+    const P0=view.roadPoint(s0r), off=P0.h-OsmRoute.H(t,k0), a0=r.b+off, C={x:P0.x+Math.sin(a0)*r.d, z:P0.z-Math.cos(a0)*r.d};
+    const W=(b2,rr)=>({x:C.x+Math.sin(b2+off)*rr, z:C.z-Math.cos(b2+off)*rr});
+    put(C.x,C.z,{m:0,a:{x:C.x,z:C.z},c:{x:C.x+0.01,z:C.z},hw:r.R+r.hw+0.5});
+    for(let i=0;i<24;i++){ const A=W(i/24*Math.PI*2,r.R), Bq=W((i+1)/24*Math.PI*2,r.R); put(A.x,A.z,{m:0,a:A,c:Bq,hw:r.hw+0.6}); }
+    for(const a of r.arms){ if(a[2]) continue; const ps=a[5].map(([b2,rr])=>W(b2,rr));
+     for(let i=0;i<ps.length-1;i++){ const A=ps[i], Cq=ps[i+1], n=Math.max(1,Math.ceil(Math.hypot(Cq.x-A.x,Cq.z-A.z)/4));   // 長い辺は 4 m ごとに分けて格子へ
+      for(let j=0;j<n;j++){ const u0=j/n, u1=(j+1)/n, p0={x:A.x+(Cq.x-A.x)*u0,z:A.z+(Cq.z-A.z)*u0}, p1={x:A.x+(Cq.x-A.x)*u1,z:A.z+(Cq.z-A.z)*u1}; put((p0.x+p1.x)/2,(p0.z+p1.z)/2,{m:0,a:p0,c:p1,hw:a[1]+0.5}); } } } } }
+  const uk=biomeAt((kA+kB)/2).urban;
+  if(uk&&uk!=="parklands") for(let sq=Math.ceil(sA/330)*330+40;sq<sB;sq+=330){ const kk=view.kmOfS(sq); if(OsmRoute.townAt(kk)&&Route.real(kk)) continue; for(const sd of [-1,1]) seg(sq,sd*90*D,180,4.4); }
+  for(const e of Route.eventsIn(kA,kB,"signal")) for(const sd of [-1,1]) seg(view.sOfKm(e.km),sd*90*D,160,4.0);
+  for(const e of Route.eventsIn(kA,kB,"sideroad")) seg(view.sOfKm(e.km),(e.v==="R"?1:-1)*90*D,200,4.2);
+ }
+ ctx.surf={cells,G};
+},
+surfHit(ctx,x,z,pad){
+ const S=ctx.surf; if(!S||!Number.isFinite(x)||!Number.isFinite(z)) return false;
+ const G=S.G, gx=Math.floor(x/G), gz=Math.floor(z/G);
+ for(let dx=-2;dx<=2;dx++) for(let dz=-2;dz<=2;dz++){ const a=S.cells.get((gx+dx)+","+(gz+dz)); if(!a) continue;
+  for(const it of a){
+   if(it.m){ const ex=x-it.x, ez=z-it.z, lat=ex*Math.cos(it.h)+ez*Math.sin(it.h), lon=ex*Math.sin(it.h)-ez*Math.cos(it.h);
+    if(Math.abs(lon)<1.4&&lat>-(it.L+pad)&&lat<it.R+pad) return true; }
+   else { const A=it.a, C=it.c, ex=C.x-A.x, ez=C.z-A.z, L2=ex*ex+ez*ez||1, t=clamp(((x-A.x)*ex+(z-A.z)*ez)/L2,0,1);
+    if((A.x+ex*t-x)**2+(A.z+ez*t-z)**2<(it.hw+pad)**2) return true; } } }
+ return false;
+},
+/* 景観の部品 (PR.*) を呼ぶ前に、置き場所が路面の上なら置かない */
+guardPR(){
+ if(PR.__guarded) return; PR.__guarded=true;
+ const keep=new Set(["solarCar","woodPole","stobie"]);   // 柱は電線の高さを返すので常に置く (位置は clearAt で道路を避け済み)
+ const pad={tree:0.8,redgum:0.8,houseOutback:2.5,houseTropical:2.5,houseBrick:2.5,shopStrip:3,shed:2,roadhouse:3,tower:4,windmill:1,termite:0.4,rock:0.3,tank:1};
+ for(const k of Object.keys(PR)){ const f=PR[k]; if(typeof f!=="function"||keep.has(k)) continue;
+  PR[k]=function(bs,x,y,z,...r){ const g=Scenery._guard; if(g&&Scenery.surfHit(g,x,z,pad[k]!=null?pad[k]:0.25)) return; return f.call(this,bs,x,y,z,...r); }; }
 },
 /* 分岐道路の入口付近か (街灯・ガイドポスト・フェンスを置かない) */
 brNear(view,s,w=0,sd=0){
@@ -212,7 +270,7 @@ brNear(view,s,w=0,sd=0){
 upWind(pos,idx){ for(let i=0;i<idx.length;i+=3){ const a=idx[i]*3,b=idx[i+1]*3,c=idx[i+2]*3;
   const ny=(pos[b+2]-pos[a+2])*(pos[c]-pos[a])-(pos[b]-pos[a])*(pos[c+2]-pos[a+2]); if(ny<0){ const t=idx[i+1]; idx[i+1]=idx[i+2]; idx[i+2]=t; } } },
 /* 沿道の柱など: 道路にかかる場合は前後にずらして置く (置けなければ null) */
-clearAt(view,s,off,sd){ for(const d of [0,6,-6,12,-12]){ if(this.brNear(view,s+d,0,sd)) continue; if(this.waterSite(view,s+d,off)) continue; const q=this.at(view,s+d,off); if(this.roadClear(view,q.x,q.z,s+d)) return q; } return null; },
+clearAt(view,s,off,sd){ for(const d of [0,6,-6,12,-12]){ if(this.brNear(view,s+d,0,sd)) continue; if(this.waterSite(view,s+d,off)) continue; const q=this.at(view,s+d,off); if(this.roadClear(view,q.x,q.z,s+d)&&!(this._guard&&this.surfHit(this._guard,q.x,q.z,0.5))) return q; } return null; },
 /* 本線が同じ場所を再び通る (ループ・上下線の往復) 区間: 後から通る側の路面は先の路面/分岐の下へ沈めて重ね描きを避ける */
 rowHidden(view,s){
  const P=view.road.pts, i0=Math.round(s/view.SEG); if(i0>=P.length) return false;
@@ -466,6 +524,7 @@ signMesh(ctx,q,kind,text,w,h,postH,off){
    for(let k=1;k<=8&&!ok;k++){ const dx=q.x-hit.x, dz=q.z-hit.z, L=Math.hypot(dx,dz)||1; const nx2=q.x+dx/L*1.3, nz2=q.z+dz/L*1.3;
     q=Object.assign({},q,{x:nx2,z:nz2}); hit=this.roadHit(ctx.view,q.x,q.z,0.6); if(!hit) ok=true; }
    if(!ok) return; } }
+ if(kind!=="banner"&&this._guard&&this.surfHit(this._guard,q.x,q.z,0.4)) return;   // 先に通った/後で通る区間の路面の上
  const ry=-q.h;
  const posts= w>2.2? [-w*0.35,w*0.35] : [0];
  for(const px of posts) bs.get("solid").add(tpl("box"),M4(q.x+q.nx*px,q.y,q.z+q.nz*px,0.08,postH,0.08,ry),linCol(0x9a9da0));

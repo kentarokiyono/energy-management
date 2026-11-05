@@ -621,7 +621,11 @@ return {grade:g.grade,curv:g.curv};
 },
 ensureRoad(upTo){
 const r=this.road, CHUNK=200;
-while(r.builtS<upTo+CHUNK+900){
+// OSM の町区間では、町の終わりまで道路の形を先に作る (ループ・往復で後から通る区間の上に景観を置かないため)
+let ahead=upTo+CHUNK+900;
+if(P.mode==="race"){ const kA=this.kmOfS(upTo), kB=this.kmOfS(ahead+300);
+ for(const t of OsmRoute.towns) if(t.km1>kA&&t.km0<kB&&Route.real(Math.max(t.km0,kA))) ahead=Math.max(ahead,Math.min(this.sOfKm(t.km1)+60,upTo+12000)); }
+while(r.builtS<ahead){
 const last=r.pts[r.pts.length-1];
 const sN=r.builtS+this.SEG;
 const gen=this.advanceGen(sN);
