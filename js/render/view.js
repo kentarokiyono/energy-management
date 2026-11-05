@@ -845,6 +845,7 @@ if(typeof Crew!=="undefined"){ Crew.update(dtR); }
 if(typeof Crew!=="undefined"&&Crew.camera(this)){}   // 乗降手順・車外歩行の視点
 else { if(this.cam>=2) this.camera.position.copy(camPos);
 else this.camera.position.lerp(camPos,clamp(dtR*(this.cam===0?5:12),0,1));
+if(!Number.isFinite(this.camera.position.x+this.camera.position.y+this.camera.position.z)&&Number.isFinite(camPos.x+camPos.y+camPos.z)) this.camera.position.copy(camPos);   // 一度でも壊れた値になると補間で戻らない (画面が真っ黒のまま) ため
 this.camera.lookAt(lookAt); }
 // 予備の地面: OSM の町区間 (平坦) では路面のすぐ下に置き、急な右左折の内側で地形の帯が縮んでできる隙間を塞ぐ
 const flatTown=P.mode==="race"&&Route.real(es.km)&&OsmRoute.townAt(es.km);
