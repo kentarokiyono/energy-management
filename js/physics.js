@@ -89,6 +89,8 @@ function motorIronW(v){ const w=Math.max(0,v)/PRO.tireR; return PRO.ironK1*w+PRO
  入力: DC 電流指令 I [A] (モーター最大電流で上限)。コントローラは DC 電力を相電流に変換し
   (降圧で低速ほど相電流が大きくなる)、相電流は PRO.phaseMaxA と電圧 (Vb - E)/R で頭打ち。
  損失: 銅損 Iph²R + コントローラ (固定 + 1% of Pin)。鉄損は走行抵抗側 (motorIronW) で計上 */
+/* モードごとの電流上限 [A]: 諸元にエコ/パワーの上限があればそれ、無ければモーター最大電流 */
+function motorMaxA(power){ const M=PRO.modeMaxA; return M? (power?M[1]:M[0]) : P.motorMaxA; }
 function motorParams(power){
  return {kt: power?PRO.ktPower:PRO.kt, R: PRO.rWinding*(power?1.15:1), rpm: power?PRO.rpmPower:PRO.noLoadRpm};
 }
@@ -97,7 +99,7 @@ const Vb=VOC(soc), mp=motorParams(power);
 // 無負荷回転数 (公称 96 V) と整合する逆起電力係数
 const ke=(PRO.motorVnom||96)/(mp.rpm/60*2*Math.PI*PRO.tireR);       // E = ke·v
 const E=ke*Math.max(0,v), vMax=Vb/ke;
-const phaseMax=PRO.phaseMaxA>0? PRO.phaseMaxA : 2*P.motorMaxA;
+const phaseMax=PRO.phaseMaxA>0? PRO.phaseMaxA : 2*motorMaxA(power);
 const Pctrl0= I>0.05? PRO.ctrlW : 0;
 const Pin=Math.max(0,Vb*I*0.99-Pctrl0);            // 相側へ渡せる電力
 // Pin = (E + Iph·R)·Iph → Iph
@@ -113,7 +115,7 @@ return {F,Pelec,Vb,eff,vMax,Iph};
 function regenModel(cmd,v,soc,power){
 const Vb=VOC(soc), mp=motorParams(power);
 const ke=(PRO.motorVnom||96)/(mp.rpm/60*2*Math.PI*PRO.tireR), E=ke*Math.max(0,v);
-let Ir=cmd*P.regenStrength*P.motorMaxA;
+let Ir=cmd*P.regenStrength*motorMaxA(power);
 Ir=Math.min(Ir, Math.max(0,E/mp.R*0.5));           // 発電できる範囲 (E > Ir·R)
 const F=mp.kt*Ir;
 const Pgen=Math.max(0,(E-Ir*mp.R)*Ir*PRO.regenEff-(Ir>0.5?PRO.ctrlW:0));

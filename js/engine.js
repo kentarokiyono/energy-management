@@ -220,7 +220,7 @@ const Fslope=m*9.81*Math.sin(slope);
 s.lastYawDeg=Math.abs(yaw)*180/Math.PI;
 let thr=s.throttleSet;
 if(s.brakePhys>0.05||s.brakeRegen>0.05){ thr=0; s.throttleSet=0; }
-let ampLimit=P.motorMaxA;
+let ampLimit=motorMaxA(s.powerMode);
 if(s.boostT>0)ampLimit*=1.25; // 🚀BOOST
 if(s.fault&&s.fault.type==="accel") ampLimit*=0.3;
 if(s.bmsOn){

@@ -76,7 +76,7 @@ if(eventElapsed>=EVENT_DURATION&&!es.finished){ es.finished=true; showResult(); 
 }
 View.update(dtR);
 if(P.mode==="race"&&!es.finished&&!es.trailering) es.km=View.kmOfS(View.s);   // 走行位置(本線への射影)を正とする
-Snd.update(es.v, es.lastAmp/Math.max(P.motorMaxA,1), es.fire);
+Snd.update(es.v, es.lastAmp/Math.max(motorMaxA(es.powerMode),1), es.fire);
 updateHUD(); drawWind(); drawG();
 Perf.tick(dtR);
 if(t-lastChartPush>1500){ pushChart(); drawMap(); lastChartPush=t; }

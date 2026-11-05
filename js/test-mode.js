@@ -121,7 +121,7 @@ const Fcorner=cornerDrag(m,es.gLat);
 const Fslope=m*9.81*grade;
 let thr=es.throttleSet;
 if(es.brakePhys>0.05||es.brakeRegen>0.05){ thr=0; es.throttleSet=0; }
-const I_cmd=thr*P.motorMaxA;
+const I_cmd=thr*motorMaxA(es.powerMode);
 const mmT=motorModel(I_cmd,this.v,es.soc,es.powerMode);
 const Ftrac=mmT.F;
 let Fbrake=0,Pregen=0;
@@ -192,7 +192,7 @@ document.getElementById("hud-dist").textContent=(this.v*3.6).toFixed(0)+" km/h";
 document.getElementById("hud-nextcp").textContent={circuit:"目標 2:20台",slalom:"目標 <11.5s",brake:"40km/h→14m",combo:"<11.5s → 14m",fig8:"9s / 18s"}[this.kind];
 document.getElementById("hud-limit").textContent="―";
 this.updateTestHud(); drawG();
-Snd.update(this.v, es.lastAmp/Math.max(P.motorMaxA,1), false);
+Snd.update(this.v, es.lastAmp/Math.max(motorMaxA(es.powerMode),1), false);
 },
 judge(dtR){
 const k=this.kind;
