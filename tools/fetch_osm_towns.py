@@ -656,6 +656,40 @@ def _seg_cross(A, B, C, D):
     return t if 0 <= t <= 1 and 0 <= u <= 1 else None
 
 
+def under_query(t):
+    """橋の下を通るもの: 鉄道・川・水面・海岸線"""
+    s, w, n, e = t['bbox']
+    bb = f'{s},{w},{n},{e}'
+    return (f'[out:json][timeout:180];('
+            f'way[railway~"^(rail|light_rail|narrow_gauge|tram|busway)$"]({bb});'
+            f'way[highway=busway]({bb});way[busway=guided]({bb});'
+            f'way[waterway~"^(river|stream|canal|drain|ditch)$"]({bb});'
+            f'way[natural~"^(water|coastline|bay)$"]({bb});'
+            f'way[water]({bb});'
+            f');out body;>;out skel qt;')
+
+
+def load_under(G, d):
+    """橋の下の線状物 → G.under = [(種別, 名前, [xy...], 閉じているか), ...]"""
+    xy = {el['id']: G.proj(el['lat'], el['lon']) for el in d['elements'] if el['type'] == 'node' and 'lat' in el}
+    out = []
+    for el in d['elements']:
+        if el['type'] != 'way': continue
+        tg = el.get('tags', {}); pts = [xy[q] for q in el['nodes'] if q in xy]
+        if len(pts) < 2: continue
+        if tg.get('railway') or tg.get('busway') == 'guided' or tg.get('highway') == 'busway': kind = 'rail'
+        else: kind = 'water'
+        out.append((kind, (tg.get('name') or '')[:22], pts, el['nodes'][0] == el['nodes'][-1] and kind == 'water' and not tg.get('waterway')))
+    G.under = out
+
+
+def _in_poly(p, poly):
+    x, y = p; c = False
+    for (x1, y1), (x2, y2) in zip(poly, poly[1:] + poly[:1]):
+        if (y1 > y) != (y2 > y) and x < (x2 - x1) * (y - y1) / (y2 - y1 or 1e-9) + x1: c = not c
+    return c
+
+
 def bridge_spans(G, path, kmof, b0):
     """経路の橋区間 (bridge=yes) と、その下を通る道路 → [[km 始, km 終, [[km, 方位, 名前, 半幅], ...]], ...]"""
     spans = []
@@ -677,9 +711,37 @@ def bridge_spans(G, path, kmof, b0):
                     tt = _seg_cross(A, B, G.xy[c], G.xy[d])
                     if tt is None: continue
                     km = kmof(i) + (kmof(i + 1) - kmof(i)) * tt
-                    sp[2].append([round(km, 4), round(math.radians(G.bearing(c, d)) - b0, 3), G.wname(wid)[:22], way_half(G, wid)])
+                    sp[2].append([round(km, 4), round(math.radians(G.bearing(c, d)) - b0, 3), G.wname(wid)[:22], way_half(G, wid), 'road'])
+        # 鉄道・川 (G.under): 線との交差は under に、水面の内側/海岸線との交差は水面の橋 (water)
+        water = False; wk = []   # 水面: 区間全体 (water=True) か、水の線との交差 km (wk)
+        for i in sp[3]:
+            A, B = G.xy[path[i]], G.xy[path[i + 1]]
+            for kind, name, pts, closed in getattr(G, 'under', []):
+                for (cx, cy), (dx, dy) in zip(pts, pts[1:]):
+                    tt = _seg_cross(A, B, (cx, cy), (dx, dy))
+                    if tt is None: continue
+                    km = kmof(i) + (kmof(i + 1) - kmof(i)) * tt
+                    if kind == 'rail':
+                        sp[2].append([round(km, 4), round(math.atan2(dx - cx, dy - cy) - b0, 3), name, 2.6, 'rail'])
+                    elif not closed:
+                        wk.append(km)
+                        sp[2].append([round(km, 4), round(math.atan2(dx - cx, dy - cy) - b0, 3), name, 8.0, 'water'])
+                if kind == 'water' and closed and _in_poly(((A[0] + B[0]) / 2, (A[1] + B[1]) / 2), pts): water = True
+        # 水面の範囲 [km 始, km 終]: 区間が水面の内側なら全体、岸 (線) を 2 回以上横切るならその間、川の中心線 1 本なら ±12 m
+        if water: sp.append([sp[0], sp[1]])
+        elif len(wk) >= 2: sp.append([min(wk), max(wk)])
+        elif wk: sp.append([wk[0] - 0.012, wk[0] + 0.012])
+        else: sp.append(0)
         del sp[3]
-    return [[round(a, 4), round(b, 4), u] for a, b, u in spans if b - a >= 0.01]
+    out = []
+    for a, b, u, wtr in spans:
+        if b - a < 0.01: continue
+        u2 = []   # 同じ線が近くで二重に数えられたら 1 つに
+        for x in sorted(u):
+            if u2 and abs(u2[-1][0] - x[0]) < 0.01 and u2[-1][4] == x[4]: continue
+            u2.append(x)
+        out.append([round(a, 4), round(b, 4), u2, [round(max(a, wtr[0]), 4), round(min(b, wtr[1]), 4)] if wtr else 0])
+    return out
 
 
 def build_town(G, t):
@@ -772,6 +834,11 @@ def main():
         d = overpass(town_query(t), cp, a.offline)
         s, w, n, e = t['bbox']
         G = Graph(d, (s + n) / 2, (w + e) / 2)
+        cpu = cp[:-5] + '_under.json' if cp else None
+        if a.offline and cpu and not os.path.exists(cpu):
+            print('  (橋の下の鉄道・川のキャッシュなし — 取得するにはネット接続ありで実行)')
+        else:
+            load_under(G, overpass(under_query(t), cpu, a.offline))
         try:
             town, log = build_town(G, t)
         except LookupError as ex:

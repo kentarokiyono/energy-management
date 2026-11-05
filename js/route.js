@@ -123,12 +123,27 @@ CLEAR:5.6, RAMP:0.09,
 bumpAt(km){
  const t=this.townAt(km); if(!t||!t.bridges||!t.bridges.length) return null;
  let h=0, deck=false;
- for(const [k0,k1,under] of t.bridges) for(const [ku,,,uh] of under||[]){
-  const dS=((uh||3.5)+4)/1000, d=Math.abs(km-ku);
-  if(d<=dS){ h=this.CLEAR; deck=true; continue; }
-  if(d<dS+this.RAMP){ const x=(d-dS)/this.RAMP; h=Math.max(h,this.CLEAR*0.5*(1+Math.cos(Math.PI*x))); }
+ for(const [k0,k1,under,wr] of t.bridges){
+  for(const [ku,,,uh,kind] of under||[]){
+   if(kind==="water"||(Array.isArray(wr)&&ku>=wr[0]&&ku<=wr[1])) continue;   // 水面の上は持ち上げない (下の地面を下げる)
+   const C= kind==="rail"? this.CLEAR_RAIL : this.CLEAR;
+   const dS=((uh||3.5)+4)/1000, d=Math.abs(km-ku);
+   if(d<=dS){ h=Math.max(h,C); deck=true; continue; }
+   if(d<dS+this.RAMP){ const x=(d-dS)/this.RAMP; h=Math.max(h,C*0.5*(1+Math.cos(Math.PI*x))); }
+  }
  }
  return h>0? {h,deck} : null;
+},
+CLEAR_RAIL:6.6,
+/* 水面 (川・海) の上の橋の区間か → {depth: 水面下の深さ m, edge: 0..1 岸からの近さ, k0, k1} */
+waterAt(km){
+ const t=this.townAt(km); if(!t||!t.bridges) return null;
+ for(const [k0,k1,under,wr] of t.bridges){
+  if(!Array.isArray(wr)) continue;
+  const a=wr[0]-0.008, b=wr[1]+0.008;          // 岸の斜面の分だけ広げる
+  if(km>=a&&km<=b){ const e=Math.min(km-a,b-km)*1000; return {depth:4.5, edge:clamp(e/12,0,1), k0:a, k1:b}; }
+ }
+ return null;
 },
 /* ノート km → OSM km: 動作の対応点で区分線形 (両端は傾き 1 で外挿) */
 mapper(t){

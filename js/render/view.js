@@ -636,7 +636,8 @@ const y=yb+bh, grade=grade0+(bh-(last.bh||0))/this.SEG;
 const x=last.x+Math.sin(h)*this.SEG;
 const z=last.z-Math.cos(h)*this.SEG;
 const pr= P.mode==="race"? OsmRoute.profAt(km) : OsmRoute.DEF_PROF;
-r.pts.push({x,z,y,h,g:grade,c:gen.curv,L:pr.L,m1:pr.m1,R:pr.R,ow:pr.ow,dual:pr.dual,yb,bh,deck:!!(bm&&bm.deck)});
+const wt= P.mode==="race"&&Route.inZone(km)? OsmRoute.waterAt(km) : null;
+r.pts.push({x,z,y,h,g:grade,c:gen.curv,L:pr.L,m1:pr.m1,R:pr.R,ow:pr.ow,dual:pr.dual,yb,bh,deck:!!(bm&&bm.deck)||!!wt,wd:wt?wt.depth*wt.edge:0});
 r.builtS=sN;
 }
 while(true){
@@ -661,7 +662,7 @@ const a=r.pts[i], b=r.pts[i+1];
 let dh=b.h-a.h;
 return { x:lerp(a.x,b.x,t), y:lerp(a.y,b.y,t), z:lerp(a.z,b.z,t), h:a.h+dh*t, g:lerp(a.g,b.g,t), c:lerp(a.c||0,b.c||0,t),
  L:lerp(a.L||5,b.L||5,t), m1:lerp(a.m1||0,b.m1||0,t), R:lerp(a.R||5,b.R||5,t), ow:t<0.5?!!a.ow:!!b.ow, dual:t<0.5?!!a.dual:!!b.dual,
- bh:lerp(a.bh||0,b.bh||0,t), deck:t<0.5?!!a.deck:!!b.deck };
+ bh:lerp(a.bh||0,b.bh||0,t), deck:t<0.5?!!a.deck:!!b.deck, wd:lerp(a.wd||0,b.wd||0,t) };
 },
 /* 区間 [s-w, s+w] の最大曲率 (地形帯の内側クランプ用) */
 maxCurv(s,w){
@@ -846,7 +847,8 @@ else this.camera.position.lerp(camPos,clamp(dtR*(this.cam===0?5:12),0,1));
 this.camera.lookAt(lookAt); }
 // 予備の地面: OSM の町区間 (平坦) では路面のすぐ下に置き、急な右左折の内側で地形の帯が縮んでできる隙間を塞ぐ
 const flatTown=P.mode==="race"&&Route.inZone(es.km)&&OsmRoute.townAt(es.km);
-this.ground.position.set(pHere.x,(pHere.y-(pHere.bh||0))-(flatTown?0.3:60),pHere.z);
+const nearWater=flatTown&&[-0.3,-0.15,0,0.15,0.3,0.45].some(d=>OsmRoute.waterAt(es.km+d));   // 水面の橋の近くでは川底より下へ
+this.ground.position.set(pHere.x,(pHere.y-(pHere.bh||0))-(flatTown?(nearWater?7:0.3):60),pHere.z);
 const alt=es.sunAlt||0, az=(es.sunAz||0);
 const relAz=az-profileAt(es.km).bearing;
 const sunDist=1400, sy=Math.sin(alt)*sunDist, shD=Math.cos(alt)*sunDist;
