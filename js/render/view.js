@@ -196,10 +196,17 @@ g.userData.brakeMat=brakeMat;
 g.userData.winkL=[];g.userData.winkR=[];
 const winkPos=LP&&LP.wink? LP.wink : isW?[[-0.60,-1.05],[0.60,-1.05],[-0.40,1.90],[0.40,1.90]]
   :[[-0.57,-1.05],[0.57,-1.05],[-0.94,1.95],[0.94,1.95]];
+const hullMeshes=[]; if(LP&&g.userData.canopy){ body.updateMatrixWorld(true); body.traverse(m=>{ if(m.isMesh&&m!==g.userData.canopy&&m.geometry.type==="BufferGeometry") hullMeshes.push(m); }); }
 for(const [wx,wz,wy] of winkPos){
   const wm=new THREE.MeshBasicMaterial({color:0x4a3005});
   const wk=new THREE.Mesh(new THREE.BoxGeometry(isW?0.05:0.10,0.045,0.32),wm);
-  wk.position.set(wx,wy!=null?wy:(isW?0.50:0.55),wz);body.add(wk);
+  wk.position.set(wx,wy!=null?wy:(isW?0.50:0.55),wz);
+  // 車体の側面に埋め込む: 外側から車体へ向けて当て、表面に沿わせた薄いレンズにする
+  if(hullMeshes.length){ const sd=Math.sign(wx)||1, rc=new THREE.Raycaster(new THREE.Vector3(sd*3,wk.position.y,wz),new THREE.Vector3(-sd,0,0));
+   const h=rc.intersectObjects(hullMeshes,false)[0];
+   if(h){ wk.geometry.dispose(); wk.geometry=new THREE.BoxGeometry(0.012,0.04,0.22); const n=h.face.normal.clone().transformDirection(h.object.matrixWorld);
+    wk.position.copy(h.point).addScaledVector(n,-0.003); wk.lookAt(wk.position.clone().add(n)); wk.rotateY(Math.PI/2); } }
+  body.add(wk);
   (wx<0?g.userData.winkL:g.userData.winkR).push(wm);
 }
 // 後端の両角: 透明レンズのブレーキランプ兼ウインカー/ハザード (諸元 lamps.rearCombo: [x, z, y, 幅])

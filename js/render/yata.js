@@ -4,8 +4,10 @@ const YATA_CACHE={};
 /* 側面の塗り分け (u: 0=先端 1=後端, zn: 0=下端 1=上端) → "O"オレンジ / "K"黒 / "W"白 */
 function yataLivery(u,zn){
  if(u<0.045) return "O";                                   // 先端
+ // 前から見た V 字: 上のオレンジ帯がノーズに向かって太くなり、下はノーズ中央からオレンジ
+ if(u<0.30){ const up=0.86-0.42*Math.max(0,(0.30-u)/0.26); if(zn>up) return "O";
+  const lo=0.42*Math.max(0,(0.20-u)/0.16); if(zn<lo) return "O"; }
  if(zn>0.86) return "O";                                   // 上縁のオレンジ
- if(u<0.10&&zn<0.35) return "O";                           // 先端の下側 (下から見たオレンジのノーズ)
  if(u>=0.34&&zn<0.09) return "K";                          // 下端の黒
  if(u>0.60&&zn<0.09+Math.min(1,(u-0.60)/0.02)*0.13) return "K";  // 後部で段差状に太くなる黒
  const st=(z0,z1,us)=>zn>=z0&&zn<z1&&u>us-(zn-z0)*0.08;   // 後部の黒ストライプ (前端が斜め)
@@ -25,7 +27,7 @@ const BF0=BD.sectionBottom, BFE=BD.sectionBottomEnd!=null?BD.sectionBottomEnd:BF
 const BF=BF0;   // 断面の底辺の割合 (後端に向けて BFE へ: 後端の面を長方形にできる)
 const bfAt=u=>BF0==null?null: BF0+(BFE-BF0)*clamp((u-0.72)/0.28,0,1)**2;
 const PG=BD.panelGap!=null?BD.panelGap:0.06;   // パネルと胴体上面のすき間 [m]                   // 断面: 底辺の幅の割合 (台形断面, 上ほど広い)。未指定なら丸い断面
-if(LIV){ O.seg=120; O.side=26; }
+if(LIV){ O.seg=240; O.side=40; }   // 塗り分けの境界がギザギザにならない細かさ
 if(!YATA_CACHE.tex){
 let cv=document.createElement("canvas");cv.width=cv.height=256;
 let g=cv.getContext("2d");g.fillStyle="#0b0f13";g.fillRect(0,0,256,256);
