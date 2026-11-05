@@ -106,6 +106,7 @@ if(!View._carbonTex){ const cv=document.createElement("canvas"); cv.width=cv.hei
 const carbon=new THREE.MeshStandardMaterial({color:0x9aa0a8,map:View._carbonTex,roughness:.45,metalness:.15,envMapIntensity:.4});
 const E0=(VEH.active&&VEH.spec.eye)||[0,.84,-.45];
 const deckY=SB&&SB.profiles? .68 : .62;
+this.cockE0=E0; this.cockDeckY=deckY;   // 乗降手順 (crew.js) の配置基準
 // 計器盤カウル (ハンドルの奥, 前方視界の下端) と両側のコクピット壁
 // コクピット開口の内張り (キャノピーの下の床面・前方のダッシュ面)
 { const fl=new THREE.Mesh(new THREE.BoxGeometry(.5,.012,1.25),carbon); fl.position.set(E0[0],deckY-.17,E0[2]-.45); cock.add(fl);   // 床 (デッキより下)
@@ -760,7 +761,8 @@ if(this.car.userData.wheels) for(const w of this.car.userData.wheels){   // 車�
  w.spin=((w.spin||0)+vv*dtR/w.r)%(Math.PI*2); w.g.rotation.order="YXZ";
  w.g.rotation.y= w.front? -Input.steer*0.45 : 0; w.g.rotation.x=-w.spin; }
 this.car.rotation.x=-Math.atan(pHere.g)*0.8+clamp(-es.gLong*0.025,-0.045,0.045);
-const wantTilt=(es.camp||es.stopTimer>0||StopMenu.mode==="charge")&&!es.disconnected;
+let wantTilt=(es.camp||es.stopTimer>0||StopMenu.mode==="charge")&&!es.disconnected;
+if(typeof Crew!=="undefined"&&Crew.busy()&&Crew.phase!=="outside") wantTilt=false;   // ドライバーが乗っている間は傾けない
 const targetRoll=wantTilt? -es.tiltDeg*Math.PI/180*0.85 : 0;
 this.carBody.rotation.z=lerp(this.carBody.rotation.z,targetRoll,dtR*2);
 if(es.offroad&&es.v>2) this.car.position.y+=Math.random()*0.05;
@@ -810,16 +812,18 @@ camPos=new THREE.Vector3(cx+Math.sin(hCar)*0.3, cy+2.2, cz-Math.cos(hCar)*0.3);
 lookAt=new THREE.Vector3(cx-Math.sin(hCar)*60, cy+1.2, cz+Math.cos(hCar)*60);
 }
 if(this.canopyMesh){ // ドライバー視点: キャノピーを内側から見る (前窓はほぼ透明、屋根は濃いスモーク。照り返しなし)
- const inside=this.cam===2, cm=this.canopyMesh;
+ const inside=this.cam===2&&(typeof Crew==="undefined"||Crew.inCar()), cm=this.canopyMesh;
  if(!cm.userData.extMat){ cm.userData.extMat=cm.material;
   const smoke=new THREE.MeshBasicMaterial({color:0x0a0f16,transparent:true,opacity:.22,depthWrite:false,side:THREE.DoubleSide});
   cm.userData.inMat=[smoke,smoke]; }
  cm.material= inside? cm.userData.inMat : cm.userData.extMat;
  cm.visible=true; }
 if(this.shiftLeds&&this.cam===2){ const f=clamp(es.v*3.6/100,0,1)*10; this.shiftLeds.forEach((L,i)=>L.m.color.setHex(i<f? L.c : 0x101010)); }
-if(this.cam>=2) this.camera.position.copy(camPos);
+if(typeof Crew!=="undefined"){ Crew.update(dtR); }
+if(typeof Crew!=="undefined"&&Crew.camera(this)){}   // 乗降手順・車外歩行の視点
+else { if(this.cam>=2) this.camera.position.copy(camPos);
 else this.camera.position.lerp(camPos,clamp(dtR*(this.cam===0?5:12),0,1));
-this.camera.lookAt(lookAt);
+this.camera.lookAt(lookAt); }
 // 予備の地面: OSM の町区間 (平坦) では路面のすぐ下に置き、急な右左折の内側で地形の帯が縮んでできる隙間を塞ぐ
 const flatTown=P.mode==="race"&&Route.inZone(es.km)&&OsmRoute.townAt(es.km);
 this.ground.position.set(pHere.x,(pHere.y-(pHere.bh||0))-(flatTown?0.3:60),pHere.z);

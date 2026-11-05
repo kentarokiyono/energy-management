@@ -161,8 +161,9 @@ if(P.mode==="race") this.updateTeams(dtS);
 const startH=this.raceStartHour();
 const isRaceHours = s.hour>=startH && s.hour<17+(s.extensionMin/60);
 let parked = s.stopTimer>0 || StopMenu.active;
+if(typeof Crew!=="undefined"&&Crew.locked()){ parked=true; s.v=0; s.throttleSet=0; }   // 乗降手順中・発車許可待ち
 if(s.stopTimer>0){
-s.stopTimer-=dtS; s.v=0;
+if(!s.stopHold) s.stopTimer-=dtS; s.v=0;   // stopHold: CS で計測開始ボタンを押すまで計時しない
 if(s.stopTimer<=0){
 if(s.stopKind==="tire"&&s.burst){ s.burst=false; toast("🛞 タイヤ交換完了!","#34d399"); }
 if(s.stopKind==="check"){ if(s.fault){ s.fault=null; s.faultAnnounced=false; toast("🔍 不具合を修理しました!","#34d399"); } else toast("🔍 機器チェック完了。異常なし","#34d399"); }
@@ -420,6 +421,7 @@ beginCS(cp,missed){
 const s=this.st;
 s.passedCP.add(cp.km); s.cpPending=null;
 s.stopTimer=30*60; s.stopKind="cp"; s.cpName=`CS${cp.n} ${cp.name}`; s.v=0; s.throttleSet=0;
+if(typeof Crew!=="undefined"&&Crew.on()&&!missed){ s.stopHold=true; Crew.begin("cs",cp); }
 Snd.chime();
 const abs=(s.day-1)*24+s.hour;
 if(missed){ toast("🚨 コントロールストップの敷地に入らず通過!その場で30分点検となります","#f59e0b");
@@ -433,6 +435,7 @@ enterCamp(){
 const s=this.st;
 s.camp=true; s.v=0;
 Radio.push(`Day${s.day} 走行終了。その場でキャンプ設営、日没までティルト充電を行います。`);
+if(typeof Crew!=="undefined") Crew.onCamp();
 TiltDecide.open();
 },
 ignite(reason){
@@ -445,8 +448,9 @@ toast("🔥 車両炎上!!","#ef4444");
 },
 skipStop(){
 const s=this.st;
-if(s.stopTimer>0){ s.stopTimer=0.1; }
+if(s.stopTimer>0){ if(s.stopHold&&typeof Crew!=="undefined"&&Crew.timing){ Crew.timing.started=true; } s.stopHold=false; s.stopTimer=0.1; }
 else if(s.camp){
+if(typeof Crew!=="undefined") Crew.forceOutside();
 const st2=this.raceStartHour();
 const prof=profileAt(s.km);
 let wh=0;

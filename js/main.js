@@ -5,6 +5,7 @@ let eventElapsed=0; const EVENT_DURATION=MODE_CFG.event.duration;
 function startGame(){
 Snd.init();
 Engine.init();
+if(typeof Crew!=="undefined") Crew.reset();
 Test.active=false;
 if(P.mode==="test"){
 Engine.st.hour=12;
@@ -65,6 +66,7 @@ const es=Engine.st;
 let ts=Route.scaleAt(es.km);   // 右左折/信号/CS 付近は自動で等倍
 if(es.stopTimer>0) ts=Math.max(ts,300);
 if(es.camp) ts=Math.max(ts,es.disconnected?2400:300);
+if(typeof Crew!=="undefined"&&Crew.busy()) ts=Crew.timeScale(es,ts);
 const dtS=dtR*ts;
 const sub=Math.max(1,Math.ceil(dtS/60));
 for(let i=0;i<sub;i++) Engine.step(dtS/sub, i===0?dtR:0);
