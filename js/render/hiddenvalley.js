@@ -6,9 +6,9 @@
 const HV={
 HALF_W:5.0,              // 既定のコース半幅 (実幅は HV_DATA.half_width: ストレート約16m・他約9.7m)
 STRIP_OFF:-21,           // ドラッグストリップ中心の横オフセット (負=北/左, kn5の路面から: コース北端に接する)
-GARAGES:32,              // ピットボックス数 (AC ui_track.json)
+GARAGES:30,              // ピットガレージ数 (施錠できるガレージ 30 棟)
 GARAGE_W:13.5,           // 1区画の間口 [m]
-GARAGE_AL0:-209,         // 最初の区画中心 (ストレート座標)
+GARAGE_AL0:-195.75,      // 最初の区画中心 (ストレート座標, 30 区画を S/F 中心にそろえる)
 STRIP_HALF:6.9,          // ドラッグストリップ半幅 (約14m)
 SLALOM_FROM_NE:110,      // ドラッグストリップ北東端からスラローム開始線まで [m]
 BRAKE_X:386,             // スラローム開始線→制動開始線 [m]
@@ -425,7 +425,7 @@ buildGarages(grp,bs){
  const FRONT=24, DEPTH=16, BW=this.GARAGE_W, H1=6.2, AL0=this.GARAGE_AL0, NG=this.GARAGES;
  const at=(al,lat,y,sx,sy,sz,tp="box",mat="solid",col=0xdedbd2,uvs=1)=>{ const [x,z]=this.SW(al,lat); const named=typeof tp==="string";
   bs.get(mat).add(named?tpl(tp):tp,named?M4(x,y,z,sx,sy,sz,ry):M4(x,y,z,1,1,1,ry),linCol(col),uvs); };
- const towerK=16;  // S/F 付近
+ const towerK=15;  // S/F 付近
  for(let k=0;k<NG;k++){
   const al=AL0+k*BW, team=teams[k%teams.length];
   if(k===towerK) continue;
@@ -446,7 +446,19 @@ buildGarages(grp,bs){
     at(al+sd*(BW/2-1.2),FRONT+ID-1.2,0,1.0,1.0,1.6,"box","solid",rndPick([0xb3202a,0x1d1d1d,0x2a5aa0])); // 工具箱
     at(al+sd*(BW/2-1.0),FRONT+3.5,0,2.4,0.9,0.7,"box","solid",0x6b6f75);       // 作業台
    }
-   for(let t=0;t<4;t++){ const [tx,tz]=this.SW(al-BW/2+2.2,FRONT+6.5); bs.get("solid").add(tpl("cyl12"),M4(tx,0.12+t*0.24,tz,0.3,0.22,0.3),linCol(0x161616)); }
+   // タイヤラック (2 段)・タイヤの山
+   at(al-BW/2+1.6,FRONT+6.5,0,1.0,1.9,2.6,"box","solid",0x5d6166);
+   for(let t=0;t<3;t++) for(const hy of [0.25,1.15]){ const [tx,tz]=this.SW(al-BW/2+1.2+t*0.0,FRONT+5.6+t*0.9); bs.get("solid").add(tpl("cyl12"),M4(tx,hy,tz,0.3,0.12,0.3),linCol(0x161616)); }
+   for(let t=0;t<4;t++){ const [tx,tz]=this.SW(al+BW/2-2.4,FRONT+7.6); bs.get("solid").add(tpl("cyl12"),M4(tx,t*0.13,tz,0.3,0.12,0.3),linCol(0x161616)); }
+   // 車体スタンド・充電台車 (バッテリー)・ノートPC の机・扇風機・ピットボード
+   for(const d of [-1.3,1.3]) at(al+d,FRONT+5,0,0.5,0.55,0.5,"box","solid",0xe5b324);
+   at(al+BW/2-2.2,FRONT+5.2,0,0.9,0.8,0.7,"box","solid",0x2a5aa0); at(al+BW/2-2.2,FRONT+5.2,0.8,0.5,0.25,0.4,"box","solid",0x1d1d1d);
+   at(al-BW/2+3.2,FRONT+8.6,0,1.6,0.75,0.7,"box","solid",0xdcdcd8); at(al-BW/2+3.0,FRONT+8.6,0.75,0.35,0.02,0.45,"box","solid",0x222428); at(al-BW/2+3.0,FRONT+8.75,0.77,0.02,0.25,0.42,"box","emis",0x7fb3e6);
+   { const [fx,fz]=this.SW(al+BW/2-1.0,FRONT+2.0); bs.get("solid").add(tpl("cyl5"),M4(fx,0,fz,0.04,1.4,0.04),linCol(0x555555)); bs.get("solid").add(tpl("cyl12"),M4(fx,1.4,fz,0.32,0.08,0.32,0,Math.PI/2),linCol(0x30343a)); }
+   at(al-BW/2+0.9,FRONT+1.2,0,0.05,1.8,0.9,"box","solid",0x1d1d1d);   // ピットボード (立てかけ)
+   // 奥の壁: 工具ボード (有孔ボード) とホース・コードのリール
+   at(al,FRONT+ID-0.12,1.2,0.04,1.4,BW*0.5,"box","solid",0x9aa0a6);
+   for(const d of [-3,3]){ const [rx,rz]=this.SW(al+d,FRONT+ID-0.25); bs.get("solid").add(tpl("cyl8"),M4(rx,2.6,rz,0.28,0.12,0.28,0,Math.PI/2),linCol(0xd23b2b)); }
    if(rnd()<0.7){ const [cx,cz]=this.SW(al+rndr(-1,1),FRONT+5); PR.solarCar(bs,cx,0.02,cz,ry+Math.PI/2,rndPick(["cat","mono","cruiser"]),rndPick([0xffffff,team,0xe8e8e8])); }
    const nP=2+Math.floor(rnd()*3);
    for(let q=0;q<nP;q++){ const [px,pz]=this.SW(al+rndr(-BW*0.35,BW*0.35),FRONT+rndr(1.5,8.5)); PR.person(bs,px,0.02,pz,rnd()*6.28,team===0xf0f0f0?0xdedede:team); }
@@ -475,6 +487,13 @@ buildGarages(grp,bs){
  bs.get("solid").add(tpl("box"),M4(px,0,pz,1.2,14,1.2,ry),linCol(0x30343a));
  bs.get("solid").add(tpl("boxC"),M4(px,14,pz,2.2,7,1.0,ry),linCol(0x111111));
  for(let r=0;r<6;r++) bs.get("emis").add(tpl("boxC"),M4(px+(T.sr[0])*0.52*(-1),11.3+r*1.05,pz+(T.sr[1])*0.52*(-1),1.6,0.6,0.02,ry),linCol(r%2?0xffb000:0xf6f6f6));
+ // ガレージ前の看板 (チーム番号) ・ガレージ前に出したソーラーカーと押すクルー・オフィシャル (蛍光ベスト)
+ for(let k=0;k<NG;k++){ if(k===towerK) continue; const al=AL0+k*BW, team=teams[k%teams.length];
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(BW-2.2,0.9),new THREE.MeshLambertMaterial({map:this.textBoard("TEAM "+String(k+1).padStart(2,"0"),"#"+team.toString(16).padStart(6,"0"),(team===0xf0f0f0||team===0xd8d8d8||team===0xe5b324)?"#111111":"#ffffff")}));
+  const [mx,mz]=this.SW(al,FRONT-0.14); m.position.set(mx,5.35,mz); m.rotation.y=ry+Math.PI/2; grp.add(m);
+  if(k%4===1){ const [cx,cz]=this.SW(al+rndr(-1,1),FRONT-5.5); PR.solarCar(bs,cx,0.02,cz,ry+Math.PI/2,rndPick(["cat","mono","cruiser"]),rndPick([0xffffff,team]));
+   for(let q=0;q<4;q++){ const [px,pz]=this.SW(al+rndr(-2.5,2.5),FRONT-5.5+(q<2?-2.2:2.2)); PR.person(bs,px,0.02,pz,ry+(q<2?Math.PI:0),team===0xf0f0f0?0xdedede:team); } } }
+ for(let k=0;k<10;k++){ const al=AL0+k*BW*3+6; const [px,pz]=this.SW(al,FRONT-11); PR.person(bs,px,0.02,pz,rnd()*6.28,0xff7a00); }
  // ピットウォールのチームスタンド + スタッフ
  for(let k=0;k<12;k++){ const al=-160+k*32;
   at(al,5.2,0,1.2,1.0,2.6,"box","solid",0xe8e6e0);
@@ -492,7 +511,7 @@ textBoard(text,bg,fg){
 /* ピットレーン路面: 速度制限線・ファスト/ワーキングレーン区分線・ピットボックス */
 buildPitMarkings(grp,bs,P){
  const T=this.track(), ry=-Math.atan2(T.sd[0],-T.sd[1])+Math.PI;
- const at=(al,lat,sx,sz,col=0xf2f0e6)=>{ const [x,z]=this.SW(al,lat); bs.get("solid").add(tpl("box"),M4(x,0.025,z,sx,0.01,sz,ry),linCol(col)); };
+ const at=(al,lat,sx,sz,col=0xf2f0e6)=>{ const [x,z]=this.SW(al,lat); bs.get("solid").add(tpl("box"),M4(x,0.03,z,sx,0.01,sz,ry),linCol(col)); };
  const latOf=(p)=>p.x*T.sr[0]+p.z*T.sr[1], alOf=(p)=>p.x*T.sd[0]+p.z*T.sd[1];
  const al0=alOf(P[0]), al1=alOf(P[P.length-1]);
  // 速度制限区間の始点/終点ライン + "60"
@@ -502,15 +521,26 @@ buildPitMarkings(grp,bs,P){
   const m=new THREE.Mesh(new THREE.PlaneGeometry(4,2),new THREE.MeshLambertMaterial({map:this.textBoard("PIT 60","rgba(0,0,0,0)","#f2f0e6"),transparent:true,depthWrite:false}));
   const [x,z]=this.SW(al+(al<0?6:-6),lat+3.5); m.rotation.order="YXZ"; m.rotation.set(-Math.PI/2,ry+(al<0?-Math.PI/2:Math.PI/2),0); m.position.set(x,0.03,z); grp.add(m);
  }
- // ファストレーン/ワーキングレーン区分線
- for(let al=-215;al<217;al+=6) at(al,14.6,0.18,4.5);
+ // ガレージ前のコンクリ舗装: ピットレーンの外端からガレージの前面まで (ピットボックスはこの上)
+ { const A=HV_DATA.pit.map(p=>new THREE.Vector3(p[0],p[1],p[2])), FR=24, gA=this.GARAGE_AL0-this.GARAGE_W/2-8, gB=this.GARAGE_AL0+(this.GARAGES-0.5)*this.GARAGE_W+8;
+  const pos=[],idx=[],col=[]; let n2=0; const cc=new THREE.Color(0xb9b4a8).convertSRGBToLinear();
+  for(let k=0;k<A.length;k++){ const q=A[k], al=alOf(q); if(al<gA||al>gB) continue;
+   const a=A[Math.max(0,k-1)], b=A[Math.min(A.length-1,k+1)], fx=b.x-a.x, fz=b.z-a.z, L=Math.hypot(fx,fz)||1, rx=-fz/L, rz=fx/L;
+   const ix=q.x+rx*2.6, iz=q.z+rz*2.6;                    // ファストレーンの外側 (ピット中心 +2.6 m) から
+   const [ox,oz]=this.SW(al,FR);
+   pos.push(ix,0.022,iz, ox,0.022,oz); col.push(cc.r,cc.g,cc.b, cc.r,cc.g,cc.b);
+   if(n2>0){ const v=(n2-1)*2; idx.push(v,v+1,v+2, v+1,v+3,v+2); } n2++;
+   // ファスト/ワーキングレーンの区分線 (破線)
+   if(k%2===0) bs.get("solid").add(tpl("box"),M4(ix,0.03,iz,0.18,0.01,3.0,-Math.atan2(fx,-fz)),linCol(0xf2f0e6)); }
+  const g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); g.setAttribute("color",new THREE.Float32BufferAttribute(col,3)); g.setIndex(idx); g.computeVertexNormals();
+  const n=g.attributes.normal; for(let i=0;i<n.count;i++) if(n.getY(i)<0) n.setXYZ(i,-n.getX(i),-n.getY(i),-n.getZ(i));
+  const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({vertexColors:true,map:detailTex(),side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2})); m.receiveShadow=true; grp.add(m); }
  // ピットボックス (各ガレージ前)
  for(let k=0;k<this.GARAGES;k++){ const al=this.GARAGE_AL0+k*this.GARAGE_W;
   at(al-4,18.2,5.4,0.15); at(al+4,18.2,5.4,0.15); at(al,15.5,0.15,8); at(al,20.9,0.15,8);
   at(al,18.2,0.9,0.9,0xe5b324);
  }
- // ガレージ前のコンクリエプロン
- { const [x,z]=this.SW(0,22.5); bs.get("solid").add(tpl("box"),M4(x,0.0,z,3.2,0.02,436,ry),linCol(0xb9b4a8)); }
+
 },
 /* ドラッグストリップ + 試験マーキング */
 buildDragStrip(grp,bs){
@@ -547,24 +577,73 @@ buildPaddock(grp,bs){
   bs.get("solid").add(tpl("box"),M4(x,-0.05,z,lt1-lt0,0.1,al1-al0,ry),linCol(color)); };
  pad(-260,300,48,140,0x5a5b5e);
  pad(-120,260,140,270,0x55565a);
- // 車検用大型テント
- const [mx,mz]=this.SW(-60,70); bs.get("solid").add(tpl("box"),M4(mx,0,mz,20,3.2,40,ry),linCol(0xf4f4f2));
- bs.get("solidDS").add(tpl("gable"),M4(mx,3.2,mz,20.4,3.0,40.4,ry),linCol(0xf8f8f6));
- // 車検テントの前: 計量中の車両と検査員
- { const [cx,cz]=this.SW(-60,57); PR.solarCar(bs,cx,0.02,cz,ry,"cat",0xffffff);
-   for(let q=0;q<6;q++){ const [px,pz]=this.SW(-60+rndr(-6,6),57+rndr(-3,3)); PR.person(bs,px,0.02,pz,rnd()*6.28,q<2?0xf6c400:0x2a5aa0); } }
- // チームテント (ゲイジボ) と随伴車
+ const at=(al,lt,y,sx,sy,sz,col,mat="solid",tp="box",rot=0)=>{ const [x,z]=this.SW(al,lt); bs.get(mat).add(tpl(tp),M4(x,y,z,sx,sy,sz,ry+rot),linCol(col)); };
+ // 車検用大型テント (側面開放): 柱 + 切妻屋根、中に計量台 (4 輪の秤)・検査レーン・照明 / 前に待機列
+ { const AL=-60, LT=70;
+  for(const u of [-1,1]) for(let v=-20;v<=20;v+=5){ at(AL+v,LT+u*10,0,0.18,3.2,0.18,0xd8d8d8); }
+  { const [mx,mz]=this.SW(AL,LT); bs.get("solidDS").add(tpl("gable"),M4(mx,3.2,mz,20.4,3.0,40.4,ry),linCol(0xf8f8f6)); }
+  at(AL,LT,0.005,19.6,0.02,39.6,0x8b9096);                                       // 床シート
+  for(const v of [-12,0,12]){                                                    // 検査レーン 3 本
+   for(const u of [-1.3,1.3]) at(AL+v,LT+u,0.012,0.12,0.01,14,0xf2c200);
+   for(const [du,dv] of [[-0.8,-1.6],[0.8,-1.6],[-0.8,1.6],[0.8,1.6]]) at(AL+v+dv,LT+du,0,0.7,0.06,0.7,0x30343a);   // 秤
+   at(AL+v,LT-3.5,0,1.2,0.8,0.6,0xdcdcd8); at(AL+v,LT-3.5,0.8,0.4,0.25,0.3,0x1d1d1d); }  // 計測卓
+  for(let v=-15;v<=15;v+=7.5) at(AL+v,LT,2.95,0.25,0.06,3.2,0xfdfdf2,"emis");     // 照明
+  { const [cx,cz]=this.SW(AL,LT); PR.solarCar(bs,cx,0.06,cz,ry,"cat",0xffffff); }
+  for(let q=0;q<3;q++){ const [cx,cz]=this.SW(AL-30-q*8,LT); PR.solarCar(bs,cx,0.02,cz,ry,rndPick(["cat","mono","cruiser"]),rndPick([0xffffff,0xe8e8e8,0x1f5f9b])); }   // 待機列
+  for(let q=0;q<10;q++){ const [px,pz]=this.SW(AL+rndr(-15,15),LT+rndr(-6,6)); PR.person(bs,px,0.02,pz,rnd()*6.28,q<4?0xf6c400:0x2a5aa0); }
+  const sg=new THREE.Mesh(new THREE.PlaneGeometry(12,1.6),new THREE.MeshLambertMaterial({map:this.textBoard("SCRUTINEERING","#163a6b","#ffffff"),side:THREE.DoubleSide}));
+  const [sx,sz]=this.SW(AL-20.6,LT); sg.position.set(sx,4.4,sz); sg.rotation.y=ry; grp.add(sg); }
+ // チームテント (ゲイジボ 6×6 m を区画線にそろえて 3 列): 中にソーラーカー・作業台・クーラーボックス・椅子・のぼり旗
+ // 後ろに随伴車 (ユーティリティ/バン、気象観測マスト付きも) と運搬用の箱型トレーラー、一部キャンピングカー
  const canopies=[0xf97316,0xffffff,0x1f5f9b,0xc0392b,0xe5b324,0x2e7d4f,0x0aa4b8,0x6b2d8f,0xd8d8d8,0x1d1d1d];
  let k=0;
  for(let al=-230;al<280;al+=17) for(const lt of [62,96,124]){
   if(al>-90&&al<-30&&lt<100) continue;
-  const [x,z]=this.SW(al+rndr(-1,1),lt), col=canopies[k++%canopies.length];
+  const col=canopies[k++%canopies.length], [x,z]=this.SW(al,lt);
   for(const [u,v] of [[-1,-1],[1,-1],[1,1],[-1,1]]){ const [px,pz]=this.SW(al+u*2.9,lt+v*2.9); bs.get("solid").add(tpl("cyl5"),M4(px,0,pz,0.04,2.6,0.04),linCol(0x8a8d90)); }
   bs.get("solidDS").add(tpl("hiproof"),M4(x,2.6,z,6,0.9,6,ry),linCol(col));
-  if(rnd()<0.6){ const [cx,cz]=this.SW(al+rndr(-3,3),lt+6); PR.car(bs,cx,0,cz,ry+Math.PI/2,rnd()<0.5); }
-  if(rnd()<0.4){ PR.solarCar(bs,x,0.02,z,ry,rndPick(["cat","cat","mono","cruiser"]),rndPick([0xffffff,col,0xe8e8e8])); }
-  for(let q=0,nq=Math.floor(rnd()*3);q<nq;q++){ const [px,pz]=this.SW(al+rndr(-3,3),lt+rndr(-3,3)); PR.person(bs,px,0.02,pz,rnd()*6.28,col===0xffffff?0x2a5aa0:col); }
+  at(al,lt-2.9,2.35,0.02,0.3,5.9,col);                                            // 前幕 (チーム色)
+  if(rnd()<0.8) PR.solarCar(bs,x,0.02,z,ry,rndPick(["cat","cat","mono","cruiser"]),rndPick([0xffffff,col,0xe8e8e8]));
+  at(al+2.2,lt+2.0,0,1.8,0.8,0.7,0x6b6f75); at(al+2.2,lt+2.0,0.8,0.5,0.02,0.35,0x222428);          // 作業台 + PC
+  at(al-2.3,lt+2.2,0,0.6,0.45,0.4,rndPick([0xf2f2f2,0x2a5aa0,0xc0392b]));                          // クーラーボックス
+  for(let c=0;c<3;c++){ at(al-2.4+c*0.7,lt-1.8,0,0.45,0.45,0.45,0x1d1d1d); at(al-2.4+c*0.7,lt-1.6,0.45,0.05,0.45,0.45,0x1d1d1d); }   // 椅子
+  { const [fx,fz]=this.SW(al-3.3,lt-3.3); bs.get("solid").add(tpl("cyl5"),M4(fx,0,fz,0.03,4.2,0.03),linCol(0x8a8d90)); at(al-3.3,lt-3.65,2.3,0.02,1.9,0.7,col); }   // のぼり旗
+  for(let q=0,nq=1+Math.floor(rnd()*3);q<nq;q++){ const [px,pz]=this.SW(al+rndr(-3,3),lt+rndr(-3,3)); PR.person(bs,px,0.02,pz,rnd()*6.28,col===0xffffff?0x2a5aa0:col); }
+  // 随伴車・トレーラー
+  const bk=lt+8.5;
+  { const [cx,cz]=this.SW(al-3,bk); PR.car(bs,cx,0,cz,ry+Math.PI/2,rnd()<0.5);
+   if(rnd()<0.35){ const [mx,mz]=this.SW(al-3,bk); bs.get("solid").add(tpl("cyl5"),M4(mx,1.6,mz,0.03,2.6,0.03),linCol(0xbfc3c7));      // 気象観測マスト
+    bs.get("solid").add(tpl("boxC"),M4(mx,4.2,mz,0.5,0.03,0.03,ry),linCol(0x30343a)); bs.get("solid").add(tpl("boxC"),M4(mx,3.6,mz,0.25,0.25,0.15,ry),linCol(0xf2f2f2)); } }
+  if(rnd()<0.6){ at(al+3.2,bk,0.45,2.4,2.4,6.4,rndPick([0xf2f2f2,0xdcdcd8,col]));                                    // 箱型トレーラー
+   for(const v of [-0.6,0.6]) for(const u of [-1.25,1.25]){ const [wx,wz]=this.SW(al+3.2+u,bk+v); bs.get("solid").add(tpl("cyl12"),M4(wx,0.36,wz,0.36,0.25,0.36,ry,0,Math.PI/2),linCol(0x161616)); }
+   at(al+3.2,bk-3.9,0.45,0.1,0.1,1.4,0x30343a); }
+  else if(rnd()<0.3){ at(al+3.2,bk,0.5,2.4,2.8,7.0,0xf4f2ec); at(al+3.2,bk,2.0,2.42,0.4,7.02,col); }                 // キャンピングカー
  }
+ // 照明塔 (舗装エリアの夜間照明)
+ for(const [al,lt] of [[-250,52],[-250,138],[-60,52],[-60,138],[130,52],[130,138],[290,52],[290,138],[-110,268],[250,268]]){
+  const [x,z]=this.SW(al,lt); bs.get("solid").add(tpl("cyl8"),M4(x,0,z,0.22,18,0.22),linCol(0x9a9da0));
+  at(al,lt,18,0.6,1.0,3.4,0x30343a); at(al,lt-0.32,18.1,0.02,0.8,3.2,0xfdfdf2,"emis"); }
+ // トイレ棟・医療センター・売店
+ const bld=(al,lt,w,d,h,col,label,bg,fg)=>{ at(al,lt,0,d,h,w,col); at(al,lt,h,d+0.6,0.25,w+0.6,0x9aa0a6);
+  if(label){ const m=new THREE.Mesh(new THREE.PlaneGeometry(Math.min(w-0.6,label.length*0.55+1),0.9),new THREE.MeshLambertMaterial({map:this.textBoard(label,bg,fg)}));
+   const [x,z]=this.SW(al,lt-d/2-0.03); m.position.set(x,h-0.7,z); m.rotation.y=ry+Math.PI; grp.add(m); } };
+ bld(-150,145,8,4,3.0,0xe9e7e1,"TOILETS","#1f4f9c","#ffffff");
+ for(let q=0;q<4;q++) at(-153+q*2,142.98,0,0.05,2.1,0.9,0x1f4f9c);
+ bld(200,145,8,4,3.0,0xe9e7e1,"TOILETS","#1f4f9c","#ffffff");
+ bld(-200,140,14,8,3.6,0xf4f4f2,"MEDICAL","#ffffff","#c8102e");
+ bld(60,145,10,5,3.2,0xf2c200,"KIOSK","#1d1d1d","#f2c200"); at(60,141.6,2.6,2.2,0.12,10.4,0xc0392b);
+ // 外周の金網フェンス (パドック南端・東西端)
+ { const fm=new THREE.MeshLambertMaterial({map:this.fenceTex(),transparent:true,side:THREE.DoubleSide,alphaTest:0.25});
+  const line=(pts)=>{ grp.add(this.wallLine(pts.map(([a,l])=>{ const [x,z]=this.SW(a,l); return {x,y:0,z}; }),2.2,fm)); for(const [a,l] of pts){} };
+  const ring=[]; for(let a=-262;a<=302;a+=8) ring.push([a,142]); line([[-262,48],[-262,142]]); line([[302,48],[302,142]]);
+  const r2=[]; for(let a=-122;a<=262;a+=8) r2.push([a,272]); line(r2); line([[-122,142],[-122,272]]); line([[262,142],[262,272]]); }
+ // 案内標識
+ for(const [al,lt,txt] of [[-95,50,"SCRUTINEERING →"],[0,50,"TEAM PADDOCK"],[-205,132,"MEDICAL"],[40,140,"PIT PADDOCK P"]]){
+  const [x,z]=this.SW(al,lt); bs.get("solid").add(tpl("box"),M4(x,0,z,0.1,2.2,0.1,ry),linCol(0x9a9da0));
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(txt.length*0.32+0.6,0.6),new THREE.MeshLambertMaterial({map:this.textBoard(txt,"#0d6b3c","#ffffff"),side:THREE.DoubleSide}));
+  m.position.set(x,2.5,z); m.rotation.y=ry+Math.PI/2; grp.add(m); }
+ // 区画線 (テント列の間の通路)
+ for(let al=-236;al<285;al+=3) for(const lt of [79,110]) at(al,lt,0.005,0.12,0.01,1.6,0xeeeeea);
  // PIT PADDOCK 駐車場: 区画線 + 8の字コース(内円半径6m・幅5m)
  for(let al=-110;al<250;al+=3) for(const lt of [150,262]){ if(al>20&&al<100) continue; const [x,z]=this.SW(al,lt); bs.get("solid").add(tpl("box"),M4(x,0.005,z,5,0.01,0.12,ry+Math.PI/2),linCol(0xeeeeea)); }
  const fr=this.frames().fig8;
