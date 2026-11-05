@@ -21,6 +21,17 @@ pavedSite(view,s,lat){
  return null;
 },
 salt(km,off){ return off>110 && featureAt(km).some(f=>f.id==="salt_lake"&&Math.sign(off)===f.side); },
+/* ラウンドアバウトの円 (世界座標の中心・外半径)。本線の縁石・歩道・分離帯をその中で下げる */
+rabDiscs(view){
+ const br=view.branches; if(br._rabD&&br._rabD.n===view.road.pts.length) return br._rabD.list;
+ const list=[];
+ if(P.mode==="race") for(const t of OsmRoute.towns) for(const r of t.rabs||[]){ const k0=r.ks[0][0]; if(!Route.real(k0)) continue;
+  const s=view.sOfKm(k0); if(s>=view.road.builtS-1||s<0) continue;
+  const P0=view.roadPoint(s), off=P0.h-OsmRoute.H(t,k0), a0=r.b+off;
+  list.push({x:P0.x+Math.sin(a0)*r.d, z:P0.z-Math.cos(a0)*r.d, r:r.R+r.hw+2.2}); }
+ br._rabD={n:view.road.pts.length,list}; return list;
+},
+inRab(view,x,z){ if(x==null) return false; for(const d of this.rabDiscs(view)){ const dx=x-d.x, dz=z-d.z; if(dx*dx+dz*dz<d.r*d.r) return true; } return false; },
 /* 地表の高さ (道路中心高さ基準の相対値) */
 groundRel(x,z,off,bio,km){
  if(this._rowWd>0) return -this._rowWd-0.6;           // 水面の橋: 下は川底/海 (水面は bridges() で描く)
@@ -134,7 +145,8 @@ buildChunk(view,s0,s1){
   grp.add(this.ribbon(view,s0,s1,[{offFn:()=>0,t:"k"},{offFn:p=>Math.min(0.2,p.m1/2),t:"k"},{offFn:p=>Math.min(0.25,p.m1/2),t:"g"},{offFn:p=>Math.max(p.m1-0.25,p.m1/2),t:"g"},{offFn:p=>Math.max(p.m1-0.2,p.m1/2),t:"k"},{offFn:p=>p.m1,t:"k"}],gm,(s,p)=>{
    const wide=p.m1>3, open=this.mouthAt(view,s,0), h=(p.m1>0.3&&!open)?0.15:0, bio=biomeAt(this.kmOfS(view,s)), sk=ctx.sink(s);
    if(sk) return {at:()=>{ _sc.setHex(0x3b3c40).convertSRGBToLinear(); return {y:sk-0.05,c:_sc,veg:[0,0,0,0],misc:[0,0,0]}; }};
-   return {at:(c)=>{
+   return {at:(c,x,z)=>{
+    if(this.inRab(view,x,z)){ _sc.setHex(0x3b3c40).convertSRGBToLinear(); return {y:-0.06,c:_sc,veg:[0,0,0,0],misc:[0,0,0]}; }   // ラウンドアバウトの中は環道の下へ
     const isEdge=(c.t==="k"&&(c.off<0.01||c.off>p.m1-0.01));
     if(open){ _sc.setHex(0x3b3c40).convertSRGBToLinear(); _sv.setHex(bio.veg).convertSRGBToLinear(); return {y:0.004,c:_sc,veg:[_sv.r,_sv.g,_sv.b,0],misc:[0,0,0]}; }   // 交差点では分離帯を切る
     _sc.setHex(c.t==="k"?0xc9c5ba:(wide?bio.soil:0xb3aea2)).convertSRGBToLinear(); _sv.setHex(bio.veg).convertSRGBToLinear();
@@ -151,7 +163,8 @@ buildChunk(view,s0,s1){
   grp.add(this.ribbon(view,s0,s1,cols,gmat,(s)=>{
    const km=this.kmOfS(view,s), bio=biomeAt(km), mouth=this.mouthAt(view,s,sd), sk=ctx.sink(s);
    if(sk) return {at:()=>{ _sc.setHex(0x8d8b85).convertSRGBToLinear(); return {y:sk-0.05,c:_sc,veg:[0,0,0,0],misc:[0,0,0]}; }};   // 先に通った道路の下へ
-   return {at:(c)=>{
+   return {at:(c,x,z)=>{
+    if(this.inRab(view,x,z)){ _sc.setHex(0x8d8b85).convertSRGBToLinear(); return {y:-0.06,c:_sc,veg:[0,0,0,0],misc:[0,0,0]}; }   // ラウンドアバウトの中は環道の下へ
     let y=-0.05, soil=0x9a6a42, cov=0.08, vg=bio.soil, misc=[0,0.15,0];
     if(mouth&&bio.urban&&c.off0!=null&&Math.abs(c.off0)<=SH+0.01){ _sc.setHex(c.t==="gut"?0x8d8b85:0xb9b4a8).convertSRGBToLinear(); _sv.setHex(vg).convertSRGBToLinear(); return {y:0.0,c:_sc,veg:[_sv.r,_sv.g,_sv.b,0],misc:[0,0,0]}; }   // 交差点口: 縁石を下げる (歩道の切り下げ)
     if(c.t==="grav"){ soil=bio.urban?0x8f8a7a:0x8a6a50; _sc.setHex(soil).lerp(_sv.setHex(bio.soil),0.35); soil=_sc.getHex(); }
