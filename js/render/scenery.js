@@ -24,10 +24,11 @@ groundRel(x,z,off,bio,km){
  if(this._rowWd>0) return -this._rowWd-0.6;           // 水面の橋: 下は川底/海 (水面は bridges() で描く)
  if(this._rowBh>0&&(this._rowDeck||Math.abs(off)>=view_SH()+3.4)) return -this._rowBh-0.18;   // 立体交差: 盛土の外/橋桁の下は元の地面
  if(this.salt(km,off)) return -0.25;
- if(Route.inZone(km)) return -0.18;      // 等倍ゾーン(町中の右左折区間)は平坦: 他の道路区間を地形が覆わないように
+ const zf=Route.zoneFade(km);      // 等倍ゾーン(町中の右左折区間)は平坦: 他の道路区間を地形が覆わないように。境界は滑らかに
+ if(zf<=0) return -0.18;
  const a=Math.abs(off);
  const urb=bio.urban?0.25:1;
- const h=-0.18+terrainH(x,z,a,bio.hill*urb);
+ const h=-0.18+terrainH(x,z,a,bio.hill*urb*zf);
  return Math.min(h,this.branchCap(x,z));
 },
 /* 分岐道路の周囲は道路面より下へ (地形が脇道を埋めないように) — 戻り値は本線行の高さ基準 */
@@ -738,14 +739,14 @@ branches(ctx){
  const near=(k)=>RP_MANEUVERS.some(m=>Math.abs(m.km-k)<0.08);
  const osmHere=(k)=>OsmRoute.townAt(k)&&Route.inZone(k);
  for(const e of Route.eventsIn(kmA,kmB,"sideroad")){
-  if(near(e.km)||osmHere(e.km)) continue;
+  if(near(e.km)||osmHere(e.km)||this.brNear(view,view.sOfKm(e.km),25)) continue;   // 縮尺区間で脇道が数 m 間隔に並ばないように
   const dirt=/station|track|dirt|H\/S|homestead|quarry|stn|camp/i.test(e.t);
   const name=e.t.replace(/\b(t\/o|on|left|right|Straight ahead|Exit|Turn off).*$/i,"").trim().slice(0,22);
   this.makeBranch(ctx,view.sOfKm(e.km),(e.v==="R"?1:-1)*(80+rnd()*20)*D,{name,surface:dirt?"gravel":"asph",half:dirt?3.0:3.6,len:200});
  }
  // 信号交差点の交差道路 (左右とも)
  for(const e of Route.eventsIn(kmA,kmB,"signal")){
-  if(near(e.km)||osmHere(e.km)) continue;
+  if(near(e.km)||osmHere(e.km)||this.brNear(view,view.sOfKm(e.km),25)) continue;
   for(const sd of [-1,1]) this.makeBranch(ctx,view.sOfKm(e.km),sd*90*D,{name:sd<0?e.t.split(/Traffic|traffic/)[0].trim().slice(0,20):"",len:160});
  }
  // OSM 区間の交差道路 (実際の向き)。動作地点の腕は曲がり損ねの道として扱う

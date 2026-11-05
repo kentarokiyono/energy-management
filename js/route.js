@@ -19,6 +19,12 @@ build(base,noZones){
  this.K=K; this.V=V;
 },
 inZone(km){ for(const [a,b] of this.zones){ if(km<a) return false; if(km<=b) return true; } return false; },
+/* 等倍ゾーン境界からの視覚距離で 0(ゾーン内)→1 へ滑らかに (地形の段差防止) */
+zoneFade(km,R=220){
+ let d=Infinity; const v=this.vis(km);
+ for(const [a,b] of this.zones){ if(km>=a&&km<=b) return 0; d=Math.min(d,Math.abs(v-this.vis(a)),Math.abs(v-this.vis(b))); if(a>km) break; }
+ if(d>=R) return 1; const t=d/R; return t*t*(3-2*t);
+},
 scaleAt(km){ return this.inZone(km)? 1 : this.base; },
 vis(km){
  const K=this.K, V=this.V; if(!K.length) return km*1000/this.base;
