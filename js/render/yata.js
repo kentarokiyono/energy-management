@@ -128,9 +128,9 @@ const cz=(p.getZ(idx[i])+p.getZ(idx[i+1])+p.getZ(idx[i+2]))/3;
 (cz<O.canopyX-O.canopyLen*.18-HL?g0:g1).push(idx[i],idx[i+1],idx[i+2]);}
 cg.setIndex(g0.concat(g1));cg.clearGroups();
 cg.addGroup(0,g0.length,0);cg.addGroup(g0.length,g1.length,1);cg.computeVertexNormals();
-canopy=new THREE.Mesh(cg,[
-new THREE.MeshStandardMaterial({color:0x9aa4ad,roughness:.15,metalness:.4,envMapIntensity:1,side:DS}),
-new THREE.MeshPhysicalMaterial({color:0x15181c,roughness:.18,clearcoat:1,envMapIntensity:1.2,side:DS})]);
+canopy=new THREE.Mesh(cg,[   // 外から見て黒 (スモーク) のキャノピー: 照り返しは控えめ
+new THREE.MeshPhysicalMaterial({color:0x040506,roughness:.3,clearcoat:.6,clearcoatRoughness:.25,envMapIntensity:.25,side:DS}),
+new THREE.MeshPhysicalMaterial({color:0x040506,roughness:.35,clearcoat:.5,clearcoatRoughness:.3,envMapIntensity:.2,side:DS})]);
 canopy.castShadow=true;grp.add(canopy);
 }
 /* ==== コンタクトシャドウ ==== */

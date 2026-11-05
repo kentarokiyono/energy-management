@@ -111,8 +111,6 @@ this.cockE0=E0; this.cockDeckY=deckY;   // 乗降手順 (crew.js) の配置基�
 // コクピット開口の内張り (キャノピーの下の床面・前方のダッシュ面)
 { const fl=new THREE.Mesh(new THREE.BoxGeometry(.5,.012,1.25),carbon); fl.position.set(E0[0],deckY-.17,E0[2]-.45); cock.add(fl);   // 床 (デッキより下)
   const dsh=new THREE.Mesh(new THREE.BoxGeometry(.46,.07,.05),carbon); dsh.position.set(E0[0],deckY+.035,E0[2]-.78); cock.add(dsh); }
-for(const sd of [-1,1]){ const wall=new THREE.Mesh(new THREE.BoxGeometry(.03,.22,.9),carbon); wall.position.set(E0[0]+sd*.27,deckY-.06,E0[2]-.15); cock.add(wall);
- const pad=new THREE.Mesh(new THREE.BoxGeometry(.06,.035,.7),carbon); pad.position.set(E0[0]+sd*.26,deckY+.05,E0[2]-.1); cock.add(pad); }
 // ステアリング (F1 型): 平らな上下辺・両側のグリップ・中央の表示部・シフトランプ・ボタン・ロータリー・パドル
 this.yokePivot=new THREE.Group();
 this.yokePivot.position.set(E0[0],Math.max(E0[1]-.27,deckY+.04),E0[2]-.44); this.yokePivot.rotation.x=.22;
@@ -186,7 +184,12 @@ for(const [sx,sz,sy] of drlPos){
   dl.position.set(sx,sy,sz);body.add(dl);
 }
 const brakeMat=new THREE.MeshBasicMaterial({color:0x4a0505});
-if(LP&&LP.stop){ for(const [x,z,y] of LP.stop){ const b2=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.035,0.04),brakeMat); b2.position.set(x,y,z); body.add(b2); } }
+if(LP&&LP.stop){ for(const [x,z,y] of LP.stop){ const b2=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.035,0.04),brakeMat); b2.position.set(x,y,z);
+  // ハイマウント (高い位置のもの) はキャノピー後端の表面に載せる
+  const cn=g.userData.canopy; if(y>0.8&&cn){ body.updateMatrixWorld(true); cn.geometry.computeBoundingBox(); const bb=cn.geometry.boundingBox;
+   const zz=bb.max.z-0.1, rc=new THREE.Raycaster(new THREE.Vector3(x,3,zz),new THREE.Vector3(0,-1,0)), h=rc.intersectObject(cn,false)[0];
+   if(h){ b2.position.set(x,h.point.y+0.012,zz); const n=h.face.normal; b2.rotation.x=-Math.atan2(n.z,n.y); } }
+  body.add(b2); } }
 else { const bl=new THREE.Mesh(new THREE.BoxGeometry(isW?0.22:0.7,isW?0.035:0.05,0.04),brakeMat);
 bl.position.set(0,isW?0.50:0.53,isW?2.52:2.18);body.add(bl); } // アレイ直下の細いブレーキライト
 g.userData.brakeMat=brakeMat;
