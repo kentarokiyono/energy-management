@@ -217,7 +217,12 @@ show("result-screen",true);
 const title=document.getElementById("result-title");
 const body=document.getElementById("result-body");
 const rows=[];
-if(es.fire){
+if(es.crashed){
+title.textContent="💥 DNF ― 事故によるリタイア";
+rows.push(["原因",es.crashReason]);
+rows.push(["到達距離",es.km.toFixed(1)+" km"]);
+rows.push(["","安全第一。速度と車間・路肩の障害物に注意しよう。"]);
+} else if(es.fire){
 title.textContent="🔥 DNF ― 車両炎上";
 rows.push(["原因",es.fireReason]);
 rows.push(["到達距離",es.km.toFixed(1)+" km"]);

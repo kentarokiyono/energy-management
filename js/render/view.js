@@ -656,6 +656,7 @@ const c=r.chunks.shift();
 this.scene.remove(c.mesh);
 c.mesh.traverse(ch=>{ if(ch.geometry) ch.geometry.dispose(); });
 for(const b of c.branches){ const i=this.branches.indexOf(b); if(i>=0) this.branches.splice(i,1); }
+if(typeof Collide!=="undefined") Collide.removeOwner(c.mesh);
 }
 },
 roadPoint(s){
@@ -678,6 +679,7 @@ buildRoadChunk(s0,s1){ return Scenery.buildChunk(this,s0,s1); },
 /* 現在kmで道路と景観を作り直す (スタート/ワープ/デバッグ用) */
 resetRoad(){
  if(this.road) for(const c of this.road.chunks){ this.scene.remove(c.mesh); c.mesh.traverse(ch=>{ if(ch.geometry) ch.geometry.dispose(); }); }
+ if(typeof Collide!=="undefined") Collide.clear();
  const es=Engine.st, km=es?es.km:0;
  this.road={pts:[{x:0,z:0,y:0,h:0,g:0,c:0,L:5,m1:0,R:5}],builtS:0,chunks:[]};
  this.branches=[]; this.junctions=[]; this.prog=null; this.doneMan=new Set(); this.lastGenKm=-1; this.osmTown=null;
@@ -736,6 +738,7 @@ if(vv>0.3){
  this.ch+=yawRate*dtR;
  es.gLat=(yawRate*vv)/9.81;
 } else es.gLat=0;
+const cx0=this.cx, cz0=this.cz;   // 当たり判定の掃引用
 this.cx+=Math.sin(this.ch)*vv*dtR; this.cz-=Math.cos(this.ch)*vv*dtR;
 // 横風 (諸元があるとき): 横方向に押される。タイヤの横すべりで遅れて効く。旋回と合わせて転倒余裕を監視
 if(VEH.active&&VEH.spec.chassis&&P.mode==="race"){
@@ -747,6 +750,12 @@ if(VEH.active&&VEH.spec.chassis&&P.mode==="race"){
  if(es.tipRatio>0.8&&!(this.tipWarnT>0)){ this.tipWarnT=8; Snd.alarm(); Radio.push(`⚠ 横転の危険!横加速度 ${(aLat/9.81).toFixed(2)} G (転倒限界の ${(es.tipRatio*100).toFixed(0)} %)。減速してください。`,"チーフ"); }
  if(this.tipWarnT>0) this.tipWarnT-=dtR;
 } else es.tipRatio=0;
+// 当たり判定 (レースモード): 沿道の固定物・壁・他の車両・人
+if(P.mode==="race"&&typeof Collide!=="undefined"&&Collide.enabled&&!es.fire&&!(typeof Crew!=="undefined"&&Crew.busy()&&Crew.phase==="outside")){
+ const st={x:this.cx,z:this.cz,h:this.ch,v:es.v}, [L,W]=carDims();
+ const hit=Collide.sweep(cx0,cz0,st,L,W,this.dynColliders(es));
+ if(hit){ this.cx=st.x; this.cz=st.z; es.v=st.v; Engine.collision(hit); }
+}
 const sPrev=this.s;
 const pr=this.project(this.cx,this.cz);
 this.iProj=pr.i; this.s=pr.s; this.lateral=pr.lat;
@@ -975,6 +984,19 @@ const ent=this.lmMap.get(key);
 if(ent){ this.scene.remove(ent.mesh); this.lmMap.delete(key); }
 }
 }
+},
+/* 動く障害物 (他チームの車・誘導車・ロードトレイン): 回転箱 {x,z,h,L,W,v} */
+dynColliders(es){
+ const out=[], add=(m,L,W,v,kind)=>{ if(!m||!m.visible) return;
+  if(!m.userData._cz){ // メッシュの原点から車体中心までのずれ (ローカル z) を一度だけ測る
+   const q=m.position.clone(), r=m.rotation.y; m.position.set(0,0,0); m.rotation.y=0; m.updateMatrixWorld(true);
+   const b=new THREE.Box3().setFromObject(m); m.userData._cz=[(b.min.x+b.max.x)/2,(b.min.z+b.max.z)/2]; m.position.copy(q); m.rotation.y=r; m.updateMatrixWorld(true); }
+  const [ox,oz]=m.userData._cz, c=Math.cos(m.rotation.y), sn=Math.sin(m.rotation.y);
+  out.push({t:2,x:m.position.x+ox*c+oz*sn,z:m.position.z-ox*sn+oz*c,h:-m.rotation.y,L,W,v,kind}); };
+ for(const sl of this.aiPool||[]) if(sl.team) add(sl.mesh,4.9,1.8,(sl.team.spd||0)/3.6,"vehicle");
+ add(this.escortLead,5.6,2.0,es.v,"vehicle"); add(this.escortChase,5.6,2.0,es.v,"vehicle");
+ for(const rt of this.roadTrains) add(rt.mesh,53,2.6,-27,"vehicle");
+ return out;
 },
 updateRoadTrains(es,dtR){
 if(P.mode==="race"&&!es.camp&&!Route.inZone(es.km)){

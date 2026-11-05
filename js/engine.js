@@ -7,7 +7,7 @@ km:0, v:0,
 day:1, hour:8.0, dayOfYear:PRO.dayOfYear,
 soc:clamp(PRO.startSoc,0,1), whUsed:0, whGen:0, ahUsed:0,
 powerMode:false, gLat:0, gLong:0, signal:0,
-stopTimer:0, stopKind:"", stopExtra:"",
+stopTimer:0, stopKind:"", stopExtra:"", damage:{aero:0,n:0}, crashed:false, crashReason:"", hitCd:0,
 morningPenaltyMin:0, extensionMin:0, extWarned:false,
 passedCP:new Set(), finished:false, trailered:false, competing:true, dcDone:false, offRoute:false, progRate:1,
 drivingHours:0, penaltySec:0, limitTimer:0,
@@ -175,6 +175,7 @@ if(s.stopKind==="tire"&&s.burst){ s.burst=false; toast("🛞 タイヤ交換完�
 if(s.stopKind==="check"){ if(s.fault){ s.fault=null; s.faultAnnounced=false; toast("🔍 不具合を修理しました!","#34d399"); } else toast("🔍 機器チェック完了。異常なし","#34d399"); }
 if(s.stopKind==="cp") toast("点検完了!係員の指示に従ってコントロールストップを出てください","#34d399");
 if(s.stopKind==="driver") toast("🔁 ドライバー交代完了。本線へ戻ってください","#34d399");
+if(s.stopKind==="repair"){ s.damage.aero*=0.3; toast("🔧 応急修理完了。残った損傷で空気抵抗が "+(s.damage.aero*100).toFixed(1)+" % 増えています","#34d399"); }
 s.stopKind=""; s.tiltLocked=false;
 }
 } else if(P.mode==="race" && !isRaceHours && !StopMenu.active){
@@ -221,7 +222,7 @@ const head=s.windSpeed*Math.cos(phi); s.lastHead=head;
 const cross=s.windSpeed*Math.sin(phi); s.lastCross=cross;
 const vApp=Math.max(0,s.v+head);
 const yaw=Math.atan2(Math.abs(cross),Math.max(s.v,1));
-const cdEff=P.Cd*cdYawFactor(yaw);
+const cdEff=P.Cd*cdYawFactor(yaw)*(1+((s.damage&&s.damage.aero)||0));   // 接触による破損で空気抵抗が増える
 const Fdrag=0.5*rho*cdEff*P.frontal*vApp*vApp;
 const Fcorner=cornerDrag(m,s.gLat);
 const Fslope=m*9.81*Math.sin(slope);
@@ -450,6 +451,26 @@ s.camp=true; s.v=0;
 Radio.push(`Day${s.day} 走行終了。その場でキャンプ設営、日没までティルト充電を行います。`);
 if(typeof Crew!=="undefined") Crew.onCamp();
 TiltDecide.open();
+},
+/* 当たり判定の結果 (View から): 軽い接触 = 警告 / 破損 = 停車して修理・空力悪化 / 大破 = リタイア */
+collision(hit){
+ const s=this.st; if(!s||s.crashed||s.fire||hit.level==="touch") return;
+ const now=performance.now(); if(now<(s.hitCd||0)&&hit.level==="light") return;
+ const what=COLLIDE_WHAT[hit.kind]||"障害物", kmh=(hit.vn*3.6).toFixed(0);
+ if(hit.level==="light"){ s.hitCd=now+2500; Snd.alarm(); toast(`⚠ ${what}に接触 (${kmh} km/h)`,"#f59e0b"); Radio.push(`${what}に軽く接触しました (${kmh} km/h)。車体を確認しながら走行を続けてください。`,"チーフ"); return; }
+ if(hit.level==="damage"&&s.stopKind==="repair"&&s.stopTimer>0) return;   // 修理停車中の重ねた判定は数えない
+ if(hit.level==="damage"){
+  const f=clamp((hit.vn-Collide.LIGHT)/(Collide.HEAVY-Collide.LIGHT),0,1), add=0.03+0.12*f, rep=Math.round(15+45*f);
+  s.damage.aero+=add; s.damage.n++; s.v=0; s.throttleSet=0;
+  s.stopTimer=rep*60; s.stopKind="repair"; s.hitCd=now+4000;
+  Snd.bang(); toast(`💥 ${what}と衝突 (${kmh} km/h)・車体破損`,"#ef4444");
+  Radio.push(`${what}と衝突 (${kmh} km/h)。車体が破損しました。停車して応急修理 (${rep} 分)。空気抵抗 +${(add*100).toFixed(0)} %。`,"チーフ");
+  return; }
+ s.crashed=true; s.v=0; s.throttleSet=0;
+ s.crashReason= hit.kind==="person"? `歩行者と接触する重大事故 (${kmh} km/h)` : `${what}と激突 (${kmh} km/h)・車両大破`;
+ Snd.bang(); Snd.alarm(); toast("💥 事故 ― リタイア","#ef4444");
+ Radio.push(s.crashReason+"。レースを続けられません。","チーフ");
+ setTimeout(()=>showResult(),1800);
 },
 ignite(reason){
 const s=this.st;

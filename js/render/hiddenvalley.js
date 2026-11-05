@@ -235,9 +235,14 @@ wallLine(pts,h,mat,yBase=0){
   const y=this.heightAt? Math.max(this.heightAt(q.x,q.z),q.y-0.6) : q.y;   // 地面の高さに立てる (地形に埋まらない・浮かない)
   pos.push(q.x,y+yBase,q.z, q.x,y+yBase+h,q.z); uv.push(acc/4,0, acc/4,h/2);
   if(k>0){ const r=(k-1)*2; idx.push(r,r+2,r+1, r+1,r+2,r+3); } }
+ if(typeof Collide!=="undefined"&&Collide.owner==="hv"&&yBase<0.5) Collide.polyline(pts,0.2,"wall");   // 壁の上のフェンスは下の壁と同じなので登録しない
  const g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); g.setAttribute("uv",new THREE.Float32BufferAttribute(uv,2)); g.setIndex(idx); g.computeVertexNormals();
  const m=new THREE.Mesh(g,mat); m.castShadow=!mat.transparent; m.receiveShadow=true; return m;
 },
+/* 当たり判定の登録 (ストレート座標): 円 / 箱 (長さ=ストレート方向) */
+colC(al,lt,r,kind="solid"){ if(typeof Collide==="undefined"||Collide.owner!=="hv") return; const [x,z]=this.SW(al,lt); Collide.circle(x,z,r,kind); },
+colB(al,lt,lenAl,widLt,kind="solid"){ if(typeof Collide==="undefined"||Collide.owner!=="hv") return; const T=this.track(), [x,z]=this.SW(al,lt); Collide.box(x,z,Math.atan2(T.sd[0],-T.sd[1]),lenAl,widLt,kind); },
+colS(al0,lt0,al1,lt1){ if(typeof Collide==="undefined"||Collide.owner!=="hv") return; const [ax,az]=this.SW(al0,lt0), [bx,bz]=this.SW(al1,lt1); Collide.seg(ax,az,bx,bz,0.2,"wall"); },
 /* コース両側の連続バリア・ピットウォール・ピットレーン外側の壁 */
 buildBarriers(grp,bs,cs,steel,conc,fence){
  const T=this.track(), n=T.n, HW=T.hw;
@@ -291,7 +296,7 @@ buildBarriers(grp,bs,cs,steel,conc,fence){
   // 分岐/合流の先端: 黄色の衝撃吸収材
   for(const e of [pw[0],pw[pw.length-1]]){ const nb=e===pw[0]?pw[1]:pw[pw.length-2], ry=-Math.atan2(nb.x-e.x,-(nb.z-e.z));
    for(let k=0;k<3;k++) bs.get("solid").add(tpl("box"),M4(e.x-Math.sin(-ry)*k*0.01,e.y,e.z,1.2,1.0,0.9,ry),linCol(k%2?0x111111:0xf2c200));
-   bs.get("solid").add(tpl("box"),M4(e.x,e.y,e.z,1.25,1.02,2.6,ry),linCol(0xf2c200)); } }
+   bs.get("solid").add(tpl("box"),M4(e.x,e.y,e.z,1.25,1.02,2.6,ry),linCol(0xf2c200)); if(typeof Collide!=="undefined"&&Collide.owner==="hv") Collide.circle(e.x,e.z,1.0,"wall"); } }
  // ピットレーンの外側 (ガレージ前以外) の低いコンクリ壁
  let run=[]; const flush=()=>{ if(run.length>1) grp.add(this.wallLine(run,0.9,conc)); run=[]; };
  for(const q of outer){ if(q) run.push(q); else flush(); } flush();
@@ -311,6 +316,7 @@ build(){
  const grp=new THREE.Group();
  const T=this.track(), n=T.n, HW=T.hw, W=(k)=>(i)=>HW[i]+k;
  srand(20251022);
+ if(typeof Collide!=="undefined"){ Scenery.guardPR(); Collide.world="hv"; Collide.owner="hv"; }   // 会場の障害物を当たり判定に登録
  this.buildTerrain(grp);
  const L=(c)=>new THREE.MeshLambertMaterial({color:new THREE.Color(c).convertSRGBToLinear()});
  const vc=(o)=>new THREE.MeshLambertMaterial(Object.assign({vertexColors:true},o));
@@ -350,7 +356,7 @@ build(){
   for(let k=0;k<cnt;k++){ const i=(a2+k)%n, j=(i+1)%n, p=T.pts[i], q=T.pts[j], r=T.right[i], r2=T.right[j];
    const oi=-side*(HW[i]+27.5), oj=-side*(HW[j]+27.5), xi=p.x+r[0]*oi, zi=p.z+r[1]*oi, xj=q.x+r2[0]*oj, zj=q.z+r2[1]*oj, L=Math.hypot(xj-xi,zj-zi);
    while(acc<L){ const t=acc/L, x=xi+(xj-xi)*t, z=zi+(zj-zi)*t, y=this.heightAt(x,z);
-    bs.get("solid").add(tpl("cyl8"),M4(x,y,z,0.75,1.1,0.75),linCol(0x18181a));
+    bs.get("solid").add(tpl("cyl8"),M4(x,y,z,0.75,1.1,0.75),linCol(0x18181a)); if(typeof Collide!=="undefined"&&Collide.owner==="hv") Collide.circle(x,z,0.75,"wall");
     bs.get("solid").add(tpl("box"),M4(x-r[0]*side*0.8,y+0.05,z-r[1]*side*0.8,0.05,1.05,1.45,-Math.atan2(xj-xi,-(zj-zi))),linCol(Math.floor(cnt2/2)%2?0xc8202a:0xeeeeee));
     acc+=1.4; cnt2++; }
    acc-=L;
@@ -368,6 +374,7 @@ build(){
  this.buildSurroundings(grp,bs);
  this.buildBrakeBoards(grp,bs);
  bs.toGroup(grp);
+ if(typeof Collide!=="undefined"){ Collide.owner=null; Collide.world="race"; }
  grp.traverse(o=>{ if(o.isMesh&&o.geometry&&!o.geometry.boundingSphere) o.geometry.computeBoundingSphere(); });
  return grp;
 },
@@ -387,7 +394,7 @@ buildStartFinish(grp,bs){
   bs.get("solid").add(tpl("box"),M4(q[0]-r[0]*1.3,p.y+0.012,q[1]-r[1]*1.3,0.15,0.01,1.6,ry),linCol(0xeeeeea));
  }
  // スタートガントリー (信号灯付き)
- for(const sd of [-1,1]){ const o=sd*(W+3); bs.get("solid").add(tpl("box"),M4(p.x+r[0]*o,p.y,p.z+r[1]*o,0.6,7.5,0.6,ry),linCol(0x30343a)); }
+ for(const sd of [-1,1]){ const o=sd*(W+3); bs.get("solid").add(tpl("box"),M4(p.x+r[0]*o,p.y,p.z+r[1]*o,0.6,7.5,0.6,ry),linCol(0x30343a)); if(typeof Collide!=="undefined"&&Collide.owner==="hv") Collide.circle(p.x+r[0]*o,p.z+r[1]*o,0.45,"solid"); }
  bs.get("solid").add(tpl("boxC"),M4(p.x,p.y+7.2,p.z,(W+3)*2+0.6,1.2,0.8,ry+Math.PI/2*0),linCol(0x30343a));
  for(let k=-2;k<=2;k++) bs.get("solid").add(tpl("boxC"),M4(p.x+r[0]*k*1.6,p.y+6.0,p.z+r[1]*k*1.6,0.9,1.4,0.5,ry),linCol(0x111111));
 },
@@ -431,11 +438,12 @@ buildGarages(grp,bs){
   if(k===towerK) continue;
   const open=!!this.TEAMS[k];   // 参加チームのガレージは開放、空きは閉める
   if(!open){
-   at(al,FRONT+DEPTH/2,0,DEPTH,H1,BW-0.4);
+   at(al,FRONT+DEPTH/2,0,DEPTH,H1,BW-0.4); this.colS(al-BW/2,FRONT,al+BW/2,FRONT);
    at(al,FRONT-0.05,0,0.08,4.6,BW-3.5,boxMetric(0.08,4.6,BW-3.5,1,1),"corr",0xc9ccce);
   } else {
    const ID=10; // 室内奥行
    at(al,FRONT+ID+(DEPTH-ID)/2,0,DEPTH-ID,H1,BW-0.4);                       // 奥の壁ブロック
+   this.colS(al-BW/2,FRONT+ID,al+BW/2,FRONT+ID); for(const sd of [-1,1]) this.colS(al+sd*(BW/2-0.35),FRONT,al+sd*(BW/2-0.35),FRONT+ID);
    at(al,FRONT+ID/2,4.7,ID,H1-4.7,BW-0.4);                                     // シャッター上の梁
    for(const sd of [-1,1]) at(al+sd*(BW/2-0.35),FRONT+ID/2,0,ID,4.7,0.5);     // 隔壁
    at(al,FRONT+ID/2,0.005,ID,0.02,BW-1.2,"box","solid",0x8b9096);             // エポキシ床
@@ -473,7 +481,7 @@ buildGarages(grp,bs){
  at(mid,FRONT+DEPTH/2-0.5,H1+3.75,DEPTH+2,0.4,len+2,"box","corr",0xd9d6c8);     // 屋根(庇)
  // コントロールタワー (S/F 付近, 4層+ガラスの計時室)
  const tal=AL0+towerK*BW;
- at(tal,FRONT+DEPTH/2,0,DEPTH,H1+3.8,BW-0.4,"box","solid",0xe9e7e1);
+ at(tal,FRONT+DEPTH/2,0,DEPTH,H1+3.8,BW-0.4,"box","solid",0xe9e7e1); this.colB(tal,FRONT+DEPTH/2,BW,DEPTH);
  at(tal,FRONT+DEPTH/2,H1+3.8,DEPTH-2,4.2,BW-4,boxMetric(DEPTH-2,4.2,BW-4,6,7),"office",0xffffff);
  at(tal,FRONT+DEPTH/2-1,H1+8.0,DEPTH+1,4.0,BW-2,boxMetric(DEPTH+1,4.0,BW-2,6,7),"office",0xdfe8f0);
  at(tal,FRONT+DEPTH/2-1,H1+12.0,DEPTH+2.5,0.5,BW,"box","solid",0x30343a);
@@ -484,7 +492,7 @@ buildGarages(grp,bs){
  const [s2x,s2z]=this.SW(tal+75,FRONT+1); sign2.position.set(s2x,H1+5.7,s2z); sign2.rotation.y=ry+Math.PI/2; grp.add(sign2);
  // 計時スコアボード塔 (S/F の北側, ドラッグストリップとの間)
  const [px,pz]=this.SW(8,-14.6);
- bs.get("solid").add(tpl("box"),M4(px,0,pz,1.2,14,1.2,ry),linCol(0x30343a));
+ bs.get("solid").add(tpl("box"),M4(px,0,pz,1.2,14,1.2,ry),linCol(0x30343a)); this.colC(8,-14.6,0.9);
  bs.get("solid").add(tpl("boxC"),M4(px,14,pz,2.2,7,1.0,ry),linCol(0x111111));
  for(let r=0;r<6;r++) bs.get("emis").add(tpl("boxC"),M4(px+(T.sr[0])*0.52*(-1),11.3+r*1.05,pz+(T.sr[1])*0.52*(-1),1.6,0.6,0.02,ry),linCol(r%2?0xffb000:0xf6f6f6));
  // ガレージ前の看板 (チーム番号) ・ガレージ前に出したソーラーカーと押すクルー・オフィシャル (蛍光ベスト)
@@ -494,7 +502,7 @@ buildGarages(grp,bs){
  for(let k=0;k<10;k++){ const al=AL0+k*BW*3+6; const [px,pz]=this.SW(al,FRONT-11); PR.person(bs,px,0.02,pz,rnd()*6.28,0xff7a00); }
  // ピットウォールのチームスタンド + スタッフ
  for(let k=0;k<12;k++){ const al=-160+k*32;
-  at(al,5.2,0,1.2,1.0,2.6,"box","solid",0xe8e6e0);
+  at(al,5.2,0,1.2,1.0,2.6,"box","solid",0xe8e6e0); this.colB(al,5.2,2.6,1.2);
   at(al,5.2,2.4,1.6,0.08,3.0,"box","solid",teams[k%teams.length]);
   for(const d of [-1,1]) at(al+d*1.2,5.2,1.0,0.06,1.4,0.06,"box","solid",0x6b6f75);
   if(rnd()<0.8){ const [qx,qz]=this.SW(al,6.3); PR.person(bs,qx,0.02,qz,ry,teams[k%teams.length]); }
@@ -578,7 +586,7 @@ garageFront(grp,bs,at,al,k,open){
  const T=this.track(), ry=-Math.atan2(T.sd[0],-T.sd[1])+Math.PI, FRONT=24, BW=this.GARAGE_W, H1=6.2, DW=5.8, DH=3.4, GREEN=0x2f4f43;
  const t=this.TEAMS[k]||null, pw=(BW-DW)/2;
  for(const sd of [-1,1]){ const ac=al+sd*(DW/2+pw/2);
-  at(ac,FRONT-0.2,0,0.4,3.7,pw-0.1,"box","solid",GREEN);                                 // 濃緑のブロック壁
+  at(ac,FRONT-0.2,0,0.4,3.7,pw-0.1,"box","solid",GREEN); this.colS(ac-pw/2,FRONT-0.2,ac+pw/2,FRONT-0.2);   // 濃緑のブロック壁
   for(let r=1;r<9;r++) at(ac,FRONT-0.405,r*0.41,0.01,0.02,pw-0.15,"box","solid",0x27443a);   // 目地
   at(ac+sd*0.2,FRONT-0.42,0,0.04,2.1,0.95,"box","solid",0xf2f2ee);                        // 白い通用口
   at(ac+sd*0.2-sd*0.35,FRONT-0.45,1.0,0.03,0.05,0.12,"box","solid",0x9a9da0); }           // ドアノブ
@@ -586,7 +594,7 @@ garageFront(grp,bs,at,al,k,open){
  at(al,FRONT-0.22,DH,0.45,3.7-DH,DW,"box","solid",GREEN);                                // 開口上の壁
  at(al,FRONT-0.75,4.75,0.5,0.06,BW-0.2,"box","solid",0x8f969c);                          // ケーブルラック
  at(al,FRONT-0.65,4.95,0.28,0.14,1.3,"box","emis",0xf4f4ea);                             // 蛍光灯
- if(!open) at(al,FRONT-0.08,0,0.06,DH,DW,"box","corr",0xe8e2cf);                         // 閉じたシャッター
+ if(!open){ at(al,FRONT-0.08,0,0.06,DH,DW,"box","corr",0xe8e2cf); this.colS(al-DW/2,FRONT-0.1,al+DW/2,FRONT-0.1); }   // 閉じたシャッター
  // ガレージ番号 (壁に白で)
  { const key="gno"+(k+1); this._tb=this._tb||{}; let tx=this._tb[key];
   if(!tx){ const cv=document.createElement("canvas"); cv.width=128; cv.height=128; const c=cv.getContext("2d"); c.fillStyle="#f4f4f0"; c.font="bold 96px Georgia,serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillText(String(k+1),64,70);
@@ -597,7 +605,7 @@ garageFront(grp,bs,at,al,k,open){
  if(t){ const m=new THREE.Mesh(new THREE.PlaneGeometry(4.2,1.05),new THREE.MeshLambertMaterial({map:this.teamSign(t)}));
   const [x,z]=this.SW(al,FRONT-0.56); m.position.set(x,DH+0.12+0.52,z); m.rotation.y=ry+Math.PI/2; grp.add(m); }
  // ゴミ箱 (ウィリービン) とコーン
- at(al-DW/2-1.9,FRONT-0.9,0,0.65,1.05,0.6,"box","solid",0x1f3a2c); at(al-DW/2-1.9,FRONT-0.9,1.05,0.72,0.05,0.66,"box","solid",0x173024);
+ at(al-DW/2-1.9,FRONT-0.9,0,0.65,1.05,0.6,"box","solid",0x1f3a2c); this.colC(al-DW/2-1.9,FRONT-0.9,0.4); at(al-DW/2-1.9,FRONT-0.9,1.05,0.72,0.05,0.66,"box","solid",0x173024);
  if(open&&k%2===0){ const [cx,cz]=this.SW(al,FRONT-1.2); bs.get("solid").add(tpl("cone7"),M4(cx,0,cz,0.22,0.75,0.22),linCol(0xff5a00)); }
 },
 textBoard(text,bg,fg){
@@ -678,7 +686,7 @@ buildPaddock(grp,bs){
  const at=(al,lt,y,sx,sy,sz,col,mat="solid",tp="box",rot=0)=>{ const [x,z]=this.SW(al,lt); bs.get(mat).add(tpl(tp),M4(x,y,z,sx,sy,sz,ry+rot),linCol(col)); };
  // 車検用大型テント (側面開放): 柱 + 切妻屋根、中に計量台 (4 輪の秤)・検査レーン・照明 / 前に待機列
  { const AL=-60, LT=70;
-  for(const u of [-1,1]) for(let v=-20;v<=20;v+=5){ at(AL+v,LT+u*10,0,0.18,3.2,0.18,0xd8d8d8); }
+  for(const u of [-1,1]) for(let v=-20;v<=20;v+=5){ at(AL+v,LT+u*10,0,0.18,3.2,0.18,0xd8d8d8); this.colC(AL+v,LT+u*10,0.15); }
   { const [mx,mz]=this.SW(AL,LT); bs.get("solidDS").add(tpl("gable"),M4(mx,3.2,mz,20.4,3.0,40.4,ry),linCol(0xf8f8f6)); }
   at(AL,LT,0.005,19.6,0.02,39.6,0x8b9096);                                       // 床シート
   for(const v of [-12,0,12]){                                                    // 検査レーン 3 本
@@ -698,8 +706,9 @@ buildPaddock(grp,bs){
  for(let al=-230;al<280;al+=17) for(const lt of [62,96,124]){
   if(al>-90&&al<-30&&lt<100) continue;
   const col=canopies[k++%canopies.length], [x,z]=this.SW(al,lt);
-  for(const [u,v] of [[-1,-1],[1,-1],[1,1],[-1,1]]){ const [px,pz]=this.SW(al+u*2.9,lt+v*2.9); bs.get("solid").add(tpl("cyl5"),M4(px,0,pz,0.04,2.6,0.04),linCol(0x8a8d90)); }
+  for(const [u,v] of [[-1,-1],[1,-1],[1,1],[-1,1]]){ const [px,pz]=this.SW(al+u*2.9,lt+v*2.9); bs.get("solid").add(tpl("cyl5"),M4(px,0,pz,0.04,2.6,0.04),linCol(0x8a8d90)); this.colC(al+u*2.9,lt+v*2.9,0.1); }
   bs.get("solidDS").add(tpl("hiproof"),M4(x,2.6,z,6,0.9,6,ry),linCol(col));
+  this.colB(al+2.2,lt+2.0,0.7,1.8); this.colC(al-3.3,lt-3.3,0.1);
   at(al,lt-2.9,2.35,0.02,0.3,5.9,col);                                            // 前幕 (チーム色)
   if(rnd()<0.8) PR.solarCar(bs,x,0.02,z,ry,rndPick(["cat","cat","mono","cruiser"]),rndPick([0xffffff,col,0xe8e8e8]));
   at(al+2.2,lt+2.0,0,1.8,0.8,0.7,0x6b6f75); at(al+2.2,lt+2.0,0.8,0.5,0.02,0.35,0x222428);          // 作業台 + PC
@@ -712,17 +721,17 @@ buildPaddock(grp,bs){
   { const [cx,cz]=this.SW(al-3,bk); PR.car(bs,cx,0,cz,ry+Math.PI/2,rnd()<0.5);
    if(rnd()<0.35){ const [mx,mz]=this.SW(al-3,bk); bs.get("solid").add(tpl("cyl5"),M4(mx,1.6,mz,0.03,2.6,0.03),linCol(0xbfc3c7));      // 気象観測マスト
     bs.get("solid").add(tpl("boxC"),M4(mx,4.2,mz,0.5,0.03,0.03,ry),linCol(0x30343a)); bs.get("solid").add(tpl("boxC"),M4(mx,3.6,mz,0.25,0.25,0.15,ry),linCol(0xf2f2f2)); } }
-  if(rnd()<0.6){ at(al+3.2,bk,0.45,2.4,2.4,6.4,rndPick([0xf2f2f2,0xdcdcd8,col]));                                    // 箱型トレーラー
+  if(rnd()<0.6){ at(al+3.2,bk,0.45,2.4,2.4,6.4,rndPick([0xf2f2f2,0xdcdcd8,col])); this.colB(al+3.2,bk,2.4,6.4,"vehicle");                                    // 箱型トレーラー
    for(const v of [-0.6,0.6]) for(const u of [-1.25,1.25]){ const [wx,wz]=this.SW(al+3.2+u,bk+v); bs.get("solid").add(tpl("cyl12"),M4(wx,0.36,wz,0.36,0.25,0.36,ry,0,Math.PI/2),linCol(0x161616)); }
    at(al+3.2,bk-3.9,0.45,0.1,0.1,1.4,0x30343a); }
-  else if(rnd()<0.3){ at(al+3.2,bk,0.5,2.4,2.8,7.0,0xf4f2ec); at(al+3.2,bk,2.0,2.42,0.4,7.02,col); }                 // キャンピングカー
+  else if(rnd()<0.3){ this.colB(al+3.2,bk,2.4,7.0,"vehicle"); at(al+3.2,bk,0.5,2.4,2.8,7.0,0xf4f2ec); at(al+3.2,bk,2.0,2.42,0.4,7.02,col); }                 // キャンピングカー
  }
  // 照明塔 (舗装エリアの夜間照明)
  for(const [al,lt] of [[-250,52],[-250,138],[-60,52],[-60,138],[130,52],[130,138],[290,52],[290,138],[-110,268],[250,268]]){
-  const [x,z]=this.SW(al,lt); bs.get("solid").add(tpl("cyl8"),M4(x,0,z,0.22,18,0.22),linCol(0x9a9da0));
+  const [x,z]=this.SW(al,lt); bs.get("solid").add(tpl("cyl8"),M4(x,0,z,0.22,18,0.22),linCol(0x9a9da0)); this.colC(al,lt,0.35);
   at(al,lt,18,0.6,1.0,3.4,0x30343a); at(al,lt-0.32,18.1,0.02,0.8,3.2,0xfdfdf2,"emis"); }
  // トイレ棟・医療センター・売店
- const bld=(al,lt,w,d,h,col,label,bg,fg)=>{ at(al,lt,0,d,h,w,col); at(al,lt,h,d+0.6,0.25,w+0.6,0x9aa0a6);
+ const bld=(al,lt,w,d,h,col,label,bg,fg)=>{ at(al,lt,0,d,h,w,col); this.colB(al,lt,w,d); at(al,lt,h,d+0.6,0.25,w+0.6,0x9aa0a6);
   if(label){ const m=new THREE.Mesh(new THREE.PlaneGeometry(Math.min(w-0.6,label.length*0.55+1),0.9),new THREE.MeshLambertMaterial({map:this.textBoard(label,bg,fg)}));
    const [x,z]=this.SW(al,lt-d/2-0.03); m.position.set(x,h-0.7,z); m.rotation.y=ry+Math.PI; grp.add(m); } };
  bld(-150,145,8,4,3.0,0xe9e7e1,"TOILETS","#1f4f9c","#ffffff");
@@ -737,7 +746,7 @@ buildPaddock(grp,bs){
   const r2=[]; for(let a=-122;a<=262;a+=8) r2.push([a,272]); line(r2); line([[-122,142],[-122,272]]); line([[262,142],[262,272]]); }
  // 案内標識
  for(const [al,lt,txt] of [[-95,50,"SCRUTINEERING →"],[0,50,"TEAM PADDOCK"],[-205,132,"MEDICAL"],[40,140,"PIT PADDOCK P"]]){
-  const [x,z]=this.SW(al,lt); bs.get("solid").add(tpl("box"),M4(x,0,z,0.1,2.2,0.1,ry),linCol(0x9a9da0));
+  const [x,z]=this.SW(al,lt); bs.get("solid").add(tpl("box"),M4(x,0,z,0.1,2.2,0.1,ry),linCol(0x9a9da0)); this.colC(al,lt,0.12);
   const m=new THREE.Mesh(new THREE.PlaneGeometry(txt.length*0.32+0.6,0.6),new THREE.MeshLambertMaterial({map:this.textBoard(txt,"#0d6b3c","#ffffff"),side:THREE.DoubleSide}));
   m.position.set(x,2.5,z); m.rotation.y=ry+Math.PI/2; grp.add(m); }
  // 区画線 (テント列の間の通路)
@@ -762,7 +771,7 @@ buildBrakeBoards(grp,bs){ // 急コーナー手前の制動目安ボード (300/
    const x=p.x+r[0]*o, z=p.z+r[1]*o, ry=-Math.atan2(T.fwd[i][0],-T.fwd[i][1]);
    const m=new THREE.Mesh(new THREE.PlaneGeometry(1.2,1.2),new THREE.MeshLambertMaterial({map:signTex("speed",txt)}));
    m.position.set(x,p.y+1.5,z); m.rotation.y=ry; grp.add(m);
-   bs.get("solid").add(tpl("box"),M4(x,p.y,z-0.02,0.08,0.9,0.08),linCol(0x9a9da0));
+   bs.get("solid").add(tpl("box"),M4(x,p.y,z-0.02,0.08,0.9,0.08),linCol(0x9a9da0)); if(typeof Collide!=="undefined"&&Collide.owner==="hv") Collide.circle(x,z,0.12,"solid");
   }
  }
 },

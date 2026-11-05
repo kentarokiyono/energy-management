@@ -126,6 +126,7 @@ buildChunk(view,s0,s1){
  const bs=new BatchSet();
  const signs=[];
  const ctx={view,grp,bs,signs,s0,s1,kmA,kmB,branches:[]};
+ if(typeof Collide!=="undefined"){ this.guardPR(); Collide.owner=grp; }   // このチャンクの障害物 (チャンクを捨てるときに消す)
  grp.userData.branches=ctx.branches;
  if(P.mode==="race"){ this.branches(ctx); this.roundabouts(ctx); }
  this._capBr=view.branches.filter(b=>b.sJ>s0-400&&b.sJ<s1+400);
@@ -196,7 +197,7 @@ buildChunk(view,s0,s1){
  this.townOverlay(ctx);
  this.features(ctx);
  this.roadSigns(ctx);
- this._ctxOcc=null; this._capBr=null; this._guard=null;
+ this._ctxOcc=null; this._capBr=null; this._guard=null; if(typeof Collide!=="undefined") Collide.owner=null;
  bs.toGroup(grp);
  for(const sg of signs) grp.add(sg);
  return grp;
@@ -255,8 +256,11 @@ guardPR(){
  if(PR.__guarded) return; PR.__guarded=true;
  const keep=new Set(["solarCar","woodPole","stobie"]);   // 柱は電線の高さを返すので常に置く (位置は clearAt で道路を避け済み)
  const pad={tree:0.8,redgum:0.8,houseOutback:2.5,houseTropical:2.5,houseBrick:2.5,shopStrip:3,shed:2,roadhouse:3,tower:4,windmill:1,termite:0.4,rock:0.3,tank:1};
- for(const k of Object.keys(PR)){ const f=PR[k]; if(typeof f!=="function"||keep.has(k)) continue;
-  PR[k]=function(bs,x,y,z,...r){ const g=Scenery._guard; if(g&&Scenery.surfHit(g,x,z,pad[k]!=null?pad[k]:0.25)) return; return f.call(this,bs,x,y,z,...r); }; }
+ for(const k of Object.keys(PR)){ const f=PR[k]; if(typeof f!=="function") continue;
+  const kp=keep.has(k);
+  PR[k]=function(bs,x,y,z,...r){ const g=Scenery._guard; if(!kp&&g&&Scenery.surfHit(g,x,z,pad[k]!=null?pad[k]:0.25)) return;
+   if(typeof Collide!=="undefined"&&Collide.owner!=null) Collide.addPR(k,x,z);   // 当たり判定に登録
+   return f.call(this,bs,x,y,z,...r); }; }
 },
 /* 分岐道路の入口付近か (街灯・ガイドポスト・フェンスを置かない) */
 brNear(view,s,w=0,sd=0){
@@ -528,6 +532,7 @@ signMesh(ctx,q,kind,text,w,h,postH,off){
  const ry=-q.h;
  const posts= w>2.2? [-w*0.35,w*0.35] : [0];
  for(const px of posts) bs.get("solid").add(tpl("box"),M4(q.x+q.nx*px,q.y,q.z+q.nz*px,0.08,postH,0.08,ry),linCol(0x9a9da0));
+ if(typeof Collide!=="undefined"&&Collide.owner!=null&&kind!=="banner") for(const px of posts) Collide.circle(q.x+q.nx*px,q.z+q.nz*px,0.12,"solid");
  if(!this._signMats) this._signMats=new Map();
  const key=kind+"|"+text;
  let mat=this._signMats.get(key);
@@ -603,6 +608,7 @@ bridges(ctx){
    const sa=Math.max(view.sOfKm(Math.max(k0,kmA)),ctx.s0), sb=Math.min(view.sOfKm(Math.min(k1,kmB)),ctx.s1);
    for(let s=sa;s<sb;s+=2.5){ const e=Math.min(2.5,sb-s), ps=view.roadPoint(s+e/2), nx=Math.cos(ps.h), nz=Math.sin(ps.h), fx=Math.sin(ps.h), fz=-Math.cos(ps.h);
     for(const [lat,c] of [[-(ps.L+1.6),0xc8c6be],[ps.R+1.6,0xc8c6be]]){ const x=ps.x+nx*lat, z=ps.z+nz*lat;
+     if(typeof Collide!=="undefined"&&Collide.owner!=null) Collide.seg(x-fx*e/2,z-fz*e/2,x+fx*e/2,z+fz*e/2,0.2,"wall");
      B.add(tpl("box"),M4(x,ps.y-0.05,z,0.35,1.05,e+0.05,-ps.h),linCol(c));
      B.add(tpl("box"),M4(x,ps.y+0.98,z,0.45,0.12,e+0.05,-ps.h),linCol(0xdedcd4)); } }
    // 水面の橋: 水面・川底へ下りる岸・橋脚 (35 m ごと)・路面下の床版
