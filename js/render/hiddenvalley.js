@@ -429,7 +429,7 @@ buildGarages(grp,bs){
  for(let k=0;k<NG;k++){
   const al=AL0+k*BW, team=teams[k%teams.length];
   if(k===towerK) continue;
-  const open=(k%5!==2);
+  const open=!!this.TEAMS[k];   // 参加チームのガレージは開放、空きは閉める
   if(!open){
    at(al,FRONT+DEPTH/2,0,DEPTH,H1,BW-0.4);
    at(al,FRONT-0.05,0,0.08,4.6,BW-3.5,boxMetric(0.08,4.6,BW-3.5,1,1),"corr",0xc9ccce);
@@ -489,7 +489,7 @@ buildGarages(grp,bs){
  for(let r=0;r<6;r++) bs.get("emis").add(tpl("boxC"),M4(px+(T.sr[0])*0.52*(-1),11.3+r*1.05,pz+(T.sr[1])*0.52*(-1),1.6,0.6,0.02,ry),linCol(r%2?0xffb000:0xf6f6f6));
  // ガレージ前の看板 (チーム番号) ・ガレージ前に出したソーラーカーと押すクルー・オフィシャル (蛍光ベスト)
  for(let k=0;k<NG;k++){ if(k===towerK) continue; const al=AL0+k*BW, team=teams[k%teams.length];
-  if(k%4===1){ const [cx,cz]=this.SW(al+rndr(-1,1),FRONT-5.5); PR.solarCar(bs,cx,0.02,cz,ry+Math.PI/2,rndPick(["cat","mono","cruiser"]),rndPick([0xffffff,team]));
+  if(k%4===1&&this.TEAMS[k]){ const [cx,cz]=this.SW(al+rndr(-1,1),FRONT-5.5); PR.solarCar(bs,cx,0.02,cz,ry+Math.PI/2,rndPick(["cat","mono","cruiser"]),rndPick([0xffffff,team]));
    for(let q=0;q<4;q++){ const [px,pz]=this.SW(al+rndr(-2.5,2.5),FRONT-5.5+(q<2?-2.2:2.2)); PR.person(bs,px,0.02,pz,ry+(q<2?Math.PI:0),team===0xf0f0f0?0xdedede:team); } } }
  for(let k=0;k<10;k++){ const al=AL0+k*BW*3+6; const [px,pz]=this.SW(al,FRONT-11); PR.person(bs,px,0.02,pz,rnd()*6.28,0xff7a00); }
  // ピットウォールのチームスタンド + スタッフ
@@ -502,16 +502,22 @@ buildGarages(grp,bs){
 },
 /* ガレージの表 (実物の写真に合わせる): 濃緑のブロック壁・中央の巻き上げシャッター・両脇の白い通用口・壁のガレージ番号・
  コンクリの梁とケーブルラック・蛍光灯、シャッター上のチーム看板 (ゼッケン・国旗・チーム名・車名)、2 階手すりの国旗/横断幕、ゴミ箱 */
-TEAMS:[ // ガレージ番号順。実在が分かっているチームのみ実名、他は仮
- {no:"12",cc:"AUS"},{no:"3",cc:"NLD"},{no:"7",cc:"BEL"},{no:"21",cc:"USA"},{no:"8",cc:"GBR"},{no:"33",cc:"DEU"},{no:"15",cc:"CHN"},{no:"40",cc:"JPN"},
+TEAMS:[ // ガレージ番号順 (null = 看板なし)。2025 年大会 Challenger クラスの参加チーム (番号は確認できたもののみ。配置は 9 番 SOLIS 以外は仮)
+ {no:"3",cc:"NLD",team:"BRUNEL SOLAR TEAM",car:"Nuna 13"},{no:"21",cc:"NLD",team:"SOLAR TEAM TWENTE",car:"RED Discover"},{no:"8",cc:"BEL",team:"INNOPTUS SOLAR TEAM",car:"Infinite Apollo"},
+ {no:"7",cc:"DEU",team:"TEAM SONNENWAGEN AACHEN",car:"Covestro Æthon"},{no:"",cc:"JPN",team:"TOKAI UNIVERSITY SOLAR CAR TEAM",car:"Tokai Challenger"},{no:"",cc:"AUS",team:"WESTERN SYDNEY SOLAR TEAM",car:"Unlimited 6.0"},
+ {no:"2",cc:"USA",team:"UNIVERSITY OF MICHIGAN SOLAR CAR TEAM",car:"Millennium"},{no:"46",cc:"SWE",team:"JU SOLAR TEAM",car:"Nova Lumina"},
  {no:"99",cc:"ROU",team:"SOLIS UTCN",car:"Hyperion"},{no:"61",cc:"JPN",team:"WAKAYAMA UNIVERSITY SOLAR CAR TEAM",car:"YATA"},
- {no:"5",cc:"NLD"},{no:"18",cc:"AUS"},{no:"27",cc:"ITA"},{no:"44",cc:"SWE"},{no:"9",cc:"CHE"},{no:"0",cc:"AUS"},{no:"71",cc:"FRA"},{no:"2",cc:"BEL"},
- {no:"88",cc:"CHN"},{no:"16",cc:"USA"},{no:"23",cc:"JPN"},{no:"30",cc:"GBR"},{no:"55",cc:"DEU"},{no:"64",cc:"NLD"},{no:"77",cc:"AUS"},{no:"11",cc:"JPN"},{no:"36",cc:"ITA"},{no:"48",cc:"USA"},{no:"52",cc:"CHE"},{no:"95",cc:"SWE"}],
+ {no:"",cc:"CAN",team:"ECLIPSE ÉTS",car:"Éclipse 12"},{no:"85",cc:"CHE",team:"αCENTAURI SOLAR RACING",car:"Silvretta"},{no:"48",cc:"HUN",team:"JOHN VON NEUMANN UNIVERSITY",car:"NMS-1"},
+ {no:"88",cc:"JPN",team:"KOGAKUIN UNIVERSITY SOLAR TEAM",car:"Cygnus"},{no:"",cc:"KOR",team:"SEOUL NATIONAL UNIVERSITY SOLAR CAR TEAM",car:"SNUONE"},
+ null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],
 flag(c,cc,x,y,w,h){ const v=(cols)=>cols.forEach((k,i)=>{ c.fillStyle=k; c.fillRect(x+i*w/cols.length,y,w/cols.length+0.5,h); }), hz=(cols)=>cols.forEach((k,i)=>{ c.fillStyle=k; c.fillRect(x,y+i*h/cols.length,w,h/cols.length+0.5); });
  switch(cc){
   case "JPN": c.fillStyle="#fff"; c.fillRect(x,y,w,h); c.fillStyle="#bc002d"; c.beginPath(); c.arc(x+w/2,y+h/2,h*0.3,0,7); c.fill(); break;
   case "ROU": v(["#002b7f","#fcd116","#ce1126"]); break; case "BEL": v(["#000","#fdda24","#ef3340"]); break; case "ITA": v(["#009246","#fff","#ce2b37"]); break; case "FRA": v(["#0055a4","#fff","#ef4135"]); break;
-  case "NLD": hz(["#ae1c28","#fff","#21468b"]); break; case "DEU": hz(["#000","#dd0000","#ffce00"]); break;
+  case "NLD": hz(["#ae1c28","#fff","#21468b"]); break; case "HUN": hz(["#ce2939","#fff","#477050"]); break;
+  case "CAN": v(["#d52b1e","#fff","#fff","#d52b1e"]); c.fillStyle="#d52b1e"; c.beginPath(); c.moveTo(x+w/2,y+h*0.22); c.lineTo(x+w*0.6,y+h*0.62); c.lineTo(x+w*0.4,y+h*0.62); c.closePath(); c.fill(); c.fillRect(x+w/2-w*0.015,y+h*0.6,w*0.03,h*0.18); break;
+  case "KOR": c.fillStyle="#fff"; c.fillRect(x,y,w,h); c.fillStyle="#cd2e3a"; c.beginPath(); c.arc(x+w/2,y+h/2,h*0.25,Math.PI,0); c.fill(); c.fillStyle="#0047a0"; c.beginPath(); c.arc(x+w/2,y+h/2,h*0.25,0,Math.PI); c.fill();
+   c.fillStyle="#000"; for(const [px,py] of [[0.18,0.22],[0.82,0.22],[0.18,0.78],[0.82,0.78]]) c.fillRect(x+w*px-w*0.06,y+h*py-h*0.08,w*0.12,h*0.16); break; case "DEU": hz(["#000","#dd0000","#ffce00"]); break;
   case "SWE": c.fillStyle="#006aa7"; c.fillRect(x,y,w,h); c.fillStyle="#fecc00"; c.fillRect(x+w*0.31,y,w*0.16,h); c.fillRect(x,y+h*0.4,w,h*0.2); break;
   case "CHE": c.fillStyle="#da291c"; c.fillRect(x,y,w,h); c.fillStyle="#fff"; c.fillRect(x+w/2-h*0.1,y+h*0.2,h*0.2,h*0.6); c.fillRect(x+w/2-h*0.3,y+h*0.4,h*0.6,h*0.2); break;
   case "CHN": c.fillStyle="#de2910"; c.fillRect(x,y,w,h); c.fillStyle="#ffde00"; c.beginPath(); c.arc(x+w*0.18,y+h*0.28,h*0.14,0,7); c.fill(); break;
@@ -523,12 +529,12 @@ flag(c,cc,x,y,w,h){ const v=(cols)=>cols.forEach((k,i)=>{ c.fillStyle=k; c.fillR
  c.strokeStyle="rgba(0,0,0,0.25)"; c.lineWidth=2; c.strokeRect(x,y,w,h);
 },
 teamSign(t){ // 1024×256 の看板テクスチャ
- const key="sign"+t.no+t.cc; this._tb=this._tb||{}; if(this._tb[key]) return this._tb[key];
+ const key="sign"+t.no+t.cc+t.team; this._tb=this._tb||{}; if(this._tb[key]) return this._tb[key];
  const cv=document.createElement("canvas"); cv.width=1024; cv.height=256; const c=cv.getContext("2d");
  c.fillStyle="#f7f7f4"; c.fillRect(0,0,1024,256);
  c.fillStyle="#f5a23c"; c.fillRect(0,214,720,42);                                  // 下のオレンジ帯
  c.fillStyle="#1d1d1d"; c.font="bold 22px Arial,Helvetica,sans-serif"; c.textBaseline="middle"; c.textAlign="left"; c.fillText("Challenger Class",40,236);
- c.fillStyle="#22357a"; c.textAlign="center"; c.font="bold 112px Arial Narrow,Arial,Helvetica,sans-serif"; c.fillText(t.no,105,92);
+ c.fillStyle="#22357a"; c.textAlign="center"; c.font="bold 112px Arial Narrow,Arial,Helvetica,sans-serif"; if(t.no) c.fillText(t.no,105,92);
  this.flag(c,t.cc,32,152,54,36); c.font="bold 38px Arial,Helvetica,sans-serif"; c.textAlign="left"; c.fillText(t.cc,96,172);
  c.fillStyle="#c9c9c9"; c.fillRect(200,24,3,170);
  const name=t.team||("TEAM "+t.no), car=t.car||"";
@@ -549,7 +555,7 @@ teamSign(t){ // 1024×256 の看板テクスチャ
 },
 garageFront(grp,bs,at,al,k,open){
  const T=this.track(), ry=-Math.atan2(T.sd[0],-T.sd[1])+Math.PI, FRONT=24, BW=this.GARAGE_W, H1=6.2, DW=5.8, DH=3.4, GREEN=0x2f4f43;
- const t=this.TEAMS[k%this.TEAMS.length], pw=(BW-DW)/2;
+ const t=this.TEAMS[k]||null, pw=(BW-DW)/2;
  for(const sd of [-1,1]){ const ac=al+sd*(DW/2+pw/2);
   at(ac,FRONT-0.2,0,0.4,3.7,pw-0.1,"box","solid",GREEN);                                 // 濃緑のブロック壁
   for(let r=1;r<9;r++) at(ac,FRONT-0.405,r*0.41,0.01,0.02,pw-0.15,"box","solid",0x27443a);   // 目地
@@ -567,15 +573,8 @@ garageFront(grp,bs,at,al,k,open){
   const m=new THREE.Mesh(new THREE.PlaneGeometry(0.9,0.9),new THREE.MeshLambertMaterial({map:tx,transparent:true,depthWrite:false}));
   const [x,z]=this.SW(al-DW/2-0.7,FRONT-0.42); m.position.set(x,2.6,z); m.rotation.y=ry+Math.PI/2; grp.add(m); }
  // チーム看板 (シャッターの真上)
- { const m=new THREE.Mesh(new THREE.PlaneGeometry(4.2,1.05),new THREE.MeshLambertMaterial({map:this.teamSign(t)}));
+ if(t){ const m=new THREE.Mesh(new THREE.PlaneGeometry(4.2,1.05),new THREE.MeshLambertMaterial({map:this.teamSign(t)}));
   const [x,z]=this.SW(al,FRONT-0.56); m.position.set(x,DH+0.12+0.52,z); m.rotation.y=ry+Math.PI/2; grp.add(m); }
- // 2 階の手すりに国旗とチームの横断幕
- if(k%3!==1){ const fcv=document.createElement("canvas"); fcv.width=192; fcv.height=128; this.flag(fcv.getContext("2d"),t.cc,0,0,192,128);
-  const ft=new THREE.CanvasTexture(fcv); ft.encoding=THREE.sRGBEncoding;
-  const fm=new THREE.Mesh(new THREE.PlaneGeometry(4.2,2.4),new THREE.MeshLambertMaterial({map:ft,side:THREE.DoubleSide}));
-  const [x,z]=this.SW(al+3.2,FRONT-0.1); fm.position.set(x,H1+0.35+1.0,z); fm.rotation.y=ry+Math.PI/2; grp.add(fm);
-  const bn=new THREE.Mesh(new THREE.PlaneGeometry(6.6,2.0),new THREE.MeshLambertMaterial({map:this.textBoard(t.team||("TEAM "+t.no),"#ffffff","#22357a"),side:THREE.DoubleSide}));
-  const [bx,bz]=this.SW(al-2.4,FRONT-0.1); bn.position.set(bx,H1+0.35+1.1,bz); bn.rotation.y=ry+Math.PI/2; grp.add(bn); }
  // ゴミ箱 (ウィリービン) とコーン
  at(al-DW/2-1.9,FRONT-0.9,0,0.65,1.05,0.6,"box","solid",0x1f3a2c); at(al-DW/2-1.9,FRONT-0.9,1.05,0.72,0.05,0.66,"box","solid",0x173024);
  if(open&&k%2===0){ const [cx,cz]=this.SW(al,FRONT-1.2); bs.get("solid").add(tpl("cone7"),M4(cx,0,cz,0.22,0.75,0.22),linCol(0xff5a00)); }
