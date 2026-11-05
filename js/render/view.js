@@ -800,11 +800,7 @@ if(es.burst&&es.v>2) this.car.position.y+=Math.random()*0.04;
 if(this.car.userData.brakeMat)
 this.car.userData.brakeMat.color.setHex((es.brakePhys>0.05||es.brakeRegen>0.05)?0xff2222:0x4a0505);
 updateWinkers(this.car,es);
-if(this.car.userData.rearCombo){ const on=(performance.now()%800)<400, L=es.signal===-1||es.signal===2, R=es.signal===1||es.signal===2, brk=es.brakePhys>0.05||es.brakeRegen>0.05;
- for(const c of this.car.userData.rearCombo){ const blink=(c.side<0?L:R);
-  if(blink&&on){ c.m.color.setHex(0xffa012); c.m.opacity=1; }           // ウインカー/ハザード点灯 (点滅の明)
-  else if(brk){ c.m.color.setHex(0xff1a1a); c.m.opacity=1; }            // ブレーキ
-  else { c.m.color.setHex(0xd8dde2); c.m.opacity=.55; } } }             // 消灯: 透明なレンズ
+updateRearCombo(this.car,es);
 View.updateDash(es);
 if(View.yokeMesh) View.yokeMesh.rotation.z=-Input.steer*.9;
 // ヨーク回転: 右ステア→右へ回転(車の右旋回と同じ向き)
