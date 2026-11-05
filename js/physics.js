@@ -95,7 +95,7 @@ function motorParams(power){
 function motorModel(I,v,soc,power){
 const Vb=VOC(soc), mp=motorParams(power);
 // 無負荷回転数 (公称 96 V) と整合する逆起電力係数
-const ke=96/(mp.rpm/60*2*Math.PI*PRO.tireR);       // E = ke·v
+const ke=(PRO.motorVnom||96)/(mp.rpm/60*2*Math.PI*PRO.tireR);       // E = ke·v
 const E=ke*Math.max(0,v), vMax=Vb/ke;
 const phaseMax=PRO.phaseMaxA>0? PRO.phaseMaxA : 2*P.motorMaxA;
 const Pctrl0= I>0.05? PRO.ctrlW : 0;
@@ -112,7 +112,7 @@ return {F,Pelec,Vb,eff,vMax,Iph};
 /* 回生: 相電流指令 Ir (回生強度×最大電流)。逆起電力が電圧降下を上回る分だけ発電。低速では効かない */
 function regenModel(cmd,v,soc,power){
 const Vb=VOC(soc), mp=motorParams(power);
-const ke=96/(mp.rpm/60*2*Math.PI*PRO.tireR), E=ke*Math.max(0,v);
+const ke=(PRO.motorVnom||96)/(mp.rpm/60*2*Math.PI*PRO.tireR), E=ke*Math.max(0,v);
 let Ir=cmd*P.regenStrength*P.motorMaxA;
 Ir=Math.min(Ir, Math.max(0,E/mp.R*0.5));           // 発電できる範囲 (E > Ir·R)
 const F=mp.kt*Ir;

@@ -17,6 +17,11 @@ const VEH=(()=>{
  if(A.Cd!=null){ P.Cd=A.Cd; BODY_SHAPES.wadai.Cd=A.Cd; }
  if(A.frontal!=null){ P.frontal=A.frontal; BODY_SHAPES.wadai.frontal=A.frontal; }
  if(S.battery&&S.battery.Wh!=null) P.batteryWh=S.battery.Wh;
+ // モーター: 無負荷回転数 (公称電圧) から逆起電力係数を出し、力定数 kt を同じ値にそろえる (電力の収支が合う)
+ const Mo=S.motor;
+ if(Mo){ if(Mo.noLoadRpm) PRO.noLoadRpm=Mo.noLoadRpm; if(Mo.rWinding) PRO.rWinding=Mo.rWinding; if(Mo.phaseMaxA) PRO.phaseMaxA=Mo.phaseMaxA;
+  if(Mo.ironK1!=null) PRO.ironK1=Mo.ironK1; if(Mo.ironK2!=null) PRO.ironK2=Mo.ironK2; if(Mo.ctrlW!=null) PRO.ctrlW=Mo.ctrlW;
+  PRO.kt=(Mo.vNom||96)/(PRO.noLoadRpm/60*2*Math.PI)/PRO.tireR; PRO.motorVnom=Mo.vNom||96; }
  if(S.label) BODY_SHAPES.wadai.desc=S.label;
  return v;
 })();
