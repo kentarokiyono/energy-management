@@ -94,6 +94,7 @@ const zm=(Pp[i][r].y+Pp[i][r2].y)/2;
 let b=TYP[i][r]==="K"?bS:(u<O.orangeU?bO:(zm<O.skirtZ?bS:bW));
 if(LIV&&TYP[i][r]!=="K"){ const uc=(i+.5)/O.seg, zb2=zBell(uc), hd2=zHull(uc), zn=clamp((zm-zb2)/Math.max(.01,hd2-zb2),0,1);
  let c=yataLivery(uc,zn); if(c==="O"&&zn>0.86&&hullW(uc)<halfW(uc)-0.05) c="W";   // デッキより細い後部では上縁のオレンジは出さない
+ if(BF!=null&&(r===0||r===R-1)) c= uc<0.10? "O" : "K";   // 底面 (平らな部分): 黒。先端だけオレンジ
  b= c==="O"?bO : c==="K"?bS : bW; }
 const a=vid(b,Pp,Uv,i,r),c=vid(b,Pp,Uv,i,r2),d=vid(b,Pp,Uv,i+1,r2),e=vid(b,Pp,Uv,i+1,r);
 b.idx.push(a,c,e,c,d,e);
