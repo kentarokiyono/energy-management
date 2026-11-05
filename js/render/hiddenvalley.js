@@ -127,6 +127,19 @@ buildTerrain(grp){
   veg.push(cv.r,cv.g,cv.b, (runoff||flat)?0.85:0.66);
   misc.push(flat||runoff?0:0.35, flat?0:0.05, 0);
  }
+ // 舗装面 (コース・ピットレーン・ドラッグストリップ) の下では地面を必ず路面より下げる:
+ // 舗装上の点を含むセルの 4 頂点を「路面高さ − 0.15 m」以下にする (格子の補間で地面が路面の上に出ないように)
+ const clampAt=(x,z,ys)=>{ const fi=Math.floor((x-X0)/CS), fj=Math.floor((z-Z0)/CS);
+  for(const [di,dj] of [[0,0],[1,0],[0,1],[1,1]]){ const i=fi+di, j=fj+dj; if(i<0||j<0||i>=nx||j>=nz) continue; const k=j*nx+i; if(H[k]>ys-0.15){ H[k]=ys-0.15; pos[k*3+1]=H[k]; } } };
+ for(let i=0;i<T.n;i++){ const p=T.pts[i], q=T.pts[(i+1)%T.n], r=T.right[i];
+  for(let t=0;t<1;t+=0.34){ const x0=p.x+(q.x-p.x)*t, z0=p.z+(q.z-p.z)*t, y0=p.y+(q.y-p.y)*t;
+   for(let o=-T.hw[i]-1.6;o<=T.hw[i]+1.6;o+=1.5) clampAt(x0+r[0]*o,z0+r[1]*o,y0); } }
+ for(const [ca,cb,side,mx] of this.corners()){ if(mx<1/45) continue;   // 急コーナー外側の砂利帯 (路面 −0.04 m) も埋めない
+  const a2=(ca-6+T.n)%T.n, cnt=((cb+10-a2)%T.n+T.n)%T.n;
+  for(let k=0;k<=cnt;k++){ const i=(a2+k)%T.n, p=T.pts[i], r=T.right[i]; for(let o=T.hw[i]+2;o<=T.hw[i]+26.5;o+=1.5) clampAt(p.x-r[0]*side*o,p.z-r[1]*side*o,p.y-0.04); } }
+ { const A=HV_DATA.pit; for(let k=0;k<A.length-1;k++){ const a=A[k], c=A[k+1], fx=c[0]-a[0], fz=c[2]-a[2], L=Math.hypot(fx,fz)||1, rx=-fz/L, rz=fx/L;
+   for(let t=0;t<1;t+=0.34) for(let o=-3.5;o<=9.5;o+=1.5) clampAt(a[0]+fx*t+rx*o,a[2]+fz*t+rz*o,0.015); } }
+ { const [a0,a1]=this.stripRange(); for(let al=a0-2;al<=a1+2;al+=2) for(let lt=-this.STRIP_HALF-1;lt<=this.STRIP_HALF+1;lt+=1.5){ const [x,z]=this.SW(al,this.STRIP_OFF+lt); clampAt(x,z,0.03); } }
  for(let j=0;j<nz-1;j++) for(let i=0;i<nx-1;i++){ const a=j*nx+i,b=a+1,c=a+nx,d=c+1; idx.push(a,c,b, b,c,d); }
  const g=new THREE.BufferGeometry();
  g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));
@@ -219,7 +232,8 @@ wall(i0,i1,off,h,mat,yBase=0,step=2){
 wallLine(pts,h,mat,yBase=0){
  const pos=[],uv=[],idx=[]; let acc=0;
  for(let k=0;k<pts.length;k++){ const q=pts[k]; if(k>0) acc+=Math.hypot(q.x-pts[k-1].x,q.z-pts[k-1].z);
-  pos.push(q.x,q.y+yBase,q.z, q.x,q.y+yBase+h,q.z); uv.push(acc/4,0, acc/4,h/2);
+  const y=this.heightAt? Math.max(this.heightAt(q.x,q.z),q.y-0.6) : q.y;   // 地面の高さに立てる (地形に埋まらない・浮かない)
+  pos.push(q.x,y+yBase,q.z, q.x,y+yBase+h,q.z); uv.push(acc/4,0, acc/4,h/2);
   if(k>0){ const r=(k-1)*2; idx.push(r,r+2,r+1, r+1,r+2,r+3); } }
  const g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); g.setAttribute("uv",new THREE.Float32BufferAttribute(uv,2)); g.setIndex(idx); g.computeVertexNormals();
  const m=new THREE.Mesh(g,mat); m.castShadow=!mat.transparent; m.receiveShadow=true; return m;
@@ -302,7 +316,7 @@ build(){
  const vc=(o)=>new THREE.MeshLambertMaterial(Object.assign({vertexColors:true},o));
  const C=(hex)=>new THREE.Color(hex).convertSRGBToLinear();
  // 路面
- const asph=new THREE.MeshLambertMaterial({map:this.raceTex()});
+ const asph=new THREE.MeshLambertMaterial({map:this.raceTex(),polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
  grp.add(this.band(0,0,i=>-HW[i],i=>HW[i],0.0,asph,{uvL:8}));
  // ラバー(走行ライン): ACのラインを中心線へ投影してオフセット化
  const rub=new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.22,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2});
@@ -335,7 +349,7 @@ build(){
   let acc=0, cnt2=0;
   for(let k=0;k<cnt;k++){ const i=(a2+k)%n, j=(i+1)%n, p=T.pts[i], q=T.pts[j], r=T.right[i], r2=T.right[j];
    const oi=-side*(HW[i]+27.5), oj=-side*(HW[j]+27.5), xi=p.x+r[0]*oi, zi=p.z+r[1]*oi, xj=q.x+r2[0]*oj, zj=q.z+r2[1]*oj, L=Math.hypot(xj-xi,zj-zi);
-   while(acc<L){ const t=acc/L, x=xi+(xj-xi)*t, z=zi+(zj-zi)*t, y=p.y+(q.y-p.y)*t;
+   while(acc<L){ const t=acc/L, x=xi+(xj-xi)*t, z=zi+(zj-zi)*t, y=this.heightAt(x,z);
     bs.get("solid").add(tpl("cyl8"),M4(x,y,z,0.75,1.1,0.75),linCol(0x18181a));
     bs.get("solid").add(tpl("box"),M4(x-r[0]*side*0.8,y+0.05,z-r[1]*side*0.8,0.05,1.05,1.45,-Math.atan2(xj-xi,-(zj-zi))),linCol(Math.floor(cnt2/2)%2?0xc8202a:0xeeeeee));
     acc+=1.4; cnt2++; }
