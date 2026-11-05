@@ -41,11 +41,15 @@ document.getElementById("tilt-slider").value=Engine.st.tiltDeg;
 document.getElementById("tilt-val").textContent=Engine.st.tiltDeg+"°";
 Radio.log.length=0;
 Route.build(P.timeScale, P.mode!=="race");   // イベントモードは等倍ゾーンなし
+const chap= P.mode==="race"? parseInt((document.getElementById("chapter")||{}).value||"0") : 0;
+if(chap>0) Engine.applyChapter(chap);   // チャプター: CS の 2 km 手前から
 View.init(); View.buildCar(); View.buildEscorts();
 initChart(); lastChartPush=0;
 running=true; paused=false; lastT=performance.now();
 requestAnimationFrame(loop);
 if(P.mode==="event") toast("🎪 90秒スコアアタック!B=ブースト","#22d3ee");
+else if(Engine.st.chapter){ const c=RP_CS.find(q=>q.n===Engine.st.chapter), es=Engine.st, h=Math.floor(es.hour), mi=Math.floor(es.hour%1*60);
+ Radio.push(`チャプター: CS${c.n} ${c.name} の 2 km 手前から。Day${es.day} ${h}:${String(mi).padStart(2,"0")}、電池 ${(es.soc*100).toFixed(0)} % (標準ペース 70 km/h の見積もり)。`); }
 else Radio.push("Day1 8:00 Darwinスタート!W/↑でスロットル開度を設定してください。まずは制限速度に注意。");
 }
 function loop(t){
