@@ -205,7 +205,6 @@ b.addEventListener("pointerdown",on);
 b.addEventListener("pointerup",off); b.addEventListener("pointerleave",off); b.addEventListener("pointercancel",off);
 });
 let toastTimer=null;
-/* HTML に入れる外部由来の文字列を無害化 */
 function escHtml(t){ return String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 /* 旧配色 (ネオン) の色指定をテーマ色へ */
 function themeColor(c){ c=String(c||"").toLowerCase();

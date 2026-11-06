@@ -324,7 +324,6 @@ pack(){
  return new Uint8Array(out);
 },
 unpack(u){
- // URL から来る値は信用しない: 範囲外を読んだら失敗、件数・値は上限で切る
  let p=0; const rd=()=>{ if(p>=u.length) throw new Error("short"); return u[p++]; };
  const ver=rd(); if(ver!==1&&ver!==2) throw new Error("ver");
  const lv=rd()?"kid":"adult", total=Math.min(rd()<<8|rd(),1000), scores=[], ns=ver===1?5:Math.min(rd(),8); for(let i=0;i<ns;i++) scores.push(Math.min(rd(),100));
@@ -342,7 +341,7 @@ async encode(){
  if(typeof CompressionStream!=="undefined"){ try{ const cs=new Blob([raw]).stream().pipeThrough(new CompressionStream("deflate-raw")); const z=new Uint8Array(await new Response(cs).arrayBuffer()); return "z"+this.b64(z); }catch(e){} }
  return "u"+this.b64(raw);
 },
-REPLAY_MAX_CODE:12000, REPLAY_MAX_BYTES:65536,   // 圧縮爆弾・巨大 URL 対策
+REPLAY_MAX_CODE:12000, REPLAY_MAX_BYTES:65536,
 async decode(code){
  if(typeof code!=="string"||code.length<2||code.length>this.REPLAY_MAX_CODE||!/^[zu][A-Za-z0-9_-]+$/.test(code)) throw new Error("code");
  if(code[0]==="z"){
