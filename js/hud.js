@@ -100,6 +100,10 @@ chart.data.datasets[4].data.push(es.lastMotorW+(es.disconnected?0:P.auxW));
 if(chart.data.labels.length>400){ chart.data.labels.shift(); chart.data.datasets.forEach(d=>d.data.shift()); }
 chart.update("none");
 }
+/* 停車中パネル (ティルト角・残り時間): たたむと 1 行だけ。状態はブラウザに保存 */
+let stopFold=false; try{ stopFold=localStorage.getItem("bwsc_stopFold")==="1"; }catch(e){}
+function toggleStopFold(){ stopFold=!stopFold; try{ localStorage.setItem("bwsc_stopFold",stopFold?"1":"0"); }catch(e){} applyStopFold(); }
+function applyStopFold(){ const b=document.getElementById("stop-body"), f=document.getElementById("stop-fold"); if(b) b.classList.toggle("hidden",stopFold); if(f) f.textContent=stopFold?"▼":"▲"; }
 function updateHUD(){
 const es=Engine.st; if(!es) return;
 const bh=document.getElementById("bottom-hud");
@@ -174,8 +178,8 @@ document.getElementById("hud-brake").style.width=(bk*100)+"%";
 document.getElementById("hud-brake-kind").textContent= es.brakeRegen>0.1?"(回生)": es.brakePhys>0.1?"(物理)":"";
 const ov=document.getElementById("stop-overlay");
 const showTilt=(es.stopTimer>0||es.camp||StopMenu.mode==="charge");
-if(showTilt){
-ov.classList.remove("hidden"); ov.classList.add("flex");
+if(showTilt&&!(typeof Crew!=="undefined"&&Crew.busy()&&Crew.phase==="outside")){   // 車外を歩いている間は出さない
+ov.classList.remove("hidden"); applyStopFold();
 const kindTitle={cp:"🛑 CONTROL STOP ― "+(es.cpName||""),tire:"🛞 タイヤ交換中",check:"🔍 機器チェック中"}[es.stopKind];
 document.getElementById("tilt-slider").disabled=!!es.tiltLocked;
 if(es.stopTimer>0){

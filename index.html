@@ -17,7 +17,7 @@
 <div class="text-xs tracking-[.4em] text-cyan-600 mb-1">BRIDGESTONE WORLD SOLAR CHALLENGE ― 2025 ROUTE</div>
 <h1 class="text-4xl font-black neon-text tracking-wider">BWSC 3D レーシングシミュレータ</h1>
 <div class="text-sm text-cyan-200/70 mt-2">Darwin → Adelaide 3,027 km ― Wakayama Univ. Solar Car Team</div>
-<div class="text-[10px] text-cyan-200/40 mt-1 mono">build 20261106-rev1</div>
+<div class="text-[10px] text-cyan-200/40 mt-1 mono">build 20261106-ui1</div>
 </div>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
 <div id="mode-race" class="card-select active" onclick="selectMode('race')">
@@ -248,11 +248,15 @@
 <div class="hud-label text-emerald-400">📻 INCOMING RADIO</div>
 <div id="radio-pop-text" class="text-sm text-emerald-100 font-bold mt-1"></div>
 </div>
-<div id="stop-overlay" class="absolute inset-0 hidden items-center justify-center pointer-events-none" style="background:rgba(0,0,10,.3)">
-<div class="panel px-8 py-5 text-center pointer-events-auto" style="min-width:360px">
-<div class="text-2xl font-black text-amber-300" id="stop-title">CONTROL STOP</div>
-<div class="mono text-4xl neon-text my-2" id="stop-timer">30:00</div>
-<div class="text-sm text-cyan-100/70 mb-2" id="stop-desc"></div>
+<div id="stop-overlay" class="absolute hidden z-20" style="top:64px;left:50%;transform:translateX(-50%);pointer-events:none">
+<div class="panel px-3 py-2 text-center" style="width:300px;pointer-events:auto">
+<div class="flex items-center justify-between gap-2">
+<div class="text-sm font-black text-amber-300 text-left truncate" id="stop-title">CONTROL STOP</div>
+<div class="flex items-center gap-2"><span class="mono text-lg neon-text" id="stop-timer">30:00</span>
+<button class="btn text-[10px] py-0 px-2" id="stop-fold" onclick="toggleStopFold()" title="たたむ/広げる">▲</button></div>
+</div>
+<div id="stop-body" class="mt-1">
+<div class="text-[11px] text-cyan-100/70 mb-1 text-left" id="stop-desc"></div>
 <div id="tilt-ctrl" class="text-left text-xs mb-2">
 <div class="flex justify-between"><span>アッパーカウル ティルト角</span><span class="mono text-cyan-300" id="tilt-val">40°</span></div>
 <input type="range" id="tilt-slider" min="0" max="80" step="1" value="40" oninput="onTilt(this.value)">
@@ -261,6 +265,7 @@
 <div class="flex gap-2 justify-center">
 <button class="btn text-xs" id="stop-resume" onclick="StopMenu.resume()">▶ 走行再開</button>
 <button class="btn btn-amber text-xs" id="stop-skip" onclick="Engine.skipStop()">⏩ 早送り</button>
+</div>
 </div>
 </div>
 </div>
@@ -358,34 +363,34 @@
 <button class="btn" onclick="quitToMenu()">メニューへ戻る</button>
 </div>
 </div>
-<script src="js/data/route-2025.js?v=20261106-rev1"></script>
-<script src="js/data/route-plan.js?v=20261106-rev1"></script>
-<script src="js/data/route-osm.js?v=20261106-rev1"></script>
-<script src="js/route.js?v=20261106-rev1"></script>
-<script src="js/data.js?v=20261106-rev1"></script>
-<script src="js/data/vehicle-private.js?v=20261106-rev1" onerror="window.__vehPrivMissing=true"></script>
-<script src="js/vehicle.js?v=20261106-rev1"></script>
-<script src="js/physics.js?v=20261106-rev1"></script>
-<script src="js/setup-ui.js?v=20261106-rev1"></script>
-<script src="js/audio-radio.js?v=20261106-rev1"></script>
-<script src="js/engine.js?v=20261106-rev1"></script>
-<script src="js/controls.js?v=20261106-rev1"></script>
-<script src="js/collide.js?v=20261106-rev1"></script>
-<script src="js/render/quality.js?v=20261106-rev1"></script>
-<script src="js/render/textures.js?v=20261106-rev1"></script>
-<script src="js/render/yata.js?v=20261106-rev1"></script>
-<script src="js/render/sky.js?v=20261106-rev1"></script>
-<script src="js/render/biome.js?v=20261106-rev1"></script>
-<script src="js/render/geobatch.js?v=20261106-rev1"></script>
-<script src="js/render/materials.js?v=20261106-rev1"></script>
-<script src="js/render/props.js?v=20261106-rev1"></script>
-<script src="js/render/scenery.js?v=20261106-rev1"></script>
-<script src="js/data/hidden-valley.js?v=20261106-rev1"></script>
-<script src="js/render/hiddenvalley.js?v=20261106-rev1"></script>
-<script src="js/render/view.js?v=20261106-rev1"></script>
-<script src="js/crew.js?v=20261106-rev1"></script>
-<script src="js/hud.js?v=20261106-rev1"></script>
-<script src="js/test-mode.js?v=20261106-rev1"></script>
-<script src="js/main.js?v=20261106-rev1"></script>
+<script src="js/data/route-2025.js?v=20261106-ui1"></script>
+<script src="js/data/route-plan.js?v=20261106-ui1"></script>
+<script src="js/data/route-osm.js?v=20261106-ui1"></script>
+<script src="js/route.js?v=20261106-ui1"></script>
+<script src="js/data.js?v=20261106-ui1"></script>
+<script src="js/data/vehicle-private.js?v=20261106-ui1" onerror="window.__vehPrivMissing=true"></script>
+<script src="js/vehicle.js?v=20261106-ui1"></script>
+<script src="js/physics.js?v=20261106-ui1"></script>
+<script src="js/setup-ui.js?v=20261106-ui1"></script>
+<script src="js/audio-radio.js?v=20261106-ui1"></script>
+<script src="js/engine.js?v=20261106-ui1"></script>
+<script src="js/controls.js?v=20261106-ui1"></script>
+<script src="js/collide.js?v=20261106-ui1"></script>
+<script src="js/render/quality.js?v=20261106-ui1"></script>
+<script src="js/render/textures.js?v=20261106-ui1"></script>
+<script src="js/render/yata.js?v=20261106-ui1"></script>
+<script src="js/render/sky.js?v=20261106-ui1"></script>
+<script src="js/render/biome.js?v=20261106-ui1"></script>
+<script src="js/render/geobatch.js?v=20261106-ui1"></script>
+<script src="js/render/materials.js?v=20261106-ui1"></script>
+<script src="js/render/props.js?v=20261106-ui1"></script>
+<script src="js/render/scenery.js?v=20261106-ui1"></script>
+<script src="js/data/hidden-valley.js?v=20261106-ui1"></script>
+<script src="js/render/hiddenvalley.js?v=20261106-ui1"></script>
+<script src="js/render/view.js?v=20261106-ui1"></script>
+<script src="js/crew.js?v=20261106-ui1"></script>
+<script src="js/hud.js?v=20261106-ui1"></script>
+<script src="js/test-mode.js?v=20261106-ui1"></script>
+<script src="js/main.js?v=20261106-ui1"></script>
 </body>
 </html>

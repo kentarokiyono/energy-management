@@ -10,10 +10,11 @@ s:0, lateral:-2.4, cam:0, carSlope:0, upcomingGrade:0, redSignalKm:null,
 SEG:2.5, ROAD_W:5.0, SHOULDER:8.5, visOrigin:0, branches:[], junctions:[],
 gen:{grade:0,targetGrade:0,gradeRemain:400,curv:0,targetCurv:0,curvRemain:600},
 init(){
-const canvas=document.getElementById("three-canvas");
-this.renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+// 描画エンジンは最初の 1 回だけ作って使い回す (同じ canvas に作り直すと GL の状態がずれ、2 回目以降に車体が真っ白になる)
+if(!this.renderer){ const canvas=document.getElementById("three-canvas");
+ this.renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+ this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); }
 this.renderer.setSize(innerWidth,innerHeight);
-this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
 this.scene=new THREE.Scene();
 this.scene.background=null;
 setupRenderQuality(this.renderer,this.scene);
