@@ -105,6 +105,8 @@ ccEl.style.color= rem<0?"#d23a2e": rem<1?"#e2b21f":"#8b9097";
 if(rem<0&&!es.radioCd["closed"+next.km]){ es.radioCd["closed"+next.km]=true;
 Radio.push(`${next.name} のクローズ時刻を超過しました。公式記録外走行となります。`); }
 } else ccEl.textContent="";
+if(Engine.gridWait&&Engine.gridWait()){ const sec=Math.max(0,(es.gridStartH-es.hour)*3600), hm=es.gridStartH;
+ ccEl.textContent=`発進待ち P${es.grid} ― ${String(Math.floor(hm)).padStart(2,"0")}:${String(Math.round(hm%1*60)).padStart(2,"0")} まで ${Math.floor(sec/60)}:${String(Math.floor(sec%60)).padStart(2,"0")}`; ccEl.style.color="#e2b21f"; }
 document.getElementById("hud-limit").textContent=speedLimitAt(es.km);
 document.getElementById("hud-speed").textContent=Math.round(es.v*3.6);
 { const g=document.getElementById("hud-gear"); if(g){ g.textContent=es.gear==="R"?"R":"D"; g.style.color=es.gear==="R"?"#d23a2e":"#f26b1d"; } }

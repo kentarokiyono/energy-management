@@ -53,7 +53,8 @@ requestAnimationFrame(loop);
 if(P.event) EventGame.begin();
 else if(Engine.st.chapter){ const c=RP_CS.find(q=>q.n===Engine.st.chapter), es=Engine.st, h=Math.floor(es.hour), mi=Math.floor(es.hour%1*60);
  Radio.push(`チャプター: CS${c.n} ${c.name} の 2 km 手前から。Day${es.day} ${h}:${String(mi).padStart(2,"0")}、電池 ${(es.soc*100).toFixed(0)} % (標準ペース 70 km/h の見積もり)。`); }
-else Radio.push("Day1 8:00 Darwinスタート!W/↑でスロットル開度を設定してください。まずは制限速度に注意。");
+else { const es=Engine.st, m=Math.round((es.gridStartH-8)*60);
+ Radio.push(`Day1 Darwin。スタートは予選順で 1 台ずつ、08:30 までに全車が出ます。自車はグリッド P${es.grid} / ${es.teams.length+1}${es.qualiLap?` (予選 ${fmtLap(es.qualiLap)})`:" (予選未計測: 中位)"}、発進は 08:${String(m).padStart(2,"0")}。W/↑ でスロットル開度を設定。`); }
 }
 function loop(t){
 if(!running) return;
@@ -74,6 +75,7 @@ const es=Engine.st;
 let ts=Route.scaleAt(es.km);   // 右左折/信号/CS 付近は自動で等倍
 if(es.stopTimer>0) ts=Math.max(ts,300);
 if(es.camp) ts=Math.max(ts,es.disconnected?2400:300);
+if(Engine.gridWait()) ts=Math.max(ts,60);   // 発進待ちは早送り
 if(typeof Crew!=="undefined"&&Crew.busy()) ts=Crew.timeScale(es,ts);
 const dtS=dtR*ts;
 const sub=Math.max(1,Math.ceil(dtS/60));

@@ -222,6 +222,7 @@ if(this.lapPit){
  toast(`🅿 LAP ${this.laps.length}: ${fmtLap(this.t)} (${tag} ― 記録対象外)`,"#fbbf24");
 } else {
  if(!this.best||this.t<this.best) this.best=this.t;
+  if(!P.event&&this.t===this.best){ try{ const o=parseFloat(localStorage.getItem(Engine.QUALI_KEY)); if(!(o>0)||this.t<o) localStorage.setItem(Engine.QUALI_KEY,String(this.t)); }catch(e){} }   // レースのグリッドに使う
  toast(`🏁 LAP ${this.laps.length}: ${fmtLap(this.t)}${this.t===this.best?" (BEST)":""}`,"#34d399");
 }
 Snd.chime();
