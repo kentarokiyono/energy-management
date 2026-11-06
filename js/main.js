@@ -117,7 +117,7 @@ addEventListener("contextmenu",e=>e.preventDefault());
 addEventListener("keydown",e=>{if(e.key==="F5"||(e.ctrlKey&&e.key.toLowerCase()==="r"))e.preventDefault();});
 addEventListener("pointerdown",()=>{window._lastAct=performance.now();});
 const _sb=document.createElement("div");_sb.textContent="S";
-_sb.style.cssText="position:fixed;right:6px;bottom:6px;width:22px;height:22px;border-radius:50%;background:#223;z-index:99;opacity:.25;display:flex;align-items:center;justify-content:center;font-size:11px;color:#9ab;user-select:none;touch-action:none";
+_sb.style.cssText="position:fixed;left:50%;top:4px;margin-left:-11px;width:22px;height:22px;border-radius:50%;background:#223;z-index:99;opacity:.25;display:flex;align-items:center;justify-content:center;font-size:11px;color:#9ab;user-select:none;touch-action:none";
 let _sbT=null;
 _sb.addEventListener("pointerdown",e=>{e.stopPropagation();_sbT=setTimeout(()=>location.reload(),3000);});
 ["pointerup","pointerleave"].forEach(ev=>_sb.addEventListener(ev,()=>clearTimeout(_sbT)));

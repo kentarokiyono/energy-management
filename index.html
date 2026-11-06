@@ -7,9 +7,9 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<link rel="stylesheet" href="css/fonts.css?v=20261106-ui4">
-<link rel="stylesheet" href="css/style.css?v=20261106-ui4">
-<link rel="stylesheet" href="css/theme.css?v=20261106-ui4">
+<link rel="stylesheet" href="css/fonts.css?v=20261106-ui5">
+<link rel="stylesheet" href="css/style.css?v=20261106-ui5">
+<link rel="stylesheet" href="css/theme.css?v=20261106-ui5">
 <link rel="icon" href="assets/img/logo.svg">
 </head>
 <body>
@@ -47,7 +47,7 @@
 <button class="btn" onclick="openWheelConfig()"><span data-ic="wheel"></span> ハンコン割当</button>
 <span class="lb" id="gamepad-status">未検出</span>
 </div>
-<div class="build">BUILD 20261106-ui4</div>
+<div class="build">BUILD 20261106-ui5</div>
 </div>
 <div class="r">
 <div class="sec"><h4><span data-ic="car"></span>BODY / SOLAR CELL</h4>
@@ -268,7 +268,7 @@
 </div>
 </div>
 <div id="touch-ui" class="absolute inset-0 hidden" style="z-index:26;pointer-events:none">
-<div class="absolute bottom-2 left-1/2 -translate-x-1/2 panel px-4 py-1 text-center" style="pointer-events:auto">
+<div id="t-spd" class="absolute left-1/2 -translate-x-1/2 panel px-4 py-1 text-center" style="pointer-events:auto">
 <div class="flex items-center gap-1 justify-center">
 <span id="wl2" class="text-lg" style="color:#33373d"><span data-ic="chl"></span></span>
 <span class="mono font-black text-3xl" id="touch-speed">0</span>
@@ -276,30 +276,27 @@
 </div>
 <div class="hud-label" id="touch-thr">スロットル 0%</div>
 </div>
-<div class="absolute right-1 top-1/2 -translate-y-1/2 grid grid-cols-2 gap-1" style="pointer-events:auto">
-<button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="toggleSignal(-1)">⬅</button>
-<button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="toggleSignal(1)">➡</button>
-<button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="toggleSignal(2)">⚠</button>
-<button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="View.cam=(View.cam+1)%4">📷</button>
-<button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="togglePower()">⚙</button>
-<button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="toggleGear()">R/D</button>
-<button class="tbtn" style="padding:7px 9px;font-size:12px;background:rgba(242,107,29,.3);border-color:#f26b1d" onclick="boost()">🚀</button>
-<button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="StopMenu.open(true)">🔧</button>
-<button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="document.getElementById('ask-panel').classList.toggle('hidden')">📻</button>
+<div id="t-fn" style="pointer-events:auto">
+<button class="tbtn" onclick="toggleSignal(-1)" title="左ウインカー"><span data-ic="left"></span></button>
+<button class="tbtn" onclick="toggleSignal(2)" title="ハザード"><span data-ic="alert"></span></button>
+<button class="tbtn" onclick="toggleSignal(1)" title="右ウインカー"><span data-ic="right"></span></button>
+<button class="tbtn" onclick="toggleGear()" title="R / D">R/D</button>
+<button class="tbtn acc" onclick="boost()" title="ブースト"><span data-ic="rocket"></span></button>
+<button class="tbtn" onclick="View.cam=(View.cam+1)%4" title="カメラ"><span data-ic="camera"></span></button>
+<button class="tbtn" onclick="togglePower()" title="ECO / POWER"><span data-ic="settings"></span></button>
+<button class="tbtn" onclick="StopMenu.open(true)" title="停車メニュー"><span data-ic="wrench"></span></button>
+<button class="tbtn" onclick="document.getElementById('ask-panel').classList.toggle('hidden')" title="無線で質問"><span data-ic="radio"></span></button>
+<button class="tbtn" onclick="MapUI.toggle()" title="他チーム"><span data-ic="users"></span></button>
 </div>
-<div class="absolute bottom-2 left-2 flex gap-2" style="pointer-events:auto">
-<button class="tbtn" data-tk="a" style="padding:18px 22px"><span data-ic="chl"></span></button>
-<button class="tbtn" data-tk="d" style="padding:18px 22px"><span data-ic="chr"></span></button>
+<div id="t-steer" style="pointer-events:auto">
+<button class="tbtn" data-tk="a"><span data-ic="chl"></span></button>
+<button class="tbtn" data-tk="d"><span data-ic="chr"></span></button>
 </div>
-<div class="absolute bottom-2 right-2 flex flex-col gap-2 items-end" style="pointer-events:auto">
-<div class="flex gap-2">
-<button class="tbtn" data-tk="s" style="padding:10px 14px;font-size:13px">－</button>
-<button class="tbtn" data-tk="w" style="padding:10px 14px;font-size:13px">＋スロ</button>
-</div>
-<div class="flex gap-2">
-<button class="tbtn" data-tk="r" style="padding:10px 14px;font-size:13px">回生</button>
-<button class="tbtn" data-tk=" " style="padding:14px 16px;font-size:13px">ブレーキ</button>
-</div>
+<div id="t-ped" style="pointer-events:auto">
+<button class="tbtn" data-tk="s">スロ −</button>
+<button class="tbtn" data-tk="w">スロ ＋</button>
+<button class="tbtn" data-tk="r">回生</button>
+<button class="tbtn brk" data-tk=" ">ブレーキ</button>
 </div>
 </div>
 <div id="ot-pop" class="absolute bottom-40 right-3 panel px-4 py-3 hidden z-30" style="border-top:2px solid var(--warn);max-width:340px">
@@ -337,39 +334,39 @@
 <div style="display:flex;justify-content:flex-end"><button class="btn pri" onclick="quitToMenu()"><span data-ic="home"></span>メニューへ戻る</button></div>
 </div>
 </div>
-<script src="js/data/route-2025.js?v=20261106-ui4"></script>
-<script src="js/data/route-plan.js?v=20261106-ui4"></script>
-<script src="js/data/route-osm.js?v=20261106-ui4"></script>
-<script src="js/route.js?v=20261106-ui4"></script>
-<script src="js/data/australia.js?v=20261106-ui4"></script>
-<script src="js/data.js?v=20261106-ui4"></script>
-<script src="js/data/vehicle-private.js?v=20261106-ui4" onerror="window.__vehPrivMissing=true"></script>
-<script src="js/vehicle.js?v=20261106-ui4"></script>
-<script src="js/physics.js?v=20261106-ui4"></script>
-<script src="js/setup-ui.js?v=20261106-ui4"></script>
-<script src="js/audio-radio.js?v=20261106-ui4"></script>
-<script src="js/engine.js?v=20261106-ui4"></script>
-<script src="js/controls.js?v=20261106-ui4"></script>
-<script src="js/collide.js?v=20261106-ui4"></script>
-<script src="js/render/quality.js?v=20261106-ui4"></script>
-<script src="js/render/textures.js?v=20261106-ui4"></script>
-<script src="js/render/yata.js?v=20261106-ui4"></script>
-<script src="js/render/sky.js?v=20261106-ui4"></script>
-<script src="js/render/biome.js?v=20261106-ui4"></script>
-<script src="js/render/geobatch.js?v=20261106-ui4"></script>
-<script src="js/render/materials.js?v=20261106-ui4"></script>
-<script src="js/render/props.js?v=20261106-ui4"></script>
-<script src="js/render/scenery.js?v=20261106-ui4"></script>
-<script src="js/data/hidden-valley.js?v=20261106-ui4"></script>
-<script src="js/render/hiddenvalley.js?v=20261106-ui4"></script>
-<script src="js/render/view.js?v=20261106-ui4"></script>
-<script src="js/crew.js?v=20261106-ui4"></script>
-<script src="js/hud.js?v=20261106-ui4"></script>
-<script src="js/test-mode.js?v=20261106-ui4"></script>
-<script src="js/lib/qrcode.js?v=20261106-ui4"></script>
-<script src="js/event-game.js?v=20261106-ui4"></script>
-<script src="js/ui/icons.js?v=20261106-ui4"></script>
-<script src="js/ui/map.js?v=20261106-ui4"></script>
-<script src="js/main.js?v=20261106-ui4"></script>
+<script src="js/data/route-2025.js?v=20261106-ui5"></script>
+<script src="js/data/route-plan.js?v=20261106-ui5"></script>
+<script src="js/data/route-osm.js?v=20261106-ui5"></script>
+<script src="js/route.js?v=20261106-ui5"></script>
+<script src="js/data/australia.js?v=20261106-ui5"></script>
+<script src="js/data.js?v=20261106-ui5"></script>
+<script src="js/data/vehicle-private.js?v=20261106-ui5" onerror="window.__vehPrivMissing=true"></script>
+<script src="js/vehicle.js?v=20261106-ui5"></script>
+<script src="js/physics.js?v=20261106-ui5"></script>
+<script src="js/setup-ui.js?v=20261106-ui5"></script>
+<script src="js/audio-radio.js?v=20261106-ui5"></script>
+<script src="js/engine.js?v=20261106-ui5"></script>
+<script src="js/controls.js?v=20261106-ui5"></script>
+<script src="js/collide.js?v=20261106-ui5"></script>
+<script src="js/render/quality.js?v=20261106-ui5"></script>
+<script src="js/render/textures.js?v=20261106-ui5"></script>
+<script src="js/render/yata.js?v=20261106-ui5"></script>
+<script src="js/render/sky.js?v=20261106-ui5"></script>
+<script src="js/render/biome.js?v=20261106-ui5"></script>
+<script src="js/render/geobatch.js?v=20261106-ui5"></script>
+<script src="js/render/materials.js?v=20261106-ui5"></script>
+<script src="js/render/props.js?v=20261106-ui5"></script>
+<script src="js/render/scenery.js?v=20261106-ui5"></script>
+<script src="js/data/hidden-valley.js?v=20261106-ui5"></script>
+<script src="js/render/hiddenvalley.js?v=20261106-ui5"></script>
+<script src="js/render/view.js?v=20261106-ui5"></script>
+<script src="js/crew.js?v=20261106-ui5"></script>
+<script src="js/hud.js?v=20261106-ui5"></script>
+<script src="js/test-mode.js?v=20261106-ui5"></script>
+<script src="js/lib/qrcode.js?v=20261106-ui5"></script>
+<script src="js/event-game.js?v=20261106-ui5"></script>
+<script src="js/ui/icons.js?v=20261106-ui5"></script>
+<script src="js/ui/map.js?v=20261106-ui5"></script>
+<script src="js/main.js?v=20261106-ui5"></script>
 </body>
 </html>

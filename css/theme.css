@@ -193,11 +193,6 @@ body.touch-on #hud-radio{ width:280px; }
 body.touch-on #hud-batt, body.touch-on #hud-netp{ display:none; }
 body.touch-on #hud-detail, body.touch-on #detail-tog{ display:none; }
 @media (max-width:1100px){ #hud-top .lg{ display:none; } #hud-top .c{ padding:6px 12px; } #hud-top .v{ font-size:16px; } }
-@media (max-width:900px){
- body.touch-on #hud-top{ transform:scale(.7); transform-origin:top left; max-width:none; }
- body.touch-on #hud-map{ transform:scale(.62); transform-origin:top right; }
- body.touch-on #hud-limit-wrap{ right:210px; transform:scale(.8); transform-origin:top right; }
- body.touch-on #hud-radio{ transform:scale(.75); transform-origin:top left; top:70px; }
 }
 #hud-radio:has(#radio-log:empty){ display:none; }
 body.touch-on #hud-map .ahead{ display:none; }
@@ -207,4 +202,27 @@ body.touch-on #hud-map .ahead{ display:none; }
 @media (max-height:780px){
  #hud-detail{ padding:8px 12px; } #hud-detail .kv{ margin:2px 0; } #hud-detail .ph{ margin-bottom:0; }
  #hud-detail .cv{ margin:2px 0; } #wind-canvas{ width:44px; height:44px; } #g-canvas{ width:56px; height:56px; }
+}
+/* ---- タッチ操作の配置: 右上 地図 → その下に機能ボタン → 右下にペダル。左下にハンドル ---- */
+#t-fn{ position:absolute; right:8px; top:var(--tfn-top,360px); display:grid; grid-template-columns:repeat(5,40px); gap:4px; }
+#t-fn .tbtn{ width:40px; height:40px; padding:0; display:flex; align-items:center; justify-content:center; font-size:12px; border-radius:0; }
+#t-fn .tbtn.acc{ border-color:var(--acc); color:var(--acc); }
+#t-steer{ position:absolute; left:8px; bottom:8px; display:flex; gap:8px; }
+#t-steer .tbtn{ width:68px; height:68px; padding:0; display:flex; align-items:center; justify-content:center; }
+#t-steer .tbtn .ic{ width:26px; height:26px; }
+#t-ped{ position:absolute; right:8px; bottom:8px; display:grid; grid-template-columns:repeat(2,84px); gap:6px; }
+#t-ped .tbtn{ height:44px; padding:0; font-size:13px; }
+#t-ped .tbtn.brk{ border-color:var(--warn); }
+#t-spd{ bottom:8px; }
+body.touch-on #hud-radio #radio-log .msg:not(:first-child){ display:none; }
+body.touch-on #hud-top{ top:8px; left:8px; }
+body.touch-on #hud-map{ top:8px; right:8px; }
+body.touch-on #hud-limit-wrap{ top:8px; }
+@media (max-height:560px), (max-width:900px){
+ body.touch-on #hud-top{ transform:scale(.75); transform-origin:top left; max-width:none; }
+ body.touch-on #hud-radio{ transform:scale(.78); transform-origin:top left; top:70px; left:8px; }
+ body.touch-on #hud-map{ transform:scale(.5); transform-origin:top right; }
+ body.touch-on #hud-limit-wrap{ right:166px; transform:scale(.7); transform-origin:top right; }
+ body.touch-on{ --tfn-top:170px; }
+ #ask-panel{ z-index:31; }
 }
