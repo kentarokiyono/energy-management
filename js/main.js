@@ -114,7 +114,7 @@ segFromSelect("time-scale","seg-ts");
 refreshQuali();
 segFromSelect("chapter","seg-chap",o=>o.value==="0"?"スタート":"CS"+o.value);
 setInterval(pollGamepad,800);
-addEventListener("gamepadconnected",e=>toast("🎮 コントローラー接続: "+e.gamepad.id.slice(0,40),"#34d399"));
+addEventListener("gamepadconnected",e=>toast("🎮 コントローラー接続: "+escHtml(e.gamepad.id.slice(0,40)),"#34d399"));
 /* ---- ② キオスク堅牢化 ---- */
 addEventListener("contextmenu",e=>e.preventDefault());
 addEventListener("keydown",e=>{if(e.key==="F5"||(e.ctrlKey&&e.key.toLowerCase()==="r"))e.preventDefault();});

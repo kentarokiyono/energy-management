@@ -1,0 +1,5 @@
+#!/bin/sh
+# 実車諸元 (非公開) の流出防止。有効化: git config core.hooksPath tools/hooks
+PY=$(command -v python3 || command -v python)
+[ -z "$PY" ] && { echo "pre-commit: python が見つからないため非公開データの検査を省略"; exit 0; }
+exec "$PY" "$(dirname "$0")/check_private.py"

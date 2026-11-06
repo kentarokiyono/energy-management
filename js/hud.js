@@ -151,7 +151,7 @@ document.getElementById("hud-slope").textContent=(Math.tan(Engine.st&&Engine.st.
 document.getElementById("hud-temp").textContent=(es.Tamb||30).toFixed(0)+"°C / ρ"+(es.lastRho||1.17).toFixed(3);
 document.getElementById("hud-geff").textContent=es.lastGeff.toFixed(0)+" W/m²";
 if(P.mode==="race"&&es.teams){
-const rank=1+es.teams.filter(tm=>tm.km>es.km).length;
+const rank= Engine.gridWait&&Engine.gridWait()? es.grid : 1+es.teams.filter(tm=>tm.km>es.km||(tm.km===es.km&&tm.status!=="pre"&&es.v<0.5)).length;   // 発進前はグリッド順
 setT("hud-pos",`P${rank}<span class="u">/ ${es.teams.length+1}</span>`,true);
 } else setT("hud-pos","―");
 setT("hud-weather", es.weather? (es.weather.type==="squall"?"🌧 スコール":"☁ 曇天") : "☀ 快晴");
