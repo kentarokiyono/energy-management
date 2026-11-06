@@ -30,12 +30,6 @@ border-radius:14px; padding:16px 20px; font-size:15px; font-weight:700; touch-ac
 user-select:none; -webkit-user-select:none; }
 .tbtn:active{ background:rgba(34,211,238,.35); }
 body.touch-on #bottom-hud{ display:none; }
-body.touch-on #radio-log{ max-height:60px; }
-@media (max-width:640px){
-body.touch-on #hud-left{ transform:scale(.62); transform-origin:top left; width:230px; }
-body.touch-on #hud-right{ transform:scale(.62); transform-origin:top right; width:200px; }
-body.touch-on #hud-top{ transform:translateX(-50%) scale(.72); transform-origin:top center; }
-}
 #radio-pop { transition:transform .3s, opacity .3s; }
 .radio-show { transform:translateY(0)!important; opacity:1!important; }
 #rotate-hint{ display:none; }

@@ -15,8 +15,8 @@ show("result-screen",false); show("test-result",false);
 document.getElementById("game-container").classList.remove("hidden");
 document.getElementById("event-hud").classList.add("hidden");
 document.getElementById("test-hud").classList.remove("hidden");
-Radio.log.length=0;
-applyTouchMode();
+Radio.log.length=0; document.getElementById("radio-log").innerHTML="";
+applyTouchMode(); document.body.classList.add("hide-map"); MapUI.toggle(false);
 Test.start(P.testKind);
 initChart();
 if(P.event) EventGame.begin();   // イベント (ヒドゥンバレー版)
@@ -25,7 +25,7 @@ requestAnimationFrame(loop);
 return;
 }
 document.getElementById("test-hud").classList.add("hidden");
-applyTouchMode();
+applyTouchMode(); document.body.classList.remove("hide-map");
 if(P.mode==="event"){
 P.timeScale=60;
 Engine.st.hour=10.5;
@@ -41,11 +41,12 @@ show("result-screen",false);
 document.getElementById("game-container").classList.remove("hidden");
 document.getElementById("tilt-slider").value=Engine.st.tiltDeg;
 document.getElementById("tilt-val").textContent=Engine.st.tiltDeg+"°";
-Radio.log.length=0;
+Radio.log.length=0; document.getElementById("radio-log").innerHTML="";
 Route.build(P.timeScale, P.mode!=="race");   // イベントモードは等倍ゾーンなし
 const chap= P.mode==="race"&&!P.event? parseInt((document.getElementById("chapter")||{}).value||"0") : 0;
 if(chap>0) Engine.applyChapter(chap);   // チャプター: CS の 2 km 手前から
 View.init(); View.buildCar(); View.buildEscorts();
+if(!MapUI.built) MapUI.build(); MapUI.reset(); MapUI.toggle(false);
 initChart(); lastChartPush=0;
 running=true; paused=false; lastT=performance.now();
 requestAnimationFrame(loop);
@@ -85,7 +86,7 @@ View.update(dtR);
 if(P.event) EventGame.post();
 if(P.mode==="race"&&!es.finished&&!es.trailering) es.km=View.kmOfS(View.s);   // 走行位置(本線への射影)を正とする
 Snd.update(es.v, es.lastAmp/Math.max(motorMaxA(es.powerMode),1), es.fire);
-updateHUD(); drawWind(); drawG();
+updateHUD(); drawWind(); drawG(); MapUI.frame();
 Perf.tick(dtR);
 if(t-lastChartPush>1500){ pushChart(); drawMap(); lastChartPush=t; }
 }
@@ -107,6 +108,8 @@ Snd.update(0,0,false);
 buildSetupUI();
 refreshUIModeBtns();
 setEventLevel(EventGame.level); setEventCourse(EventGame.course);
+segFromSelect("time-scale","seg-ts");
+segFromSelect("chapter","seg-chap",o=>o.value==="0"?"スタート":"CS"+o.value);
 setInterval(pollGamepad,800);
 addEventListener("gamepadconnected",e=>toast("🎮 コントローラー接続: "+e.gamepad.id.slice(0,40),"#34d399"));
 /* ---- ② キオスク堅牢化 ---- */

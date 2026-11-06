@@ -3,127 +3,101 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BWSC 3D レーシングシミュレータ — Darwin → Adelaide 3027km (2025 Route)</title>
+<title>BWSC 3D Racing Simulator</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/fonts.css?v=20261106-ui1">
+<link rel="stylesheet" href="css/style.css?v=20261106-ui1">
+<link rel="stylesheet" href="css/theme.css?v=20261106-ui1">
+<link rel="icon" href="assets/img/logo.svg">
 </head>
 <body>
 <!-- ============================ 設定画面 ============================ -->
-<div id="setup-screen" class="fixed inset-0 z-40 overflow-y-auto scrollable" style="background:radial-gradient(ellipse at 50% -10%, #0b2436 0%, #05070d 60%);">
-<div class="max-w-6xl mx-auto px-6 py-8">
-<div class="text-center mb-6">
-<div class="text-xs tracking-[.4em] text-cyan-600 mb-1">BRIDGESTONE WORLD SOLAR CHALLENGE ― 2025 ROUTE</div>
-<h1 class="text-4xl font-black neon-text tracking-wider">BWSC 3D レーシングシミュレータ</h1>
-<div class="text-sm text-cyan-200/70 mt-2">Darwin → Adelaide 3,027 km ― Wakayama Univ. Solar Car Team</div>
-<div class="text-[10px] text-cyan-200/40 mt-1 mono">build 20261106-ev3</div>
+<div id="setup-screen" class="fixed inset-0 z-40 overflow-y-auto scrollable">
+<div class="menu">
+<div class="l">
+<div class="hd"><img src="assets/img/logo.svg" class="logo" alt="" width="112">
+<div><div class="ttl">BWSC 3D RACING<br>SIMULATOR</div></div></div>
+<div class="sub">Bridgestone World Solar Challenge ― 2025 Route<br>Darwin → Adelaide 3,027 km ― Wakayama Univ. Solar Car Team</div>
+<div id="mode-race" class="mode active" onclick="selectMode('race')"><span data-ic="finish"></span>
+<div><h3>レースモード <span class="lb">Team training</span></h3>
+<p>2025 年公式ルートノート準拠。CS1〜CS9・信号・橋・キャンプ地・朝夕の充電 (6–8 時 / 17 時–日没)・ロードトレイン・無線・随伴車まで再現。</p></div></div>
+<div id="mode-event" class="mode" onclick="selectMode('event')"><span data-ic="party"></span>
+<div><h3>イベントモード <span class="lb">For visitors</span></h3>
+<p>10 分の課題クリア型。オーストラリア: 交通ルール → 省エネ巡航 → ロードトレイン → CS → Devils Marbles の砂漠 → Port Augusta。ヒドゥンバレー: 車検 → サーキット走行。その日のランキング・1 位のゴースト・QR で走りを持ち帰り。</p>
+<div class="opts" onclick="event.stopPropagation();selectMode('event')">
+<div class="seg"><button id="ev-co-aus" type="button" onclick="setEventCourse('aus')">オーストラリア</button><button id="ev-co-hv" type="button" onclick="setEventCourse('hv')">ヒドゥンバレー</button></div>
+<div class="seg"><button id="ev-lv-kid" type="button" onclick="setEventLevel('kid')">こども</button><button id="ev-lv-adult" type="button" onclick="setEventLevel('adult')">おとな</button></div>
+</div></div></div>
+<div id="mode-test" class="mode" onclick="selectMode('test')"><span data-ic="timer"></span>
+<div><h3>予選・車検モード <span class="lb">Hidden Valley</span></h3>
+<p>Hidden Valley Raceway (2.87 km・14 コーナー・高低差約 13 m・反時計回り) の Hot Lap 予選、ドラッグストリップのスラローム・制動テスト、PIT PADDOCK 駐車場の 8 の字安定性試験 (競技規則 2.19)。</p>
+<div class="opts" onclick="event.stopPropagation()">
+<div class="seg">
+<button type="button" class="on" data-test="circuit" onclick="selectTest('circuit')">Hot Lap</button>
+<button type="button" data-test="slalom" onclick="selectTest('slalom')">スラローム</button>
+<button type="button" data-test="brake" onclick="selectTest('brake')">制動</button>
+<button type="button" data-test="combo" onclick="selectTest('combo')">スラローム+制動</button>
+<button type="button" data-test="fig8" onclick="selectTest('fig8')">8 の字</button>
+</div></div>
+<p id="test-desc">サーキット予選 ― 優秀チームは2分20秒台前半。ベストラップでグリッドが決まる。</p></div></div>
+<div class="grow">
+<button class="btn pri" style="padding:14px 34px;font-size:16px" onclick="startGame()"><span data-ic="play"></span> START</button>
+<button class="btn" onclick="openWheelConfig()"><span data-ic="wheel"></span> ハンコン割当</button>
+<span class="lb" id="gamepad-status">未検出</span>
 </div>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-<div id="mode-race" class="card-select active" onclick="selectMode('race')">
-<div class="font-bold text-cyan-300 text-lg">🏁 レースモード(チーム訓練用)</div>
-<div class="text-xs text-cyan-100/60 mt-1">2025年公式ルートノート準拠。CS1〜CS9・信号・橋・キャンプ地・朝夕充電(6-8時/17時-日没)・ロードトレイン・無線・随伴車まで再現。</div>
+<div class="build">BUILD 20261106-ui1</div>
 </div>
-<div id="mode-event" class="card-select" onclick="selectMode('event')">
-<div class="font-bold text-amber-300 text-lg">🎪 イベントモード(来場者体験用)</div>
-<div class="text-xs text-cyan-100/60 mt-1">10 分の課題クリア型。オーストラリア: 交通ルール → 省エネ巡航 → ロードトレイン → CS で停車と充電 → Devils Marbles の砂漠 → Port Augusta へ。ヒドゥンバレー: 車検 (8 の字・スラローム・制動) → サーキット走行。その日のランキング・1 位のゴースト・QR で走りを持ち帰り。</div>
-<div class="flex gap-2 mt-2" onclick="event.stopPropagation();selectMode('event')">
-<button id="ev-co-aus" class="btn text-xs py-1 px-3" onclick="setEventCourse('aus')">🇦🇺 オーストラリア</button>
-<button id="ev-co-hv" class="btn text-xs py-1 px-3" onclick="setEventCourse('hv')">🏁 ヒドゥンバレー</button>
-</div>
-<div class="flex gap-2 mt-2" onclick="event.stopPropagation();selectMode('event')">
-<button id="ev-lv-kid" class="btn text-xs py-1 px-3" onclick="setEventLevel('kid')">🧒 こども</button>
-<button id="ev-lv-adult" class="btn text-xs py-1 px-3" onclick="setEventLevel('adult')">🧑 おとな</button>
-</div>
-</div>
-</div>
-<div id="mode-test" class="card-select mb-6" onclick="selectMode('test')">
-<div class="font-bold text-emerald-300 text-lg">🏎 予選・車検モード(Hidden Valley / スクルーティニアリング)</div>
-<div class="text-xs text-cyan-100/60 mt-1 mb-2">Hidden Valley Raceway(2.87km・14コーナー・高低差約13m・反時計回り)でのHot Lap予選、ドラッグストリップでのスラローム・制動テスト、PIT PADDOCK駐車場での8の字安定性試験(競技規則2.19)。</div>
-<div class="flex flex-wrap gap-2" onclick="event.stopPropagation()">
-<button class="btn text-xs py-1" data-test="circuit" onclick="selectTest('circuit')">🏁 サーキット予選 (Hot Lap)</button>
-<button class="btn text-xs py-1" data-test="slalom" onclick="selectTest('slalom')">〰 スラローム (11.5秒)</button>
-<button class="btn text-xs py-1" data-test="brake" onclick="selectTest('brake')">🛑 制動テスト</button>
-<button class="btn text-xs py-1" data-test="combo" onclick="selectTest('combo')">〰→🛑 スラローム+制動(連続)</button>
-<button class="btn text-xs py-1" data-test="fig8" onclick="selectTest('fig8')">∞ 8の字走行 (9秒/18秒)</button>
-</div>
-<div class="text-[11px] text-emerald-200 mt-1" id="test-desc">選択中: サーキット予選 ― 優秀チームは2分20秒台前半。ベストラップでグリッドが決まる。</div>
-</div>
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-<div class="panel p-4">
-<div class="hud-label mb-2">BODY SHAPE ― 車体形状</div>
-<div id="shape-cards" class="space-y-2"></div>
-<div class="hud-label mt-4 mb-2">SOLAR CELL ― パネル種類</div>
-<div id="panel-cards" class="space-y-2"></div>
-</div>
-<div class="panel p-4 lg:col-span-2">
-<div class="hud-label mb-3">VEHICLE PARAMETERS ― 車両諸元</div>
-<div id="param-sliders" class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3"></div>
-<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 text-center">
-<div class="bar-outer p-2"><div class="hud-label">CdA</div><div id="disp-cda" class="mono neon-text text-lg">0.110</div><div class="text-[10px] text-cyan-100/40">m²</div></div>
-<div class="bar-outer p-2"><div class="hud-label">転がり抵抗</div><div id="disp-froll" class="mono neon-text text-lg">10.6</div><div class="text-[10px] text-cyan-100/40">N (平地)</div></div>
-<div class="bar-outer p-2"><div class="hud-label">バラスト(80kg規定)</div><div id="disp-ballast" class="mono neon-text text-lg">12.0</div><div class="text-[10px] text-cyan-100/40">kg</div></div>
-<div class="bar-outer p-2"><div class="hud-label">バッテリー容量</div><div id="disp-ah" class="mono neon-text text-lg">41.7</div><div class="text-[10px] text-cyan-100/40">Ah (OCV平均電圧)</div></div>
+<div class="r">
+<div class="sec"><h4><span data-ic="car"></span>BODY / SOLAR CELL</h4>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div><div class="lb mb-2">車体形状</div><div id="shape-cards" class="space-y-2"></div></div>
+<div><div class="lb mb-2">パネル種類</div><div id="panel-cards" class="space-y-2"></div></div>
+</div></div>
+<div class="sec"><h4><span data-ic="sliders"></span>VEHICLE</h4>
+<div id="param-sliders" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3"></div>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
+<div class="bar-outer px-3 py-2"><div class="lb">CdA</div><div><span id="disp-cda" class="num text-lg">0.110</span><span class="u">m²</span></div></div>
+<div class="bar-outer px-3 py-2"><div class="lb">転がり抵抗 (平地)</div><div><span id="disp-froll" class="num text-lg">10.6</span><span class="u">N</span></div></div>
+<div class="bar-outer px-3 py-2"><div class="lb">バラスト (80 kg 規定)</div><div><span id="disp-ballast" class="num text-lg">12.0</span><span class="u">kg</span></div></div>
+<div class="bar-outer px-3 py-2"><div class="lb">バッテリー容量</div><div><span id="disp-ah" class="num text-lg">41.7</span><span class="u">Ah</span></div></div>
 </div>
 <details class="mt-4">
-<summary class="text-xs text-cyan-300 cursor-pointer">🔧 プロフェッショナル設定(超詳細 ― 環境/バッテリー/モーター/AI/リスク)</summary>
+<summary class="text-xs cursor-pointer"><span data-ic="wrench"></span> プロフェッショナル設定 (環境・バッテリー・モーター・AI・リスク)</summary>
 <div id="pro-grid" class="grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-1 mt-2 text-[11px]"></div>
-</details>
-<div class="flex flex-wrap items-center gap-4 mt-4">
-<div>
-<div class="hud-label">時間加速(レースモード)</div>
-<select id="time-scale" class="bg-slate-900 border border-cyan-800 rounded p-1 text-sm mt-1">
-<option value="1">×1 (等倍・実時間)</option>
-<option value="2">×2</option>
-<option value="10">×10</option>
-<option value="30">×30</option>
-<option value="60" selected>×60 (1秒=1分)</option>
-<option value="120">×120</option>
-<option value="300">×300 (高速検証)</option>
-</select>
+</details></div>
+<div class="sec"><h4><span data-ic="flag"></span>RACE</h4>
+<div class="opts" style="align-items:flex-start;gap:22px">
+<div><div class="lb mb-2">時間加速</div><div class="seg" id="seg-ts"></div></div>
+<div title="コントロールストップの 2 km 手前から始める。日時・電池残量は標準ペース (70 km/h) での見積もり"><div class="lb mb-2">チャプター (CS の 2 km 手前から)</div><div class="seg" id="seg-chap"></div></div>
 </div>
-<div title="コントロールストップの 2 km 手前から始める。日時・電池残量は標準ペース (70 km/h) での見積もり">
-<div class="hud-label">チャプター(レースモード)</div>
-<select id="chapter" class="bg-slate-900 border border-cyan-800 rounded p-1 text-sm mt-1">
+<select id="time-scale" class="hidden">
+<option value="1">×1</option><option value="2">×2</option><option value="10">×10</option><option value="30">×30</option><option value="60" selected>×60</option><option value="120">×120</option><option value="300">×300</option>
+</select>
+<select id="chapter" class="hidden">
 <option value="0" selected>スタート (Darwin)</option><option value="1">CS1 Katherine の 2 km 手前 (320 km)</option><option value="2">CS2 Dunmarra の 2 km 手前 (629 km)</option><option value="3">CS3 Tennant Creek の 2 km 手前 (986 km)</option><option value="4">CS4 Barrow Creek の 2 km 手前 (1210 km)</option><option value="5">CS5 Alice Springs の 2 km 手前 (1494 km)</option><option value="6">CS6 Erldunda の 2 km 手前 (1692 km)</option><option value="7">CS7 Coober Pedy の 2 km 手前 (2179 km)</option><option value="8">CS8 Glendambo の 2 km 手前 (2432 km)</option><option value="9">CS9 Port Augusta の 2 km 手前 (2718 km)</option>
 </select>
-</div>
-<div>
-<div class="hud-label">UIモード</div>
-<div class="flex gap-1 mt-1">
-<button id="ui-pc" class="btn text-xs py-1 px-3" onclick="setUIMode('pc')">🖥 PC</button>
-<button id="ui-mobile" class="btn text-xs py-1 px-3" onclick="setUIMode('mobile')">📱 モバイル</button>
-</div>
-</div>
-<label class="flex items-center gap-2 text-sm border border-amber-600 rounded-lg px-3 py-2 cursor-pointer" style="background:rgba(180,83,9,.15)">
-<input type="checkbox" id="inf-batt" onchange="P.infiniteBattery=this.checked" style="width:16px;height:16px">
-<span class="text-amber-300 font-bold">🔋 バッテリー無限モード</span>
-</label>
-<label class="flex items-center gap-2 text-sm border border-cyan-700 rounded-lg px-3 py-2 cursor-pointer" style="background:rgba(8,80,110,.15)" title="CS・17時停車・朝の出発で乗り降りの手順を実践する (F キーでいつでも乗り降り)">
-<input type="checkbox" id="crew-proc" checked onchange="P.crewProc=this.checked" style="width:16px;height:16px">
-<span class="text-cyan-300 font-bold">🧑‍🚀 乗降手順を実践</span>
-</label>
-<div class="text-xs text-cyan-100/50 max-w-xs">※信号での停止判定は ×1/×2 のときのみ有効(それ以外は演出のみ)。</div>
-<button class="btn text-lg px-10 py-3 ml-auto" onclick="startGame()">▶ スタート</button>
-</div>
-</div>
-</div>
-<div class="panel p-4 mt-4 text-xs text-cyan-100/60 leading-relaxed">
-<b class="text-cyan-300">操作:</b>
-<kbd>W</kbd>/<kbd>↑</kbd> 長押しでスロットル開度アップ(離すと固定) <kbd>S</kbd>/<kbd>↓</kbd> 開度ダウン
-<kbd>Space</kbd> 物理ブレーキ(開度リセット) <kbd>R</kbd> 回生ブレーキ
-<kbd>A</kbd><kbd>D</kbd>/<kbd>←</kbd><kbd>→</kbd> ハンドル
-<kbd>V</kbd> カメラ(チェイス/フード/ドライバー) <kbd>G</kbd> グラフ <kbd>M</kbd> 停車メニュー <kbd>Esc</kbd> ポーズ
-<kbd>B</kbd> ブースト(イベントモード)
-― <button class="btn text-xs ml-1 py-1" onclick="openWheelConfig()">🎮 ハンコン割当設定</button>
-<span id="gamepad-status" class="ml-2 text-cyan-400">未検出</span>
+<div class="help mt-2">×1 は実時間、×60 は 1 秒 = 1 分。信号での停止判定は ×1 / ×2 のときのみ有効。</div></div>
+<div class="sec"><h4><span data-ic="settings"></span>OPTIONS</h4>
+<div class="opts">
+<div class="seg"><button id="ui-pc" type="button" onclick="setUIMode('pc')"><span data-ic="monitor"></span> PC</button><button id="ui-mobile" type="button" onclick="setUIMode('mobile')"><span data-ic="phone"></span> モバイル</button></div>
+<label class="chk" title="CS・17 時停車・朝の出発で乗り降りの手順を実践する (F キーでいつでも乗り降り)"><input type="checkbox" id="crew-proc" checked onchange="P.crewProc=this.checked"><i></i>乗降手順を実践</label>
+<label class="chk"><input type="checkbox" id="inf-batt" onchange="P.infiniteBattery=this.checked"><i></i>バッテリー無限</label>
+</div></div>
+<div class="sec"><h4><span data-ic="gamepad"></span>CONTROLS</h4>
+<div class="help">
+<kbd>W</kbd> <kbd>↑</kbd> 長押しでスロットル開度アップ (離すと固定) ・ <kbd>S</kbd> <kbd>↓</kbd> 開度ダウン ・ <kbd>Space</kbd> 物理ブレーキ (開度リセット) ・ <kbd>R</kbd> 回生ブレーキ ・ <kbd>A</kbd> <kbd>D</kbd> <kbd>←</kbd> <kbd>→</kbd> ハンドル<br>
+<kbd>V</kbd> カメラ ・ <kbd>G</kbd> グラフ ・ <kbd>TAB</kbd> 詳細パネル ・ <kbd>M</kbd> 停車メニュー ・ <kbd>Q</kbd> 無線で質問 ・ <kbd>N</kbd> R / D ・ <kbd>Z</kbd> <kbd>C</kbd> <kbd>X</kbd> ウインカー / ハザード ・ <kbd>B</kbd> ブースト (イベント) ・ <kbd>Esc</kbd> ポーズ<br>
+地図をクリック (タップ) すると、他チームの位置と速度を表示。
+</div></div>
 </div>
 </div>
 </div>
 <!-- ============================ ハンコン設定 ============================ -->
 <div id="wheel-config" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:rgba(0,0,0,.75)">
 <div class="panel p-6 w-96">
-<div class="font-bold neon-text mb-2">🎮 ハンドルコントローラー割当</div>
+<div class="font-bold mb-2">🎮 ハンドルコントローラー割当</div>
 <div id="wheel-msg" class="text-sm text-cyan-100/80 min-h-[3rem] mb-3">各「検出」を押して指示どおり操作してください。アクセルペダル=スロットル開度、ブレーキペダル=物理ブレーキ、ボタン0=回生。</div>
 <div class="space-y-2 text-sm">
 <div class="flex justify-between items-center"><span>ステアリング</span><button class="btn text-xs py-1" onclick="calibrate('steer')">検出</button><span id="map-steer" class="mono text-cyan-400 w-20 text-right">軸0</span></div>
@@ -138,104 +112,92 @@
 <!-- ============================ ゲーム画面 ============================ -->
 <div id="game-container" class="fixed inset-0 hidden">
 <canvas id="three-canvas" class="absolute inset-0 w-full h-full"></canvas>
-<div id="rotate-hint" class="fixed inset-0 z-50 flex-col items-center justify-center text-center px-8" style="background:#05070d">
-<div class="text-6xl mb-4" style="animation:none">📱↻</div>
-<div class="text-xl font-bold neon-text mb-2">横画面でプレイしてください</div>
+<div id="rotate-hint" class="fixed inset-0 z-50 flex-col items-center justify-center text-center px-8" style="background:#0d0e10">
+<img src="assets/img/logo.svg" class="logo mb-4" width="120" alt="">
+<div class="text-4xl mb-4" style="color:var(--acc)">📱↻</div>
+<div class="text-xl font-bold mb-2">横画面でプレイしてください</div>
 <div class="text-sm text-cyan-100/60">端末を横向きにすると操作系とHUDが最適に表示されます。</div>
 </div>
-<div id="hud-top" class="absolute top-2 left-1/2 -translate-x-1/2 flex gap-3 items-stretch">
-<div class="panel px-4 py-2 text-center">
-<div class="hud-label">RACE CLOCK</div>
-<div class="mono text-xl neon-text" id="hud-clock">Day1 08:00</div>
+<div id="hud-top" class="pn">
+<div class="lg"><img src="assets/img/logo.svg" class="logo" width="54" alt=""></div>
+<div class="c"><span class="lb">Race clock</span><span class="v"><span data-ic="clock"></span><span id="hud-clock">DAY 1 08:00</span></span></div>
+<div class="c"><span class="lb">Distance</span><span class="v" id="hud-dist">0.0</span></div>
+<div class="c"><span class="lb">Next control stop</span><span class="v"><span data-ic="flag"></span><span id="hud-nextcp">Katherine</span></span><span id="hud-csclose"></span></div>
+<div class="c"><span class="lb">Position</span><span class="v" id="hud-pos">―</span></div>
 </div>
-<div class="panel px-4 py-2 text-center">
-<div class="hud-label">DISTANCE</div>
-<div class="mono text-xl text-amber-300" id="hud-dist">0.0 / 3027 km</div>
+<div id="hud-limit-wrap"><div class="limit-sign" id="hud-limit">60</div></div>
+<div id="hud-map" class="pn" onclick="MapUI.toggle(true)" title="クリックで他チームの位置と速度">
+<div class="hd"><span class="lb" style="display:flex;gap:6px;align-items:center"><span data-ic="map"></span>Route</span><span class="lb" id="map-km"></span></div>
+<div id="map-box"></div>
+<div class="ahead"><div class="lb">Next 60 km</div><div class="ax" id="map-ahead"></div></div>
 </div>
-<div class="panel px-4 py-2 text-center">
-<div class="hud-label">NEXT CONTROL STOP</div>
-<div class="mono text-xl" id="hud-nextcp">Katherine 317km</div>
-<div class="text-[10px] mono" id="hud-csclose"></div>
+<div id="hud-radio" class="pn"><div class="ph"><span data-ic="radio"></span>Radio</div><div id="radio-log"></div></div>
+<div id="bottom-hud" class="pn">
+<div class="cl">
+<div>
+<div class="lb">Battery</div>
+<div class="big"><span id="hud-socpct">100.0</span><span class="u">%</span></div>
+<div class="bar"><i id="hud-socbar" style="width:100%"></i></div>
+<div class="row"><span><span data-ic="zap"></span><span id="hud-volt"></span></span><span id="hud-wh">3027 Wh</span></div>
+<div class="row" style="color:var(--bad)"><span id="hud-bms" style="color:var(--bad)"></span></div>
 </div>
-<div class="panel px-2 py-1 flex items-center"><div class="limit-sign" id="hud-limit">60</div></div>
+<div class="spd">
+<div class="spdrow"><span id="wl"><span data-ic="chl"></span></span><span id="hud-speed" class="num">0</span><span id="wr"><span data-ic="chr"></span></span></div>
+<div class="gear">KM/H &nbsp; GEAR <span id="hud-gear">D</span></div>
+<div class="bar"><i id="hud-throttle" style="width:0%"></i></div>
+<div class="row"><span>THROTTLE</span><span id="hud-thr-pct">0%</span></div>
+<div class="bar" style="height:4px;margin:2px 0"><i id="hud-brake" style="width:0%"></i></div>
+<div class="row"><span>BRAKE</span><span id="hud-brake-kind" style="color:var(--warn)"></span></div>
 </div>
-<div id="hud-left" class="absolute left-3 top-20 w-60 space-y-2">
-<div class="panel p-3">
-<div class="flex justify-between"><span class="hud-label">BATTERY SOC</span><span class="mono text-sm" id="hud-socpct">100%</span></div>
-<div class="bar-outer h-5 mt-1"><div id="hud-socbar" class="h-full" style="width:100%;background:linear-gradient(90deg,#059669,#22d3ee)"></div></div>
-<div class="flex justify-between mt-1 text-[11px] mono text-cyan-100/60"><span id="hud-wh">3027 Wh</span><span id="hud-volt"></span><span id="hud-bms" class="text-red-400"></span></div>
-<button id="bms-btn" class="btn text-[10px] py-0.5 px-2 mt-1 w-full" onclick="toggleBMS()">🛡 BMS: ON</button>
+<div>
+<div class="lb">Net power</div>
+<div class="big" id="hud-net">0<span class="u">W</span></div>
+<div class="row"><span><span data-ic="sun"></span>発電</span><span id="hud-solar">0 W</span></div>
+<div class="row"><span><span data-ic="settings"></span>モーター</span><span id="hud-motorw">0 W</span></div>
 </div>
-<div class="panel p-3 mono text-sm space-y-1" id="telemetry-panel">
-<button id="power-btn" class="btn text-[10px] py-0.5 px-2 w-full" onclick="togglePower()">⚙ ECOモード (P)</button>
-<div class="flex justify-between"><span class="hud-label">☀ 発電</span><span class="text-yellow-300" id="hud-solar">0 W</span></div>
-<div class="flex justify-between"><span class="hud-label">⚡ 指令電流</span><span class="text-orange-400" id="hud-amp">0.0 A</span></div>
-<div class="flex justify-between"><span class="hud-label">⚙ モーター電力</span><span class="text-orange-300" id="hud-motorw">0 W</span></div>
-<div class="flex justify-between"><span class="hud-label">🔋 バッテリー電流</span><span id="hud-ibat">0.0 A</span></div>
-<div class="flex justify-between"><span class="hud-label">積算消費</span><span id="hud-ah">0.00 Ah</span></div>
-<div class="flex justify-between border-t border-cyan-900 pt-1"><span class="hud-label">収支</span><span id="hud-net">0 W</span></div>
-<div class="flex justify-between"><span class="hud-label">セル温度</span><span id="hud-tcell">30°C</span></div>
-<div class="flex justify-between"><span class="hud-label">電池温度</span><span id="hud-tbat">―</span></div>
 </div>
-<div class="panel p-3">
-<div class="hud-label mb-1">WIND ― 風向/風速</div>
-<div class="flex items-center gap-3">
+<div class="tools">
+<button id="bms-btn" class="btn" onclick="toggleBMS()">BMS ON</button>
+<button id="power-btn" class="btn" onclick="togglePower()">ECO (P)</button>
+<button class="btn" onclick="StopMenu.open(true)"><span data-ic="wrench"></span>停車 (M)</button>
+<button class="btn" onclick="document.getElementById('ask-panel').classList.toggle('hidden')"><span data-ic="radio"></span>質問 (Q)</button>
+</div>
+<div class="keys">Z 左 ・ C 右 ・ X ハザード ・ B ブースト ・ N R/D ・ TAB 詳細</div>
+</div>
+<div id="detail-tog" onclick="toggleDetail(true)"><span data-ic="sliders"></span>DETAIL (TAB)</div>
+<div id="hud-detail" class="pn">
+<div class="ph" style="justify-content:space-between"><span style="display:flex;gap:8px;align-items:center"><span data-ic="activity"></span>Detail</span><span style="cursor:pointer;display:flex;gap:4px;align-items:center" onclick="toggleDetail(false)">TAB <span data-ic="x"></span></span></div>
+<div class="cv">
 <canvas id="wind-canvas" width="64" height="64"></canvas>
-<div class="mono text-xs" id="hud-wind">8.0 m/s</div>
+<div><div class="lb">Wind</div><div class="num" id="hud-wind">0 m/s</div></div>
+<canvas id="g-canvas" width="84" height="84" style="margin-left:auto"></canvas>
 </div>
+<div class="grid2">
+<div class="kv"><span><span data-ic="zap"></span>指令電流</span><span id="hud-amp">0.0 A</span></div>
+<div class="kv"><span><span data-ic="battery"></span>電池電流</span><span id="hud-ibat">0.0 A</span></div>
+<div class="kv"><span>積算消費</span><span id="hud-ah">0.00 Ah</span></div>
+<div class="kv"><span><span data-ic="pv"></span>日射</span><span id="hud-geff">0 W/m²</span></div>
+<div class="kv"><span><span data-ic="temp"></span>セル温度</span><span id="hud-tcell">30°C</span></div>
+<div class="kv"><span><span data-ic="temp"></span>電池温度</span><span id="hud-tbat">―</span></div>
+<div class="kv"><span><span data-ic="mountain"></span>標高</span><span id="hud-elev">20 m</span></div>
+<div class="kv"><span><span data-ic="slope"></span>勾配</span><span id="hud-slope">0.0 %</span></div>
+<div class="kv"><span><span data-ic="gauge"></span>平均速度</span><span id="hud-avg">―</span></div>
+<div class="kv"><span>天候</span><span id="hud-weather">快晴</span></div>
 </div>
-<div class="panel p-2 text-[11px] leading-snug" style="max-height:130px;overflow:hidden">
-<div class="hud-label mb-1">📻 RADIO LOG</div>
-<div id="radio-log" class="space-y-1 text-cyan-100/80"></div>
-</div>
-</div>
-<div id="hud-right" class="absolute right-3 top-20 w-52 space-y-2">
-<div class="panel p-2"><canvas id="map-canvas" width="192" height="230"></canvas></div>
-<div class="panel p-2 flex items-center gap-2">
-<canvas id="g-canvas" width="84" height="84"></canvas>
-<div class="hud-label" style="writing-mode:vertical-rl">G-FORCE</div>
-</div>
-<div class="panel p-3 mono text-xs space-y-1">
-<div class="flex justify-between"><span class="hud-label">標高</span><span id="hud-elev">20 m</span></div>
-<div class="flex justify-between"><span class="hud-label">勾配</span><span id="hud-slope">0.0 %</span></div>
-<div class="flex justify-between"><span class="hud-label">外気温</span><span id="hud-temp">33°C</span></div>
-<div class="flex justify-between"><span class="hud-label">日射</span><span id="hud-geff">0 W/m²</span></div>
-<div class="flex justify-between"><span class="hud-label">順位</span><span class="text-amber-300" id="hud-pos">―</span></div>
-<div class="flex justify-between"><span class="hud-label">平均速度</span><span id="hud-avg">―</span></div>
-<div class="flex justify-between"><span class="hud-label">天候</span><span id="hud-weather">☀ 快晴</span></div>
-</div>
-</div>
-<div id="bottom-hud" class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-end gap-4">
-<div class="panel px-6 py-3 text-center">
-<div class="flex items-center gap-2">
-<span id="wl" class="text-2xl select-none" style="color:#1e3a4f">◀</span>
-<div class="mono font-black text-5xl neon-text" id="hud-speed">0</div>
-<span id="wr" class="text-2xl select-none" style="color:#1e3a4f">▶</span>
-</div>
-<div class="hud-label">km/h <span id="hud-gear" class="mono font-black text-cyan-300">D</span> <span class="text-[9px] text-cyan-100/40">Z:左 C:右 X:ハザード B:ブースト N:R/D</span></div>
-</div>
-<div class="panel p-3 w-40">
-<div class="flex justify-between"><span class="hud-label">スロットル開度</span><span class="mono text-xs text-emerald-300" id="hud-thr-pct">0%</span></div>
-<div class="bar-outer h-3 mt-1"><div id="hud-throttle" class="h-full bg-emerald-400" style="width:0%"></div></div>
-<div class="hud-label mt-2">ブレーキ <span id="hud-brake-kind" class="text-orange-300"></span></div>
-<div class="bar-outer h-3 mt-1"><div id="hud-brake" class="h-full bg-orange-400" style="width:0%"></div></div>
-<div class="flex gap-1 mt-2">
-<button class="btn text-[10px] py-0.5 px-1 flex-1" onclick="StopMenu.open(true)">🔧 停車 (M)</button>
-<button class="btn text-[10px] py-0.5 px-1 flex-1" onclick="document.getElementById('ask-panel').classList.toggle('hidden')">📻 質問 (Q)</button>
-</div>
-</div>
+<div class="kv"><span><span data-ic="temp"></span>外気温 / 空気密度</span><span id="hud-temp">33°C</span></div>
 </div>
 <div id="test-hud" class="absolute top-20 left-1/2 -translate-x-1/2 hidden text-center">
 <div class="panel px-8 py-2">
-<div class="mono font-black text-4xl text-emerald-300" id="test-timer">0.00</div>
+<div class="mono font-black text-4xl" id="test-timer">0.00</div>
 <div class="hud-label" id="test-sub">―</div>
 </div>
 </div>
 <div id="test-result" class="absolute inset-0 z-30 hidden items-center justify-center" style="background:rgba(0,0,10,.55)">
-<div class="panel px-10 py-6 text-center" style="min-width:380px">
-<div class="text-2xl font-black" id="test-result-title">結果</div>
+<div class="card2" style="min-width:380px">
+<div class="hd"><span class="lb">Result</span><img src="assets/img/logo.svg" class="logo" width="60" alt=""></div>
+<h2 id="test-result-title">結果</h2>
 <div id="test-result-body" class="mono text-sm my-3 space-y-1 text-left"></div>
-<div class="flex gap-3 justify-center">
+<div class="flex gap-3 justify-end">
 <button class="btn" onclick="Test.retry()">🔄 リトライ (Backspace)</button>
 <button class="btn btn-amber" onclick="quitToMenu()">🏠 メニューへ</button>
 </div>
@@ -243,15 +205,15 @@
 </div>
 <div id="event-hud" class="absolute top-20 left-1/2 -translate-x-1/2 hidden text-center">
 <div class="panel px-8 py-2">
-<div class="mono font-black text-4xl text-amber-300" id="event-timer">1:30</div>
-<div class="hud-label">残り時間 ― SCORE <span id="event-score" class="text-amber-200 mono">0</span></div>
+<div class="mono font-black text-4xl" id="event-timer">1:30</div>
+<div class="hud-label">残り時間 ― SCORE <span id="event-score" class="mono" style="color:var(--acc);font-size:14px">0</span></div>
 </div>
 </div>
-<div id="chart-panel" class="absolute bottom-4 right-3 panel p-2 hidden" style="width:420px;height:212px">
+<div id="chart-panel" class="absolute panel p-2 hidden" style="width:420px;height:212px">
 <div class="hud-label text-right pr-1">表示: <span id="chart-mode-label" class="text-amber-300">SOC / 発電 / 速度</span> <span class="text-cyan-100/40">(Gで切替)</span></div>
 <canvas id="history-chart" style="height:190px"></canvas>
 </div>
-<div id="toast" class="absolute top-1/4 left-1/2 -translate-x-1/2 panel px-6 py-3 text-lg font-bold text-center opacity-0 pointer-events-none z-30" style="min-width:300px"></div>
+<div id="toast" class="absolute top-1/4 left-1/2 -translate-x-1/2 px-6 py-3 font-bold text-center opacity-0 pointer-events-none z-30" style="min-width:300px"></div>
 <div id="radio-pop" class="absolute bottom-32 left-3 panel px-4 py-3 border-emerald-500 opacity-0 z-20" style="transform:translateY(20px);max-width:340px;border-color:#10b981">
 <div class="hud-label text-emerald-400">📻 INCOMING RADIO</div>
 <div id="radio-pop-text" class="text-sm text-emerald-100 font-bold mt-1"></div>
@@ -279,7 +241,7 @@
 </div>
 <div id="stopmenu-overlay" class="absolute inset-0 z-30 hidden items-center justify-center" style="background:rgba(0,0,10,.5)">
 <div class="panel px-8 py-6 text-center" style="min-width:400px">
-<div class="text-xl font-black neon-text mb-1">🔧 停車中 ― 次の操作を選んでください</div>
+<div class="text-xl font-black mb-1">🔧 停車中 ― 次の操作を選んでください</div>
 <div class="text-xs text-cyan-100/60 mb-4" id="stopmenu-status"></div>
 <div class="grid grid-cols-2 gap-3">
 <button class="btn" onclick="StopMenu.pick('tire')">🛞 タイヤ交換<br><span class="text-[10px] font-normal">5分間停止</span></button>
@@ -295,11 +257,11 @@
 <div class="text-xs text-cyan-100/60 mb-3">この停車中に角度を変えられるのは今だけです(時間停止中)</div>
 <div class="flex justify-between text-sm mb-1"><span>ティルト角</span><span class="mono text-cyan-300" id="td-val">40°</span></div>
 <input type="range" id="td-slider" min="0" max="80" step="1" value="40" oninput="TiltDecide.preview(this.value)">
-<div class="mono text-yellow-300 my-2 text-lg">予想発電: <span id="td-watt">0</span> W</div>
-<button class="btn" onclick="TiltDecide.confirm()">✅ この角度に決定</button>
+<div class="mono my-2 text-lg" style="color:var(--warn)">予想発電: <span id="td-watt">0</span> W</div>
+<button class="btn pri" onclick="TiltDecide.confirm()">✅ この角度に決定</button>
 </div>
 </div>
-<div id="ask-panel" class="absolute left-3 bottom-4 panel p-2 hidden z-30" style="width:225px">
+<div id="ask-panel" class="absolute panel p-3 hidden z-30" style="width:240px">
 <div class="hud-label mb-1">📻 無線で質問する (Q)</div>
 <div class="grid grid-cols-1 gap-1">
 <button class="btn py-1 text-xs" onclick="Ask.q('cs')">次のCSまでは?</button>
@@ -313,9 +275,9 @@
 <div id="touch-ui" class="absolute inset-0 hidden" style="z-index:26;pointer-events:none">
 <div class="absolute bottom-2 left-1/2 -translate-x-1/2 panel px-4 py-1 text-center" style="pointer-events:auto">
 <div class="flex items-center gap-1 justify-center">
-<span id="wl2" class="text-lg" style="color:#1e3a4f">◀</span>
-<span class="mono font-black text-3xl neon-text" id="touch-speed">0</span>
-<span id="wr2" class="text-lg" style="color:#1e3a4f">▶</span>
+<span id="wl2" class="text-lg" style="color:#33373d"><span data-ic="chl"></span></span>
+<span class="mono font-black text-3xl" id="touch-speed">0</span>
+<span id="wr2" class="text-lg" style="color:#33373d"><span data-ic="chr"></span></span>
 </div>
 <div class="hud-label" id="touch-thr">スロットル 0%</div>
 </div>
@@ -326,13 +288,13 @@
 <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="View.cam=(View.cam+1)%4">📷</button>
 <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="togglePower()">⚙</button>
 <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="toggleGear()">R/D</button>
-<button class="tbtn" style="padding:7px 9px;font-size:12px;background:rgba(251,191,36,.3);border-color:#fbbf24" onclick="boost()">🚀</button>
+<button class="tbtn" style="padding:7px 9px;font-size:12px;background:rgba(242,107,29,.3);border-color:#f26b1d" onclick="boost()">🚀</button>
 <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="StopMenu.open(true)">🔧</button>
 <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="document.getElementById('ask-panel').classList.toggle('hidden')">📻</button>
 </div>
 <div class="absolute bottom-2 left-2 flex gap-2" style="pointer-events:auto">
-<button class="tbtn" data-tk="a" style="padding:18px 22px">◀</button>
-<button class="tbtn" data-tk="d" style="padding:18px 22px">▶</button>
+<button class="tbtn" data-tk="a" style="padding:18px 22px"><span data-ic="chl"></span></button>
+<button class="tbtn" data-tk="d" style="padding:18px 22px"><span data-ic="chr"></span></button>
 </div>
 <div class="absolute bottom-2 right-2 flex flex-col gap-2 items-end" style="pointer-events:auto">
 <div class="flex gap-2">
@@ -345,7 +307,7 @@
 </div>
 </div>
 </div>
-<div id="ot-pop" class="absolute bottom-40 right-3 panel px-4 py-3 hidden z-30" style="border-color:#f59e0b;max-width:340px">
+<div id="ot-pop" class="absolute bottom-40 right-3 panel px-4 py-3 hidden z-30" style="border-top:2px solid var(--warn);max-width:340px">
 <div class="hud-label text-amber-400">📻 後続チームより無線</div>
 <div id="ot-text" class="text-sm my-2"></div>
 <div class="flex gap-2 justify-end">
@@ -353,54 +315,66 @@
 <button class="btn btn-amber text-xs py-1" onclick="OT.answer(false)">No</button>
 </div>
 </div>
+<div id="map-ov" onclick="if(event.target===this) MapUI.toggle(false)">
+<div class="box">
+<div class="mp"><div class="ph"><span data-ic="map"></span>Route ― 全チームの位置</div><div id="map-ov-map"></div>
+<div class="ahead"><div class="lb">自車の前後 150 km</div><div class="ax" id="map-ov-gap" style="height:56px"></div></div></div>
+<div class="tb"><div class="ph" style="justify-content:space-between"><span style="display:flex;gap:8px;align-items:center"><span data-ic="users"></span>Teams</span><span class="lb" id="map-ov-n" style="margin-right:44px"></span></div>
+<table><thead><tr><th>Pos</th><th>Team</th><th>km</th><th>差 km</th><th>km/h</th><th>状態</th></tr></thead><tbody id="map-ov-rows"></tbody></table>
+<div class="help mt-3" style="font-size:12px;color:var(--dim)">差 km: + は前方、− は後方。Esc または地図の外をクリックで閉じる。</div></div>
+<button class="btn x" onclick="MapUI.toggle(false)"><span data-ic="x"></span></button>
+</div></div>
 <div id="pause-overlay" class="absolute inset-0 z-30 hidden items-center justify-center" style="background:rgba(0,0,10,.6)">
 <div class="panel px-10 py-8 text-center space-y-3">
-<div class="text-2xl font-black neon-text">PAUSE</div>
-<button class="btn block w-full" onclick="togglePause()">▶ 再開</button>
+<img src="assets/img/logo.svg" class="logo mx-auto" width="80" alt=""><div class="ttl" style="font-size:24px;letter-spacing:.2em">PAUSE</div>
+<button class="btn pri block w-full" onclick="togglePause()">▶ 再開</button>
 <button class="btn block w-full" onclick="openWheelConfig()">🎮 ハンコン割当</button>
 <button class="btn btn-amber block w-full" onclick="quitToMenu()">🏠 メニューへ戻る</button>
 </div>
 </div>
 </div>
 <!-- ============================ リザルト ============================ -->
-<div id="result-screen" class="fixed inset-0 z-40 hidden items-center justify-center" style="background:radial-gradient(ellipse at 50% 30%, #123045 0%, #05070d 70%)">
-<div class="panel px-12 py-8 text-center max-w-lg">
-<div class="text-xs tracking-[.4em] text-cyan-600">RESULT</div>
-<div class="text-3xl font-black neon-text my-2" id="result-title">FINISH!</div>
-<div id="result-body" class="mono text-sm text-left space-y-1 my-4"></div>
-<button class="btn" onclick="quitToMenu()">メニューへ戻る</button>
+<div id="result-screen" class="fixed inset-0 z-40 hidden items-center justify-center">
+<div class="card2" style="width:min(560px,calc(100vw - 32px))">
+<div class="hd"><span class="lb">Result</span><img src="assets/img/logo.svg" class="logo" width="72" alt=""></div>
+<h2 id="result-title">FINISH!</h2>
+<div id="result-body" class="my-4"></div>
+<div style="display:flex;justify-content:flex-end"><button class="btn pri" onclick="quitToMenu()"><span data-ic="home"></span>メニューへ戻る</button></div>
 </div>
 </div>
-<script src="js/data/route-2025.js?v=20261106-ev3"></script>
-<script src="js/data/route-plan.js?v=20261106-ev3"></script>
-<script src="js/data/route-osm.js?v=20261106-ev3"></script>
-<script src="js/route.js?v=20261106-ev3"></script>
-<script src="js/data.js?v=20261106-ev3"></script>
-<script src="js/data/vehicle-private.js?v=20261106-ev3" onerror="window.__vehPrivMissing=true"></script>
-<script src="js/vehicle.js?v=20261106-ev3"></script>
-<script src="js/physics.js?v=20261106-ev3"></script>
-<script src="js/setup-ui.js?v=20261106-ev3"></script>
-<script src="js/audio-radio.js?v=20261106-ev3"></script>
-<script src="js/engine.js?v=20261106-ev3"></script>
-<script src="js/controls.js?v=20261106-ev3"></script>
-<script src="js/collide.js?v=20261106-ev3"></script>
-<script src="js/render/quality.js?v=20261106-ev3"></script>
-<script src="js/render/textures.js?v=20261106-ev3"></script>
-<script src="js/render/yata.js?v=20261106-ev3"></script>
-<script src="js/render/sky.js?v=20261106-ev3"></script>
-<script src="js/render/biome.js?v=20261106-ev3"></script>
-<script src="js/render/geobatch.js?v=20261106-ev3"></script>
-<script src="js/render/materials.js?v=20261106-ev3"></script>
-<script src="js/render/props.js?v=20261106-ev3"></script>
-<script src="js/render/scenery.js?v=20261106-ev3"></script>
-<script src="js/data/hidden-valley.js?v=20261106-ev3"></script>
-<script src="js/render/hiddenvalley.js?v=20261106-ev3"></script>
-<script src="js/render/view.js?v=20261106-ev3"></script>
-<script src="js/crew.js?v=20261106-ev3"></script>
-<script src="js/hud.js?v=20261106-ev3"></script>
-<script src="js/test-mode.js?v=20261106-ev3"></script>
-<script src="js/lib/qrcode.js?v=20261106-ev3"></script>
-<script src="js/event-game.js?v=20261106-ev3"></script>
-<script src="js/main.js?v=20261106-ev3"></script>
+<script src="js/data/route-2025.js?v=20261106-ui1"></script>
+<script src="js/data/route-plan.js?v=20261106-ui1"></script>
+<script src="js/data/route-osm.js?v=20261106-ui1"></script>
+<script src="js/route.js?v=20261106-ui1"></script>
+<script src="js/data/australia.js?v=20261106-ui1"></script>
+<script src="js/data.js?v=20261106-ui1"></script>
+<script src="js/data/vehicle-private.js?v=20261106-ui1" onerror="window.__vehPrivMissing=true"></script>
+<script src="js/vehicle.js?v=20261106-ui1"></script>
+<script src="js/physics.js?v=20261106-ui1"></script>
+<script src="js/setup-ui.js?v=20261106-ui1"></script>
+<script src="js/audio-radio.js?v=20261106-ui1"></script>
+<script src="js/engine.js?v=20261106-ui1"></script>
+<script src="js/controls.js?v=20261106-ui1"></script>
+<script src="js/collide.js?v=20261106-ui1"></script>
+<script src="js/render/quality.js?v=20261106-ui1"></script>
+<script src="js/render/textures.js?v=20261106-ui1"></script>
+<script src="js/render/yata.js?v=20261106-ui1"></script>
+<script src="js/render/sky.js?v=20261106-ui1"></script>
+<script src="js/render/biome.js?v=20261106-ui1"></script>
+<script src="js/render/geobatch.js?v=20261106-ui1"></script>
+<script src="js/render/materials.js?v=20261106-ui1"></script>
+<script src="js/render/props.js?v=20261106-ui1"></script>
+<script src="js/render/scenery.js?v=20261106-ui1"></script>
+<script src="js/data/hidden-valley.js?v=20261106-ui1"></script>
+<script src="js/render/hiddenvalley.js?v=20261106-ui1"></script>
+<script src="js/render/view.js?v=20261106-ui1"></script>
+<script src="js/crew.js?v=20261106-ui1"></script>
+<script src="js/hud.js?v=20261106-ui1"></script>
+<script src="js/test-mode.js?v=20261106-ui1"></script>
+<script src="js/lib/qrcode.js?v=20261106-ui1"></script>
+<script src="js/event-game.js?v=20261106-ui1"></script>
+<script src="js/ui/icons.js?v=20261106-ui1"></script>
+<script src="js/ui/map.js?v=20261106-ui1"></script>
+<script src="js/main.js?v=20261106-ui1"></script>
 </body>
 </html>

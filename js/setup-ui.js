@@ -103,8 +103,8 @@ P.panel=k; P.cellEff=PANEL_TYPES[k].eff;
 document.getElementById("sl-cellEff").value=P.cellEff; refreshSliderLabel("cellEff");
 document.querySelectorAll("[data-panel]").forEach(e=>e.classList.toggle("active",e.dataset.panel===k));
 }
-function setEventLevel(lv){ EventGame.level=lv; document.getElementById("ev-lv-kid").classList.toggle("btn-amber",lv==="kid"); document.getElementById("ev-lv-adult").classList.toggle("btn-amber",lv==="adult"); }
-function setEventCourse(c){ EventGame.course=c; document.getElementById("ev-co-aus").classList.toggle("btn-amber",c==="aus"); document.getElementById("ev-co-hv").classList.toggle("btn-amber",c==="hv"); }
+function setEventLevel(lv){ EventGame.level=lv; document.getElementById("ev-lv-kid").classList.toggle("on",lv==="kid"); document.getElementById("ev-lv-adult").classList.toggle("on",lv==="adult"); }
+function setEventCourse(c){ EventGame.course=c; document.getElementById("ev-co-aus").classList.toggle("on",c==="aus"); document.getElementById("ev-co-hv").classList.toggle("on",c==="hv"); }
 function selectMode(m){
 P.mode=m;
 document.getElementById("mode-race").classList.toggle("active",m==="race");
@@ -121,6 +121,13 @@ fig8:"8の字走行 ― 内円半径6m・コース幅5mの8の字を片側9秒�
 };
 function selectTest(k){
 P.testKind=k; selectMode('test');
-document.getElementById("test-desc").textContent="選択中: "+TEST_DESC[k];
-document.querySelectorAll("[data-test]").forEach(b=>b.style.boxShadow=b.dataset.test===k?"0 0 14px rgba(52,211,153,.8)":"");
+document.getElementById("test-desc").textContent=TEST_DESC[k];
+document.querySelectorAll("[data-test]").forEach(b=>b.classList.toggle("on",b.dataset.test===k));
+}
+/* <select> を区切りボタンで操作する (値は select に書き戻すので読み取り側はそのまま) */
+function segFromSelect(selId,boxId,label){
+ const sel=document.getElementById(selId), box=document.getElementById(boxId); if(!sel||!box) return;
+ box.innerHTML=""; for(const o of sel.options){ const b=document.createElement("button"); b.type="button"; b.textContent=label?label(o):o.textContent; b.title=o.textContent; b.dataset.v=o.value;
+  b.onclick=()=>{ sel.value=o.value; sel.dispatchEvent(new Event("change")); box.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.v===sel.value)); };
+  if(o.value===sel.value) b.classList.add("on"); box.appendChild(b); }
 }

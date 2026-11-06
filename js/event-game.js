@@ -202,14 +202,14 @@ csScore(){ const t=this.st;
 showCard(m,cb){
  this.cardOpen=true; modalPause=true;
  let el=document.getElementById("ev-card");
- if(!el){ el=document.createElement("div"); el.id="ev-card"; el.style.cssText="position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(0,0,10,.6)"; document.body.appendChild(el); }
+ if(!el){ el=document.createElement("div"); el.id="ev-card"; el.style.cssText="position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(5,5,6,.55)"; document.body.appendChild(el); }
  const n=this.mi+1, N=this.MISSIONS.length;
- el.innerHTML=`<div class="panel px-8 py-6 text-center" style="max-width:560px">
-  <div class="text-xs tracking-[.3em] text-cyan-500">MISSION ${n} / ${N}</div>
-  <div class="text-3xl font-black text-amber-300 my-2">${m.title}</div>
-  <div class="text-base text-cyan-50 mb-3">${m.goal}</div>
-  <div class="text-xs text-left text-emerald-200 border border-emerald-700 rounded p-2 mb-3">💡 ${m.tip}</div>
-  <div class="text-sm text-cyan-200">アクセル / スペース / クリックでスタート <span id="ev-card-cd" class="mono"></span></div></div>`;
+ el.innerHTML=`<div class="card2" style="width:min(620px,calc(100vw - 32px))">
+  <div class="hd"><span class="lb">Mission ${n} / ${N}</span><img src="assets/img/logo.svg" class="logo" width="64" alt=""></div>
+  <h2>${m.title}</h2>
+  <div style="font-size:15px;line-height:1.9">${m.goal}</div>
+  <div class="tip">${m.tip}</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:18px"><span class="lb">アクセル / スペース / クリックでスタート <span id="ev-card-cd" class="num"></span></span><span class="btn pri">${ic("play")} START</span></div></div>`;
  el.style.display="flex";
  let left=10; const cd=()=>{ const e=document.getElementById("ev-card-cd"); if(e) e.textContent=`(${left})`; };
  cd();
@@ -228,7 +228,7 @@ closeCard(){
 ensureHud(){
  if(document.getElementById("event-mission")) return;
  const h=document.getElementById("event-hud").firstElementChild;
- const d=document.createElement("div"); d.id="event-mission"; d.className="text-sm text-cyan-100 mt-1"; h.appendChild(d);
+ const d=document.createElement("div"); d.id="event-mission"; d.className="text-sm mt-1"; d.style.color="var(--tx2)"; h.appendChild(d);
 },
 hudMission(){ const m=this.MISSIONS[this.mi], e=document.getElementById("event-mission"); if(e&&m) e.textContent=`MISSION ${this.mi+1}: ${m.title}`+(this.replay?" (リプレイ)":""); },
 hud(){
@@ -245,36 +245,36 @@ finish(){
  if(this.replay||this.course!=="aus"){ this.showResult(total,null); return; }
  this.encode().then(code=>{ this.code=code; this.showResult(total,code); });
 },
-stamp(total){ const mx=100*this.MISSIONS.length; return total>=0.76*mx?["🥇 GOLD","#fbbf24"]: total>=0.52*mx?["🥈 SILVER","#cbd5e1"]:["🥉 BRONZE","#d97706"]; },
+stamp(total){ const mx=100*this.MISSIONS.length; return total>=0.76*mx?["GOLD","#e2b21f"]: total>=0.52*mx?["SILVER","#c9ccd0"]:["BRONZE","#c07a3a"]; },
 showResult(total,code){
  let el=document.getElementById("ev-result");
- if(!el){ el=document.createElement("div"); el.id="ev-result"; el.style.cssText="position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 30%,#123045 0%,#05070d 70%);overflow:auto"; document.body.appendChild(el); }
- const [st,col]=this.stamp(total), rows=this.MISSIONS.map((m,i)=>`<tr><td class="pr-4">${i+1}. ${m.title}</td><td class="text-right mono">${Math.max(0,this.scores[i]||0)}</td></tr>`).join("");
+ if(!el){ el=document.createElement("div"); el.id="ev-result"; el.style.cssText="position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:#0d0e10;overflow:auto"; document.body.appendChild(el); }
+ const [st,col]=this.stamp(total), rows=this.MISSIONS.map((m,i)=>`<tr style="border-bottom:1px solid #1d2024"><td class="pr-6 py-1"><span class="num" style="color:var(--dim);margin-right:8px">${i+1}</span>${m.title}</td><td class="text-right num">${Math.max(0,this.scores[i]||0)}</td></tr>`).join("");
  const url= code? EVENT_PUBLIC_URL+"#r="+code : "";
  const rank=this.rankList();
- el.innerHTML=`<div class="panel px-8 py-6 text-center" style="max-width:820px;margin:20px">
-  <div class="text-xs tracking-[.4em] text-cyan-600">${this.replay?"REPLAY":"RESULT"} ― ${this.course==="hv"?"ヒドゥンバレー":"オーストラリア"} ― ${this.level==="kid"?"こども":"おとな"}</div>
-  <div style="color:${col};font-size:2.4rem;font-weight:900">${st}</div>
-  <div class="text-4xl font-black text-amber-300 mb-3">${total} 点</div>
-  <div class="flex flex-wrap gap-6 justify-center text-left">
+ el.innerHTML=`<div class="card2" style="width:min(860px,calc(100vw - 32px));margin:20px">
+  <div class="hd"><span class="lb">${this.replay?"Replay":"Result"} ― ${this.course==="hv"?"ヒドゥンバレー":"オーストラリア"} ― ${this.level==="kid"?"こども":"おとな"}</span><img src="assets/img/logo.svg" class="logo" width="80" alt=""></div>
+  <div style="display:flex;align-items:baseline;gap:22px;margin:8px 0 18px"><span class="num" style="font-size:56px;line-height:1">${total}<span class="u">点</span></span>
+   <span style="display:flex;gap:8px;align-items:center;color:${col};font-family:var(--fn);font-weight:700;font-size:22px;letter-spacing:.16em">${ic("medal")}${st}</span></div>
+  <div class="flex flex-wrap gap-8 text-left">
    <div><table class="text-sm">${rows}</table>
-    ${this.replay?"":`<div class="mt-3 text-sm">ニックネーム <input id="ev-name" maxlength="12" class="bg-slate-900 border border-cyan-700 rounded px-2 py-1 text-sm" style="width:9em" value="${this.defaultName()}">
+    ${this.replay?"":`<div class="mt-4 text-sm" style="display:flex;gap:8px;align-items:center"><span class="lb">Nickname</span><input id="ev-name" maxlength="12" class="px-2 py-1 text-sm" style="width:9em" value="${this.defaultName()}">
     <button class="btn text-xs" onclick="EventGame.register()">ランキングに登録</button></div>`}
-    <div class="mt-3 text-xs text-cyan-200/70">今日のランキング</div>
+    <div class="lb mt-5 mb-1">今日のランキング</div>
     <ul id="ev-rank" class="text-sm mono">${rank}</ul></div>
    ${url?`<div class="text-center"><div id="ev-qr" style="background:#fff;padding:8px;display:inline-block"></div>
     <div class="text-xs text-cyan-100/70 mt-1" style="max-width:260px">QR を読み取ると、家で自分の走りを 3D で再生でき、<br>そのゴーストと対戦できます</div></div>`:""}
   </div>
-  <div class="flex gap-2 justify-center mt-4">
-   ${this.replay?`<button class="btn" onclick="EventGame.raceGhost()">👻 このゴーストと走る</button>`:`<button class="btn" onclick="EventGame.again()">もう一度</button>`}
-   <button class="btn btn-amber" onclick="EventGame.toMenu()">メニューへ</button></div></div>`;
+  <div class="flex gap-2 justify-end mt-5">
+   ${this.replay?`<button class="btn" onclick="EventGame.raceGhost()">👻 このゴーストと走る</button>`:`<button class="btn pri" onclick="EventGame.again()">${ic("refresh")} もう一度</button>`}
+   <button class="btn" onclick="EventGame.toMenu()">${ic("home")} メニューへ</button></div></div>`;
  el.style.display="flex";
  if(url) this.drawQR(url);
 },
 hideResult(){ const el=document.getElementById("ev-result"); if(el) el.style.display="none"; },
 drawQR(url){
  const box=document.getElementById("ev-qr"); if(!box||typeof qrcode==="undefined"){ if(box) box.textContent=url; return; }
- try{ const q=qrcode(0,"L"); q.addData(url,"Byte"); q.make(); const n=q.getModuleCount(); box.innerHTML=q.createImgTag(Math.max(2,Math.floor(240/n)),8); }
+ try{ const q=qrcode(0,"L"); q.addData(url,"Byte"); q.make(); const n=q.getModuleCount(); box.innerHTML=q.createImgTag(Math.max(2,Math.floor(220/n)),8); }
  catch(e){ box.textContent="QR を作れませんでした"; }
 },
 defaultName(){ return "PLAYER "+String(1+this.rank().length).padStart(2,"0"); },

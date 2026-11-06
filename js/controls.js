@@ -122,7 +122,7 @@ carGroup.userData.winkR.forEach(m=>m.color.setHex(R&&on?0xffb020:0x4a3005));
 if(es.signal!==0){
 if(on!==_winkPhase){ _winkPhase=on; if(on) Snd.blip(1350,0.025,"square",0.05); }
 } else _winkPhase=null;
-const lc=(L&&on)?"#34d399":"#1e3a4f", rc=(R&&on)?"#34d399":"#1e3a4f";
+const lc=(L&&on)?"#f26b1d":"#33373d", rc=(R&&on)?"#f26b1d":"#33373d";
 const wl=document.getElementById("wl"), wr=document.getElementById("wr");
 if(wl){ wl.style.color=lc; wr.style.color=rc; }
 const wl2=document.getElementById("wl2"), wr2=document.getElementById("wr2");
@@ -150,10 +150,7 @@ if(running) applyTouchMode();
 function refreshUIModeBtns(){
 const pc=document.getElementById("ui-pc"), mb=document.getElementById("ui-mobile");
 if(!pc) return;
-pc.style.boxShadow=P.uiMode==="pc"?"0 0 12px rgba(34,211,238,.8)":"";
-pc.style.borderColor=P.uiMode==="pc"?"#22d3ee":"#164e63";
-mb.style.boxShadow=P.uiMode==="mobile"?"0 0 12px rgba(52,211,153,.8)":"";
-mb.style.borderColor=P.uiMode==="mobile"?"#34d399":"#164e63";
+pc.classList.toggle("on",P.uiMode==="pc"); mb.classList.toggle("on",P.uiMode==="mobile");
 }
 /* 後退ギア (N キー): 停止中だけ D ⇄ R を切り替える。後退中は上限 8 km/h・電流を絞る・警告音 */
 const REVERSE={maxV:8/3.6, maxA:8};
@@ -208,9 +205,19 @@ b.addEventListener("pointerdown",on);
 b.addEventListener("pointerup",off); b.addEventListener("pointerleave",off); b.addEventListener("pointercancel",off);
 });
 let toastTimer=null;
+/* 旧配色 (ネオン) の色指定をテーマ色へ */
+function themeColor(c){ c=String(c||"").toLowerCase();
+ if(/#(34d399|10b981|22c55e|4ade80|6ee7b7)/.test(c)) return "#5cb85c";
+ if(/#(f59e0b|fbbf24|fcd34d|eab308|facc15)/.test(c)) return "#e2b21f";
+ if(/#(ef4444|f87171|dc2626|fb7185|b91c1c)/.test(c)) return "#d23a2e";
+ if(/#(fb923c|f97316|ea580c)/.test(c)) return "#f26b1d";
+ return "#f26b1d"; }
+/* 詳細パネル (TAB) の表示切替。状態はブラウザに保存 */
+function toggleDetail(on){ const off=on==null?!document.body.classList.contains("detail-off"):!on; document.body.classList.toggle("detail-off",off); try{ localStorage.setItem("bwsc_detailOff",off?"1":"0"); }catch(e){} }
+try{ if(localStorage.getItem("bwsc_detailOff")==="1") document.body.classList.add("detail-off"); }catch(e){}
 function toast(msg,color="#22d3ee"){
 const t=document.getElementById("toast");
-t.innerHTML=msg; t.style.color=color; t.style.opacity=1;
+t.innerHTML=msg; t.style.borderLeftColor=themeColor(color); t.style.opacity=1;
 clearTimeout(toastTimer);
 toastTimer=setTimeout(()=>t.style.opacity=0,3500);
 }
@@ -222,7 +229,8 @@ gamepadOK:false, gpSteer:0, gpThrottle:0, gpBrake:0, gpRegen:false,
 addEventListener("keydown",e=>{
 Input.keys[e.key.toLowerCase()]=true;
 if(e.key===" ") e.preventDefault();
-if(e.key==="Escape") togglePause();
+if(e.key==="Escape"){ const ov=document.getElementById("map-ov"); if(ov&&ov.classList.contains("on")){ MapUI.toggle(false); return; } togglePause(); }
+if(e.key==="Tab"&&running){ e.preventDefault(); toggleDetail(); }
 if(e.key.toLowerCase()==="v") View.cam=(View.cam+1)%4;
 if(e.key.toLowerCase()==="g") cycleChart();
 if(e.key.toLowerCase()==="m") StopMenu.open(true);

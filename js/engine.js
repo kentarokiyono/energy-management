@@ -119,7 +119,7 @@ if(s.weather) pace*=0.82;
 if(tm.soc<0.15) pace*=0.6;
 else if(tm.soc<0.35) pace*=0.85;
 if(s.hour>15.5 && tm.soc>0.4) pace*=1.15;
-const spd=tm.spd*pace*(tm.boost?1.35:1);
+const spd=tm.spd*pace*(tm.boost?1.35:1); tm.vNow=spd;
 tm.km+=spd*dtS/3600;
 const gain=(s.lastGeff/900)*0.00004*dtS;
 const drain=Math.pow(spd/85,2.3)*0.000055*dtS/tm.eff;
