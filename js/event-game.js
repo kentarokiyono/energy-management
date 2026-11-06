@@ -284,7 +284,7 @@ raceGhost(){ const g=this.replay; this.hideResult(); this.end(); this.ghostRun=g
 /* ---------- ランキング (端末に保存・日ごと) ---------- */
 dayKey(){ const d=new Date(); return "bwsc_evrank_"+(this.course==="hv"?"hv_":"")+d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate(); },
 rank(){ try{ return JSON.parse(localStorage.getItem(this.dayKey())||"[]"); }catch(e){ return []; } },
-rankList(){ const r=this.rank(); return r.length? r.slice(0,10).map((x,i)=>`<li>${i+1}. ${x.n.replace(/[<>&]/g,"")} ― ${x.s} 点 ${x.lv==="kid"?"(こども)":""}</li>`).join("") : "<li class='text-cyan-100/40'>まだ登録がありません</li>"; },
+rankList(){ const r=this.rank(); return r.length? r.slice(0,10).map((x,i)=>`<li>${i+1}. ${escHtml(String(x.n).slice(0,12))} ― ${x.s} 点 ${x.lv==="kid"?"(こども)":""}</li>`).join("") : "<li class='text-cyan-100/40'>まだ登録がありません</li>"; },
 register(){
  if(this._registered) return; this._registered=true;
  const n=(document.getElementById("ev-name").value||this.defaultName()).slice(0,12), r=this.rank();
@@ -324,11 +324,14 @@ pack(){
  return new Uint8Array(out);
 },
 unpack(u){
- let p=0; const ver=u[p++]; if(ver!==1&&ver!==2) throw new Error("ver");
- const lv=u[p++]?"kid":"adult", total=u[p++]<<8|u[p++], scores=[], ns=ver===1?5:u[p++]; for(let i=0;i<ns;i++) scores.push(u[p++]);
- const n=u[p++]<<8|u[p++], samples=[]; let prevMi=-1, prevKm=0;
- const vint=()=>{ let n=0,m=1,b; do{ b=u[p++]; n+=(b&127)*m; m*=128; }while(b&128); return n&1? -(n+1)/2 : n/2; };
- for(let i=0;i<n;i++){ const b0=u[p++], mi=b0>>5, v=(b0&31)*5/3.6; let lat=u[p++]; if(lat>127) lat-=256; const d=vint(); const km=mi!==prevMi? d : prevKm+d; prevMi=mi; prevKm=km; const mt=u[p++];
+ // URL から来る値は信用しない: 範囲外を読んだら失敗、件数・値は上限で切る
+ let p=0; const rd=()=>{ if(p>=u.length) throw new Error("short"); return u[p++]; };
+ const ver=rd(); if(ver!==1&&ver!==2) throw new Error("ver");
+ const lv=rd()?"kid":"adult", total=Math.min(rd()<<8|rd(),1000), scores=[], ns=ver===1?5:Math.min(rd(),8); for(let i=0;i<ns;i++) scores.push(Math.min(rd(),100));
+ const n=Math.min(rd()<<8|rd(),4000), samples=[]; let prevMi=-1, prevKm=0;
+ const vint=()=>{ let n=0,m=1,b,k=0; do{ b=rd(); n+=(b&127)*m; m*=128; if(++k>5) throw new Error("varint"); }while(b&128); return n&1? -(n+1)/2 : n/2; };
+ for(let i=0;i<n;i++){ const b0=rd(), mi=b0>>5, v=(b0&31)*5/3.6; let lat=rd(); if(lat>127) lat-=256; const d=vint(); const km=mi!==prevMi? d : prevKm+d; prevMi=mi; prevKm=km; const mt=rd();
+  if(!(Math.abs(km)<4e6)) throw new Error("km");
   samples.push([mi,mt,km/1000,lat/10,v]); }
  return {lv,total,scores,samples};
 },
@@ -339,8 +342,13 @@ async encode(){
  if(typeof CompressionStream!=="undefined"){ try{ const cs=new Blob([raw]).stream().pipeThrough(new CompressionStream("deflate-raw")); const z=new Uint8Array(await new Response(cs).arrayBuffer()); return "z"+this.b64(z); }catch(e){} }
  return "u"+this.b64(raw);
 },
+REPLAY_MAX_CODE:12000, REPLAY_MAX_BYTES:65536,   // 圧縮爆弾・巨大 URL 対策
 async decode(code){
- if(code[0]==="z"){ const ds=new Blob([this.unb64(code.slice(1))]).stream().pipeThrough(new DecompressionStream("deflate-raw")); return this.unpack(new Uint8Array(await new Response(ds).arrayBuffer())); }
+ if(typeof code!=="string"||code.length<2||code.length>this.REPLAY_MAX_CODE||!/^[zu][A-Za-z0-9_-]+$/.test(code)) throw new Error("code");
+ if(code[0]==="z"){
+  const rd=new Blob([this.unb64(code.slice(1))]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader(), parts=[]; let len=0;
+  for(;;){ const {done,value}=await rd.read(); if(done) break; len+=value.length; if(len>this.REPLAY_MAX_BYTES){ rd.cancel(); throw new Error("too large"); } parts.push(value); }
+  const u=new Uint8Array(len); let o=0; for(const x of parts){ u.set(x,o); o+=x.length; } return this.unpack(u); }
  return this.unpack(this.unb64(code.slice(1)));
 },
 decodeSync(code){ return this._decoded&&this._decoded[code]; },
@@ -361,7 +369,7 @@ post(){ if(this.active&&this.replay&&!this.done&&this._rv!=null) Engine.st.v=thi
 };
 /* ページを開いたとき: リプレイ URL (#r=...) なら再生、ランキングのゴーストを読み込む */
 addEventListener("load",async()=>{
- const m=location.hash.match(/#r=([A-Za-z0-9_-]+)/);
+ const m=location.hash.match(/^#r=([zu][A-Za-z0-9_-]{1,12000})$/);
  // 端末に保存したランキングのリプレイを先に展開 (ゴースト用)
  EventGame._decoded={}; for(const x of EventGame.rank()) if(x.r){ try{ EventGame._decoded[x.r]=await EventGame.decode(x.r); }catch(e){} }
  if(m){ try{ const run=await EventGame.decode(m[1]); history.replaceState(null,"",location.pathname); setTimeout(()=>EventGame.startReplay(run),300); }catch(e){ console.warn("replay decode",e); } }
