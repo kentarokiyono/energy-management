@@ -333,7 +333,7 @@ pick(){
 showUI(){
  if(!this.ui){
   const root=document.createElement("div"); root.id="crew-ui";
-  root.style.cssText="position:fixed;right:14px;top:120px;z-index:40;max-width:330px;font:12px/1.5 sans-serif;color:#e6f6ff;background:rgba(6,14,24,.82);border:1px solid #155e75;border-radius:10px;padding:10px 12px;pointer-events:none";
+  root.style.cssText="position:fixed;right:16px;top:100px;z-index:40;max-width:340px;font-size:13px;line-height:1.7;color:#e6e6e3;background:rgba(21,23,26,.92);border:1px solid #2a2d32;border-top:2px solid #f26b1d;padding:12px 16px;pointer-events:none";
   const cross=document.createElement("div"); cross.style.cssText="position:fixed;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border:2px solid rgba(255,255,255,.8);border-radius:50%;z-index:40;pointer-events:none";
   const prompt=document.createElement("div"); prompt.style.cssText="position:fixed;left:50%;top:56%;transform:translateX(-50%);z-index:40;color:#fff;font:bold 14px sans-serif;text-shadow:0 0 4px #000;pointer-events:none";
   document.body.appendChild(root); document.body.appendChild(cross); document.body.appendChild(prompt);
@@ -345,14 +345,14 @@ drawUI(){
  if(!this.ui) return;
  const vis=this.phase!=="drive"; this.ui.root.style.display=vis?"block":"none"; this.ui.cross.style.display=vis?"block":"none"; this.ui.prompt.style.display=vis?"block":"none";
  if(!vis) return;
- const li=(done,t,next)=>`<div style="color:${done?'#6ee7b7':next?'#fde68a':'#94a3b8'}">${done?'✔':next?'▶':'・'} ${t}</div>`;
+ const li=(done,t,next)=>`<div style="display:flex;gap:8px;align-items:center;color:${done?'#5cb85c':next?'#e6e6e3':'#8b9097'}">${done?ic("check"):next?ic("chr","acc"):'<span style="width:1.05em;text-align:center">・</span>'}<span>${t}</span></div>`;
  let h="";
  const es=Engine.st, mm=(x)=>`${Math.floor(x/60)}:${String(Math.floor(x%60)).padStart(2,"0")}`;
  if(this.phase==="egress"){ h+=`<b>降車手順</b>`; const nx=this.nextStep(this.EGRESS); for(const s of this.EGRESS) h+=li(s!==nx&&s.done(this.st),s.t,s===nx); }
  else if(this.phase==="ingress"){ h+=`<b>乗車手順</b>`; const nx=this.nextStep(this.INGRESS); for(const s of this.INGRESS) h+=li(s!==nx&&s.done(this.st),s.t,s===nx);
   if(this.ctx&&this.ctx.kind==="cs") h+=`<div style="margin-top:4px">発車まで ${mm(Math.max(0,es.stopTimer))}</div>`; }
  else if(this.phase==="outside"){
-  h+=`<b>車外</b> <span style="color:#94a3b8">WASD 移動 / Shift 走る / ドラッグ・矢印で視点 / E・クリックで操作</span>`;
+  h+=`<b>車外</b> <span style="color:#8b9097">WASD 移動 / Shift 走る / ドラッグ・矢印で視点 / E・クリックで操作</span>`;
   if(this.ctx&&this.ctx.kind==="cs"){
    const t=this.timing; h+=li(t&&t.started,"本部テントまで走って計測開始ボタンを押す",!(t&&t.started));
    if(t&&t.started) h+=`<div>発車まで ${mm(Math.max(0,es.stopTimer))} (乗り込みは残り 5:00 から)</div>`;
@@ -362,9 +362,9 @@ drawUI(){
   const nx=this.PREP.find(p=>!this.prep[p.item]);
   h+=`<div style="margin-top:4px"><b>乗車準備</b></div>`; for(const p of this.PREP) h+=li(this.prep[p.item],p.t,p===nx);
   h+=li(false,this.boardOK()?"車に乗り込む (車体を見て E)":"乗り込みは発車 5 分前から",!nx&&this.boardOK());
-  if(this.ctx&&this.ctx.kind==="camp") h+=`<div style="color:#94a3b8">翌朝 ${fmtH(Engine.raceStartHour())} スタート。乗り込みは 5 分前から</div>`;
+  if(this.ctx&&this.ctx.kind==="camp") h+=`<div style="color:#8b9097">翌朝 ${fmtH(Engine.raceStartHour())} スタート。乗り込みは 5 分前から</div>`;
  }
- this.ui.root.innerHTML=h;
+ if(this.ui.root._h!==h){ this.ui.root._h=h; this.ui.root.innerHTML=h; }
  this.ui.prompt.textContent= this.hover? "E: "+this.hover.label : "";
 },
 };

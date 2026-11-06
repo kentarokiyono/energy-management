@@ -191,7 +191,7 @@ View.renderer.render(this.scene,this.camera);
 updateHUD();
 document.getElementById("hud-clock").textContent={circuit:"HOT LAP",slalom:"SLALOM",brake:"BRAKE",combo:"SLALOM+BRAKE",fig8:"FIGURE-8"}[this.kind];
 document.getElementById("hud-dist").textContent=(this.v*3.6).toFixed(0)+" km/h";
-document.getElementById("hud-nextcp").textContent={circuit:"目標 2:20台",slalom:"目標 <11.5s",brake:"40km/h→14m",combo:"<11.5s → 14m",fig8:"9s / 18s"}[this.kind];
+setT("hud-nextcp",{circuit:"目標 2:20台",slalom:"目標 <11.5s",brake:"40km/h→14m",combo:"<11.5s → 14m",fig8:"9s / 18s"}[this.kind]);
 document.getElementById("hud-limit").textContent="―";
 this.updateTestHud(); drawG();
 Snd.update(this.v, es.lastAmp/Math.max(motorMaxA(es.powerMode),1), false);
@@ -357,7 +357,7 @@ collide(x0,z0){
 finish(title,rows,pass){
 if(P.event){ EventGame.hvResult(title,rows,pass); return; }   // イベント (ヒドゥンバレー版) は採点して次の課題へ
 document.getElementById("test-result-title").textContent=title;
-document.getElementById("test-result-title").style.color=pass?"#34d399":"#f87171";
+document.getElementById("test-result-title").style.color=pass?"#5cb85c":"#d23a2e";
 document.getElementById("test-result-body").innerHTML=
 rows.map(r=>`<div class="flex justify-between gap-6"><span class="text-cyan-100/60">${r[0]}</span><span>${r[1]}</span></div>`).join("");
 show("test-result",true);
