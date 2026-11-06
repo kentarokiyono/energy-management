@@ -79,7 +79,7 @@ const MapUI={
   if(tm.csT>0) return ["CS 停車","cs"]; if(!(es.hour>=8&&es.hour<17)) return ["停車 (夜営)","stop"]; return ["走行","run"]; },
  ovUpdate(){
   this.ovT=performance.now(); const es=Engine.st; if(!es) return;
-  const teams=(es.teams||[]).map(tm=>{ const [st,c]=this.teamState(tm,es); return {name:tm.name,km:tm.km,v:c==="run"?(tm.vNow||tm.spd||0):0,st,c,hue:tm.hue}; });
+  const teams=(es.teams||[]).map(tm=>{ const [st,c]=this.teamState(tm,es); return {name:tm.name,car:tm.car||"",km:tm.km,v:c==="run"?(tm.vNow||tm.spd||0):0,st,c,hue:tm.hue}; });
   const me={name:"WAKAYAMA (自車)",km:es.km,v:es.v*3.6,st:es.finished?"ゴール":es.stopTimer>0?"CS 停車":es.camp?"停車 (夜営)":es.v>0.5?"走行":"停車",c:"me",me:true};
   const all=[...teams,me].sort((a,b)=>b.km-a.km);
   const v=this.VIEW.big, g=document.querySelector("#map-ov-map .m-teams");
@@ -96,7 +96,7 @@ const MapUI={
    gap.innerHTML=h; }
   const tb=document.getElementById("map-ov-rows");
   if(tb) tb.innerHTML=all.map((t,i)=>{ const d=t.km-es.km;
-   return `<tr class="${t.me?"me":""}"><td>P${i+1}</td><td>${t.name}</td><td>${t.km.toFixed(1)}</td><td>${t.me?"―":(d>0?"+":"−")+Math.abs(d).toFixed(1)}</td><td>${t.v.toFixed(0)}</td><td class="st-${t.c}">${t.st}</td></tr>`; }).join("");
+   return `<tr class="${t.me?"me":""}"><td>P${i+1}</td><td>${t.name}${t.car?` <span style="color:var(--dim);font-weight:500">${t.car}</span>`:""}</td><td>${t.km.toFixed(1)}</td><td>${t.me?"―":(d>0?"+":"−")+Math.abs(d).toFixed(1)}</td><td>${t.v.toFixed(0)}</td><td class="st-${t.c}">${t.st}</td></tr>`; }).join("");
   const n=document.getElementById("map-ov-n"); if(n) n.textContent=`${all.length} TEAMS`;
  },
 };

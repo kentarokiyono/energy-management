@@ -82,14 +82,22 @@ raceStartHour(){ return 8.0 + this.st.morningPenaltyMin/60; },   // 2027 Reg 3.2
 /* 17:00 超過の翌朝ペナルティ (Reg 3.21.4): 10 分までは 1 分/分、それ以降は 2 分/分 */
 extPenaltyMin(ext){ return Math.ceil(Math.min(ext,10)+2*Math.max(0,ext-10)); },
 initTeams(){
-const NAMES=["Nuon","Twente","Tokai","Michigan","Punch","Sonnenwagen","Stanford","Blue Sky","Kogakuin","EcoPhoton","W.Sydney","Antakari","Bochum","TopDutch","Illini","JU Solar","Halmstad","SiamTech","Goko","Apollo"];
+/* 2025 年大会 Challenger クラスの実在チーム (HV.TEAMS: 看板用に送られた結果のスクショ由来、順位順)。自チーム (和歌山大) を除く */
+const SHORT={"BRUNEL SOLAR TEAM":"Brunel","SOLAR TEAM TWENTE":"Twente","INNOPTUS SOLAR TEAM":"Innoptus","TEAM SONNENWAGEN AACHEN":"Sonnenwagen",
+ "TOKAI UNIVERSITY SOLAR CAR TEAM":"Tokai","WESTERN SYDNEY SOLAR TEAM":"Western Sydney","UNIVERSITY OF MICHIGAN SOLAR CAR TEAM":"Michigan","JU SOLAR TEAM":"JU Solar",
+ "SOLIS UTCN":"SOLIS UTCN","ECLIPSE ÉTS":"Éclipse ÉTS","JOHN VON NEUMANN UNIVERSITY":"Neumann Univ.","αCENTAURI":"αCentauri","CHALMERS SOLAR TEAM":"Chalmers",
+ "KOGAKUIN UNIVERSITY SOLAR TEAM":"Kogakuin","OSAKA INSTITUTE OF TECHNOLOGY TEAM REGALIA":"OIT Regalia","TOP DUTCH SOLAR RACING":"Top Dutch","SEOUL NATIONAL UNIVERSITY":"SNU",
+ "ANU SOLAR RACING":"ANU","THE IRON LION SOLAR CAR TEAM":"Iron Lion","TUFAST ECO":"TUfast","SNU SOLO":"SNU SOLO","ADELAIDE UNIVERSITY SOLAR RACING TEAM":"Adelaide Univ.",
+ "HALMSTAD UNIVERSITY SOLAR TEAM":"Halmstad","AGNIRATH":"Agnirath","SOUTH AUSTRALIAN SOLAR VEHICLE ASSOCIATION":"SASVA"};
+const SRC=(typeof HV!=="undefined"&&HV.TEAMS?HV.TEAMS:[]).filter(t=>t&&!/WAKAYAMA/.test(t.team));
 const arr=[];
-const N=clamp(Math.round(PRO.aiCount),0,20);
+const N=clamp(Math.round(PRO.aiCount),0,SRC.length);
 for(let i=0;i<N;i++){
-arr.push({ name:NAMES[i], hue:(i*47)%360,
-spd:PRO.aiSpdMin+Math.random()*Math.max(1,PRO.aiSpdMax-PRO.aiSpdMin),
+const t=SRC[i], r=N>1?i/(N-1):0;   // 順位が上のチームほど速く、リタイアしにくい
+arr.push({ name:SHORT[t.team]||t.team, team:t.team, car:t.car, cc:t.cc, no:t.no, hue:(i*47)%360,
+spd:clamp(PRO.aiSpdMax-(PRO.aiSpdMax-PRO.aiSpdMin)*r+(Math.random()-0.5)*8,PRO.aiSpdMin,PRO.aiSpdMax),
 km:0, status:"pre", delayH:(i-N/2)*0.5,
-retireKm:(Math.random()<PRO.aiRetire)? 250+Math.random()*2450 : null,
+retireKm:(Math.random()<PRO.aiRetire*(0.2+1.6*r))? 250+Math.random()*2450 : null,
 cs:new Set(), csT:0, latV:-2.4,
 soc:0.9+Math.random()*0.1, eff:0.85+Math.random()*0.3,
 yieldT:0, holdT:0, passing:false, boost:false, askCd:0, reqCd:20+i, otPending:false });

@@ -70,7 +70,7 @@ phaseMaxA:0 /* 0 = モーター最大電流の 2 倍 */, cAlpha:24000 /* N/rad, 
 mRot:8, brakeMu:0.55, regenEff:0.92, airRho:0, rInternal:0.18,
 rWinding:0.12, ironK1:0.13, ironK2:0.00135, ctrlW:6, battCth:20000, battUA:4, albedo:0.28,
 tempOffset:0, windBase:6, solarScale:1.0, cloudFactor:1.0, dayOfYear:236,
-aiCount:20, aiSpdMin:58, aiSpdMax:103, aiRetire:0.5,
+aiCount:25, aiSpdMin:58, aiSpdMax:103, aiRetire:0.5,
 trainPerHour:3.5, faultScale:1.0, gridRisk:1.0,
 noSpeedCap:0,
 };

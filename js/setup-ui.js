@@ -61,7 +61,7 @@ const PRO_FIELDS=[
 ["airRho","空気密度 kg/m³ (0=自動)",0.01],["tempOffset","気温補正 °C",0.5],
 ["windBase","基準風速 m/s (10m高)",0.5],["solarScale","日射スケール",0.01],
 ["cloudFactor","悪天候係数",0.1],["dayOfYear","開始日(通日)",1],
-["aiCount","AIチーム数 (0-20)",1],["aiSpdMin","AI速度min km/h",1],
+["aiCount","AIチーム数 (0-25)",1],["aiSpdMin","AI速度min km/h",1],
 ["aiSpdMax","AI速度max km/h",1],["aiRetire","AIリタイア率",0.05],
 ["trainPerHour","ロードトレイン台/h",0.5],["faultScale","故障確率係数",0.1],
 ["gridRisk","グリッドリスク係数",0.1],
