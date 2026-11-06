@@ -7,9 +7,9 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<link rel="stylesheet" href="css/fonts.css?v=20261106-ui1">
-<link rel="stylesheet" href="css/style.css?v=20261106-ui1">
-<link rel="stylesheet" href="css/theme.css?v=20261106-ui1">
+<link rel="stylesheet" href="css/fonts.css?v=20261106-ui3">
+<link rel="stylesheet" href="css/style.css?v=20261106-ui3">
+<link rel="stylesheet" href="css/theme.css?v=20261106-ui3">
 <link rel="icon" href="assets/img/logo.svg">
 </head>
 <body>
@@ -47,7 +47,7 @@
 <button class="btn" onclick="openWheelConfig()"><span data-ic="wheel"></span> ハンコン割当</button>
 <span class="lb" id="gamepad-status">未検出</span>
 </div>
-<div class="build">BUILD 20261106-ui1</div>
+<div class="build">BUILD 20261106-ui3</div>
 </div>
 <div class="r">
 <div class="sec"><h4><span data-ic="car"></span>BODY / SOLAR CELL</h4>
@@ -132,37 +132,32 @@
 <div class="ahead"><div class="lb">Next 60 km</div><div class="ax" id="map-ahead"></div></div>
 </div>
 <div id="hud-radio" class="pn"><div class="ph"><span data-ic="radio"></span>Radio</div><div id="radio-log"></div></div>
-<div id="bottom-hud" class="pn">
-<div class="cl">
-<div>
+<div id="hud-batt" class="pn">
 <div class="lb">Battery</div>
 <div class="big"><span id="hud-socpct">100.0</span><span class="u">%</span></div>
 <div class="bar"><i id="hud-socbar" style="width:100%"></i></div>
 <div class="row"><span><span data-ic="zap"></span><span id="hud-volt"></span></span><span id="hud-wh">3027 Wh</span></div>
-<div class="row" style="color:var(--bad)"><span id="hud-bms" style="color:var(--bad)"></span></div>
-</div>
-<div class="spd">
-<div class="spdrow"><span id="wl"><span data-ic="chl"></span></span><span id="hud-speed" class="num">0</span><span id="wr"><span data-ic="chr"></span></span></div>
-<div class="gear">KM/H &nbsp; GEAR <span id="hud-gear">D</span></div>
-<div class="bar"><i id="hud-throttle" style="width:0%"></i></div>
-<div class="row"><span>THROTTLE</span><span id="hud-thr-pct">0%</span></div>
-<div class="bar" style="height:4px;margin:2px 0"><i id="hud-brake" style="width:0%"></i></div>
-<div class="row"><span>BRAKE</span><span id="hud-brake-kind" style="color:var(--warn)"></span></div>
-</div>
-<div>
-<div class="lb">Net power</div>
-<div class="big" id="hud-net">0<span class="u">W</span></div>
-<div class="row"><span><span data-ic="sun"></span>発電</span><span id="hud-solar">0 W</span></div>
-<div class="row"><span><span data-ic="settings"></span>モーター</span><span id="hud-motorw">0 W</span></div>
-</div>
-</div>
+<div class="row"><span id="hud-bms" style="color:var(--bad)"></span></div>
 <div class="tools">
 <button id="bms-btn" class="btn" onclick="toggleBMS()">BMS ON</button>
 <button id="power-btn" class="btn" onclick="togglePower()">ECO (P)</button>
 <button class="btn" onclick="StopMenu.open(true)"><span data-ic="wrench"></span>停車 (M)</button>
 <button class="btn" onclick="document.getElementById('ask-panel').classList.toggle('hidden')"><span data-ic="radio"></span>質問 (Q)</button>
 </div>
-<div class="keys">Z 左 ・ C 右 ・ X ハザード ・ B ブースト ・ N R/D ・ TAB 詳細</div>
+</div>
+<div id="bottom-hud" class="pn">
+<div class="spdrow"><span id="wl"><span data-ic="chl"></span></span><span id="hud-speed" class="num">0</span>
+<span class="gear"><span>KM/H</span><span id="hud-gear">D</span></span><span id="wr"><span data-ic="chr"></span></span></div>
+<div class="pedals">
+<div><div class="row"><span>THR</span><span id="hud-thr-pct">0%</span></div><div class="bar"><i id="hud-throttle" style="width:0%"></i></div></div>
+<div><div class="row"><span>BRK</span><span id="hud-brake-kind" style="color:var(--warn)"></span></div><div class="bar"><i id="hud-brake" style="width:0%"></i></div></div>
+</div>
+</div>
+<div id="hud-netp" class="pn">
+<div class="lb">Net power</div>
+<div class="big" id="hud-net">0<span class="u">W</span></div>
+<div class="row"><span><span data-ic="sun"></span>発電</span><span id="hud-solar">0 W</span></div>
+<div class="row"><span><span data-ic="settings"></span>モーター</span><span id="hud-motorw">0 W</span></div>
 </div>
 <div id="detail-tog" onclick="toggleDetail(true)"><span data-ic="sliders"></span>DETAIL (TAB)</div>
 <div id="hud-detail" class="pn">
@@ -342,39 +337,39 @@
 <div style="display:flex;justify-content:flex-end"><button class="btn pri" onclick="quitToMenu()"><span data-ic="home"></span>メニューへ戻る</button></div>
 </div>
 </div>
-<script src="js/data/route-2025.js?v=20261106-ui1"></script>
-<script src="js/data/route-plan.js?v=20261106-ui1"></script>
-<script src="js/data/route-osm.js?v=20261106-ui1"></script>
-<script src="js/route.js?v=20261106-ui1"></script>
-<script src="js/data/australia.js?v=20261106-ui1"></script>
-<script src="js/data.js?v=20261106-ui1"></script>
-<script src="js/data/vehicle-private.js?v=20261106-ui1" onerror="window.__vehPrivMissing=true"></script>
-<script src="js/vehicle.js?v=20261106-ui1"></script>
-<script src="js/physics.js?v=20261106-ui1"></script>
-<script src="js/setup-ui.js?v=20261106-ui1"></script>
-<script src="js/audio-radio.js?v=20261106-ui1"></script>
-<script src="js/engine.js?v=20261106-ui1"></script>
-<script src="js/controls.js?v=20261106-ui1"></script>
-<script src="js/collide.js?v=20261106-ui1"></script>
-<script src="js/render/quality.js?v=20261106-ui1"></script>
-<script src="js/render/textures.js?v=20261106-ui1"></script>
-<script src="js/render/yata.js?v=20261106-ui1"></script>
-<script src="js/render/sky.js?v=20261106-ui1"></script>
-<script src="js/render/biome.js?v=20261106-ui1"></script>
-<script src="js/render/geobatch.js?v=20261106-ui1"></script>
-<script src="js/render/materials.js?v=20261106-ui1"></script>
-<script src="js/render/props.js?v=20261106-ui1"></script>
-<script src="js/render/scenery.js?v=20261106-ui1"></script>
-<script src="js/data/hidden-valley.js?v=20261106-ui1"></script>
-<script src="js/render/hiddenvalley.js?v=20261106-ui1"></script>
-<script src="js/render/view.js?v=20261106-ui1"></script>
-<script src="js/crew.js?v=20261106-ui1"></script>
-<script src="js/hud.js?v=20261106-ui1"></script>
-<script src="js/test-mode.js?v=20261106-ui1"></script>
-<script src="js/lib/qrcode.js?v=20261106-ui1"></script>
-<script src="js/event-game.js?v=20261106-ui1"></script>
-<script src="js/ui/icons.js?v=20261106-ui1"></script>
-<script src="js/ui/map.js?v=20261106-ui1"></script>
-<script src="js/main.js?v=20261106-ui1"></script>
+<script src="js/data/route-2025.js?v=20261106-ui3"></script>
+<script src="js/data/route-plan.js?v=20261106-ui3"></script>
+<script src="js/data/route-osm.js?v=20261106-ui3"></script>
+<script src="js/route.js?v=20261106-ui3"></script>
+<script src="js/data/australia.js?v=20261106-ui3"></script>
+<script src="js/data.js?v=20261106-ui3"></script>
+<script src="js/data/vehicle-private.js?v=20261106-ui3" onerror="window.__vehPrivMissing=true"></script>
+<script src="js/vehicle.js?v=20261106-ui3"></script>
+<script src="js/physics.js?v=20261106-ui3"></script>
+<script src="js/setup-ui.js?v=20261106-ui3"></script>
+<script src="js/audio-radio.js?v=20261106-ui3"></script>
+<script src="js/engine.js?v=20261106-ui3"></script>
+<script src="js/controls.js?v=20261106-ui3"></script>
+<script src="js/collide.js?v=20261106-ui3"></script>
+<script src="js/render/quality.js?v=20261106-ui3"></script>
+<script src="js/render/textures.js?v=20261106-ui3"></script>
+<script src="js/render/yata.js?v=20261106-ui3"></script>
+<script src="js/render/sky.js?v=20261106-ui3"></script>
+<script src="js/render/biome.js?v=20261106-ui3"></script>
+<script src="js/render/geobatch.js?v=20261106-ui3"></script>
+<script src="js/render/materials.js?v=20261106-ui3"></script>
+<script src="js/render/props.js?v=20261106-ui3"></script>
+<script src="js/render/scenery.js?v=20261106-ui3"></script>
+<script src="js/data/hidden-valley.js?v=20261106-ui3"></script>
+<script src="js/render/hiddenvalley.js?v=20261106-ui3"></script>
+<script src="js/render/view.js?v=20261106-ui3"></script>
+<script src="js/crew.js?v=20261106-ui3"></script>
+<script src="js/hud.js?v=20261106-ui3"></script>
+<script src="js/test-mode.js?v=20261106-ui3"></script>
+<script src="js/lib/qrcode.js?v=20261106-ui3"></script>
+<script src="js/event-game.js?v=20261106-ui3"></script>
+<script src="js/ui/icons.js?v=20261106-ui3"></script>
+<script src="js/ui/map.js?v=20261106-ui3"></script>
+<script src="js/main.js?v=20261106-ui3"></script>
 </body>
 </html>
