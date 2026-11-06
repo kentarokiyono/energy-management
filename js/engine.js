@@ -80,13 +80,13 @@ applyChapter(n){
  s.chapter=n;
 },
 /* スタート順 (Day1): 予選タイム順に 1 台ずつ発進し、08:00〜08:30 に全車が出る。
- 自車の予選順位は予選モードのベストラップから (未計測なら中位)。AI の予選順は実力順に少しばらつきを入れる */
-QUALI_KEY:"bwsc_bestLap",
+ 自車の予選順位は予選モードのベストラップから (未計測なら P18)。AI の予選順は実力順に少しばらつきを入れる */
+QUALI_KEY:"bwsc_bestLap", DEFAULT_GRID:18,   // 予選未計測のときのグリッド
 gridOfLap(t){ return Math.round(1+(t-141)/3); },   // 予選モードの「推定グリッド」と同じ換算
 setupGrid(){
  const s=this.st, tms=s.teams||[], tot=tms.length+1;
  let best=null; try{ best=parseFloat(localStorage.getItem(this.QUALI_KEY)); }catch(e){}
- const g= best>0? clamp(this.gridOfLap(best),1,tot) : Math.ceil(tot/2);
+ const g=clamp(best>0? this.gridOfLap(best) : this.DEFAULT_GRID,1,tot);
  const order=tms.map(tm=>({tm,k:tm.spd+(Math.random()-0.5)*10})).sort((a,b)=>b.k-a.k).map(o=>o.tm);
  order.splice(g-1,0,null);   // null = 自車
  const gap=Math.min(1.5,30/Math.max(1,tot-1))/60;   // 発進間隔 [h]
