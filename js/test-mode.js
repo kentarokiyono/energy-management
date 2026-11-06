@@ -118,12 +118,12 @@ const m=massTotal(), mEff=m+PRO.mRot;
 const Froll=Phys.crr(this.v)*m*9.81+motorIronW(this.v)/Math.max(this.v,0.5);
 const Fdrag=0.5*Phys.airDensity(20,Tamb)*P.Cd*(1+(this.dmgAero||0))*P.frontal*this.v*this.v;
 const Fcorner=cornerDrag(m,es.gLat);
-const Fslope=m*9.81*grade;
+const Fslope=m*9.81*grade*gearDir();
 let thr=es.throttleSet;
 if(es.brakePhys>0.05||es.brakeRegen>0.05){ thr=0; es.throttleSet=0; }
-const I_cmd=thr*motorMaxA(es.powerMode);
+const I_cmd=thr*(es.gear==="R"? Math.min(REVERSE.maxA,motorMaxA(es.powerMode)) : motorMaxA(es.powerMode));
 const mmT=motorModel(I_cmd,this.v,es.soc,es.powerMode);
-const Ftrac=mmT.F;
+const Ftrac= es.gear==="R"&&this.v>REVERSE.maxV? 0 : mmT.F;
 let Fbrake=0,Pregen=0;
 if(es.brakePhys>0) Fbrake+=es.brakePhys*PRO.brakeMu*m*9.81;
 if(es.brakeRegen>0){ const rg=regenModel(es.brakeRegen,this.v,es.soc,es.powerMode); Fbrake+=rg.F; Pregen=rg.Pgen; }
@@ -143,13 +143,13 @@ es.lastIbat=Ibat; es.lastNet=Pnet;
 if(Ibat>0) es.ahUsed+=Ibat*dtR/3600;
 es.v=this.v;
 if(this.v>0.3){
-const yawRate=Input.steer*clamp(8.5/Math.max(this.v,3),0.15,1.2);
+const yawRate=gearDir()*Input.steer*clamp(8.5/Math.max(this.v,3),0.15,1.2);
 this.heading+=yawRate*dtR;
 es.gLat=(yawRate*this.v)/9.81;
 } else es.gLat=0;
 const x0=this.x, z0=this.z;
-this.x+=Math.sin(this.heading)*this.v*dtR;
-this.z-=Math.cos(this.heading)*this.v*dtR;
+this.x+=Math.sin(this.heading)*this.v*gearDir()*dtR;
+this.z-=Math.cos(this.heading)*this.v*gearDir()*dtR;
 this.collide(x0,z0);
 if(this.state!=="done") this.judge(dtR);
 let carY=0;
@@ -162,7 +162,7 @@ this.car.rotation.y=-this.heading;
 this.car.rotation.x=-Math.atan(grade)*0.8;
 if(this.car.userData.brakeMat)
 this.car.userData.brakeMat.color.setHex((es.brakePhys>0.05||es.brakeRegen>0.05)?0xff2222:0x4a0505);
-updateWinkers(this.car,es); updateRearCombo(this.car,es);
+updateWinkers(this.car,es); updateRearCombo(this.car,es); reverseBeep(es);
 View.updateDash(es);
 if(View.yokeMesh) View.yokeMesh.rotation.z=-Input.steer*.9; // 右ステア→右へ回転
 const hCar=this.heading, cx=this.x, cy=carY, cz=this.z;
@@ -341,11 +341,11 @@ collide(x0,z0){
  const e=this.frameM.elements, toV=(x,z)=>[e[0]*x+e[8]*z+e[12], e[2]*x+e[10]*z+e[14]];
  const [vx,vz]=toV(this.x,this.z), [ux,uz]=toV(x0,z0), fx=Math.sin(this.heading), fz=-Math.cos(this.heading);
  const hv=Math.atan2(e[0]*fx+e[8]*fz, -(e[2]*fx+e[10]*fz));
- Collide.world="hv"; const st={x:vx,z:vz,h:hv,v:this.v}, [L,W]=carDims();
+ Collide.world="hv"; const st={x:vx,z:vz,h:hv,v:this.v*gearDir()}, [L,W]=carDims();
  const hit=Collide.sweep(ux,uz,st,L,W,null); Collide.world="race";
  if(!hit) return;
  const dx=st.x-vx, dz=st.z-vz;                    // 押し出し量を試験の座標へ (回転の転置)
- this.x+=e[0]*dx+e[2]*dz; this.z+=e[8]*dx+e[10]*dz; this.v=st.v; Engine.st.v=st.v;
+ this.x+=e[0]*dx+e[2]*dz; this.z+=e[8]*dx+e[10]*dz; this.v=Math.abs(st.v); Engine.st.v=this.v;
  if(hit.level==="touch") return;
  const what=COLLIDE_WHAT[hit.kind]||"障害物", kmh=(hit.vn*3.6).toFixed(0), now=performance.now();
  if(hit.level==="light"){ if(now>(this.hitCd||0)){ this.hitCd=now+2500; Snd.alarm(); toast(`⚠ ${what}に接触 (${kmh} km/h)`,"#f59e0b"); } return; }

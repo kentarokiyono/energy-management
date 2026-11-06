@@ -734,12 +734,12 @@ if(this.cx===undefined) this.resetRoad();
 const vv=es.v;
 // ---- ワールド座標での運動 (分岐/Uターンに対応) ----
 if(vv>0.3){
- const yawRate= VEH.active&&VEH.spec.chassis? VehDyn.yawRate(Input.steer,vv) : Input.steer*clamp(6.5/Math.max(vv,4),0.12,1.0);
+ const yawRate=gearDir()*(VEH.active&&VEH.spec.chassis? VehDyn.yawRate(Input.steer,vv) : Input.steer*clamp(6.5/Math.max(vv,4),0.12,1.0));   // 後退では向きの変わり方が逆
  this.ch+=yawRate*dtR;
  es.gLat=(yawRate*vv)/9.81;
 } else es.gLat=0;
 const cx0=this.cx, cz0=this.cz;   // 当たり判定の掃引用
-this.cx+=Math.sin(this.ch)*vv*dtR; this.cz-=Math.cos(this.ch)*vv*dtR;
+this.cx+=Math.sin(this.ch)*vv*gearDir()*dtR; this.cz-=Math.cos(this.ch)*vv*gearDir()*dtR;
 // 横風 (諸元があるとき): 横方向に押される。タイヤの横すべりで遅れて効く。旋回と合わせて転倒余裕を監視
 if(VEH.active&&VEH.spec.chassis&&P.mode==="race"){
  const aY= vv>1? VehDyn.sideAccel(-(es.lastCross||0),es.lastRho||1.17,massTotal()) : 0;
@@ -752,9 +752,9 @@ if(VEH.active&&VEH.spec.chassis&&P.mode==="race"){
 } else es.tipRatio=0;
 // 当たり判定 (レースモード): 沿道の固定物・壁・他の車両・人
 if(P.mode==="race"&&typeof Collide!=="undefined"&&Collide.enabled&&!es.fire&&!(typeof Crew!=="undefined"&&Crew.busy()&&Crew.phase==="outside")){
- const st={x:this.cx,z:this.cz,h:this.ch,v:es.v}, [L,W]=carDims();
+ const st={x:this.cx,z:this.cz,h:this.ch,v:es.v*gearDir()}, [L,W]=carDims();
  const hit=Collide.sweep(cx0,cz0,st,L,W,this.dynColliders(es));
- if(hit){ this.cx=st.x; this.cz=st.z; es.v=st.v; Engine.collision(hit); }
+ if(hit){ this.cx=st.x; this.cz=st.z; es.v=Math.abs(st.v); Engine.collision(hit); }
 }
 const sPrev=this.s;
 const pr=this.project(this.cx,this.cz);
@@ -800,7 +800,7 @@ if(es.burst&&es.v>2) this.car.position.y+=Math.random()*0.04;
 if(this.car.userData.brakeMat)
 this.car.userData.brakeMat.color.setHex((es.brakePhys>0.05||es.brakeRegen>0.05)?0xff2222:0x4a0505);
 updateWinkers(this.car,es);
-updateRearCombo(this.car,es);
+updateRearCombo(this.car,es); reverseBeep(es);
 View.updateDash(es);
 if(View.yokeMesh) View.yokeMesh.rotation.z=-Input.steer*.9;
 // ヨーク回転: 右ステア→右へ回転(車の右旋回と同じ向き)

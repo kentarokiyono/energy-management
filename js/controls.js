@@ -154,6 +154,21 @@ pc.style.borderColor=P.uiMode==="pc"?"#22d3ee":"#164e63";
 mb.style.boxShadow=P.uiMode==="mobile"?"0 0 12px rgba(52,211,153,.8)":"";
 mb.style.borderColor=P.uiMode==="mobile"?"#34d399":"#164e63";
 }
+/* 後退ギア (N キー): 停止中だけ D ⇄ R を切り替える。後退中は上限 8 km/h・電流を絞る・警告音 */
+const REVERSE={maxV:8/3.6, maxA:8};
+function toggleGear(){
+const s=Engine.st; if(!s||!running||P.mode==="event") return;
+if(typeof Crew!=="undefined"&&Crew.busy()) return;
+if(s.v>0.3){ toast("⚠ 停止してからギアを切り替えてください","#f59e0b"); Snd.blip(300,0.1); return; }
+s.gear= s.gear==="R"? "D" : "R"; s.throttleSet=0;
+toast(s.gear==="R"?"⏪ R (後退) ― 上限 8 km/h":"⏩ D (前進)",s.gear==="R"?"#f87171":"#34d399");
+Snd.blip(s.gear==="R"?600:900,0.12);
+}
+/* 進む向き: D = +1 / R = -1 */
+function gearDir(){ return Engine.st&&Engine.st.gear==="R"? -1 : 1; }
+/* 後退中の警告音 (0.8 秒ごと) */
+let _revBeep=0;
+function reverseBeep(es){ if(!es||es.gear!=="R"||es.v<0.2){ _revBeep=0; return; } const t=performance.now(); if(t-_revBeep>800){ _revBeep=t; Snd.blip(1100,0.18,"square",0.06); } }
 function togglePower(){
 const s=Engine.st; if(!s) return;
 s.powerMode=!s.powerMode;
@@ -216,6 +231,7 @@ if(e.key.toLowerCase()==="c") toggleSignal(1);
 if(e.key.toLowerCase()==="x") toggleSignal(2);
 if(e.key.toLowerCase()==="q"&&running) document.getElementById("ask-panel").classList.toggle("hidden");
 if(e.key.toLowerCase()==="b"&&running) boost();
+if(e.key.toLowerCase()==="n"&&running) toggleGear();
 if(e.key==="Backspace"&&Test.active){ e.preventDefault(); Test.retry(); }
 });
 addEventListener("keyup",e=>Input.keys[e.key.toLowerCase()]=false);

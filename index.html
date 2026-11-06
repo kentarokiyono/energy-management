@@ -17,7 +17,7 @@
 <div class="text-xs tracking-[.4em] text-cyan-600 mb-1">BRIDGESTONE WORLD SOLAR CHALLENGE ― 2025 ROUTE</div>
 <h1 class="text-4xl font-black neon-text tracking-wider">BWSC 3D レーシングシミュレータ</h1>
 <div class="text-sm text-cyan-200/70 mt-2">Darwin → Adelaide 3,027 km ― Wakayama Univ. Solar Car Team</div>
-<div class="text-[10px] text-cyan-200/40 mt-1 mono">build 20261105-chap1</div>
+<div class="text-[10px] text-cyan-200/40 mt-1 mono">build 20261106-rev1</div>
 </div>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
 <div id="mode-race" class="card-select active" onclick="selectMode('race')">
@@ -204,7 +204,7 @@
 <div class="mono font-black text-5xl neon-text" id="hud-speed">0</div>
 <span id="wr" class="text-2xl select-none" style="color:#1e3a4f">▶</span>
 </div>
-<div class="hud-label">km/h <span class="text-[9px] text-cyan-100/40">Z:左 C:右 X:ハザード B:ブースト</span></div>
+<div class="hud-label">km/h <span id="hud-gear" class="mono font-black text-cyan-300">D</span> <span class="text-[9px] text-cyan-100/40">Z:左 C:右 X:ハザード B:ブースト N:R/D</span></div>
 </div>
 <div class="panel p-3 w-40">
 <div class="flex justify-between"><span class="hud-label">スロットル開度</span><span class="mono text-xs text-emerald-300" id="hud-thr-pct">0%</span></div>
@@ -312,6 +312,7 @@
 <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="toggleSignal(2)">⚠</button>
 <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="View.cam=(View.cam+1)%4">📷</button>
 <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="togglePower()">⚙</button>
+<button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="toggleGear()">R/D</button>
 <button class="tbtn" style="padding:7px 9px;font-size:12px;background:rgba(251,191,36,.3);border-color:#fbbf24" onclick="boost()">🚀</button>
 <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="StopMenu.open(true)">🔧</button>
 <button class="tbtn" style="padding:7px 9px;font-size:12px" onclick="document.getElementById('ask-panel').classList.toggle('hidden')">📻</button>
@@ -357,34 +358,34 @@
 <button class="btn" onclick="quitToMenu()">メニューへ戻る</button>
 </div>
 </div>
-<script src="js/data/route-2025.js?v=20261105-chap1"></script>
-<script src="js/data/route-plan.js?v=20261105-chap1"></script>
-<script src="js/data/route-osm.js?v=20261105-chap1"></script>
-<script src="js/route.js?v=20261105-chap1"></script>
-<script src="js/data.js?v=20261105-chap1"></script>
-<script src="js/data/vehicle-private.js?v=20261105-chap1" onerror="window.__vehPrivMissing=true"></script>
-<script src="js/vehicle.js?v=20261105-chap1"></script>
-<script src="js/physics.js?v=20261105-chap1"></script>
-<script src="js/setup-ui.js?v=20261105-chap1"></script>
-<script src="js/audio-radio.js?v=20261105-chap1"></script>
-<script src="js/engine.js?v=20261105-chap1"></script>
-<script src="js/controls.js?v=20261105-chap1"></script>
-<script src="js/collide.js?v=20261105-chap1"></script>
-<script src="js/render/quality.js?v=20261105-chap1"></script>
-<script src="js/render/textures.js?v=20261105-chap1"></script>
-<script src="js/render/yata.js?v=20261105-chap1"></script>
-<script src="js/render/sky.js?v=20261105-chap1"></script>
-<script src="js/render/biome.js?v=20261105-chap1"></script>
-<script src="js/render/geobatch.js?v=20261105-chap1"></script>
-<script src="js/render/materials.js?v=20261105-chap1"></script>
-<script src="js/render/props.js?v=20261105-chap1"></script>
-<script src="js/render/scenery.js?v=20261105-chap1"></script>
-<script src="js/data/hidden-valley.js?v=20261105-chap1"></script>
-<script src="js/render/hiddenvalley.js?v=20261105-chap1"></script>
-<script src="js/render/view.js?v=20261105-chap1"></script>
-<script src="js/crew.js?v=20261105-chap1"></script>
-<script src="js/hud.js?v=20261105-chap1"></script>
-<script src="js/test-mode.js?v=20261105-chap1"></script>
-<script src="js/main.js?v=20261105-chap1"></script>
+<script src="js/data/route-2025.js?v=20261106-rev1"></script>
+<script src="js/data/route-plan.js?v=20261106-rev1"></script>
+<script src="js/data/route-osm.js?v=20261106-rev1"></script>
+<script src="js/route.js?v=20261106-rev1"></script>
+<script src="js/data.js?v=20261106-rev1"></script>
+<script src="js/data/vehicle-private.js?v=20261106-rev1" onerror="window.__vehPrivMissing=true"></script>
+<script src="js/vehicle.js?v=20261106-rev1"></script>
+<script src="js/physics.js?v=20261106-rev1"></script>
+<script src="js/setup-ui.js?v=20261106-rev1"></script>
+<script src="js/audio-radio.js?v=20261106-rev1"></script>
+<script src="js/engine.js?v=20261106-rev1"></script>
+<script src="js/controls.js?v=20261106-rev1"></script>
+<script src="js/collide.js?v=20261106-rev1"></script>
+<script src="js/render/quality.js?v=20261106-rev1"></script>
+<script src="js/render/textures.js?v=20261106-rev1"></script>
+<script src="js/render/yata.js?v=20261106-rev1"></script>
+<script src="js/render/sky.js?v=20261106-rev1"></script>
+<script src="js/render/biome.js?v=20261106-rev1"></script>
+<script src="js/render/geobatch.js?v=20261106-rev1"></script>
+<script src="js/render/materials.js?v=20261106-rev1"></script>
+<script src="js/render/props.js?v=20261106-rev1"></script>
+<script src="js/render/scenery.js?v=20261106-rev1"></script>
+<script src="js/data/hidden-valley.js?v=20261106-rev1"></script>
+<script src="js/render/hiddenvalley.js?v=20261106-rev1"></script>
+<script src="js/render/view.js?v=20261106-rev1"></script>
+<script src="js/crew.js?v=20261106-rev1"></script>
+<script src="js/hud.js?v=20261106-rev1"></script>
+<script src="js/test-mode.js?v=20261106-rev1"></script>
+<script src="js/main.js?v=20261106-rev1"></script>
 </body>
 </html>
