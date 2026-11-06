@@ -2,7 +2,7 @@
 /* ============ イベントモード (来場者体験): 課題クリア型・約 8 分 ============
  走行はレースモードの仕組み (実際の町並み・信号・ロードトレイン・CS) をそのまま使い、課題ごとに場所へ移る。
  課題: 1 交通ルール / 2 省エネ巡航 / 3 ロードトレイン / 4 CS で停車と充電 / 5 ゴールをめざせ
- 難易度: 子ども (ハンドル補助・接触の減点小) / 大人
+ 難易度: 子ども (速度帯が広い・接触の減点小) / 大人
  その日のランキングと 1 位のゴースト (端末に保存)、走行のリプレイ URL を QR コードで持ち帰り */
 const EVENT_PUBLIC_URL="https://kentarokiyono.github.io/energy-management/";
 const EventGame={
@@ -32,6 +32,7 @@ begin(){
  const s=Engine.st;
  this.t=0; this.mi=-1; this.scores=[0,0,0,0,0]; this.rec=[]; this.recT=0; this.hits=0; this.done=false; this.cardOpen=false;
  s.weatherPlan=null; s.weather=null; s.nextRoadTrainH=99; s.dcDone=true; s.gear="D";
+ s.teams=[];   // 他チームの車は出さない (CS などで前に止まって進めなくなるため)
  document.getElementById("event-hud").classList.remove("hidden");
  this.ensureHud();
  if(!this.replay) this.ghostRun=this.ghostRun||this.todayBest();
@@ -85,7 +86,6 @@ frame(dtR){
  s.hour=Math.min(s.hour,15.5);                      // 体験中は日が暮れない
  if(s.soc<0.12) s.soc=0.12;                          // 電欠で止まらない
  if(this.replay){ this.replayFrame(); return; }
- if(this.level==="kid") this.assist();
  // 記録 (1 秒ごと): [課題, 課題内の秒, km, 横位置, 速度]
  this.recT+=dtR; if(this.recT>=1){ this.recT-=1; this.rec.push([this.mi,Math.round(this.mt),s.km,View.lateral||0,s.v]); }
  this.st.motorWh+=(s.lastMotorW||0)*dtR*Route.scaleAt(s.km)/3600;
@@ -130,13 +130,6 @@ frame(dtR){
 hitPen(i){ return (this.hitBy&&this.hitBy[i]||0); },
 /* 80 km/h で走るときの 1 km あたりの消費 [Wh/km] (省エネ採点の基準) */
 refWhPerKm(){ const V=80/3.6, m=massTotal(); return (Phys.crr(V)*m*9.81+0.5*1.17*P.Cd*P.frontal*V*V)/0.95/3.6/1000*1000/1; },
-/* 子どもモード: 左車線の中央を保つようにハンドルを補助 */
-assist(){
- if(!View.road) return;
- const p=View.roadPoint(View.s+8), want=-Math.min(2.4,(p.L||5)/2), he=Math.atan2(Math.sin(p.h-View.ch),Math.cos(p.h-View.ch));
- const a=clamp(he*2.2+(want-View.lateral)*0.12,-1,1);
- Input.steer=clamp(Input.steer*0.4+a*0.6,-1,1);
-},
 /* ---------- 外からの通知 ---------- */
 onRedRun(){ if(this.active&&this.MISSIONS[this.mi]&&this.MISSIONS[this.mi].id==="rules"){ this.st.red++; } },
 onHit(hit){
