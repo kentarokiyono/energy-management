@@ -121,6 +121,7 @@ Radio.push(`${next.name} のクローズ時刻を超過しました。公式記�
 } else ccEl.textContent="";
 document.getElementById("hud-limit").textContent=speedLimitAt(es.km);
 document.getElementById("hud-speed").textContent=Math.round(es.v*3.6);
+{ const g=document.getElementById("hud-gear"); if(g){ g.textContent=es.gear==="R"?"R":"D"; g.style.color=es.gear==="R"?"#f87171":"#67e8f9"; } }
 const tsp=document.getElementById("touch-speed");
 if(tsp&&!document.getElementById("touch-ui").classList.contains("hidden")){
 tsp.textContent=Math.round(es.v*3.6);

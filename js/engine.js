@@ -7,7 +7,7 @@ km:0, v:0,
 day:1, hour:8.0, dayOfYear:PRO.dayOfYear,
 soc:clamp(PRO.startSoc,0,1), whUsed:0, whGen:0, ahUsed:0,
 powerMode:false, gLat:0, gLong:0, signal:0,
-stopTimer:0, stopKind:"", stopExtra:"", damage:{aero:0,n:0}, crashed:false, crashReason:"", hitCd:0,
+stopTimer:0, stopKind:"", stopExtra:"", gear:"D", damage:{aero:0,n:0}, crashed:false, crashReason:"", hitCd:0,
 morningPenaltyMin:0, extensionMin:0, extWarned:false,
 passedCP:new Set(), finished:false, trailered:false, competing:true, dcDone:false, offRoute:false, progRate:1,
 drivingHours:0, penaltySec:0, limitTimer:0,
@@ -261,7 +261,7 @@ const yaw=Math.atan2(Math.abs(cross),Math.max(s.v,1));
 const cdEff=P.Cd*cdYawFactor(yaw)*(1+((s.damage&&s.damage.aero)||0));   // 接触による破損で空気抵抗が増える
 const Fdrag=0.5*rho*cdEff*P.frontal*vApp*vApp;
 const Fcorner=cornerDrag(m,s.gLat);
-const Fslope=m*9.81*Math.sin(slope);
+const Fslope=m*9.81*Math.sin(slope)*(s.gear==="R"?-1:1);   // 後退では坂の向きが逆に効く
 s.lastYawDeg=Math.abs(yaw)*180/Math.PI;
 let thr=s.throttleSet;
 if(s.brakePhys>0.05||s.brakeRegen>0.05){ thr=0; s.throttleSet=0; }
@@ -273,9 +273,11 @@ if(s.soc<=0.05) ampLimit=Math.min(ampLimit,6);
 if(s.soc<=0.003) ampLimit=0;
 if(s.Tbat>55) ampLimit*=clamp(1-(s.Tbat-55)/10,0,1); // 高温ディレーティング
 }
+if(s.gear==="R") ampLimit=Math.min(ampLimit,REVERSE.maxA);   // 後退: 電流を絞る
 I_cmd=thr*ampLimit;
 const mm=motorModel(I_cmd,s.v,s.soc,s.powerMode);
 let Ftrac=mm.F;
+if(s.gear==="R"&&s.v>REVERSE.maxV) Ftrac=0;   // 後退の上限速度
 let Fbrake=0, Pregen=0;
 if(s.brakePhys>0) Fbrake += s.brakePhys*PRO.brakeMu*m*9.81;
 let Fr=0;
