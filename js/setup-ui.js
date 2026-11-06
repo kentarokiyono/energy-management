@@ -131,3 +131,12 @@ function segFromSelect(selId,boxId,label){
   b.onclick=()=>{ sel.value=o.value; sel.dispatchEvent(new Event("change")); box.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.v===sel.value)); };
   if(o.value===sel.value) b.classList.add("on"); box.appendChild(b); }
 }
+/* 予選ベスト (レースのグリッド) の表示とリセット */
+function refreshQuali(){
+ const el=document.getElementById("quali-info"); if(!el) return;
+ let b=null; try{ b=parseFloat(localStorage.getItem(Engine.QUALI_KEY)); }catch(e){}
+ const n=(PRO.aiCount|0)+1;
+ el.innerHTML= b>0? `予選ベスト <span class="num">${fmtLap(b)}</span> → グリッド <span class="num">P${clamp(Engine.gridOfLap(b),1,n)}</span>` : `予選未計測 → グリッド <span class="num">P${Math.min(Engine.DEFAULT_GRID,n)}</span>`;
+ const btn=document.getElementById("quali-reset"); if(btn) btn.disabled=!(b>0), btn.style.opacity=b>0?1:.4;
+}
+function resetQuali(){ if(!confirm("予選のベストラップを消去します。レースのグリッドは P"+Engine.DEFAULT_GRID+" に戻ります。よろしいですか？")) return; try{ localStorage.removeItem(Engine.QUALI_KEY); }catch(e){} refreshQuali(); }

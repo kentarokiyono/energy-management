@@ -7,9 +7,9 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<link rel="stylesheet" href="css/fonts.css?v=20261106-ui5">
-<link rel="stylesheet" href="css/style.css?v=20261106-ui5">
-<link rel="stylesheet" href="css/theme.css?v=20261106-ui5">
+<link rel="stylesheet" href="css/fonts.css?v=20261106-ui7">
+<link rel="stylesheet" href="css/style.css?v=20261106-ui7">
+<link rel="stylesheet" href="css/theme.css?v=20261106-ui7">
 <link rel="icon" href="assets/img/logo.svg">
 </head>
 <body>
@@ -47,7 +47,7 @@
 <button class="btn" onclick="openWheelConfig()"><span data-ic="wheel"></span> ハンコン割当</button>
 <span class="lb" id="gamepad-status">未検出</span>
 </div>
-<div class="build">BUILD 20261106-ui5</div>
+<div class="build">BUILD 20261106-ui7</div>
 </div>
 <div class="r">
 <div class="sec"><h4><span data-ic="car"></span>BODY / SOLAR CELL</h4>
@@ -78,6 +78,8 @@
 <select id="chapter" class="hidden">
 <option value="0" selected>スタート (Darwin)</option><option value="1">CS1 Katherine の 2 km 手前 (320 km)</option><option value="2">CS2 Dunmarra の 2 km 手前 (629 km)</option><option value="3">CS3 Tennant Creek の 2 km 手前 (986 km)</option><option value="4">CS4 Barrow Creek の 2 km 手前 (1210 km)</option><option value="5">CS5 Alice Springs の 2 km 手前 (1494 km)</option><option value="6">CS6 Erldunda の 2 km 手前 (1692 km)</option><option value="7">CS7 Coober Pedy の 2 km 手前 (2179 km)</option><option value="8">CS8 Glendambo の 2 km 手前 (2432 km)</option><option value="9">CS9 Port Augusta の 2 km 手前 (2718 km)</option>
 </select>
+<div class="opts mt-3"><span class="lb" style="text-transform:none;letter-spacing:.06em;font-size:13px;color:var(--tx2)" id="quali-info"></span>
+<button type="button" class="btn" id="quali-reset" style="padding:5px 12px;font-size:12px" onclick="resetQuali()"><span data-ic="rewind"></span>予選ベストをリセット</button></div>
 <div class="help mt-2">×1 は実時間、×60 は 1 秒 = 1 分。信号での停止判定は ×1 / ×2 のときのみ有効。</div></div>
 <div class="sec"><h4><span data-ic="settings"></span>OPTIONS</h4>
 <div class="opts">
@@ -334,39 +336,39 @@
 <div style="display:flex;justify-content:flex-end"><button class="btn pri" onclick="quitToMenu()"><span data-ic="home"></span>メニューへ戻る</button></div>
 </div>
 </div>
-<script src="js/data/route-2025.js?v=20261106-ui5"></script>
-<script src="js/data/route-plan.js?v=20261106-ui5"></script>
-<script src="js/data/route-osm.js?v=20261106-ui5"></script>
-<script src="js/route.js?v=20261106-ui5"></script>
-<script src="js/data/australia.js?v=20261106-ui5"></script>
-<script src="js/data.js?v=20261106-ui5"></script>
-<script src="js/data/vehicle-private.js?v=20261106-ui5" onerror="window.__vehPrivMissing=true"></script>
-<script src="js/vehicle.js?v=20261106-ui5"></script>
-<script src="js/physics.js?v=20261106-ui5"></script>
-<script src="js/setup-ui.js?v=20261106-ui5"></script>
-<script src="js/audio-radio.js?v=20261106-ui5"></script>
-<script src="js/engine.js?v=20261106-ui5"></script>
-<script src="js/controls.js?v=20261106-ui5"></script>
-<script src="js/collide.js?v=20261106-ui5"></script>
-<script src="js/render/quality.js?v=20261106-ui5"></script>
-<script src="js/render/textures.js?v=20261106-ui5"></script>
-<script src="js/render/yata.js?v=20261106-ui5"></script>
-<script src="js/render/sky.js?v=20261106-ui5"></script>
-<script src="js/render/biome.js?v=20261106-ui5"></script>
-<script src="js/render/geobatch.js?v=20261106-ui5"></script>
-<script src="js/render/materials.js?v=20261106-ui5"></script>
-<script src="js/render/props.js?v=20261106-ui5"></script>
-<script src="js/render/scenery.js?v=20261106-ui5"></script>
-<script src="js/data/hidden-valley.js?v=20261106-ui5"></script>
-<script src="js/render/hiddenvalley.js?v=20261106-ui5"></script>
-<script src="js/render/view.js?v=20261106-ui5"></script>
-<script src="js/crew.js?v=20261106-ui5"></script>
-<script src="js/hud.js?v=20261106-ui5"></script>
-<script src="js/test-mode.js?v=20261106-ui5"></script>
-<script src="js/lib/qrcode.js?v=20261106-ui5"></script>
-<script src="js/event-game.js?v=20261106-ui5"></script>
-<script src="js/ui/icons.js?v=20261106-ui5"></script>
-<script src="js/ui/map.js?v=20261106-ui5"></script>
-<script src="js/main.js?v=20261106-ui5"></script>
+<script src="js/data/route-2025.js?v=20261106-ui7"></script>
+<script src="js/data/route-plan.js?v=20261106-ui7"></script>
+<script src="js/data/route-osm.js?v=20261106-ui7"></script>
+<script src="js/route.js?v=20261106-ui7"></script>
+<script src="js/data/australia.js?v=20261106-ui7"></script>
+<script src="js/data.js?v=20261106-ui7"></script>
+<script src="js/data/vehicle-private.js?v=20261106-ui7" onerror="window.__vehPrivMissing=true"></script>
+<script src="js/vehicle.js?v=20261106-ui7"></script>
+<script src="js/physics.js?v=20261106-ui7"></script>
+<script src="js/setup-ui.js?v=20261106-ui7"></script>
+<script src="js/audio-radio.js?v=20261106-ui7"></script>
+<script src="js/engine.js?v=20261106-ui7"></script>
+<script src="js/controls.js?v=20261106-ui7"></script>
+<script src="js/collide.js?v=20261106-ui7"></script>
+<script src="js/render/quality.js?v=20261106-ui7"></script>
+<script src="js/render/textures.js?v=20261106-ui7"></script>
+<script src="js/render/yata.js?v=20261106-ui7"></script>
+<script src="js/render/sky.js?v=20261106-ui7"></script>
+<script src="js/render/biome.js?v=20261106-ui7"></script>
+<script src="js/render/geobatch.js?v=20261106-ui7"></script>
+<script src="js/render/materials.js?v=20261106-ui7"></script>
+<script src="js/render/props.js?v=20261106-ui7"></script>
+<script src="js/render/scenery.js?v=20261106-ui7"></script>
+<script src="js/data/hidden-valley.js?v=20261106-ui7"></script>
+<script src="js/render/hiddenvalley.js?v=20261106-ui7"></script>
+<script src="js/render/view.js?v=20261106-ui7"></script>
+<script src="js/crew.js?v=20261106-ui7"></script>
+<script src="js/hud.js?v=20261106-ui7"></script>
+<script src="js/test-mode.js?v=20261106-ui7"></script>
+<script src="js/lib/qrcode.js?v=20261106-ui7"></script>
+<script src="js/event-game.js?v=20261106-ui7"></script>
+<script src="js/ui/icons.js?v=20261106-ui7"></script>
+<script src="js/ui/map.js?v=20261106-ui7"></script>
+<script src="js/main.js?v=20261106-ui7"></script>
 </body>
 </html>

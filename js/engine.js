@@ -25,6 +25,7 @@ TcellDyn:null, Tbat:null, wGust:0, wDirDev:0, lastHead:0, lastRho:1.17,
 nextRoadTrainH:0.15+Math.random()*0.3,
 };
 this.st.teams=this.initTeams();
+this.setupGrid();
 this.st.weatherPlan=this.genWeatherPlan();
 },
 genWeatherPlan(){
@@ -78,6 +79,21 @@ applyChapter(n){
   for(const cp of ROUTE) if(cp.cp&&cp.km<tm.km) tm.cs.add(cp.km); }
  s.chapter=n;
 },
+/* スタート順 (Day1): 予選タイム順に 1 台ずつ発進し、08:00〜08:30 に全車が出る。
+ 自車の予選順位は予選モードのベストラップから (未計測なら P18)。AI の予選順は実力順に少しばらつきを入れる */
+QUALI_KEY:"bwsc_bestLap", DEFAULT_GRID:18,   // 予選未計測のときのグリッド
+gridOfLap(t){ return Math.round(1+(t-141)/3); },   // 予選モードの「推定グリッド」と同じ換算
+setupGrid(){
+ const s=this.st, tms=s.teams||[], tot=tms.length+1;
+ let best=null; try{ best=parseFloat(localStorage.getItem(this.QUALI_KEY)); }catch(e){}
+ const g=clamp(best>0? this.gridOfLap(best) : this.DEFAULT_GRID,1,tot);
+ const order=tms.map(tm=>({tm,k:tm.spd+(Math.random()-0.5)*10})).sort((a,b)=>b.k-a.k).map(o=>o.tm);
+ order.splice(g-1,0,null);   // null = 自車
+ const gap=Math.min(1.5,30/Math.max(1,tot-1))/60;   // 発進間隔 [h]
+ order.forEach((tm,i)=>{ if(tm){ tm.grid=i+1; tm.delayH=i*gap; } });
+ s.grid=g; s.gridStartH=8+(g-1)*gap; s.qualiLap=best>0?best:null;
+},
+gridWait(){ const s=this.st; return P.mode==="race"&&!P.event&&!s.chapter&&s.day===1&&s.gridStartH>8&&s.hour<s.gridStartH; },
 raceStartHour(){ return 8.0 + this.st.morningPenaltyMin/60; },   // 2027 Reg 3.21.1-2: 毎日 08:00 (超過ペナルティ分だけ遅らせる)
 /* 17:00 超過の翌朝ペナルティ (Reg 3.21.4): 10 分までは 1 分/分、それ以降は 2 分/分 */
 extPenaltyMin(ext){ return Math.ceil(Math.min(ext,10)+2*Math.max(0,ext-10)); },
@@ -113,7 +129,7 @@ if(tm.status==="dnf"||tm.status==="fin") continue;
 if(tm.status==="pre"){
 if(s.day>1 || s.hour>=8.0+Math.max(0,tm.delayH)){
 tm.status="run";
-if(tm.delayH<0&&s.day===1) tm.km=Math.min(420,-tm.delayH*tm.spd*0.9);
+
 } else continue;
 }
 if(tm.csT>0){ tm.csT-=dtS; if(tm.csT<=0&&tm.socRecover){ tm.soc=Math.min(1,tm.soc+0.25); tm.socRecover=false; } continue; }
@@ -207,6 +223,8 @@ if(P.mode==="race") this.updateTeams(dtS);
 const startH=this.raceStartHour();
 const isRaceHours = s.hour>=startH && s.hour<17;
 let parked = s.stopTimer>0 || StopMenu.active;
+if(this.gridWait()){ parked=true; s.v=0; s.throttleSet=0; s.gridHeld=true; }
+else if(s.gridHeld){ s.gridHeld=false; Snd.chime&&Snd.chime(); toast("🏁 スタート!","#34d399"); Radio.push(`グリッド P${s.grid} 発進どうぞ!まずは制限速度に注意。`,"Event Official"); }
 if(typeof Crew!=="undefined"&&Crew.locked()){ parked=true; s.v=0; s.throttleSet=0; }   // 乗降手順中・発車許可待ち
 if(s.stopTimer>0){
 // stopHold: CS で計測開始ボタンを押すまで計時しない。CS の計時は 17:00 で止まり 08:00 に再開 (Reg 3.27.9)
