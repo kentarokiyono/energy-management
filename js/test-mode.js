@@ -355,6 +355,7 @@ collide(x0,z0){
   [["相手",what],["衝突速度",kmh+" km/h"],["", hit.kind==="person"? "人との接触は重大事故です。" : hit.level==="damage"? "車体が破損したため、この試験は失格です。" : "車両大破。この試験は失格です。"]],false);
 },
 finish(title,rows,pass){
+if(P.event){ EventGame.hvResult(title,rows,pass); return; }   // イベント (ヒドゥンバレー版) は採点して次の課題へ
 document.getElementById("test-result-title").textContent=title;
 document.getElementById("test-result-title").style.color=pass?"#34d399":"#f87171";
 document.getElementById("test-result-body").innerHTML=

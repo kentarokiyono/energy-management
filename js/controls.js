@@ -54,6 +54,7 @@ document.getElementById("tilt-slider").value=s.tiltDeg;
 document.getElementById("tilt-val").textContent=s.tiltDeg+"°";
 show("tilt-decide",false);
 modalPause=false; lastT=performance.now();
+if(P.event) EventGame.onTilt();
 },
 };
 function boost(){const s=Engine.st;if(!s||P.mode!=="event"||s.boostCd>0)return;

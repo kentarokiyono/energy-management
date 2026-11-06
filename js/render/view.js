@@ -10,10 +10,11 @@ s:0, lateral:-2.4, cam:0, carSlope:0, upcomingGrade:0, redSignalKm:null,
 SEG:2.5, ROAD_W:5.0, SHOULDER:8.5, visOrigin:0, branches:[], junctions:[],
 gen:{grade:0,targetGrade:0,gradeRemain:400,curv:0,targetCurv:0,curvRemain:600},
 init(){
-const canvas=document.getElementById("three-canvas");
-this.renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+// 描画エンジンは最初の 1 回だけ作って使い回す (同じ canvas に作り直すと GL の状態がずれ、2 回目以降に車体が真っ白になる)
+if(!this.renderer){ const canvas=document.getElementById("three-canvas");
+ this.renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+ this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); }
 this.renderer.setSize(innerWidth,innerHeight);
-this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
 this.scene=new THREE.Scene();
 this.scene.background=null;
 setupRenderQuality(this.renderer,this.scene);
@@ -571,16 +572,17 @@ const zone=Route.real(km);
 // 地形の勾配
 g.gradeRemain-=this.SEG;
 if(g.gradeRemain<=0){
- const mid=(km>950&&km<2150);
- const flatBias= zone?1:(mid?0.75:0.45);
- if(Math.random()<flatBias){ g.targetGrade=0; g.gradeRemain=400+Math.random()*1400; }
+ const mid=(km>950&&km<2150), hilly=P.event&&typeof EventGame!=="undefined"&&EventGame.hilly&&!zone;   // イベントの Port Augusta 区間: 激しいアップダウン
+ const flatBias= hilly?0.15:zone?1:(mid?0.75:0.45);
+ if(hilly&&Math.random()>flatBias){ g.targetGrade=(Math.random()<0.5?-1:1)*(0.025+Math.random()*0.03); g.gradeRemain=150+Math.random()*250; }
+ else if(Math.random()<flatBias){ g.targetGrade=0; g.gradeRemain=400+Math.random()*1400; }
  else{ const mag= mid?(0.004+Math.random()*0.010):(0.006+Math.random()*0.018);
   g.targetGrade=(Math.random()<0.5?-1:1)*mag; g.gradeRemain=150+Math.random()*650; }
- if(this.genY>25) g.targetGrade=Math.min(g.targetGrade,-0.006);
- if(this.genY<-25) g.targetGrade=Math.max(g.targetGrade,0.006);
+ if(this.genY>(hilly?45:25)) g.targetGrade=Math.min(g.targetGrade,-0.006);
+ if(this.genY<-(hilly?45:25)) g.targetGrade=Math.max(g.targetGrade,0.006);
 }
 // 縦断の曲率は半径 1 万 m 程度 (勾配変化 0.0001/m)。急だと坂の頂上の先の道路が数十 m で見えなくなる
-g.grade+=clamp(g.targetGrade-g.grade,-0.0001,0.0001)*this.SEG*(zone?0.3:1);
+g.grade+=clamp(g.targetGrade-g.grade,-0.0001,0.0001)*this.SEG*(zone?0.3:1)*(P.event&&typeof EventGame!=="undefined"&&EventGame.hilly&&!zone?5:1);
 // OSM の町区間 (等倍) は平坦: 道路が同じ場所を再び通るので、高さがずれると地形が別の区間の道路を覆う
 if(P.mode==="race"&&zone&&OsmRoute.townAt(km)){ g.grade*=0.85; g.targetGrade=0; g.gradeRemain=Math.max(g.gradeRemain,200); }
 this.genY=(this.genY||0)+g.grade*this.SEG;
@@ -959,7 +961,7 @@ let ent=this.lmMap.get(key);
 if(!ent){
 const mesh=this.mkLandmark(lm);
 ent={mesh,lm,red:false,decided:false};
-if(lm.t==="signal"&&interactive&&Math.random()<0.4){ ent.red=true; }
+if(lm.t==="signal"&&interactive&&(Math.random()<0.4||(P.event&&lm.km>0.4&&lm.km<0.7))){ ent.red=true; }   // イベントの課題 1: McMinn Street の信号は必ず赤
 this.lmMap.set(key,ent);
 this.scene.add(mesh);
 }
@@ -1015,7 +1017,7 @@ rt.mesh.rotation.y=-rp.h;
 const rel=rt.sVis-this.s;
 if(!rt.warned&&rel<180){ rt.warned=true; Snd.horn(); }
 if(Math.abs(rel)<18 && this.lateral>0.6 && es.v*3.6>15 && !es.fire){
-Engine.ignite("ロードトレインと正面衝突");
+if(P.event) EventGame.onTrainHit(); else Engine.ignite("ロードトレインと正面衝突");
 }
 if(Math.abs(rel)<12&&es.v>5) this.car.position.y+=Math.random()*0.03;
 if(rel<-250){ this.scene.remove(rt.mesh);
