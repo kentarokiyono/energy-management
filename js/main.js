@@ -4,6 +4,7 @@ let running=false, paused=false, lastT=0;
 let eventElapsed=0; const EVENT_DURATION=MODE_CFG.event.duration;
 function startGame(){
 Snd.init();
+if(P.mode==="event") EventGame.prepare();   // イベント: 内部はレースモードで動かし、課題を重ねる
 Engine.init();
 if(typeof Crew!=="undefined") Crew.reset();
 Test.active=false;
@@ -41,13 +42,13 @@ document.getElementById("tilt-slider").value=Engine.st.tiltDeg;
 document.getElementById("tilt-val").textContent=Engine.st.tiltDeg+"°";
 Radio.log.length=0;
 Route.build(P.timeScale, P.mode!=="race");   // イベントモードは等倍ゾーンなし
-const chap= P.mode==="race"? parseInt((document.getElementById("chapter")||{}).value||"0") : 0;
+const chap= P.mode==="race"&&!P.event? parseInt((document.getElementById("chapter")||{}).value||"0") : 0;
 if(chap>0) Engine.applyChapter(chap);   // チャプター: CS の 2 km 手前から
 View.init(); View.buildCar(); View.buildEscorts();
 initChart(); lastChartPush=0;
 running=true; paused=false; lastT=performance.now();
 requestAnimationFrame(loop);
-if(P.mode==="event") toast("🎪 90秒スコアアタック!B=ブースト","#22d3ee");
+if(P.event) EventGame.begin();
 else if(Engine.st.chapter){ const c=RP_CS.find(q=>q.n===Engine.st.chapter), es=Engine.st, h=Math.floor(es.hour), mi=Math.floor(es.hour%1*60);
  Radio.push(`チャプター: CS${c.n} ${c.name} の 2 km 手前から。Day${es.day} ${h}:${String(mi).padStart(2,"0")}、電池 ${(es.soc*100).toFixed(0)} % (標準ペース 70 km/h の見積もり)。`); }
 else Radio.push("Day1 8:00 Darwinスタート!W/↑でスロットル開度を設定してください。まずは制限速度に注意。");
@@ -59,6 +60,7 @@ let dtR=clamp((t-lastT)/1000,0,0.1); lastT=t;
 if(paused||modalPause) return;
 updateInput(dtR);
 if(Test.active){ Test.frame(dtR); return; }
+if(P.event){ EventGame.frame(dtR); if(!running||modalPause) return; }
 if(P.mode==="event"&&Engine.st){
   if(performance.now()-(window._lastAct||0)>MODE_CFG.event.attractIdle*1000){
     Engine.st.throttleSet=0.7;
@@ -79,6 +81,7 @@ eventElapsed+=dtR;
 if(eventElapsed>=EVENT_DURATION&&!es.finished){ es.finished=true; showResult(); return; }
 }
 View.update(dtR);
+if(P.event) EventGame.post();
 if(P.mode==="race"&&!es.finished&&!es.trailering) es.km=View.kmOfS(View.s);   // 走行位置(本線への射影)を正とする
 Snd.update(es.v, es.lastAmp/Math.max(motorMaxA(es.powerMode),1), es.fire);
 updateHUD(); drawWind(); drawG();
@@ -92,6 +95,7 @@ show("pause-overlay",paused);
 if(!paused) lastT=performance.now();
 }
 function quitToMenu(){
+if(typeof EventGame!=="undefined") EventGame.end();
 running=false; paused=false; Test.active=false;
 document.getElementById("game-container").classList.add("hidden");
 document.getElementById("test-hud").classList.add("hidden");
@@ -101,6 +105,7 @@ Snd.update(0,0,false);
 }
 buildSetupUI();
 refreshUIModeBtns();
+setEventLevel(EventGame.level);
 setInterval(pollGamepad,800);
 addEventListener("gamepadconnected",e=>toast("🎮 コントローラー接続: "+e.gamepad.id.slice(0,40),"#34d399"));
 /* ---- ② キオスク堅牢化 ---- */

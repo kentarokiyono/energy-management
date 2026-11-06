@@ -309,7 +309,7 @@ if(s.v*3.6>lim+5){ s.limitTimer+=dtR;
 if(s.limitTimer>3){ s.limitTimer=0; Radio.push(`制限速度${lim}km/hを超過しています。減速してください。`,"後方追走車"); } }
 else s.limitTimer=0;
 if(View.redSignalKm!=null && prev<View.redSignalKm && s.km>=View.redSignalKm && s.v*3.6>5){
-Snd.alarm(); toast("🚨 赤信号を通過しました!","#ef4444"); View.redSignalKm=null;
+Snd.alarm(); toast("🚨 赤信号を通過しました!","#ef4444"); View.redSignalKm=null; if(P.event) EventGame.onRedRun();
 }
 } else { s.v=Math.max(0,s.v-3*dtR); I_cmd=0; Pmotor=0; }
 s.lastAmp=I_cmd; s.lastMotorW=Math.max(0,s.lastMotorNow!=null?s.lastMotorNow:Pmotor); s.lastMotorNow=null;
@@ -331,7 +331,7 @@ if(P.infiniteBattery) s.soc=clamp(PRO.startSoc,0.5,1);
 else s.soc=clamp(s.soc-(Ibat*(Ibat<0?0.995:1)*dtS)/(capAh*3600),0,1);
 s.lastIbat=Ibat; s.lastNet=Pnet;
 if(Ibat>0) s.ahUsed+=Ibat*dtS/3600;
-if(P.mode==="event"&&s.soc<0.15)s.soc=0.3; // ② 電欠なし=必ずゴール可能
+if(P.event&&s.soc<0.12)s.soc=0.12; // ② 電欠なし=必ずゴール可能
 if(Pnet>0) s.whUsed+=Pnet*dtS/3600;
 if(!s.disconnected) s.whGen+=Psolar*dtS/3600;
 if(s.soc<=0.001 && s.v>1){
@@ -481,6 +481,7 @@ if(missed){ toast("🚨 コントロールストップの敷地に入らず通�
 else toast(`🛑 CS${cp.n} ${cp.name} 到着 ― 30分の強制点検`,"#fbbf24");
 if(cp.open && abs<Route.absHour(cp.open)) Radio.push(`CS${cp.n} はまだオープン前(${fmtAbsH(Route.absHour(cp.open))})です。`,"Event Official");
 TiltDecide.open();
+if(P.event) EventGame.onCS(cp,missed);
 if(cp.n===9){ s.absHourAtPA=abs; Radio.push("Port Augusta 通過!大陸横断おめでとう!","Event Official"); }
 },
 enterCamp(){
@@ -493,6 +494,7 @@ TiltDecide.open();
 /* 当たり判定の結果 (View から): 軽い接触 = 警告 / 破損 = 停車して修理・空力悪化 / 大破 = リタイア */
 collision(hit){
  const s=this.st; if(!s||s.crashed||s.fire||hit.level==="touch") return;
+ if(P.event){ EventGame.onHit(hit); return; }   // イベント: 減点のみ (リタイアしない)
  const now=performance.now(); if(now<(s.hitCd||0)&&hit.level==="light") return;
  const what=COLLIDE_WHAT[hit.kind]||"障害物", kmh=(hit.vn*3.6).toFixed(0);
  if(hit.level==="light"){ s.hitCd=now+2500; Snd.alarm(); toast(`⚠ ${what}に接触 (${kmh} km/h)`,"#f59e0b"); Radio.push(`${what}に軽く接触しました (${kmh} km/h)。車体を確認しながら走行を続けてください。`,"チーフ"); return; }
@@ -513,6 +515,7 @@ collision(hit){
 ignite(reason){
 const s=this.st;
 if(s.fire) return;
+if(P.event){ EventGame.onHit({level:"heavy"}); return; }
 s.fire=true; s.fireSec=0; s.fireReason=reason;
 Snd.bang(); Snd.alarm();
 View.startFire();

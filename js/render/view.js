@@ -960,7 +960,7 @@ let ent=this.lmMap.get(key);
 if(!ent){
 const mesh=this.mkLandmark(lm);
 ent={mesh,lm,red:false,decided:false};
-if(lm.t==="signal"&&interactive&&Math.random()<0.4){ ent.red=true; }
+if(lm.t==="signal"&&interactive&&(Math.random()<0.4||(P.event&&lm.km>0.4&&lm.km<0.7))){ ent.red=true; }   // イベントの課題 1: McMinn Street の信号は必ず赤
 this.lmMap.set(key,ent);
 this.scene.add(mesh);
 }
@@ -1016,7 +1016,7 @@ rt.mesh.rotation.y=-rp.h;
 const rel=rt.sVis-this.s;
 if(!rt.warned&&rel<180){ rt.warned=true; Snd.horn(); }
 if(Math.abs(rel)<18 && this.lateral>0.6 && es.v*3.6>15 && !es.fire){
-Engine.ignite("ロードトレインと正面衝突");
+if(P.event) EventGame.onTrainHit(); else Engine.ignite("ロードトレインと正面衝突");
 }
 if(Math.abs(rel)<12&&es.v>5) this.car.position.y+=Math.random()*0.03;
 if(rel<-250){ this.scene.remove(rt.mesh);
