@@ -251,7 +251,7 @@ if(!parked && (P.mode!=="race"||isRaceHours)){
 const m=massTotal(), mEff=m+PRO.mRot;
 const crr = (s.burst?8:1)*Phys.crr(s.v);
 // 勾配は実際の標高 (ルートの標高データ) だけで計算する。見た目の道路の起伏は使わない
-const slope=prof.slope; s.physSlope=slope;
+const slope=(P.event&&typeof EventGame!=="undefined"&&EventGame.hilly&&View.road)? Math.atan(View.roadPoint(View.s).g||0) : prof.slope; s.physSlope=slope;   // イベントの Port Augusta 区間は見た目の坂がそのまま効く
 const Froll=crr*m*9.81*Math.cos(slope)+motorIronW(s.v)/Math.max(s.v,0.5);
 const phi=s.windDirWorld-prof.bearing+Math.PI;
 const head=s.windSpeed*Math.cos(phi); s.lastHead=head;

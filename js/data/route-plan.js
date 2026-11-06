@@ -101,6 +101,7 @@ function rpScaleZones(){
  for(const c of RP_CS) pts.push([c.km-0.6,c.km+0.4]);
  pts.push([RP_RULES.driverChange.km-0.5,RP_RULES.driverChange.km+0.4]);
  pts.push([0,1.4]); pts.push([3014,RP_FINISH.km+0.2]);
+ if(typeof P!=="undefined"&&P.event) pts.push([1087.3,1089.0]);   // イベント: Devils Marbles の前後は等倍でじっくり見せる
  if(typeof OsmRoute!=="undefined") for(const t of OsmRoute.towns) if(t.zone!==false) pts.push([t.km0,t.km1]);   // OSM 実形状の町区間は等倍
  pts.sort((a,b)=>a[0]-b[0]);
  const z=[];

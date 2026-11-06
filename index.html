@@ -17,7 +17,7 @@
 <div class="text-xs tracking-[.4em] text-cyan-600 mb-1">BRIDGESTONE WORLD SOLAR CHALLENGE ― 2025 ROUTE</div>
 <h1 class="text-4xl font-black neon-text tracking-wider">BWSC 3D レーシングシミュレータ</h1>
 <div class="text-sm text-cyan-200/70 mt-2">Darwin → Adelaide 3,027 km ― Wakayama Univ. Solar Car Team</div>
-<div class="text-[10px] text-cyan-200/40 mt-1 mono">build 20261106-ev2</div>
+<div class="text-[10px] text-cyan-200/40 mt-1 mono">build 20261106-ev3</div>
 </div>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
 <div id="mode-race" class="card-select active" onclick="selectMode('race')">
@@ -26,7 +26,11 @@
 </div>
 <div id="mode-event" class="card-select" onclick="selectMode('event')">
 <div class="font-bold text-amber-300 text-lg">🎪 イベントモード(来場者体験用)</div>
-<div class="text-xs text-cyan-100/60 mt-1">約 8 分の課題クリア型。交通ルール → 省エネ巡航 → ロードトレイン → CS で停車と充電 → ゴールをめざせ。その日のランキング・1 位のゴースト・QR で走りを持ち帰り。</div>
+<div class="text-xs text-cyan-100/60 mt-1">10 分の課題クリア型。オーストラリア: 交通ルール → 省エネ巡航 → ロードトレイン → CS で停車と充電 → Devils Marbles の砂漠 → Port Augusta へ。ヒドゥンバレー: 車検 (8 の字・スラローム・制動) → サーキット走行。その日のランキング・1 位のゴースト・QR で走りを持ち帰り。</div>
+<div class="flex gap-2 mt-2" onclick="event.stopPropagation();selectMode('event')">
+<button id="ev-co-aus" class="btn text-xs py-1 px-3" onclick="setEventCourse('aus')">🇦🇺 オーストラリア</button>
+<button id="ev-co-hv" class="btn text-xs py-1 px-3" onclick="setEventCourse('hv')">🏁 ヒドゥンバレー</button>
+</div>
 <div class="flex gap-2 mt-2" onclick="event.stopPropagation();selectMode('event')">
 <button id="ev-lv-kid" class="btn text-xs py-1 px-3" onclick="setEventLevel('kid')">🧒 こども</button>
 <button id="ev-lv-adult" class="btn text-xs py-1 px-3" onclick="setEventLevel('adult')">🧑 おとな</button>
@@ -367,36 +371,36 @@
 <button class="btn" onclick="quitToMenu()">メニューへ戻る</button>
 </div>
 </div>
-<script src="js/data/route-2025.js?v=20261106-ev2"></script>
-<script src="js/data/route-plan.js?v=20261106-ev2"></script>
-<script src="js/data/route-osm.js?v=20261106-ev2"></script>
-<script src="js/route.js?v=20261106-ev2"></script>
-<script src="js/data.js?v=20261106-ev2"></script>
-<script src="js/data/vehicle-private.js?v=20261106-ev2" onerror="window.__vehPrivMissing=true"></script>
-<script src="js/vehicle.js?v=20261106-ev2"></script>
-<script src="js/physics.js?v=20261106-ev2"></script>
-<script src="js/setup-ui.js?v=20261106-ev2"></script>
-<script src="js/audio-radio.js?v=20261106-ev2"></script>
-<script src="js/engine.js?v=20261106-ev2"></script>
-<script src="js/controls.js?v=20261106-ev2"></script>
-<script src="js/collide.js?v=20261106-ev2"></script>
-<script src="js/render/quality.js?v=20261106-ev2"></script>
-<script src="js/render/textures.js?v=20261106-ev2"></script>
-<script src="js/render/yata.js?v=20261106-ev2"></script>
-<script src="js/render/sky.js?v=20261106-ev2"></script>
-<script src="js/render/biome.js?v=20261106-ev2"></script>
-<script src="js/render/geobatch.js?v=20261106-ev2"></script>
-<script src="js/render/materials.js?v=20261106-ev2"></script>
-<script src="js/render/props.js?v=20261106-ev2"></script>
-<script src="js/render/scenery.js?v=20261106-ev2"></script>
-<script src="js/data/hidden-valley.js?v=20261106-ev2"></script>
-<script src="js/render/hiddenvalley.js?v=20261106-ev2"></script>
-<script src="js/render/view.js?v=20261106-ev2"></script>
-<script src="js/crew.js?v=20261106-ev2"></script>
-<script src="js/hud.js?v=20261106-ev2"></script>
-<script src="js/test-mode.js?v=20261106-ev2"></script>
-<script src="js/lib/qrcode.js?v=20261106-ev2"></script>
-<script src="js/event-game.js?v=20261106-ev2"></script>
-<script src="js/main.js?v=20261106-ev2"></script>
+<script src="js/data/route-2025.js?v=20261106-ev3"></script>
+<script src="js/data/route-plan.js?v=20261106-ev3"></script>
+<script src="js/data/route-osm.js?v=20261106-ev3"></script>
+<script src="js/route.js?v=20261106-ev3"></script>
+<script src="js/data.js?v=20261106-ev3"></script>
+<script src="js/data/vehicle-private.js?v=20261106-ev3" onerror="window.__vehPrivMissing=true"></script>
+<script src="js/vehicle.js?v=20261106-ev3"></script>
+<script src="js/physics.js?v=20261106-ev3"></script>
+<script src="js/setup-ui.js?v=20261106-ev3"></script>
+<script src="js/audio-radio.js?v=20261106-ev3"></script>
+<script src="js/engine.js?v=20261106-ev3"></script>
+<script src="js/controls.js?v=20261106-ev3"></script>
+<script src="js/collide.js?v=20261106-ev3"></script>
+<script src="js/render/quality.js?v=20261106-ev3"></script>
+<script src="js/render/textures.js?v=20261106-ev3"></script>
+<script src="js/render/yata.js?v=20261106-ev3"></script>
+<script src="js/render/sky.js?v=20261106-ev3"></script>
+<script src="js/render/biome.js?v=20261106-ev3"></script>
+<script src="js/render/geobatch.js?v=20261106-ev3"></script>
+<script src="js/render/materials.js?v=20261106-ev3"></script>
+<script src="js/render/props.js?v=20261106-ev3"></script>
+<script src="js/render/scenery.js?v=20261106-ev3"></script>
+<script src="js/data/hidden-valley.js?v=20261106-ev3"></script>
+<script src="js/render/hiddenvalley.js?v=20261106-ev3"></script>
+<script src="js/render/view.js?v=20261106-ev3"></script>
+<script src="js/crew.js?v=20261106-ev3"></script>
+<script src="js/hud.js?v=20261106-ev3"></script>
+<script src="js/test-mode.js?v=20261106-ev3"></script>
+<script src="js/lib/qrcode.js?v=20261106-ev3"></script>
+<script src="js/event-game.js?v=20261106-ev3"></script>
+<script src="js/main.js?v=20261106-ev3"></script>
 </body>
 </html>

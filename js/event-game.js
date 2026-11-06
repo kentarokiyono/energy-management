@@ -1,47 +1,70 @@
 "use strict";
-/* ============ イベントモード (来場者体験): 課題クリア型・約 8 分 ============
- 走行はレースモードの仕組み (実際の町並み・信号・ロードトレイン・CS) をそのまま使い、課題ごとに場所へ移る。
- 課題: 1 交通ルール / 2 省エネ巡航 / 3 ロードトレイン / 4 CS で停車と充電 / 5 ゴールをめざせ
+/* ============ イベントモード (来場者体験): 課題クリア型・10 分 ============
+ コースを選ぶ:
+  オーストラリア: レースモードの仕組み (実際の町並み・信号・ロードトレイン・CS) で課題ごとに場所へ移る。
+   1 交通ルール / 2 省エネ巡航 / 3 ロードトレイン / 4 CS で停車と充電 (ここまで約 5 分)
+   5 Devils Marbles 付近の砂漠 / 6 Port Augusta へ下るアップダウン (最後の 5 分)
+  ヒドゥンバレー: 車検 (8 の字 / スラローム / 制動) を約 3〜5 分、残りはサーキット走行 (ベストラップで採点)
  難易度: 子ども (速度帯が広い・接触の減点小) / 大人
- その日のランキングと 1 位のゴースト (端末に保存)、走行のリプレイ URL を QR コードで持ち帰り */
+ その日のランキング (コースごと)・1 位のゴースト (端末に保存)、オーストラリア版は走行のリプレイ URL を QR コードで持ち帰り */
 const EVENT_PUBLIC_URL="https://kentarokiyono.github.io/energy-management/";
 const EventGame={
-DUR:480, active:false, level:"adult", replay:null, ghostRun:null,
-MISSIONS:[
- {id:"rules", title:"交通ルール", km:0, hour:10.0, cap:150,
+DUR:600, active:false, level:"adult", course:"aus", replay:null, ghostRun:null, hilly:false,
+COURSES:{
+ aus:[
+ {id:"rules", title:"交通ルール", km:0, hour:10.0, cap:100,
   goal:"赤信号では停止線の手前で止まろう。右折の前にはウインカー (C キー / ハンドルのボタン) を出そう。制限速度も守ろう。",
   tip:"ソーラーカーも普通の車と同じ交通ルールで走ります。レース中も信号や制限速度は守らないとペナルティです。"},
- {id:"eco", title:"省エネ巡航", km:40, hour:11.0, cap:100,
+ {id:"eco", title:"省エネ巡航", km:40, hour:11.0, cap:70,
   goal:"速度を 70〜90 km/h に保って電池を節約しよう。途中で雲やスコールが来て発電が減るよ。",
   tip:"空気抵抗は速度の 2 乗で増えるので、速く走るほど電池の減りが一気に大きくなります。一定の速度で走るのがいちばん省エネ。"},
- {id:"train", title:"ロードトレイン", km:null, cap:60,
+ {id:"train", title:"ロードトレイン", km:null, cap:45,
   goal:"前から全長 53 m の大型トラックが来るよ。左に寄って、速度を落として安全にすれ違おう。",
   tip:"オーストラリアの内陸では、トレーラーを 3 両もつないだ『ロードトレイン』が時速 100 km で走っています。風圧で車体があおられることも。"},
- {id:"cs", title:"CS で停車と充電", km:319.6, hour:13.0, cap:150,
+ {id:"cs", title:"CS で停車と充電", km:320.8, hour:13.0, cap:85,
   goal:"25 km/h 以下でコントロールストップ (Katherine) に入って停車しよう。止まったら太陽に向けてパネルの角度を選んで充電！",
   tip:"コントロールストップでは 30 分止まる決まり。その間、パネルを太陽に向けて傾けて充電します。角度ひとつで発電量が大きく変わります。"},
- {id:"goal", title:"ゴールをめざせ", km:null, cap:1e9,
-  goal:"残り時間でできるだけ遠くへ！ でも電池を使い切らないように。",
-  tip:"本番のレースは約 3,000 km を 5 日ほどで走ります。最後は残った電池を使い切るように走るのが作戦です。"},
-],
+ {id:"desert", title:"赤い砂漠を走る", km:1070, hour:10.5, cap:150, distFull:170, place:[1083,1095,"📍 Devils Marbles (Karlu Karlu)"],
+  goal:"オーストラリアの真ん中、赤い大地の一本道。できるだけ遠くへ、でも電池は残そう。途中の巨大な丸い岩に注目！",
+  tip:"Devils Marbles (先住民の言葉で Karlu Karlu) は、直径数 m の花崗岩の丸い岩が積み重なる名所。約 17 億年前の岩が風雨で削られて丸くなりました。先住民の聖地でもあります。"},
+ {id:"pa", title:"Port Augusta へ", km:2625, hour:14.5, cap:150, distFull:110, hilly:true, place:[2716,2722,"📍 Port Augusta"],
+  goal:"高原から海辺の町へ下るアップダウンの道。上り坂では電池が減り、下り坂では回生ブレーキで取り戻せるよ。町に入ったら制限速度に注意。",
+  tip:"Port Augusta はスペンサー湾のいちばん奥にある町で『アウトバックの入口』と呼ばれます。東には Flinders 山脈。ここから南は畑と海の景色に変わり、ゴールの Adelaide まであと約 300 km です。"},
+ ],
+ hv:[
+ {id:"hv-fig8", kind:"fig8", title:"車検: 8 の字", cap:75,
+  goal:"内円半径 6 m の 8 の字を、コースからはみ出さずに走ろう。片側 9 秒・合計 18 秒未満で合格。",
+  tip:"本番の車検でも 8 の字走行があります。ソーラーカーは車体が長く、小回りが苦手。ハンドルを早めに切るのがコツ。"},
+ {id:"hv-slalom", kind:"slalom", title:"車検: スラローム", cap:60,
+  goal:"18 m 間隔のパイロン 7 本を、ぶつけずに 11.5 秒未満で抜けよう。",
+  tip:"スラロームは急なハンドル操作でも車が安定しているかの確認。横風に強いかどうかも大事な性能です。"},
+ {id:"hv-brake", kind:"brake", title:"車検: 制動テスト", cap:60,
+  goal:"40 km/h 以上で白線を通過したら全力でブレーキ。14 m 以内に止まれば合格。",
+  tip:"ソーラーカーは軽くてタイヤが細いので、止まるのが難しい乗り物。ブレーキ性能は安全のための最重要チェックです。"},
+ {id:"hv-circuit", kind:"circuit", title:"サーキット走行", cap:1e9,
+  goal:"Hidden Valley Raceway を周回しよう。ベストラップで採点。コースアウトや接触に注意！",
+  tip:"本番ではこのサーキットのタイムでスタート順が決まります。速いチームは 1 周 2 分 20 秒台。"},
+ ],
+},
+get MISSIONS(){ return this.COURSES[this.course]||this.COURSES.aus; },
 /* ---------- 開始・終了 ---------- */
 prepare(){ // startGame から: 内部はレースモードとして動かす
- this.active=true; P.event=true; P._modeSel="event"; P.mode="race"; P._crewSave=P.crewProc; P.crewProc=false; P.timeScale=60;
+ this.active=true; P.event=true; P._modeSel="event"; P._crewSave=P.crewProc; P.crewProc=false; P.timeScale=60;
+ if(this.course==="hv"){ P.mode="test"; P.testKind="fig8"; } else P.mode="race";
 },
 begin(){
  const s=Engine.st;
- this.t=0; this.mi=-1; this.scores=[0,0,0,0,0]; this.rec=[]; this.recT=0; this.hits=0; this.done=false; this.cardOpen=false;
+ this.t=0; this.mi=-1; this.scores=this.MISSIONS.map(()=>0); this.hitBy=this.MISSIONS.map(()=>0); this.rec=[]; this.recT=0; this.done=false; this.cardOpen=false; this._registered=false; this.hilly=false;
  s.weatherPlan=null; s.weather=null; s.nextRoadTrainH=99; s.dcDone=true; s.gear="D";
  s.teams=[];   // 他チームの車は出さない (CS などで前に止まって進めなくなるため)
  document.getElementById("event-hud").classList.remove("hidden");
  this.ensureHud();
- if(!this.replay) this.ghostRun=this.ghostRun||this.todayBest();
- this.buildGhost();
+ if(this.course==="aus"){ if(!this.replay) this.ghostRun=this.ghostRun||this.todayBest(); this.buildGhost(); } else this.ghostRun=null;
  this.next();
 },
 end(){ // メニューへ戻るとき
  if(!this.active) return;
- this.active=false; P.event=false; P.mode=P._modeSel||"event"; if(P._crewSave!=null) P.crewProc=P._crewSave;
+ this.active=false; P.event=false; P.mode=P._modeSel||"event"; this.hilly=false; if(P._crewSave!=null) P.crewProc=P._crewSave; if(Test.active) Test.active=false;
  this.replay=null; this.closeCard(); this.hideResult();
  if(this.ghost&&View.scene) View.scene.remove(this.ghost); this.ghost=null;
  document.getElementById("event-hud").classList.add("hidden");
@@ -56,13 +79,15 @@ next(){
 },
 enter(m){
  const s=Engine.st;
- this.mt=0; this.st={};
+ this.mt=0; this.st={}; this.hilly=!!m.hilly;
+ if(m.kind){ this.hvEnter(m); this.hudMission(); return; }
  if(m.km!=null) this.jump(m.km,m.hour);
  this.st.km0=s.km; this.st.soc0=s.soc; this.st.motorWh=0;
  if(m.id==="rules"){ this.st.red=0; this.st.over=0; this.st.turns={}; this.st.missSig=0; }
  if(m.id==="eco"){ this.st.inBand=0; s.v=Math.max(s.v,75/3.6); s.throttleSet=0.55; }
  if(m.id==="train"){ this.spawnTrain(); this.st.judged=false; }
- if(m.id==="cs"){ this.st.entryOk=null; this.st.stopped=false; s.v=60/3.6; s.throttleSet=0.4; }
+ if(m.id==="cs"){ this.st.entryOk=null; this.st.stopped=false; s.v=50/3.6; s.throttleSet=0.3; }
+ if(m.distFull){ s.v=70/3.6; s.throttleSet=0.5; s.soc=Math.max(s.soc,0.75); }
  this.hudMission();
 },
 jump(km,hour){
@@ -86,6 +111,7 @@ frame(dtR){
  s.hour=Math.min(s.hour,15.5);                      // 体験中は日が暮れない
  if(s.soc<0.12) s.soc=0.12;                          // 電欠で止まらない
  if(this.replay){ this.replayFrame(); return; }
+ if(m.kind){ this.hvFrame(m); if(this.t>=this.DUR) this.finish(); return; }
  // 記録 (1 秒ごと): [課題, 課題内の秒, km, 横位置, 速度]
  this.recT+=dtR; if(this.recT>=1){ this.recT-=1; this.rec.push([this.mi,Math.round(this.mt),s.km,View.lateral||0,s.v]); }
  this.st.motorWh+=(s.lastMotorW||0)*dtR*Route.scaleAt(s.km)/3600;
@@ -101,8 +127,8 @@ frame(dtR){
  } else if(m.id==="eco"){
   const lo=this.level==="kid"?55:70, hi=this.level==="kid"?95:90;
   if(kmh>=lo&&kmh<=hi) this.st.inBand+=dtR;
-  // 天気: 30〜60 秒は曇り、60〜80 秒はスコール
-  s.weather= this.mt>30&&this.mt<60? {type:"cloud",factor:0.35} : this.mt>=60&&this.mt<80? {type:"squall",factor:0.12} : null;
+  // 天気: 20〜40 秒は曇り、40〜55 秒はスコール
+  s.weather= this.mt>20&&this.mt<40? {type:"cloud",factor:0.35} : this.mt>=40&&this.mt<55? {type:"squall",factor:0.12} : null;
   const dkm=Math.max(0.1,s.km-this.st.km0), e=this.st.motorWh/dkm, ref=this.refWhPerKm();
   this.scores[1]=Math.round(50*this.st.inBand/Math.max(1,this.mt)+50*clamp((ref*1.6-e)/(ref*0.8),0,1))-this.hitPen(1);
   if(this.mt>m.cap){ s.weather=null; this.next(); }
@@ -120,14 +146,32 @@ frame(dtR){
   if(this.st.entryOk==null&&s.km>c.km-0.25){ this.st.entryOk=kmh<=26; if(!this.st.entryOk) toast("⚠ CS への進入は 25 km/h 以下","#f59e0b"); }
   if(this.st.stopped&&s.stopTimer<=0){ this.next(); return; }
   if(this.mt>m.cap&&!this.st.stopped) this.next();
- } else if(m.id==="goal"){
+ } else if(m.distFull){   // 最後の走行区間: 距離と電池残量
   const d=s.km-this.st.km0;
-  this.scores[4]=Math.round(clamp(d/2,0,80)+20*clamp((s.soc-0.12)/0.5,0,1))-this.hitPen(4);
+  this.scores[this.mi]=Math.round(70*clamp(d/m.distFull,0,1)+30*clamp((s.soc-0.12)/0.6,0,1))-this.hitPen(this.mi);
+  const pl=m.place, e=document.getElementById("event-mission");
+  if(e) e.textContent=`MISSION ${this.mi+1}: ${m.title}`+(pl&&s.km>pl[0]&&s.km<pl[1]? "  "+pl[2] : "");
+  if(this.mt>m.cap) this.next();
  }
  if(this.t>=this.DUR) this.finish();
  this.ghostFrame();
 },
 hitPen(i){ return (this.hitBy&&this.hitBy[i]||0); },
+/* ---------- ヒドゥンバレー: 車検とサーキット (予選モードの試験を使う) ---------- */
+hvEnter(m){ Test.start(m.kind); this.st.res=null; },
+hvFrame(m){
+ if(m.kind==="circuit"){ const b=Test.best; this.scores[this.mi]=b? Math.max(0,Math.round(100*clamp((300-b)/150,0,1))-this.hitPen(this.mi)) : 0; return; }
+ if(this.st.res&&performance.now()>this.st.resAt) this.next();
+ else if(!this.st.res&&this.mt>m.cap){ toast("⏱ 時間切れ","#f59e0b"); this.next(); }
+},
+/* 予選の試験が終わったとき (Test.finish から): 合格 100 点・不合格 40 点。サーキットでの事故は減点して走り直し */
+hvResult(title,rows,pass){
+ const m=this.MISSIONS[this.mi]; if(!m||!m.kind||this.st.res) return;
+ if(m.kind==="circuit"){ this.hitBy[this.mi]+=this.level==="kid"?5:15; toast(`${title} ― −${this.level==="kid"?5:15} 点。スタートから走り直し`,"#ef4444"); setTimeout(()=>{ if(this.active) Test.retry(); },1200); return; }
+ this.st.res=title; this.st.resAt=performance.now()+2500;
+ this.scores[this.mi]=Math.max(0,(pass?100:40)-this.hitPen(this.mi));
+ toast(`${title} ― ${this.scores[this.mi]} 点`,pass?"#34d399":"#f59e0b");
+},
 /* 80 km/h で走るときの 1 km あたりの消費 [Wh/km] (省エネ採点の基準) */
 refWhPerKm(){ const V=80/3.6, m=massTotal(); return (Phys.crr(V)*m*9.81+0.5*1.17*P.Cd*P.frontal*V*V)/0.95/3.6/1000*1000/1; },
 /* ---------- 外からの通知 ---------- */
@@ -198,10 +242,10 @@ total(){ return this.scores.reduce((a,b)=>a+Math.max(0,b||0),0); },
 finish(){
  if(this.done) return; this.done=true; running=false; Snd.update(0,0,false);
  const total=this.total();
- if(this.replay){ this.showResult(total,null); return; }
+ if(this.replay||this.course!=="aus"){ this.showResult(total,null); return; }
  this.encode().then(code=>{ this.code=code; this.showResult(total,code); });
 },
-stamp(total){ return total>=380?["🥇 GOLD","#fbbf24"]: total>=260?["🥈 SILVER","#cbd5e1"]:["🥉 BRONZE","#d97706"]; },
+stamp(total){ const mx=100*this.MISSIONS.length; return total>=0.76*mx?["🥇 GOLD","#fbbf24"]: total>=0.52*mx?["🥈 SILVER","#cbd5e1"]:["🥉 BRONZE","#d97706"]; },
 showResult(total,code){
  let el=document.getElementById("ev-result");
  if(!el){ el=document.createElement("div"); el.id="ev-result"; el.style.cssText="position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 30%,#123045 0%,#05070d 70%);overflow:auto"; document.body.appendChild(el); }
@@ -209,7 +253,7 @@ showResult(total,code){
  const url= code? EVENT_PUBLIC_URL+"#r="+code : "";
  const rank=this.rankList();
  el.innerHTML=`<div class="panel px-8 py-6 text-center" style="max-width:820px;margin:20px">
-  <div class="text-xs tracking-[.4em] text-cyan-600">${this.replay?"REPLAY":"RESULT"} ― ${this.level==="kid"?"こども":"おとな"}</div>
+  <div class="text-xs tracking-[.4em] text-cyan-600">${this.replay?"REPLAY":"RESULT"} ― ${this.course==="hv"?"ヒドゥンバレー":"オーストラリア"} ― ${this.level==="kid"?"こども":"おとな"}</div>
   <div style="color:${col};font-size:2.4rem;font-weight:900">${st}</div>
   <div class="text-4xl font-black text-amber-300 mb-3">${total} 点</div>
   <div class="flex flex-wrap gap-6 justify-center text-left">
@@ -236,9 +280,9 @@ drawQR(url){
 defaultName(){ return "PLAYER "+String(1+this.rank().length).padStart(2,"0"); },
 again(){ this.hideResult(); this.end(); P.mode="event"; startGame(); },
 toMenu(){ this.hideResult(); this.end(); quitToMenu(); },
-raceGhost(){ const g=this.replay; this.hideResult(); this.end(); this.ghostRun=g; P.mode="event"; startGame(); },
+raceGhost(){ const g=this.replay; this.hideResult(); this.end(); this.ghostRun=g; this.course="aus"; P.mode="event"; startGame(); },
 /* ---------- ランキング (端末に保存・日ごと) ---------- */
-dayKey(){ const d=new Date(); return "bwsc_evrank_"+d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate(); },
+dayKey(){ const d=new Date(); return "bwsc_evrank_"+(this.course==="hv"?"hv_":"")+d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate(); },
 rank(){ try{ return JSON.parse(localStorage.getItem(this.dayKey())||"[]"); }catch(e){ return []; } },
 rankList(){ const r=this.rank(); return r.length? r.slice(0,10).map((x,i)=>`<li>${i+1}. ${x.n.replace(/[<>&]/g,"")} ― ${x.s} 点 ${x.lv==="kid"?"(こども)":""}</li>`).join("") : "<li class='text-cyan-100/40'>まだ登録がありません</li>"; },
 register(){
@@ -268,8 +312,8 @@ ghostFrame(){
 /* ---------- リプレイ URL (走行の軌跡を圧縮して URL へ) ---------- */
 // 1 サンプル (2 秒ごと): [課題(3bit)|速度/5(5bit)] [横位置 0.1 m int8] [km の差 m (zigzag varint)]
 pack(){
- const out=[1,this.level==="kid"?1:0], total=this.total(); out.push(total>>8&255,total&255);
- for(let i=0;i<5;i++) out.push(clamp(Math.max(0,this.scores[i]||0),0,255));
+ const out=[2,this.level==="kid"?1:0], total=this.total(); out.push(total>>8&255,total&255);
+ out.push(this.scores.length); for(let i=0;i<this.scores.length;i++) out.push(clamp(Math.max(0,this.scores[i]||0),0,255));
  let prevMi=-1, prevKm=0;
  const smp=this.rec.filter((_,i)=>i%2===0);
  out.push(smp.length>>8&255,smp.length&255);
@@ -280,8 +324,8 @@ pack(){
  return new Uint8Array(out);
 },
 unpack(u){
- let p=0; const ver=u[p++]; if(ver!==1) throw new Error("ver");
- const lv=u[p++]?"kid":"adult", total=u[p++]<<8|u[p++], scores=[]; for(let i=0;i<5;i++) scores.push(u[p++]);
+ let p=0; const ver=u[p++]; if(ver!==1&&ver!==2) throw new Error("ver");
+ const lv=u[p++]?"kid":"adult", total=u[p++]<<8|u[p++], scores=[], ns=ver===1?5:u[p++]; for(let i=0;i<ns;i++) scores.push(u[p++]);
  const n=u[p++]<<8|u[p++], samples=[]; let prevMi=-1, prevKm=0;
  const vint=()=>{ let n=0,m=1,b; do{ b=u[p++]; n+=(b&127)*m; m*=128; }while(b&128); return n&1? -(n+1)/2 : n/2; };
  for(let i=0;i<n;i++){ const b0=u[p++], mi=b0>>5, v=(b0&31)*5/3.6; let lat=u[p++]; if(lat>127) lat-=256; const d=vint(); const km=mi!==prevMi? d : prevKm+d; prevMi=mi; prevKm=km; const mt=u[p++];
@@ -301,7 +345,7 @@ async decode(code){
 },
 decodeSync(code){ return this._decoded&&this._decoded[code]; },
 /* ---------- リプレイ再生 ---------- */
-startReplay(run){ this.replay=run; this.level=run.lv; P.mode="event"; startGame(); },
+startReplay(run){ this.replay=run; this.level=run.lv; this.course="aus"; P.mode="event"; startGame(); },
 replayFrame(){
  const run=this.replay, s=Engine.st;
  const smp=run.samples.filter(q=>q[0]===this.mi);

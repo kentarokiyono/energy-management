@@ -19,6 +19,7 @@ Radio.log.length=0;
 applyTouchMode();
 Test.start(P.testKind);
 initChart();
+if(P.event) EventGame.begin();   // イベント (ヒドゥンバレー版)
 running=true; paused=false; lastT=performance.now();
 requestAnimationFrame(loop);
 return;
@@ -59,8 +60,8 @@ requestAnimationFrame(loop);
 let dtR=clamp((t-lastT)/1000,0,0.1); lastT=t;
 if(paused||modalPause) return;
 updateInput(dtR);
-if(Test.active){ Test.frame(dtR); return; }
 if(P.event){ EventGame.frame(dtR); if(!running||modalPause) return; }
+if(Test.active){ Test.frame(dtR); if(P.event) EventGame.hud(); return; }
 if(P.mode==="event"&&Engine.st){
   if(performance.now()-(window._lastAct||0)>MODE_CFG.event.attractIdle*1000){
     Engine.st.throttleSet=0.7;
@@ -105,7 +106,7 @@ Snd.update(0,0,false);
 }
 buildSetupUI();
 refreshUIModeBtns();
-setEventLevel(EventGame.level);
+setEventLevel(EventGame.level); setEventCourse(EventGame.course);
 setInterval(pollGamepad,800);
 addEventListener("gamepadconnected",e=>toast("🎮 コントローラー接続: "+e.gamepad.id.slice(0,40),"#34d399"));
 /* ---- ② キオスク堅牢化 ---- */

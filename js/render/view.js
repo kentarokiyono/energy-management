@@ -572,16 +572,17 @@ const zone=Route.real(km);
 // 地形の勾配
 g.gradeRemain-=this.SEG;
 if(g.gradeRemain<=0){
- const mid=(km>950&&km<2150);
- const flatBias= zone?1:(mid?0.75:0.45);
- if(Math.random()<flatBias){ g.targetGrade=0; g.gradeRemain=400+Math.random()*1400; }
+ const mid=(km>950&&km<2150), hilly=P.event&&typeof EventGame!=="undefined"&&EventGame.hilly&&!zone;   // イベントの Port Augusta 区間: 激しいアップダウン
+ const flatBias= hilly?0.15:zone?1:(mid?0.75:0.45);
+ if(hilly&&Math.random()>flatBias){ g.targetGrade=(Math.random()<0.5?-1:1)*(0.025+Math.random()*0.03); g.gradeRemain=150+Math.random()*250; }
+ else if(Math.random()<flatBias){ g.targetGrade=0; g.gradeRemain=400+Math.random()*1400; }
  else{ const mag= mid?(0.004+Math.random()*0.010):(0.006+Math.random()*0.018);
   g.targetGrade=(Math.random()<0.5?-1:1)*mag; g.gradeRemain=150+Math.random()*650; }
- if(this.genY>25) g.targetGrade=Math.min(g.targetGrade,-0.006);
- if(this.genY<-25) g.targetGrade=Math.max(g.targetGrade,0.006);
+ if(this.genY>(hilly?45:25)) g.targetGrade=Math.min(g.targetGrade,-0.006);
+ if(this.genY<-(hilly?45:25)) g.targetGrade=Math.max(g.targetGrade,0.006);
 }
 // 縦断の曲率は半径 1 万 m 程度 (勾配変化 0.0001/m)。急だと坂の頂上の先の道路が数十 m で見えなくなる
-g.grade+=clamp(g.targetGrade-g.grade,-0.0001,0.0001)*this.SEG*(zone?0.3:1);
+g.grade+=clamp(g.targetGrade-g.grade,-0.0001,0.0001)*this.SEG*(zone?0.3:1)*(P.event&&typeof EventGame!=="undefined"&&EventGame.hilly&&!zone?5:1);
 // OSM の町区間 (等倍) は平坦: 道路が同じ場所を再び通るので、高さがずれると地形が別の区間の道路を覆う
 if(P.mode==="race"&&zone&&OsmRoute.townAt(km)){ g.grade*=0.85; g.targetGrade=0; g.gradeRemain=Math.max(g.gradeRemain,200); }
 this.genY=(this.genY||0)+g.grade*this.SEG;

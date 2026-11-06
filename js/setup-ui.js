@@ -104,6 +104,7 @@ document.getElementById("sl-cellEff").value=P.cellEff; refreshSliderLabel("cellE
 document.querySelectorAll("[data-panel]").forEach(e=>e.classList.toggle("active",e.dataset.panel===k));
 }
 function setEventLevel(lv){ EventGame.level=lv; document.getElementById("ev-lv-kid").classList.toggle("btn-amber",lv==="kid"); document.getElementById("ev-lv-adult").classList.toggle("btn-amber",lv==="adult"); }
+function setEventCourse(c){ EventGame.course=c; document.getElementById("ev-co-aus").classList.toggle("btn-amber",c==="aus"); document.getElementById("ev-co-hv").classList.toggle("btn-amber",c==="hv"); }
 function selectMode(m){
 P.mode=m;
 document.getElementById("mode-race").classList.toggle("active",m==="race");
