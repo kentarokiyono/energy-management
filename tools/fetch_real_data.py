@@ -103,13 +103,50 @@ for k in range(0, N, 100):
     e = get("https://api.open-meteo.com/v1/elevation?" + q, f"elev_{k:06d}.json")["elevation"]
     elev += e
     if k % 5000 == 0: print("  標高", k, "/", N)
+# 橋・切り通しの補正: DEM は橋の下の谷底や切り通しの山の高さを拾うので、幅 800 m 未満の凹みを埋め (closing)、
+# 細い出っ張りを削る (opening)。広い谷や丘はそのまま残る
+def mx(a, h): return [max(a[max(0, i - h):i + h + 1]) for i in range(len(a))]
+def mn(a, h): return [min(a[max(0, i - h):i + h + 1]) for i in range(len(a))]
+raw = [float(e) for e in elev]
+H = 4
+fil = mx(mn(mn(mx(raw, H), H), H), H)
+print(f"橋・切り通しの補正: 最大 {max(abs(x - y) for x, y in zip(raw, fil)):.1f} m, 5 m 以上直した点 {sum(1 for x, y in zip(raw, fil) if abs(x - y) >= 5)}")
+# 標高の点を「道路の線上の距離」で持ち直す (このあと km の対応を細かくし直すため)
+dfetch = [to_line(min(TOTAL, i * STEP)) for i in range(N)]
+pts_fetch = pts   # 天気の地点はこの位置で取る (100 km ごとなので数 km の違いは影響しない)
+
+# ---- km の対応を細かくする: ルートノートに km が載っている町と CS も基準にする ----
+EXTRA = [("Adelaide River", 112.0), ("Larrimah", 496.0), ("Dunmarra (CS2)", 631.0), ("Elliott", 732.0), ("Renner Springs", 824.0),
+         ("Wauchope", 1103.0), ("Barrow Creek (CS4)", 1212.3), ("Erldunda (CS6)", 1694.0), ("Glendambo (CS8)", 2434.1),
+         ("Pimba", 2547.0), ("Port Wakefield", 2928.0)]   # km は Route Notes の行 (Pimba は Woomera の分岐, Port Wakefield は町)
+pos = {r[0]: (r[2], r[3]) for r in ROUTE}
+extra = []
+for name, km in EXTRA:
+    la, lo = pos[name]; best, bj = 1e18, 0
+    for j in range(len(line)):
+        dd = hav((la, lo), line[j])
+        if dd < best: best, bj = dd, j
+    if best < 1500: extra.append((km, cum[bj])); print(f"  基準を追加 {name:<20} {km:7.1f} km  道路 {cum[bj]/1000:7.1f} km (ずれ {best:.0f} m)")
+    else: print(f"  基準にしない {name} (道路から {best:.0f} m)")
+anchors = sorted(anchors + extra)
+bad = [(a, b) for a, b in zip(anchors, anchors[1:]) if not (0.9 < (b[1] - a[1]) / 1000 / max(1e-9, b[0] - a[0]) < 1.1)]
+if bad: raise SystemExit("km の対応が不自然: " + str(bad))
+pts = [pos_at(to_line(min(TOTAL, i * STEP))) for i in range(N)]
+def at_d(arr, d):   # 線上の距離 d の標高 (dfetch は増加列)
+    lo, hi = 0, N - 1
+    while lo < hi:
+        m = (lo + hi) // 2
+        if dfetch[m] < d: lo = m + 1
+        else: hi = m
+    j = max(1, lo); t = (d - dfetch[j - 1]) / max(1e-9, dfetch[j] - dfetch[j - 1]); return arr[j - 1] + (arr[j] - arr[j - 1]) * min(1, max(0, t))
+fil = [at_d(fil, to_line(min(TOTAL, i * STEP))) for i in range(N)]
 # ならし (500 m の三角窓)
 W = 5
 sm = []
 for i in range(N):
     a, b = max(0, i - W), min(N - 1, i + W)
     ws = [(W + 1 - abs(j - i)) for j in range(a, b + 1)]
-    sm.append(sum(elev[j] * w for j, w in zip(range(a, b + 1), ws)) / sum(ws))
+    sm.append(sum(fil[j] * w for j, w in zip(range(a, b + 1), ws)) / sum(ws))
 grades = [(sm[min(N - 1, i + 1)] - sm[max(0, i - 1)]) / (STEP * 1000 * (min(N - 1, i + 1) - max(0, i - 1))) for i in range(N)]
 print(f"標高 {min(sm):.0f}–{max(sm):.0f} m, 勾配 最大 {max(grades)*100:.1f} % / 最小 {min(grades)*100:.1f} %")
 
@@ -124,7 +161,7 @@ for v in sm:
 with open(os.path.join(ROOT, "js", "data", "route-geo.js"), "w", encoding="utf-8") as f:
     f.write('"use strict";\n/* 実際の道路の形と標高 (tools/fetch_real_data.py が作成)\n'
             ' 位置: OpenStreetMap の道路網 (OSRM で経路を取得, © OpenStreetMap contributors, ODbL)\n'
-            ' 標高: Copernicus DEM GLO-90 (Open-Meteo Elevation API 経由) を 500 m 幅でならしたもの\n'
+            ' 標高: Copernicus DEM GLO-90 (Open-Meteo Elevation API 経由)。橋・切り通しの凹凸 (幅 800 m 未満) を除き、500 m 幅でならしたもの\n'
             ' 公式 km 0 から: 位置は 500 m ごと (1e-5 度の差分), 標高は 100 m ごと (0.1 m の差分) */\n')
     f.write("const ROUTE_GEO={stepPos:0.5,stepElev:0.1,\n")
     f.write(" lat:[" + ",".join(map(str, lat_d)) + "],\n lon:[" + ",".join(map(str, lon_d)) + "],\n elev:[" + ",".join(map(str, el_d)) + "]};\n")
@@ -137,7 +174,7 @@ WSTEP = 100
 wkm = list(range(0, int(TOTAL) + 1, WSTEP)) + ([TOTAL] if TOTAL % WSTEP else [])
 series = {v: [] for v in VARS}; times = None; locs = []
 for km in wkm:
-    la, lo = pts[min(N - 1, int(round(km / STEP)))]
+    la, lo = pts_fetch[min(N - 1, int(round(km / STEP)))]
     q = urllib.parse.urlencode({"latitude": f"{la:.4f}", "longitude": f"{lo:.4f}", "start_date": START, "end_date": END,
                                 "hourly": ",".join(VARS), "timezone": "Australia/Darwin", "wind_speed_unit": "ms"})
     d = get("https://archive-api.open-meteo.com/v1/archive?" + q, f"wx_{int(km):04d}.json")
