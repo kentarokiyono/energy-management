@@ -83,6 +83,17 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   await p.selectOption("#ana-run","1");
   const an=await p.evaluate(()=>({runs:Ana.runs.length,rows:Ana.run().rows.length,pane:/走行時間/.test(document.getElementById("ana-pane").textContent),gl:!!document.querySelector("#ana-map canvas")}));
   check("分析画面: 今回の走行と CSV の読み込み",an.runs===3&&an.rows>=2&&an.pane&&an.gl,JSON.stringify(an));
+  // 日付の拡大・範囲のスライダー・名前と日付の編集 (保存して読み直す)・削除
+  await p.selectOption("#ana-run","2"); await p.click('#ana-days button[data-d="2"]');
+  const z=await p.evaluate(()=>{ const r=Ana.run(), d=r.days.find(o=>o.d===2); return {xr:Ana.xr, a:d.a, b:d.b, kmMax:r.kmMax}; });
+  const nb=await p.locator("#ana-nav").boundingBox(); await p.mouse.move(nb.x+nb.width-30,nb.y+nb.height/2); await p.mouse.down(); await p.mouse.up();
+  const z2=await p.evaluate(()=>Ana.xr.slice());
+  check("分析画面: 日付で拡大・スライダー",z.xr[0]<=z.a&&z.xr[1]>=z.b&&z.xr[1]-z.xr[0]<z.kmMax*0.6&&z2[1]>z.xr[1],JSON.stringify({z,z2}));
+  await p.click("#ana-edit"); await p.fill("#ana-dn","編集テスト"); await p.fill("#ana-dd","2025-10-20"); await p.click("#ana-dsave"); await p.waitForTimeout(300);
+  const dbS=await p.evaluate(async()=>{ const all=await Ana.DB.all(); return all.map(o=>o.name+"|"+o.date); });
+  p.once("dialog",d=>d.accept()); await p.click("#ana-del"); await p.waitForTimeout(300);
+  const st2=await p.evaluate(async()=>({n:Ana.runs.length,db:(await Ana.DB.all()).map(o=>o.name)}));
+  check("分析画面: 走行データの編集・保存・削除",dbS.includes("編集テスト|2025-10-20")&&st2.n===2&&!st2.db.includes("編集テスト"),JSON.stringify({dbS,st2}));
   await shot(p,"analysis"); await p.evaluate(()=>Ana.close());
   check("レース: エラーなし",noErr(p).length===0,noErr(p).slice(0,2).join(" | "));
   await p.context().close(); }
