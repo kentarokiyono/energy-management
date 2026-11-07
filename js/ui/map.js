@@ -66,7 +66,7 @@ const MapUI={
   for(const r of ROUTE) if(!r.cp&&r.km>km&&r.km<=end&&r.km<TOTAL_KM-0.5) it.push({km:r.km,p:1,html:`<span class="dot"></span>${r.name.replace(/\s*\(.*\)/,"")}`});
   if(end>=TOTAL_KM&&km<TOTAL_KM) it.push({km:TOTAL_KM,p:4,html:`<span class="sq"></span>GOAL`});
   it.sort((a,b)=>b.p-a.p||a.km-b.km);
-  const pick=[]; for(const x of it){ const pc=(x.km-km)/span*100; if(pc<16||pc>84&&x.p<4) continue; if(pick.some(y=>Math.abs(y.pc-pc)<24)) continue; pick.push({...x,pc}); if(pick.length>=3) break; }
+  const pick=[]; for(const x of it){ const pc=(x.km-km)/span*100; if(pc<22||pc>84&&x.p<4) continue; if(pick.some(y=>Math.abs(y.pc-pc)<24)) continue; pick.push({...x,pc}); if(pick.length>=3) break; }
   let h=`<div class="axl"></div><div class="tk l" style="left:0%"><span class="dot me"></span><b>${km.toFixed(0)}</b></div>`;
   for(const x of pick) h+=`<div class="tk" style="left:${x.pc.toFixed(1)}%">${x.html}</div>`;
   if(!pick.some(x=>x.pc>84)) h+=`<div class="tk r" style="left:100%"><span class="dot"></span><b>${end.toFixed(0)}</b></div>`;

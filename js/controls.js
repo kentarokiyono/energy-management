@@ -74,6 +74,9 @@ Radio.push(`${next.name}まで残り${(next.km-s.km).toFixed(0)}km${eta?`、現�
 } else if(kind==="pace"){
 Radio.push(Strategy.text());
 } else if(kind==="weather"){
+if(RealWx.on()){ const pr=profileAt(s.km), out=[]; for(let h=1;h<=6;h++){ const hh=s.hour+h; if(hh>=18) break; const q=profileAt(Math.min(TOTAL_KM,s.km+70*h));
+  out.push(`${String(Math.floor(hh)).padStart(2,"0")}時 雲 ${(RealWx.at("cc",q.lat,q.lon,s.dayOfYear,hh)||0).toFixed(0)}% 日射 ${(RealWx.at("ghi",q.lat,q.lon,s.dayOfYear,hh+0.5)||0).toFixed(0)}`); }
+ const w=RealWx.wind(pr.lat,pr.lon,s.dayOfYear,s.hour)||{ws:0}; Radio.push(`(2025 年の実際の天気) 風 ${w.ws.toFixed(1)} m/s。この先: ${out.join(" / ")||"日没まで大きな変化なし"}`,"偵察車"); return; }
 const nexts=(s.weatherPlan||[]).filter(w=>w.start+w.dur>absH).slice(0,2);
 let msg=s.weather?`現在は${s.weather.type==="squall"?"スコール":"曇天"}の中です。`:"現在は快晴。";
 msg+= nexts.length? " 予報: "+nexts.map(w=>`${fmtAbsH(w.start)}頃から${w.type==="squall"?"⛈スコール":"☁曇天"}(約${w.dur.toFixed(1)}h)`).join(" / ") : " 予報: この先しばらく大きな崩れはありません。";

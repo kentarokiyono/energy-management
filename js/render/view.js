@@ -581,6 +581,10 @@ if(g.gradeRemain<=0){
  if(this.genY>(hilly?45:25)) g.targetGrade=Math.min(g.targetGrade,-0.006);
  if(this.genY<-(hilly?45:25)) g.targetGrade=Math.max(g.targetGrade,0.006);
 }
+// 実際の勾配に沿わせる (イベントの起伏区間と町の区間を除く)
+if(typeof Geo!=="undefined"&&Geo.ok&&P.mode==="race"&&!(P.event&&EventGame.hilly)&&!(zone&&OsmRoute.townAt(km))){
+ g.targetGrade=clamp(Geo.grade(km),-0.08,0.08); g.gradeRemain=this.SEG;
+ if(this.genY>60) g.targetGrade=Math.min(g.targetGrade,-0.002); if(this.genY<-60) g.targetGrade=Math.max(g.targetGrade,0.002); }
 // 縦断の曲率は半径 1 万 m 程度 (勾配変化 0.0001/m)。急だと坂の頂上の先の道路が数十 m で見えなくなる
 g.grade+=clamp(g.targetGrade-g.grade,-0.0001,0.0001)*this.SEG*(zone?0.3:1)*(P.event&&typeof EventGame!=="undefined"&&EventGame.hilly&&!zone?5:1);
 // OSM の町区間 (等倍) は平坦: 道路が同じ場所を再び通るので、高さがずれると地形が別の区間の道路を覆う

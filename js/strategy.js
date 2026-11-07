@@ -17,7 +17,7 @@ const Strategy={
   const csList=RP_CS.filter(c=>!s.passedCP.has(c.km)&&c.km>km-0.2), nextCS=csList[0];
   let ci=0, stopH= s.stopTimer>0? s.stopTimer/3600 : 0;
   const G=(tilted)=>{ const day=Math.floor(abs/24)+1, h=abs-(day-1)*24, pr=profileAt(km);
-   s.dayOfYear=PRO.dayOfYear+day-1; s.km=km; s.weather=(s.weatherPlan||[]).find(w=>abs>=w.start&&abs<w.start+w.dur)||null;
+   s.dayOfYear=PRO.dayOfYear+day-1; s.km=km; s.weather= RealWx.on()? null : (s.weatherPlan||[]).find(w=>abs>=w.start&&abs<w.start+w.dur)||null;
    return pv(Engine.solarCalc(pr.lat,h,tilted,pr.lon,pr.elev).G); };
   const charge=(hours)=>{ for(let t=0;t<hours;t+=0.25){ const d=Math.min(0.25,hours-t); soc=Math.min(1,soc+G(true)*d/Wh); abs+=d; } };
   const startDay=Math.floor(abs/24);
