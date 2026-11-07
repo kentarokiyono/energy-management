@@ -93,8 +93,13 @@ pts.push(BF!=null? new THREE.Vector3(-wh*(bfAt(u)+(1-bfAt(u))*t),zb+(hd-zb)*t,zP
 typ.push("S");
 Pp.push(pts);Uv.push(pts.map(p=>new THREE.Vector2(xl,p.x+.9)));TYP.push(typ);
 }
+// コクピットの開口: キャノピーの下の上面 (K) をくり抜く。内装 (cockpit.js) が開口の縁に壁を立てる
+const cu0=(O.canopyX-O.canopyLen*0.52)/O.L, cu1=(O.canopyX+O.canopyLen*0.52)/O.L, cw0=O.canopyW*0.46;
+const OPN={w:0,z0:1e9,z1:-1e9,yTop:0,yMin:1e9};
 for(let i=0;i<O.seg;i++)for(let r=0;r<R;r++){
 const r2=(r+1)%R,u=i/O.seg;
+if(TYP[i][r]==="K"){ const uc=(i+.5)/O.seg, xc=(Pp[i][r].x+Pp[i][r2].x+Pp[i+1][r].x+Pp[i+1][r2].x)/4;
+ if(uc>cu0&&uc<cu1&&Math.abs(xc)<cw0){ for(const q of [Pp[i][r],Pp[i][r2],Pp[i+1][r],Pp[i+1][r2]]){ OPN.w=Math.max(OPN.w,Math.abs(q.x)); OPN.z0=Math.min(OPN.z0,q.z); OPN.z1=Math.max(OPN.z1,q.z); OPN.yTop=Math.max(OPN.yTop,q.y); OPN.yMin=Math.min(OPN.yMin,q.y); } continue; } }
 const zm=(Pp[i][r].y+Pp[i][r2].y)/2;
 let b=TYP[i][r]==="K"?bS:(u<O.orangeU?bO:(zm<O.skirtZ?bS:bW));
 if(LIV&&TYP[i][r]!=="K"){ const uc=(i+.5)/O.seg, zb2=zBell(uc), hd2=zHull(uc), zn=clamp((zm-zb2)/Math.max(.01,hd2-zb2),0,1);
@@ -108,6 +113,7 @@ b.idx.push(a,c,e,c,d,e);
 const cid=bS.v.length/3;bS.v.push(0,(zBell(1)+zHull(1))/2,O.L-HL);bS.uv.push(O.L,.9);
 for(let r=0;r<n;r++){const a=vid(bS,Pp,Uv,i,r),c=vid(bS,Pp,Uv,i,(r+1)%n);bS.idx.push(cid,a,c);}}
 finish(bW);finish(bO);finish(bS);
+if(OPN.w>0) grp.userData.opening=OPN;
 // ナンバープレート (後端の平らな面)
 if(BD.plate){ const cv=document.createElement("canvas"); cv.width=256; cv.height=92; const c=cv.getContext("2d");
  c.fillStyle="#f4f1ea"; c.fillRect(0,0,256,92); c.strokeStyle="#c2410c"; c.lineWidth=6; c.strokeRect(4,4,248,84);
@@ -203,5 +209,5 @@ canopy.castShadow=true;grp.add(canopy);
 const shM=new THREE.Mesh(new THREE.PlaneGeometry(2.3*Math.max(1,halfW(.6)/.9),O.L+0.3),
 new THREE.MeshBasicMaterial({map:T.shadow,transparent:true,depthWrite:false}));
 shM.rotation.x=-Math.PI/2;shM.position.y=.02;grp.add(shM);
-return {group:grp,canopy};
+return {group:grp,canopy,opening:grp.userData.opening||null};
 }

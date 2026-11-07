@@ -28,8 +28,8 @@ reset(){
 /* ---------- 手順の定義 ---------- */
 EGRESS:[
  {id:"stop",   t:"停車する",                         done:s=>Engine.st.v<0.3},
- {id:"pbrake", t:"パーキングブレーキを引く (左足付近のレバー)", done:s=>s.pbrake},
- {id:"motor",  t:"モタコンを切る (左腕の左のスイッチボックス)", done:s=>!s.motor},
+ {id:"pbrake", t:"パーキングブレーキを掛ける (太ももの横のコック)", done:s=>s.pbrake},
+ {id:"motor",  t:"モタコンを切る (右斜め前のスイッチ箱)", done:s=>!s.motor},
  {id:"belt",   t:"シートベルトを外す",                done:s=>!s.belt},
  {id:"bands",  t:"キャノピーのゴムひもを外す (両脇)",  done:s=>!s.bandL&&!s.bandR},
  {id:"canopy", t:"キャノピーを開ける",                done:s=>s.canopy},
@@ -191,49 +191,47 @@ ensureBuilt(){
  const B=View.carBody, E=View.cockE0||[0,.84,-.45], dY=View.cockDeckY||.62;
  const hot=(id,label,mesh,parent)=>{ mesh.userData.hot={id,label}; this.hots.push(mesh); (parent||B).add(mesh); return mesh; };
  const M=(c,e)=>{ const m=new THREE.MeshStandardMaterial({color:c,roughness:.5,metalness:.2,emissive:0x000000}); m.userData.hl=true; return m; };
- // パーキングブレーキ (左足付近のレバー)
- // キャノピー開口の内側 (左寄り) に、デッキより上まで出るように置く (車内から見える位置)
- const lv=new THREE.Group(); lv.position.set(E[0]-.19,dY-.14,E[2]-.30);
- const lvBar=new THREE.Mesh(new THREE.BoxGeometry(.03,.26,.03),M(0x8a8f96)); lvBar.position.y=.13; lv.add(lvBar);
- const lvKnob=new THREE.Mesh(new THREE.SphereGeometry(.032,12,10),M(0xd11a1a)); lvKnob.position.y=.27;
- B.add(lv); this.lever=lv; hot("pbrake","パーキングブレーキ",lvKnob,lv); lvBar.userData.hot={id:"pbrake",label:"パーキングブレーキ"}; this.hots.push(lvBar);
- // モタコンのスイッチボックス (左腕の左)
- const box=new THREE.Mesh(new THREE.BoxGeometry(.09,.05,.11),M(0x1d2227)); box.position.set(E[0]-.3,dY+.075,E[2]-.06); hot("motor","モタコン スイッチ",box);
- const tg=new THREE.Mesh(new THREE.BoxGeometry(.012,.04,.012),M(0xd0d4d8)); tg.position.set(E[0]-.3,dY+.11,E[2]-.06); B.add(tg); this.toggle=tg;
- this.motorLed=new THREE.Mesh(new THREE.SphereGeometry(.007,8,6),new THREE.MeshBasicMaterial({color:0x22ff55})); this.motorLed.position.set(E[0]-.27,dY+.103,E[2]-.03); B.add(this.motorLed);
- // シートベルトのバックル + ベルト
- const bk=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.015,16),M(0xb0b4b8)); bk.rotation.x=Math.PI/2; bk.position.set(E[0],dY-.06,E[2]-.22); hot("belt","シートベルト",bk);
- this.straps=new THREE.Group(); const sm=new THREE.MeshLambertMaterial({color:0x1f4f9c});
- for(const [x,y,z] of [[-.14,.05,.12],[.14,.05,.12],[-.16,-.12,.05],[.16,-.12,.05]]){ const a=new THREE.Vector3(E[0],dY-.06,E[2]-.22), b=new THREE.Vector3(E[0]+x,dY+y,E[2]+z);
-  const L=a.distanceTo(b), st=new THREE.Mesh(new THREE.BoxGeometry(.045,.004,L),sm); st.position.copy(a).add(b).multiplyScalar(.5); st.lookAt(b); this.straps.add(st); }
+ // 内装の部品 (js/render/cockpit.js) をそのまま操作の対象にする。光らせるため材質は個別にする
+ const mark=(id,label,mesh)=>{ if(mesh.material&&!mesh.material.userData.hl){ mesh.material=mesh.material.clone(); mesh.material.userData.hl=true; } mesh.userData.hot={id,label}; this.hots.push(mesh); return mesh; };
+ const C=typeof Cockpit!=="undefined"?Cockpit:{}, half=C.half||.27;
+ // 当たり判定だけの箱 (小さい部品を押しやすくする)
+ const hitBox=(id,label,w,h,d,par,x,y,z)=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshBasicMaterial({visible:false})); b.position.set(x,y,z); b.userData.hot={id,label}; this.hots.push(b); par.add(b); return b; };
+ // パーキングブレーキ (太ももの横のコック)
+ if(C.pbrake){ C.pbrake.g.traverse(m=>{ if(m.isMesh) mark("pbrake","パーキングブレーキ",m); }); hitBox("pbrake","パーキングブレーキ",.1,.06,.06,C.pbrake.g,.02,.02,0); }
+ // モタコン (右斜め前のスイッチ箱のトグル)
+ if(C.sw&&C.sw.motor){ C.sw.motor.traverse(m=>{ if(m.isMesh) mark("motor","モタコン スイッチ",m); }); hitBox("motor","モタコン スイッチ",.03,.04,.04,C.sw.motor,0,.01,0); }
+ // 4 点式シートベルト (緑): 胸の前のバックル + 肩 2 本・腰 2 本
+ const hp=C.hip||[E[0],E[1]-.5,E[2]-.3];
+ const bk=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.014,18),M(0xb0b4b8)); bk.rotation.x=Math.PI/4; bk.position.set(E[0],hp[1]+.1,hp[2]-.05); hot("belt","シートベルト",bk);
+ this.straps=new THREE.Group(); const sm=new THREE.MeshLambertMaterial({color:0x237a3a});
+ for(const [x,y,z] of [[-.1,E[1]-.14,E[2]+.06],[.1,E[1]-.14,E[2]+.06],[-.16,hp[1]+.02,hp[2]+.04],[.16,hp[1]+.02,hp[2]+.04]].map(([x,y,z])=>[x,y-E[1],z-E[2]])){ const a=bk.position.clone(), b=new THREE.Vector3(E[0]+x,E[1]+y,E[2]+z);
+  const L=a.distanceTo(b), st=new THREE.Mesh(new THREE.BoxGeometry(.038,.004,L),sm); st.position.copy(a).add(b).multiplyScalar(.5); st.lookAt(b); this.straps.add(st); }
  B.add(this.straps);
- // ゴムひも (両脇): フック + ひも
+ // ゴムひも (両脇): フック + キャノピーの縁へのひも
  this.cords={};
  for(const [id,sd] of [["bandL",-1],["bandR",1]]){
-  const hk=new THREE.Mesh(new THREE.SphereGeometry(.018,10,8),M(0xf6c400)); hk.position.set(E[0]+sd*.27,dY+.04,E[2]+.06); hot(id,sd<0?"ゴムひも (左)":"ゴムひも (右)",hk);
-  const a=hk.position.clone(), b=new THREE.Vector3(E[0]+sd*.2,dY+.16,E[2]-.02), L=a.distanceTo(b);
-  const cd=new THREE.Mesh(new THREE.CylinderGeometry(.005,.005,L,6),new THREE.MeshLambertMaterial({color:0x111111}));
+  const lbl=sd<0?"ゴムひも (左)":"ゴムひも (右)", hk=C.hooks? C.hooks[sd<0?0:1] : null;
+  if(hk){ mark(id,lbl,hk); hk.material.color.setHex(0xf6c400); }
+  const a=hk? hk.position.clone() : new THREE.Vector3(E[0]+sd*half,dY+.02,E[2]+.05), b=a.clone().add(new THREE.Vector3(-sd*.03,.08,-.04)), L=a.distanceTo(b);
+  if(!hk){ const h2=new THREE.Mesh(new THREE.SphereGeometry(.018,10,8),M(0xf6c400)); h2.position.copy(a); hot(id,lbl,h2); }
+  const cd=new THREE.Mesh(new THREE.CylinderGeometry(.004,.004,L,6),new THREE.MeshLambertMaterial({color:0x111111}));
   cd.position.copy(a).add(b).multiplyScalar(.5); cd.lookAt(b); cd.rotateX(Math.PI/2); B.add(cd); this.cords[id]=cd;
  }
  // キャノピーの取っ手 (内側前方の上)
- const hd=new THREE.Mesh(new THREE.BoxGeometry(.12,.015,.025),M(0x8a8f96)); hd.position.set(E[0],E[1]+.07,E[2]-.28); hot("canopy","キャノピー",hd); this.handle=hd;
+ const hd=new THREE.Mesh(new THREE.BoxGeometry(.12,.015,.025),M(0x8a8f96)); hd.position.set(E[0],E[1]+.07,E[2]-.28); hot("canopy","キャノピー",hd,View.canopyMesh||B); this.handle=hd;
  // ステアリング (既存のハンドルをホットスポットに)
  if(View.yokeMesh){ View.yokeMesh.traverse(m=>{ if(m.isMesh){ m.userData.hot={id:"wheel",label:"ステアリング"}; this.hots.push(m); } });
   this.wheelBase={p:View.yokePivot.position.clone(),r:View.yokePivot.rotation.clone()}; }
  // 降りる (左の縁)
- const sill=new THREE.Mesh(new THREE.BoxGeometry(.05,.03,.5),M(0x34d399)); sill.position.set(E[0]-.34,dY+.02,E[2]+.05); hot("exit","車外に出る",sill); this.sill=sill;
+ const sill=new THREE.Mesh(new THREE.BoxGeometry(.04,.02,.35),M(0x34d399)); sill.position.set(E[0]-half-.03,dY+.02,E[2]+.05); hot("exit","車外に出る",sill); this.sill=sill;
  // 乗り込む (車外から: 車体全体の当たり判定)
  const bd=new THREE.Mesh(new THREE.BoxGeometry(1.6,1.0,5.6),new THREE.MeshBasicMaterial({visible:false})); bd.position.set(0,.5,0); bd.userData.hot={id:"board",label:"乗り込む"}; this.boardBox=bd; B.add(bd);
- // キャノピーの回転軸 (左の付け根)
- // キャノピーの回転軸: 前端の下 (前へ跳ね上げる)
- const cm=View.canopyMesh; if(cm){ cm.geometry.computeBoundingBox(); const bb=cm.geometry.boundingBox; this.canopyPivot=new THREE.Vector3(0,bb.min.y,bb.min.z); this.canopyOpen=0; }
+ // キャノピーの蝶番: 右の縁の下 (後ろから見て右)。上のカウルごと横へ跳ね上げる
+ const cm=View.canopyMesh; if(cm){ cm.geometry.computeBoundingBox(); const bb=cm.geometry.boundingBox; this.canopyPivot=new THREE.Vector3(bb.max.x,bb.min.y,0); this.canopyOpen=0; }
 },
 syncVisual(){
  if(!this.built||!this.st) return;
  const s=this.st, show=P.mode==="race";
- if(this.lever) this.lever.rotation.x= s.pbrake? -0.9 : 0;
- if(this.toggle) this.toggle.rotation.x= s.motor? -0.5 : 0.5;
- if(this.motorLed) this.motorLed.material.color.setHex(s.motor?0x22ff55:0x330808);
  if(this.straps) this.straps.visible=s.belt;
  if(this.cords){ this.cords.bandL.visible=s.bandL; this.cords.bandR.visible=s.bandR; }
  if(this.sill) this.sill.visible=this.phase==="egress";
@@ -241,12 +239,12 @@ syncVisual(){
  if(View.yokePivot&&this.wheelBase){ const E=View.cockE0||[0,.84,-.45], dY=View.cockDeckY||.62;
   if(s.wheel){ View.yokePivot.position.copy(this.wheelBase.p); View.yokePivot.rotation.copy(this.wheelBase.r); }
   else { View.yokePivot.position.set(E[0]+.05,dY-.12,E[2]-.75); View.yokePivot.rotation.set(-1.4,0,.3); } }
- // キャノピー: 左の付け根を軸に開く
+ // キャノピー: 右の蝶番を軸に開く
  const cm=View.canopyMesh;
  if(cm&&this.canopyPivot){ const target=s.canopy?1:0; this.canopyOpen+= (target-this.canopyOpen)*0.15;
-  // 前端を軸に後ろ側を持ち上げる: x 軸まわりに -θ。position = P0 - R·P0
-  const th=this.canopyOpen*1.25, P0=this.canopyPivot;
-  cm.rotation.set(-th,0,0); const rp=P0.clone().applyEuler(cm.rotation); cm.position.set(P0.x-rp.x,P0.y-rp.y,P0.z-rp.z); }
+  // 右の縁を軸に左側を持ち上げる: z 軸まわりに -θ。position = P0 - R·P0
+  const th=this.canopyOpen*1.45, P0=this.canopyPivot;
+  cm.rotation.set(0,0,-th); const rp=P0.clone().applyEuler(cm.rotation); cm.position.set(P0.x-rp.x,P0.y-rp.y,P0.z-rp.z); }
 },
 /* ---------- 車外の小物 (チームの机・本部の計測ボタン・点検ポイント) ---------- */
 buildSite(){
@@ -330,7 +328,7 @@ pick(){
  const maxD=this.phase==="outside"?3.2:1.6;
  const hl=o=>o.material&&o.material.emissive&&o.material.userData.hl;
  for(const o of list) if(hl(o)) o.material.emissive.setHex(0x000000);
- if(hit&&hit.distance<=maxD){ this.hover=hit.object.userData.hot; if(hl(hit.object)) hit.object.material.emissive.setHex(0x444400); }
+ if(hit&&hit.distance<=maxD){ this.hover=hit.object.userData.hot; for(const o of list) if(hl(o)&&o.userData.hot&&o.userData.hot.id===this.hover.id) o.material.emissive.setHex(0x444400); }
 },
 /* ---------- 画面表示 ---------- */
 showUI(){
