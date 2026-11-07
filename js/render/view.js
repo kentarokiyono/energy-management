@@ -13,7 +13,7 @@ init(){
 // 描画エンジンは最初の 1 回だけ作って使い回す (同じ canvas に作り直すと GL の状態がずれ、2 回目以降に車体が真っ白になる)
 if(!this.renderer){ const canvas=document.getElementById("three-canvas");
  this.renderer=new THREE.WebGLRenderer({canvas,antialias:true});
- this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); }
+ }
 this.renderer.setSize(innerWidth,innerHeight);
 this.scene=new THREE.Scene();
 this.scene.background=null;
@@ -24,7 +24,7 @@ this.hemiLight=new THREE.HemisphereLight(0xbfe6ff,0x8a5a33,0.9);
 this.scene.add(this.hemiLight);
 this.sunLight=new THREE.DirectionalLight(0xfff3d6,1.2);
 this.scene.add(this.sunLight);
-this.renderer.shadowMap.enabled=true;
+this.renderer.shadowMap.enabled=true; Perf.reset();
 this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 this.sunLight.castShadow=true;this.sunLight.shadow.mapSize.set(2048,2048);
 Object.assign(this.sunLight.shadow.camera,{left:-45,right:45,top:45,bottom:-45,near:800,far:2600});

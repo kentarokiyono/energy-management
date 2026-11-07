@@ -162,7 +162,7 @@ document.getElementById("hud-brake").style.width=(bk*100)+"%";
 setT("hud-brake-kind", es.brakeRegen>0.1?"回生": es.brakePhys>0.1?"物理":"");
 const ov=document.getElementById("stop-overlay");
 const showTilt=(es.stopTimer>0||es.camp||StopMenu.mode==="charge");
-if(showTilt&&!(typeof Crew!=="undefined"&&Crew.busy()&&Crew.phase==="outside")){   // 車外を歩いている間は出さない
+if(showTilt&&!(typeof Crew!=="undefined"&&Crew.busy())){   // 乗り降り・車外の手順中は出さない (視界と操作の邪魔になる)
 ov.classList.remove("hidden"); applyStopFold();
 const kindTitle={cp:"🛑 CONTROL STOP ― "+(es.cpName||""),tire:"🛞 タイヤ交換中",check:"🔍 機器チェック中"}[es.stopKind], stT=document.getElementById("stop-title");
 document.getElementById("tilt-slider").disabled=!!es.tiltLocked;

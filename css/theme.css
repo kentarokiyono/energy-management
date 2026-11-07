@@ -226,3 +226,9 @@ body.touch-on #hud-limit-wrap{ top:8px; }
  body.touch-on{ --tfn-top:170px; }
  #ask-panel{ z-index:31; }
 }
+#three-canvas{ touch-action:none; }
+body.touch-on #crew-ui{ right:auto!important; left:8px; top:150px!important; max-width:300px!important; font-size:11px!important; line-height:1.55!important; padding:8px 12px!important; }
+#game-container, #game-container *{ touch-action:none; }
+#map-ov .tb, #map-ov .tb *{ touch-action:pan-y; }
+body.touch-on #crew-ui{ pointer-events:auto!important; }
+body.touch-on #crew-ui .crew-aim{ cursor:pointer; text-decoration:underline; text-decoration-color:#f26b1d; text-underline-offset:3px; }

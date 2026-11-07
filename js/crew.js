@@ -333,7 +333,7 @@ pick(){
 showUI(){
  if(!this.ui){
   const root=document.createElement("div"); root.id="crew-ui";
-  root.style.cssText="position:fixed;right:16px;top:100px;z-index:40;max-width:340px;font-size:13px;line-height:1.7;color:#e6e6e3;background:rgba(21,23,26,.92);border:1px solid #2a2d32;border-top:2px solid #f26b1d;padding:12px 16px;pointer-events:none";
+  root.id="crew-ui"; root.addEventListener("click",e=>{ const a=e.target.closest&&e.target.closest("[data-aim]"); if(a) Crew.aim(a.dataset.aim); }); root.style.cssText="position:fixed;right:16px;top:100px;z-index:40;max-width:340px;font-size:13px;line-height:1.7;color:#e6e6e3;background:rgba(21,23,26,.92);border:1px solid #2a2d32;border-top:2px solid #f26b1d;padding:12px 16px;pointer-events:none";
   const cross=document.createElement("div"); cross.style.cssText="position:fixed;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border:2px solid rgba(255,255,255,.8);border-radius:50%;z-index:40;pointer-events:none";
   const prompt=document.createElement("div"); prompt.style.cssText="position:fixed;left:50%;top:56%;transform:translateX(-50%);z-index:40;color:#fff;font:bold 14px sans-serif;text-shadow:0 0 4px #000;pointer-events:none";
   document.body.appendChild(root); document.body.appendChild(cross); document.body.appendChild(prompt);
@@ -341,18 +341,32 @@ showUI(){
  }
  this.ui.root.style.display="block";
 },
+/* 手順の対象へ視点を向ける (タッチ操作: 一覧の次の手順をタップ) */
+aim(stepId){
+ if(this.phase!=="egress"&&this.phase!=="ingress") return;
+ let want=stepId;
+ if(stepId==="bands"){ const lock=this.phase==="ingress"; want= (lock? !this.st.bandL : this.st.bandL)? "bandL" : "bandR"; }   // 残っている側
+ const o=this.hots.find(h=>h.visible&&h.userData.hot&&h.userData.hot.id===want);
+ if(!o) return;
+ const car=View.car; car.updateMatrixWorld(); o.updateMatrixWorld();
+ const c=new THREE.Vector3(); new THREE.Box3().setFromObject(o).getCenter(c);
+ const v=car.worldToLocal(c), E=View.cockE0||[0,.84,-.45]; v.x-=E[0]; v.y-=E[1]; v.z-=E[2];
+ this.look.yaw=clamp(Math.atan2(v.x,-v.z),-2.2,2.2); this.look.pitch=clamp(Math.atan2(v.y,Math.hypot(v.x,v.z)),-1.3,1.1);
+},
 drawUI(){
  if(!this.ui) return;
  const vis=this.phase!=="drive"; this.ui.root.style.display=vis?"block":"none"; this.ui.cross.style.display=vis?"block":"none"; this.ui.prompt.style.display=vis?"block":"none";
  if(!vis) return;
- const li=(done,t,next)=>`<div style="display:flex;gap:8px;align-items:center;color:${done?'#5cb85c':next?'#e6e6e3':'#8b9097'}">${done?ic("check"):next?ic("chr","acc"):'<span style="width:1.05em;text-align:center">・</span>'}<span>${t}</span></div>`;
+ const li=(done,t,next,aim)=>`<div ${next&&aim?`data-aim="${aim}" class="crew-aim" `:""}style="display:flex;gap:8px;align-items:center;color:${done?'#5cb85c':next?'#e6e6e3':'#8b9097'}">${done?ic("check"):next?ic("chr","acc"):'<span style="width:1.05em;text-align:center">・</span>'}<span>${t}</span></div>`;
  let h="";
  const es=Engine.st, mm=(x)=>`${Math.floor(x/60)}:${String(Math.floor(x%60)).padStart(2,"0")}`;
- if(this.phase==="egress"){ h+=`<b>降車手順</b>`; const nx=this.nextStep(this.EGRESS); for(const s of this.EGRESS) h+=li(s!==nx&&s.done(this.st),s.t,s===nx); }
- else if(this.phase==="ingress"){ h+=`<b>乗車手順</b>`; const nx=this.nextStep(this.INGRESS); for(const s of this.INGRESS) h+=li(s!==nx&&s.done(this.st),s.t,s===nx);
+ const touch=document.body.classList.contains("touch-on");
+ if(touch&&(this.phase==="egress"||this.phase==="ingress")) h+=`<div style="color:#8b9097;margin-bottom:4px">対象をタップで操作 / ドラッグで見回す / 下線の手順をタップで視点を合わせる</div>`;
+ if(this.phase==="egress"){ h+=`<b>降車手順</b>`; const nx=this.nextStep(this.EGRESS); for(const s of this.EGRESS) h+=li(s!==nx&&s.done(this.st),s.t,s===nx,s.id); }
+ else if(this.phase==="ingress"){ h+=`<b>乗車手順</b>`; const nx=this.nextStep(this.INGRESS); for(const s of this.INGRESS) h+=li(s!==nx&&s.done(this.st),s.t,s===nx,s.id);
   if(this.ctx&&this.ctx.kind==="cs") h+=`<div style="margin-top:4px">発車まで ${mm(Math.max(0,es.stopTimer))}</div>`; }
  else if(this.phase==="outside"){
-  h+=`<b>車外</b> <span style="color:#8b9097">WASD 移動 / Shift 走る / ドラッグ・矢印で視点 / E・クリックで操作</span>`;
+  h+=`<b>車外</b> <span style="color:#8b9097">${document.body.classList.contains("touch-on")?"スロ＋/− で前後・◀▶ で横移動 / ドラッグで視点 / 中央の丸を対象に合わせてタップ":"WASD 移動 / Shift 走る / ドラッグ・矢印で視点 / E・クリックで操作"}</span>`;
   if(this.ctx&&this.ctx.kind==="cs"){
    const t=this.timing; h+=li(t&&t.started,"本部テントまで走って計測開始ボタンを押す",!(t&&t.started));
    if(t&&t.started) h+=`<div>発車まで ${mm(Math.max(0,es.stopTimer))} (乗り込みは残り 5:00 から)</div>`;
@@ -365,24 +379,32 @@ drawUI(){
   if(this.ctx&&this.ctx.kind==="camp") h+=`<div style="color:#8b9097">翌朝 ${fmtH(Engine.raceStartHour())} スタート。乗り込みは 5 分前から</div>`;
  }
  if(this.ui.root._h!==h){ this.ui.root._h=h; this.ui.root.innerHTML=h; }
- this.ui.prompt.textContent= this.hover? "E: "+this.hover.label : "";
+ this.ui.prompt.textContent= this.hover? (document.body.classList.contains("touch-on")?"タップ: ":"E: ")+this.hover.label : "";
 },
 };
 function fmtH(h){ const H=Math.floor(h), M=Math.round((h-H)*60); return `${H}:${String(M).padStart(2,"0")}`; }
 /* ---------- 入力 (視点ドラッグ・クリック操作・E/F キー) ---------- */
 (()=>{
  let down=null, moved=false;
- addEventListener("mousedown",e=>{ if(!Crew.busy()) return; if(e.target.closest&&e.target.closest("button,input,select,.btn")) return; down={x:e.clientX,y:e.clientY}; moved=false; });
- addEventListener("mousemove",e=>{
-  if(Crew.busy()){ Crew.mouseNDC={x:e.clientX/innerWidth*2-1,y:1-e.clientY/innerHeight*2}; }
-  if(!down||!Crew.busy()) return;
-  const dx=e.clientX-down.x, dy=e.clientY-down.y; if(Math.abs(dx)+Math.abs(dy)>3) moved=true;
+ // pointer イベントでマウスとタッチの両方を扱う: ドラッグ = 視点、タップ (クリック) = 対象を操作
+ const ignore=e=>e.target.closest&&e.target.closest("button,input,select,.btn,#touch-ui button,#crew-ui");
+ addEventListener("pointerdown",e=>{ if(!Crew.busy()||ignore(e)) return; down={x:e.clientX,y:e.clientY,id:e.pointerId}; moved=false; });
+ addEventListener("pointermove",e=>{
+  if(Crew.busy()&&e.pointerType==="mouse"){ Crew.mouseNDC={x:e.clientX/innerWidth*2-1,y:1-e.clientY/innerHeight*2}; }
+  if(!down||down.id!==e.pointerId||!Crew.busy()) return;
+  const dx=e.clientX-down.x, dy=e.clientY-down.y; if(Math.abs(dx)+Math.abs(dy)>(e.pointerType==="mouse"?3:8)) moved=true;
+  if(!moved) return;
+  const k=e.pointerType==="mouse"?0.005:0.008;
   const L= Crew.phase==="outside"&&Crew.walker? Crew.walker : Crew.look;
-  L.yaw+=dx*0.005; L.pitch=clamp(L.pitch-dy*0.005,-1.3,1.1);
+  L.yaw+=dx*k; L.pitch=clamp(L.pitch-dy*k,-1.3,1.1);
   if(Crew.phase!=="outside") L.yaw=clamp(L.yaw,-2.2,2.2);
-  down={x:e.clientX,y:e.clientY};
+  down.x=e.clientX; down.y=e.clientY;
  });
- addEventListener("mouseup",e=>{ if(down&&!moved&&Crew.busy()&&Crew.hover) Crew.act(Crew.hover.id); down=null; });
+ const up=e=>{ if(!down||down.id!==e.pointerId) return; const tap=!moved; down=null;
+  if(!tap||!Crew.busy()) return;
+  if(Crew.phase!=="outside") Crew.mouseNDC={x:e.clientX/innerWidth*2-1,y:1-e.clientY/innerHeight*2};   // 車内: 触れた場所の対象 / 車外: 画面中央の対象
+  Crew.pick(); if(Crew.hover) Crew.act(Crew.hover.id); };
+ addEventListener("pointerup",up); addEventListener("pointercancel",e=>{ if(down&&down.id===e.pointerId) down=null; });
  addEventListener("keydown",e=>{
   const k=e.key.toLowerCase();
   if(k==="e"&&Crew.busy()){ const save=Crew.mouseNDC; Crew.mouseNDC={x:0,y:0}; Crew.pick(); if(Crew.hover) Crew.act(Crew.hover.id); Crew.mouseNDC=save; }

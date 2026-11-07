@@ -13,13 +13,12 @@ if(!View.renderer){
 const canvas=document.getElementById("three-canvas");
 View.renderer=new THREE.WebGLRenderer({canvas,antialias:true});
 View.renderer.setSize(innerWidth,innerHeight);
-View.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
 }
 if(!this._resizeBound){ this._resizeBound=true;
 addEventListener("resize",()=>{ if(Test.active&&Test.camera){ View.renderer.setSize(innerWidth,innerHeight);
 Test.camera.aspect=innerWidth/innerHeight; Test.camera.updateProjectionMatrix(); } });
 }
-View.renderer.shadowMap.enabled=true; View.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+View.renderer.shadowMap.enabled=true; View.renderer.shadowMap.type=THREE.PCFSoftShadowMap; Perf.reset();
 this.scene=new THREE.Scene();
 setupRenderQuality(View.renderer,this.scene);
 this.camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,4000);
