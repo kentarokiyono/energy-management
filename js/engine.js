@@ -283,7 +283,7 @@ let Psolar=P.arrayArea*P.cellEff*tempLoss*P.mpptEff*sol.G*PRO.solarScale;
 if(s.fault&&s.fault.type==="solar") Psolar*=0.3;
 if(s.disconnected) Psolar=0;
 s.lastGeff=sol.G; s.lastTcell=Tcell; s.lastSolar=Psolar; s.sunAlt=sol.alt; s.sunAz=sol.az; s.Tamb=Tamb;
-let Pmotor=0, I_cmd=0;
+let Pmotor=0, I_cmd=0; s.lastRegenW=0;
 if(!parked && (P.mode!=="race"||isRaceHours)){
 const m=massTotal(), mEff=m+PRO.mRot;
 const crr = (s.burst?8:1)*Phys.crr(s.v);
@@ -329,7 +329,7 @@ let fM=1, fR=1;                                     // 定常分の割合
 if(Fnet>0&&Ftrac>0) fM=clamp(1-Fnet/Ftrac,0,1);     // 加速中: 駆動力のうち加速に使った分
 if(Fnet<0&&Fr>0) fR=clamp(1-(-Fnet)/Fr,0,1);        // 減速中: 回生のうち運動エネルギーを回収した分
 const PmotorNow=mm.Pelec-Pregen;
-Pmotor = mm.Pelec*(fM+(1-fM)*kT) - Pregen*(fR+(1-fR)*kT);
+Pmotor = mm.Pelec*(fM+(1-fM)*kT) - Pregen*(fR+(1-fR)*kT); s.lastRegenW=Pregen;
 s.lastMotorNow=PmotorNow;
 const dKm=s.v*dtS/1000*(s.progRate==null?1:s.progRate);   // 本線上の前進分のみ (脇道/逆走では進まない)
 const prev=s.km;
