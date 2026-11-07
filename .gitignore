@@ -3,3 +3,5 @@ __pycache__/
 tools/osm-cache/
 # 実車の諸元 (非公開・コミットしない)
 js/data/vehicle-private.js
+node_modules/
+tests/out/
