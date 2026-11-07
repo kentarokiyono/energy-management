@@ -9,7 +9,7 @@
  その日のランキング (コースごと)・1 位のゴースト (端末に保存)、オーストラリア版は走行のリプレイ URL を QR コードで持ち帰り */
 const EVENT_PUBLIC_URL="https://kentarokiyono.github.io/energy-management/";
 const EventGame={
-DUR:600, active:false, level:"adult", course:"aus", replay:null, ghostRun:null, hilly:false,
+DUR:600, practice:true, active:false, level:"adult", course:"aus", replay:null, ghostRun:null, hilly:false,
 COURSES:{
  aus:[
  {id:"rules", title:"交通ルール", km:0, hour:10.0, cap:100,
@@ -60,7 +60,7 @@ begin(){
  document.getElementById("event-hud").classList.remove("hidden");
  this.ensureHud();
  if(this.course==="aus"){ if(!this.replay) this.ghostRun=this.ghostRun||this.todayBest(); this.buildGhost(); } else this.ghostRun=null;
- this.next();
+ if(this.practice&&!this.replay) this.tutorial(()=>this.next()); else this.next();
 },
 end(){ // メニューへ戻るとき
  if(!this.active) return;
@@ -79,7 +79,7 @@ next(){
 },
 enter(m){
  const s=Engine.st;
- this.mt=0; this.st={}; this.hilly=!!m.hilly;
+ this.mt=0; this.recT=0; this.st={}; this.hilly=!!m.hilly;
  if(m.kind){ this.hvEnter(m); this.hudMission(); return; }
  if(m.km!=null) this.jump(m.km,m.hour);
  this.st.km0=s.km; this.st.soc0=s.soc; this.st.motorWh=0;
@@ -111,7 +111,8 @@ frame(dtR){
  s.hour=Math.min(s.hour,15.5);                      // 体験中は日が暮れない
  if(s.soc<0.12) s.soc=0.12;                          // 電欠で止まらない
  if(this.replay){ this.replayFrame(); return; }
- if(m.kind){ this.hvFrame(m); if(this.t>=this.DUR) this.finish(); return; }
+ if(m.kind){ this.recT+=dtR; if(this.recT>=1){ this.recT-=1; this.rec.push([this.mi,Math.round(this.mt),Test.x,Test.z]); }
+  this.hvFrame(m); if(this.t>=this.DUR) this.finish(); return; }
  // 記録 (1 秒ごと): [課題, 課題内の秒, km, 横位置, 速度]
  this.recT+=dtR; if(this.recT>=1){ this.recT-=1; this.rec.push([this.mi,Math.round(this.mt),s.km,View.lateral||0,s.v]); }
  this.st.motorWh+=(s.lastMotorW||0)*dtR*Route.scaleAt(s.km)/3600;
@@ -198,6 +199,53 @@ onTilt(){ const m=this.MISSIONS[this.mi]; if(!m||m.id!=="cs") return; const s=En
  toast(`☀ 最適角度の ${(this.st.tiltRatio*100).toFixed(0)} % の発電`,"#fbbf24"); },
 csScore(){ const t=this.st;
  this.scores[3]=Math.max(0,Math.round((t.entryOk===false?0:20)+40*clamp(1-(t.dist==null?999:t.dist)/60,0,1)+40*(t.tiltRatio||0))-this.hitPen(3)); },
+/* ---------- 操作の練習 (はじめての人向け・30 秒ほど): 実際に操作できたら次へ。8 秒たったら自動で次へ ---------- */
+tutorial(done){
+ this.cardOpen=true; modalPause=true;
+ const K=Input.keys, hv=this.course==="hv", seen={l:false,r:false};
+ const steps=[
+  {t:"アクセル",d:"W ・ ↑ ・ アクセルペダル",ic:"zap",ok:()=>K["w"]||K["arrowup"]||Input.gpThrottle>0.3},
+  {t:"ハンドル",d:"A D ・ ← → ・ ハンドルを左右に",ic:"wheel",ok:()=>{ if(K["a"]||K["arrowleft"]||Input.gpSteer<-0.35) seen.l=true; if(K["d"]||K["arrowright"]||Input.gpSteer>0.35) seen.r=true; return seen.l&&seen.r; }},
+  {t:"ブレーキ",d:"スペース ・ ブレーキペダル",ic:"stop",ok:()=>K[" "]||Input.gpBrake>0.3},
+  ...(hv?[]:[{t:"ウインカー",d:"Z (左) ・ C (右) ― 曲がる前に出す",ic:"left",ok:()=>K["z"]||K["c"]}])];
+ let el=document.getElementById("ev-tut"); if(!el){ el=document.createElement("div"); el.id="ev-tut"; el.style.cssText="position:fixed;inset:0;z-index:61;display:flex;align-items:center;justify-content:center;background:rgba(5,5,6,.6)"; document.body.appendChild(el); }
+ el.style.display="flex";
+ let i=0, t0=performance.now(), doneAt=0, raf=0;
+ const finish=()=>{ cancelAnimationFrame(raf); el.style.display="none"; removeEventListener("keydown",skip,true); this.cardOpen=false; modalPause=false; lastT=performance.now(); const s=Engine.st; if(s){ s.signal=0; s.throttleSet=0; } for(const k in K) K[k]=false; done(); };
+ const skip=(e)=>{ if(e.key==="Enter"||e.key==="Escape"){ e.preventDefault(); e.stopPropagation(); finish(); } };
+ addEventListener("keydown",skip,true);
+ const draw=()=>{ const left=Math.max(0,8-(performance.now()-t0)/1000);
+  el.innerHTML=`<div class="card2" style="width:min(620px,calc(100vw - 32px))">
+   <div class="hd"><span class="lb">Practice ― 操作の練習</span><img src="assets/img/logo.svg" class="logo" width="56" alt=""></div>
+   ${i<steps.length?`<h2 style="display:flex;gap:14px;align-items:center"><span style="color:var(--acc)">${ic(steps[i].ic)}</span>${steps[i].t}</h2>
+   <div style="font-size:18px;line-height:1.8">${steps[i].d}</div>
+   <div class="bar" style="margin:14px 0 4px"><i style="width:${left/8*100}%"></i></div>`:`<h2 style="color:var(--ok)">${ic("ok","ok")} 準備 OK</h2>`}
+   <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:12px">${steps.map((s,k)=>`<span style="display:flex;gap:6px;align-items:center;color:${k<i?"var(--ok)":k===i?"var(--tx)":"var(--dim)"}">${k<i?ic("check"):ic(s.ic)}${s.t}</span>`).join("")}</div>
+   <div class="lb" style="margin-top:14px">できたら自動で次へ ・ Enter でとばす</div></div>`; };
+ const loop=()=>{ raf=requestAnimationFrame(loop); if(typeof pollGamepad==="function") pollGamepad();
+  if(i<steps.length){ if(steps[i].ok()||performance.now()-t0>8000){ Snd.blip&&Snd.blip(900,0.06); i++; t0=performance.now(); } }
+  else if(!doneAt) doneAt=performance.now(); else if(performance.now()-doneAt>900){ finish(); return; }
+  draw(); };
+ draw(); loop();
+},
+/* ---------- ニックネームをハンドルコントローラーで入れる (ハンドル = 文字を選ぶ、アクセル = 入れる、ブレーキ = 消す、ボタン = 登録) ---------- */
+NICK_CH:"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-.!",
+nickPad(){
+ const box=document.getElementById("ev-nickpad"), inp=document.getElementById("ev-name"); if(!box||!inp) return;
+ const CH=this.NICK_CH; let cur=0, last=0, pAcc=false, pBrk=false, pBtn=false;
+ const draw=()=>{ box.innerHTML=[...CH].map((c,k)=>`<span class="${k===cur?"on":""}">${c}</span>`).join("")+`<span class="del${cur===CH.length?" on":""}">けす</span>`; };
+ box.onclick=(e)=>{ const sp=e.target.closest("span"); if(!sp) return; if(sp.classList.contains("del")) inp.value=inp.value.slice(0,-1); else if(inp.value.length<12) inp.value+=sp.textContent; };
+ const loop=()=>{ if(!document.getElementById("ev-nickpad")||document.getElementById("ev-result").style.display==="none"||this._registered) return; requestAnimationFrame(loop);
+  if(typeof pollGamepad==="function") pollGamepad(); if(!Input.gamepadOK) return;
+  const now=performance.now(), st=Input.gpSteer||0;
+  if(Math.abs(st)>0.45&&now-last>(Math.abs(st)>0.85?90:200)){ cur=(cur+(st>0?1:-1)+CH.length+1)%(CH.length+1); last=now; draw(); }
+  const acc=Input.gpThrottle>0.6, brk=Input.gpBrake>0.6, btn=!!Input.gpRegen;
+  if(acc&&!pAcc){ if(cur===CH.length) inp.value=inp.value.slice(0,-1); else if(inp.value.length<12) inp.value+=CH[cur]; }
+  if(brk&&!pBrk) inp.value=inp.value.slice(0,-1);
+  if(btn&&!pBtn) this.register();
+  pAcc=acc; pBrk=brk; pBtn=btn; };
+ draw(); loop();
+},
 /* ---------- 課題カード ---------- */
 showCard(m,cb){
  this.cardOpen=true; modalPause=true;
@@ -242,7 +290,7 @@ total(){ return this.scores.reduce((a,b)=>a+Math.max(0,b||0),0); },
 finish(){
  if(this.done) return; this.done=true; running=false; Snd.update(0,0,false);
  const total=this.total();
- if(this.replay||this.course!=="aus"){ this.showResult(total,null); return; }
+ if(this.replay){ this.showResult(total,null); return; }
  this.encode().then(code=>{ this.code=code; this.showResult(total,code); });
 },
 stamp(total){ const mx=100*this.MISSIONS.length; return total>=0.76*mx?["GOLD","#e2b21f"]: total>=0.52*mx?["SILVER","#c9ccd0"]:["BRONZE","#c07a3a"]; },
@@ -259,17 +307,19 @@ showResult(total,code){
   <div class="flex flex-wrap gap-8 text-left">
    <div><table class="text-sm">${rows}</table>
     ${this.replay?"":`<div class="mt-4 text-sm" style="display:flex;gap:8px;align-items:center"><span class="lb">Nickname</span><input id="ev-name" maxlength="12" class="px-2 py-1 text-sm" style="width:9em" value="${this.defaultName()}">
-    <button class="btn text-xs" onclick="EventGame.register()">ランキングに登録</button></div>`}
+    <button class="btn text-xs" onclick="EventGame.register()">ランキングに登録</button></div>
+    <div id="ev-nickpad" class="nickpad"></div><div class="lb" style="text-transform:none;letter-spacing:.04em;margin-top:4px">ハンドル: 文字を選ぶ ・ アクセル: 入れる ・ ブレーキ: 消す ・ ボタン: 登録</div>`}
     <div class="lb mt-5 mb-1">今日のランキング</div>
     <ul id="ev-rank" class="text-sm mono">${rank}</ul></div>
    ${url?`<div class="text-center"><div id="ev-qr" style="background:#fff;padding:8px;display:inline-block"></div>
-    <div class="text-xs text-cyan-100/70 mt-1" style="max-width:260px">QR を読み取ると、家で自分の走りを 3D で再生でき、<br>そのゴーストと対戦できます</div></div>`:""}
+    <div class="text-xs text-cyan-100/70 mt-1" style="max-width:260px">QR を読み取ると、家で自分の走りを 3D で再生できます${this.course==="aus"?"。<br>そのゴーストと対戦もできます":""}</div></div>`:""}
   </div>
   <div class="flex gap-2 justify-end mt-5">
-   ${this.replay?`<button class="btn" onclick="EventGame.raceGhost()">👻 このゴーストと走る</button>`:`<button class="btn pri" onclick="EventGame.again()">${ic("refresh")} もう一度</button>`}
+   ${this.replay?(this.course==="aus"?`<button class="btn" onclick="EventGame.raceGhost()">👻 このゴーストと走る</button>`:""):`<button class="btn pri" onclick="EventGame.again()">${ic("refresh")} もう一度</button>`}
    <button class="btn" onclick="EventGame.toMenu()">${ic("home")} メニューへ</button></div></div>`;
  el.style.display="flex";
  if(url) this.drawQR(url);
+ if(!this.replay) this.nickPad();
 },
 hideResult(){ const el=document.getElementById("ev-result"); if(el) el.style.display="none"; },
 drawQR(url){
@@ -311,7 +361,8 @@ ghostFrame(){
 },
 /* ---------- リプレイ URL (走行の軌跡を圧縮して URL へ) ---------- */
 // 1 サンプル (2 秒ごと): [課題(3bit)|速度/5(5bit)] [横位置 0.1 m int8] [km の差 m (zigzag varint)]
-pack(){
+pack(step){
+ if(this.course==="hv") return this.packHV(step||1);
  const out=[2,this.level==="kid"?1:0], total=this.total(); out.push(total>>8&255,total&255);
  out.push(this.scores.length); for(let i=0;i<this.scores.length;i++) out.push(clamp(Math.max(0,this.scores[i]||0),0,255));
  let prevMi=-1, prevKm=0;
@@ -323,23 +374,43 @@ pack(){
   const m=Math.round(km*1000); vint(mi!==prevMi? m : m-prevKm); prevMi=mi; prevKm=m; out.push(clamp(mt,0,255)); }
  return new Uint8Array(out);
 },
+/* ヒドゥンバレー (ver 3): 1 サンプル = [課題] [課題内の秒] [x の差] [z の差] (0.25 m 単位, zigzag varint)。課題が変わったら絶対値 */
+packHV(step){
+ const out=[3,this.level==="kid"?1:0], total=this.total(); out.push(total>>8&255,total&255);
+ out.push(this.scores.length); for(let i=0;i<this.scores.length;i++) out.push(clamp(Math.max(0,this.scores[i]||0),0,255));
+ const smp=this.rec.filter((q,i)=>i%step===0||(i>0&&this.rec[i-1][0]!==q[0]));
+ out.push(smp.length>>8&255,smp.length&255);
+ const vint=(n)=>{ n=n<0? (-n*2-1) : n*2; do{ let b=n&127; n=Math.floor(n/128); if(n) b|=128; out.push(b); }while(n); };
+ let prevMi=-1, px=0, pz=0;
+ for(const [mi,mt,x,z] of smp){ const qx=Math.round(x*4), qz=Math.round(z*4); out.push(mi&15, clamp(mt,0,255));
+  if(mi!==prevMi){ vint(qx); vint(qz); } else { vint(qx-px); vint(qz-pz); } prevMi=mi; px=qx; pz=qz; }
+ return new Uint8Array(out);
+},
 unpack(u){
  let p=0; const rd=()=>{ if(p>=u.length) throw new Error("short"); return u[p++]; };
- const ver=rd(); if(ver!==1&&ver!==2) throw new Error("ver");
+ const ver=rd(); if(ver!==1&&ver!==2&&ver!==3) throw new Error("ver");
  const lv=rd()?"kid":"adult", total=Math.min(rd()<<8|rd(),1000), scores=[], ns=ver===1?5:Math.min(rd(),8); for(let i=0;i<ns;i++) scores.push(Math.min(rd(),100));
+ if(ver===3){ const n=Math.min(rd()<<8|rd(),4000), samples=[]; let prevMi=-1, px=0, pz=0;
+  const vint=()=>{ let n=0,m=1,b,k=0; do{ b=rd(); n+=(b&127)*m; m*=128; if(++k>5) throw new Error("varint"); }while(b&128); return n&1? -(n+1)/2 : n/2; };
+  for(let i=0;i<n;i++){ const mi=rd()&15, mt=rd(), dx=vint(), dz=vint(); if(mi!==prevMi){ px=dx; pz=dz; } else { px+=dx; pz+=dz; } prevMi=mi;
+   if(Math.abs(px)>40000||Math.abs(pz)>40000) throw new Error("xz"); samples.push([mi,mt,px/4,pz/4]); }
+  return {course:"hv",lv,total,scores,samples}; }
  const n=Math.min(rd()<<8|rd(),4000), samples=[]; let prevMi=-1, prevKm=0;
  const vint=()=>{ let n=0,m=1,b,k=0; do{ b=rd(); n+=(b&127)*m; m*=128; if(++k>5) throw new Error("varint"); }while(b&128); return n&1? -(n+1)/2 : n/2; };
  for(let i=0;i<n;i++){ const b0=rd(), mi=b0>>5, v=(b0&31)*5/3.6; let lat=rd(); if(lat>127) lat-=256; const d=vint(); const km=mi!==prevMi? d : prevKm+d; prevMi=mi; prevKm=km; const mt=rd();
   if(!(Math.abs(km)<4e6)) throw new Error("km");
   samples.push([mi,mt,km/1000,lat/10,v]); }
- return {lv,total,scores,samples};
+ return {course:"aus",lv,total,scores,samples};
 },
 b64(u){ let s=""; for(const b of u) s+=String.fromCharCode(b); return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); },
 unb64(t){ const s=atob(t.replace(/-/g,"+").replace(/_/g,"/")); const u=new Uint8Array(s.length); for(let i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; },
 async encode(){
- const raw=this.pack();
- if(typeof CompressionStream!=="undefined"){ try{ const cs=new Blob([raw]).stream().pipeThrough(new CompressionStream("deflate-raw")); const z=new Uint8Array(await new Response(cs).arrayBuffer()); return "z"+this.b64(z); }catch(e){} }
- return "u"+this.b64(raw);
+ let code="";
+ for(const step of [1,2,3,4]){ const raw=this.pack(step);
+  code="u"+this.b64(raw);
+  if(typeof CompressionStream!=="undefined"){ try{ const cs=new Blob([raw]).stream().pipeThrough(new CompressionStream("deflate-raw")); const z=new Uint8Array(await new Response(cs).arrayBuffer()); code="z"+this.b64(z); }catch(e){} }
+  if(code.length<=2200||this.course!=="hv") break; }   // QR に入る長さまで記録を間引く
+ return code;
 },
 REPLAY_MAX_CODE:12000, REPLAY_MAX_BYTES:65536,
 async decode(code){
@@ -352,9 +423,14 @@ async decode(code){
 },
 decodeSync(code){ return this._decoded&&this._decoded[code]; },
 /* ---------- リプレイ再生 ---------- */
-startReplay(run){ this.replay=run; this.level=run.lv; this.course="aus"; P.mode="event"; startGame(); },
+startReplay(run){ this.replay=run; this.level=run.lv; this.course=run.course||"aus"; P.mode="event"; startGame(); },
 replayFrame(){
- const run=this.replay, s=Engine.st;
+ const run=this.replay, s=Engine.st, m=this.MISSIONS[this.mi];
+ if(m&&m.kind){   // ヒドゥンバレー: 記録した位置をなめらかにつないで車を動かす
+  const smp=run.samples.filter(q=>q[0]===this.mi); if(!smp.length){ this.next(); return; }
+  this.scores[this.mi]=run.scores[this.mi];
+  if(this.mt>smp[smp.length-1][1]+0.5){ this.next(); return; }
+  this._hvPose=this.hvPose(smp,this.mt); return; }
  const smp=run.samples.filter(q=>q[0]===this.mi);
  if(!smp.length){ this.next(); return; }
  const last=smp[smp.length-1];
@@ -364,6 +440,17 @@ replayFrame(){
  if(sv>=0&&sv<View.road.builtS-1){ const p=View.roadPoint(sv); View.cx=p.x+Math.cos(p.h)*lat; View.cz=p.z+Math.sin(p.h)*lat; View.ch=p.h; }
  s.v=0; this._rv=lerp(a[4],b[4],t); this.scores[this.mi]=run.scores[this.mi];
 },
+hvPose(smp,t){
+ let i=0; while(i<smp.length-2&&smp[i+1][1]<=t) i++;
+ const a=smp[Math.max(0,i-1)], b=smp[i], c=smp[Math.min(smp.length-1,i+1)], d=smp[Math.min(smp.length-1,i+2)];
+ const u=clamp((t-b[1])/((c[1]-b[1])||1),0,1), cr=(p0,p1,p2,p3)=>0.5*((2*p1)+(-p0+p2)*u+(2*p0-5*p1+4*p2-p3)*u*u+(-p0+3*p1-3*p2+p3)*u*u*u);
+ const dcr=(p0,p1,p2,p3)=>0.5*((-p0+p2)+2*(2*p0-5*p1+4*p2-p3)*u+3*(-p0+3*p1-3*p2+p3)*u*u);
+ const x=cr(a[2],b[2],c[2],d[2]), z=cr(a[3],b[3],c[3],d[3]), dt=(c[1]-b[1])||1, vx=dcr(a[2],b[2],c[2],d[2])/dt, vz=dcr(a[3],b[3],c[3],d[3])/dt, v=Math.hypot(vx,vz);
+ return {x,z,v,h: v>0.3? Math.atan2(vx,-vz) : null};
+},
+/* 予選・車検の 1 フレームの後: リプレイなら記録の位置に置き直す */
+postTest(){ if(!(this.active&&this.replay&&this._hvPose&&Test.active)) return; const q=this._hvPose;
+ Test.x=q.x; Test.z=q.z; Test.v=q.v; if(q.h!=null) Test.heading=q.h; Engine.st.v=q.v; for(const k in Input.keys) Input.keys[k]=false; },
 post(){ if(this.active&&this.replay&&!this.done&&this._rv!=null) Engine.st.v=this._rv; this.hud(); },
 };
 /* ページを開いたとき: リプレイ URL (#r=...) なら再生、ランキングのゴーストを読み込む */

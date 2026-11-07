@@ -65,7 +65,7 @@ let dtR=clamp((t-lastT)/1000,0,0.1); lastT=t;
 if(paused||modalPause) return;
 updateInput(dtR);
 if(P.event){ EventGame.frame(dtR); if(!running||modalPause) return; }
-if(Test.active){ Test.frame(dtR); Perf.tick(dtR); if(P.event) EventGame.hud(); return; }
+if(Test.active){ Test.frame(dtR); if(P.event) EventGame.postTest(); Perf.tick(dtR); if(P.event) EventGame.hud(); return; }
 if(P.mode==="event"&&Engine.st){
   if(performance.now()-(window._lastAct||0)>MODE_CFG.event.attractIdle*1000){
     Engine.st.throttleSet=0.7;
@@ -112,7 +112,7 @@ Snd.update(0,0,false);
 Settings.load();
 buildSetupUI();
 refreshUIModeBtns(); Settings.badge();
-setEventLevel(EventGame.level); setEventCourse(EventGame.course);
+setEventLevel(EventGame.level); setEventCourse(EventGame.course); setEventPractice(EventGame.practice);
 segFromSelect("time-scale","seg-ts");
 segFromSelect("log-step","seg-log");
 segFromSelect("gfx","seg-gfx");

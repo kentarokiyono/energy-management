@@ -98,7 +98,12 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   await p.context().close(); }
  // ---- イベント (オーストラリア): 課題カード → 走行 → 結果・リプレイ ----
  for(const course of ["aus","hv"]){ const p=await newPage(b,base);
-  await p.evaluate(c=>{ window.pushChart=()=>{}; P.mode="event"; setEventCourse(c); startGame(); },course);
+  await p.evaluate(c=>{ window.pushChart=()=>{}; P.mode="event"; setEventCourse(c); EventGame.practice=(c==="hv"); startGame(); },course);
+  if(course==="hv"){   // 操作の練習: アクセル → ハンドル左右 → ブレーキ で進み、終わると課題カード
+   await p.waitForTimeout(800); const tut=await p.evaluate(()=>{ const e=document.getElementById("ev-tut"); return !!e&&e.style.display!=="none"; });
+   for(const k of ["w","a","d"," "]){ await p.keyboard.down(k); await p.waitForTimeout(250); await p.keyboard.up(k); await p.waitForTimeout(150); }
+   await p.waitForTimeout(1500); const after=await p.evaluate(()=>{ const e=document.getElementById("ev-tut"); return e.style.display==="none"&&EventGame.cardOpen; });
+   check("イベント: 操作の練習",tut&&after,JSON.stringify({tut,after})); }
   await p.waitForTimeout(1500);
   const card=await p.evaluate(()=>{ const e=document.getElementById("ev-card"); return !!e&&e.style.display!=="none"; });
   check(`イベント ${course}: 課題カード`,card);
@@ -110,6 +115,11 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   await p.waitForTimeout(2500);
   const res=await p.evaluate(()=>{ const e=document.getElementById("ev-result"); return !!e&&e.style.display!=="none"; });
   check(`イベント ${course}: 結果画面`,res);
+  if(course==="hv"){   // ヒドゥンバレーのリプレイ URL: 記録 → 符号化 → 再生で同じ位置を通る
+   const hr=await p.evaluate(async()=>{ EventGame.rec=[]; for(let t=1;t<=60;t++) EventGame.rec.push([t<30?0:1,t<30?t:t-29,Math.cos(t/9)*40,Math.sin(t/9)*25]);
+    const code=await EventGame.encode(), d=await EventGame.decode(code), smp=d.samples.filter(q=>q[0]===0), q=EventGame.hvPose(smp,10);
+    return {len:code.length,course:d.course,n:d.samples.length,x:q.x.toFixed(2),ex:(Math.cos(10/9)*40).toFixed(2)}; });
+   check("ヒドゥンバレー: リプレイ URL",hr.course==="hv"&&hr.n===60&&Math.abs(hr.x-hr.ex)<0.3&&hr.len<2300,JSON.stringify(hr)); }
   if(course==="aus"){
    const rp=await p.evaluate(async()=>{ EventGame.rec=[[0,1,0.5,0,10],[0,2,0.55,0.2,11],[0,3,0.6,0.1,12],[1,1,2.0,0,15]]; const c=await EventGame.encode(); const d=await EventGame.decode(c); let bad=0;
     for(const x of ["", "z!!", "u"+"A".repeat(13000)]) { try{ await EventGame.decode(x); }catch(e){ bad++; } }

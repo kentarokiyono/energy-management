@@ -281,3 +281,7 @@ body.touch-on #crew-ui .crew-aim{ cursor:pointer; text-decoration:underline; tex
 .ana-rr input{ width:78px; padding:4px 6px; font-size:12px; }
 .ana-body.B .ana-compass, .ana-body.B .ana-ctl{ display:none; }
 .drvf{ display:flex; flex-direction:column; gap:4px; margin-top:12px; } .drvf input{ padding:8px 10px; font-size:15px; }
+.nickpad{ display:flex; flex-wrap:wrap; gap:3px; margin-top:10px; max-width:440px; }
+.nickpad span{ min-width:26px; padding:3px 6px; text-align:center; border:1px solid var(--ln); font:700 13px var(--fn); cursor:pointer; background:var(--pn2); }
+.nickpad span.on{ background:var(--acc); border-color:var(--acc); color:#111; }
+.nickpad span.del{ min-width:46px; }

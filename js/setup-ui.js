@@ -104,6 +104,7 @@ document.getElementById("sl-cellEff").value=P.cellEff; refreshSliderLabel("cellE
 document.querySelectorAll("[data-panel]").forEach(e=>e.classList.toggle("active",e.dataset.panel===k)); Settings.save();
 }
 function setEventLevel(lv){ EventGame.level=lv; document.getElementById("ev-lv-kid").classList.toggle("on",lv==="kid"); document.getElementById("ev-lv-adult").classList.toggle("on",lv==="adult"); Settings.save(); }
+function setEventPractice(on){ EventGame.practice=!!on; document.getElementById("ev-pr-on").classList.toggle("on",!!on); document.getElementById("ev-pr-off").classList.toggle("on",!on); Settings.save(); }
 function setEventCourse(c){ EventGame.course=c; document.getElementById("ev-co-aus").classList.toggle("on",c==="aus"); document.getElementById("ev-co-hv").classList.toggle("on",c==="hv"); Settings.save(); }
 function selectMode(m){
 P.mode=m;
@@ -145,7 +146,7 @@ const Settings={
  KEY:"bwsc_settings", PKEYS:null, def:null,
  keys(){ return this.PKEYS||(this.PKEYS=["shape","panel","infiniteBattery","crewProc","uiMode","logStepM","gfx",...SLIDERS.map(s=>s.id)]); },
  snapshot(){ const o={P:{},PRO:{}}; for(const k of this.keys()) o.P[k]=P[k]; for(const [k] of PRO_FIELDS) o.PRO[k]=PRO[k]; o.PRO.noSpeedCap=PRO.noSpeedCap;
-  o.ts=document.getElementById("time-scale").value; o.evCourse=EventGame.course; o.evLevel=EventGame.level; o.testKind=P.testKind; return o; },
+  o.ts=document.getElementById("time-scale").value; o.evCourse=EventGame.course; o.evLevel=EventGame.level; o.evPractice=EventGame.practice; o.testKind=P.testKind; return o; },
  load(){
   this.def=this.snapshot();
   let d=null; try{ d=JSON.parse(localStorage.getItem(this.KEY)||"null"); }catch(e){}
@@ -155,7 +156,7 @@ const Settings={
   if(!(P.shape in BODY_SHAPES)) P.shape=this.def.P.shape; if(!(P.panel in PANEL_TYPES)) P.panel=this.def.P.panel; if(P.uiMode!=="pc"&&P.uiMode!=="mobile") P.uiMode=this.def.P.uiMode;
   for(const k in this.def.PRO) if(d.PRO&&num(d.PRO[k])) PRO[k]=d.PRO[k];
   const ts=document.getElementById("time-scale"); if(d.ts&&[...ts.options].some(o=>o.value===d.ts)) ts.value=d.ts;
-  if(d.evCourse==="aus"||d.evCourse==="hv") EventGame.course=d.evCourse; if(d.evLevel==="kid"||d.evLevel==="adult") EventGame.level=d.evLevel;
+  if(d.evCourse==="aus"||d.evCourse==="hv") EventGame.course=d.evCourse; if(typeof d.evPractice==="boolean") EventGame.practice=d.evPractice; if(d.evLevel==="kid"||d.evLevel==="adult") EventGame.level=d.evLevel;
   if(d.testKind in TEST_DESC) P.testKind=d.testKind;
   { const gs=document.getElementById("gfx"); if(![...gs.options].some(o=>o.value===P.gfx)) P.gfx="auto"; gs.value=P.gfx; }
   { const ls=document.getElementById("log-step"); if(![...ls.options].some(o=>+o.value===P.logStepM)) P.logStepM=this.def.P.logStepM; ls.value=String(P.logStepM); }
@@ -165,10 +166,10 @@ const Settings={
  save(){ if(!this.def) return; const c=this.snapshot(), o={P:{},PRO:{}};
   for(const k in c.P) if(c.P[k]!==this.def.P[k]) o.P[k]=c.P[k];
   for(const k in c.PRO) if(c.PRO[k]!==this.def.PRO[k]) o.PRO[k]=c.PRO[k];
-  for(const k of ["ts","evCourse","evLevel","testKind"]) if(c[k]!==this.def[k]) o[k]=c[k];
+  for(const k of ["ts","evCourse","evLevel","evPractice","testKind"]) if(c[k]!==this.def[k]) o[k]=c[k];
   try{ localStorage.setItem(this.KEY,JSON.stringify(o)); }catch(e){}
   this.badge(); },
- changed(){ try{ const d=JSON.parse(localStorage.getItem(this.KEY)||"{}"); return Object.keys(d.P||{}).length+Object.keys(d.PRO||{}).length+["ts","evCourse","evLevel","testKind"].filter(k=>k in d).length; }catch(e){ return 0; } },
+ changed(){ try{ const d=JSON.parse(localStorage.getItem(this.KEY)||"{}"); return Object.keys(d.P||{}).length+Object.keys(d.PRO||{}).length+["ts","evCourse","evLevel","evPractice","testKind"].filter(k=>k in d).length; }catch(e){ return 0; } },
  badge(){ const n=this.changed(), el=document.getElementById("settings-state"); if(el) el.textContent= n? `既定値から ${n} 項目を変更 (この端末に保存)` : "既定値"; const b=document.getElementById("settings-reset"); if(b){ b.disabled=!n; b.style.opacity=n?1:.4; } },
  reset(){ if(!confirm("車両・レース・オプションの設定を既定値に戻します。よろしいですか？")) return; try{ localStorage.removeItem(this.KEY); }catch(e){} location.reload(); },
 };
