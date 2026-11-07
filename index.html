@@ -100,6 +100,7 @@
 <label class="chk" title="CS・17 時停車・朝の出発で乗り降りの手順を実践する (F キーでいつでも乗り降り)"><input type="checkbox" id="crew-proc" checked onchange="P.crewProc=this.checked;Settings.save()"><i></i>乗降手順を実践</label>
 <label class="chk" title="オン: 2025 年大会期間 (8/24〜) の実際の日射・気温・風 (ERA5 再解析)。オフ: 気候値と乱数の天気"><input type="checkbox" id="real-wx" checked onchange="P.realWeather=this.checked;Settings.save()"><i></i>2025 年の実際の天気</label>
 <label class="chk" title="レース中、戦略班が「時速 X km で Y km 巡航」と指示し、守れたかを採点する"><input type="checkbox" id="orders-on" checked onchange="P.orders=this.checked;Settings.save()"><i></i>無線の速度指示</label>
+<label class="chk" title="走行中に画面左上へ fps・画質・解像度を表示"><input type="checkbox" id="fps-on" onchange="P.showFps=this.checked;Settings.save()"><i></i>fps を表示</label>
 <label class="chk"><input type="checkbox" id="inf-batt" onchange="P.infiniteBattery=this.checked;Settings.save()"><i></i>バッテリー無限</label>
 </div></div>
 <div class="opts" style="margin-top:-12px"><span class="lb" style="text-transform:none;letter-spacing:.06em;font-size:12px" id="settings-state"></span>
@@ -181,6 +182,7 @@
 </div>
 </div>
 <div id="hud-order" class="pn" style="display:none"></div>
+<div id="fps-meter" style="display:none"></div>
 <div id="bottom-hud" class="pn">
 <div class="spdrow"><span id="wl"><span data-ic="chl"></span></span><span id="hud-speed" class="num">0</span>
 <span class="gear"><span>KM/H</span><span id="hud-gear">D</span></span><span id="wr"><span data-ic="chr"></span></span></div>

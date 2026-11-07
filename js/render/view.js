@@ -450,6 +450,18 @@ for(const sd of [-1,1]){ const x0= kind==="mono"? sd*0.63 : sd*0.62+sd*(kind==="
 g.userData.top=pivot; g.userData.hullM=bodyM;
 return g;
 },
+/* 画質を「低」に下げたとき: 物理ベースの材質 (クリア塗装・透過) を軽い材質に置き換え、路面の凹凸マップを外す */
+lighten(){
+ if(!this.scene) return; const map=new Map();
+ const lite=(m)=>{ if(!m) return m; if(map.has(m)) return map.get(m); let n=m;
+  if(m.isMeshPhysicalMaterial){ n=new THREE.MeshStandardMaterial({color:m.color,map:m.map,roughness:Math.max(0.35,m.roughness),metalness:Math.min(0.5,m.metalness),side:m.side,
+    transparent:m.transparent||m.transmission>0,opacity:m.transmission>0?0.55:m.opacity,depthWrite:m.depthWrite,envMapIntensity:0.4,vertexColors:m.vertexColors}); }
+  else if(m.isMeshStandardMaterial&&(m.normalMap||m.roughnessMap)){ m.normalMap=null; m.roughnessMap=null; m.needsUpdate=true; }
+  map.set(m,n); return n; };
+ this.scene.traverse(o=>{ if(!o.isMesh||!o.material) return; o.material= Array.isArray(o.material)? o.material.map(lite) : lite(o.material); });
+ const cm=this.canopyMesh; if(cm&&cm.userData.extMat) cm.userData.extMat= Array.isArray(cm.userData.extMat)? cm.userData.extMat.map(lite) : lite(cm.userData.extMat);
+ if(this.scene.environment&&typeof EnvLight!=="undefined") EnvLight.t=Infinity;   // 映り込みの作り直しも止める
+},
 /* チームの車 (一度作ったら使い回す) */
 aiMesh(tm){ let m=this.aiMeshes.get(tm); if(!m){ m=this.mkAICar(tm); m.visible=false; this.scene.add(m); this.aiMeshes.set(tm,m); } return m; },
 updateAITeams(es,dtR){

@@ -411,3 +411,5 @@ body.touch-on #hud-order{ top:96px; bottom:auto; }
 
 .ffb-t{ display:grid; grid-template-columns:7.5em 1fr 3.2em; align-items:center; gap:8px; font-size:12px; margin:3px 0; }
 .ffb-t input{ accent-color:var(--acc); } .ffb-t b{ font:600 11px var(--fn); text-align:right; color:var(--tx2); }
+
+#fps-meter{ position:fixed; left:50%; top:4px; transform:translateX(-50%); z-index:60; font:600 11px var(--fn); color:#e6e6e3; background:rgba(13,14,16,.75); padding:2px 8px; border:1px solid var(--ln); pointer-events:none; font-variant-numeric:tabular-nums; }
