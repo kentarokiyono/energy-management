@@ -20,7 +20,7 @@ def get(url, name):
     p = os.path.join(CACHE, name.replace(".json", "_" + hashlib.sha1(url.encode()).hexdigest()[:10] + ".json"))
     if os.path.exists(p):
         return json.load(open(p))
-    for k in range(5):
+    for k in range(12):
         try:
             with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=60) as r:
                 d = json.load(r)
@@ -28,7 +28,7 @@ def get(url, name):
             time.sleep(0.4)
             return d
         except Exception as e:
-            print("  retry", k, e, file=sys.stderr); time.sleep(2 * (k + 1))
+            print("  retry", k, e, file=sys.stderr); time.sleep(min(60, 3 * (k + 1)))
     raise SystemExit("取得できません: " + url[:120])
 
 def hav(a, b):
