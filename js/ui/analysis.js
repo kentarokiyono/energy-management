@@ -102,7 +102,7 @@ const Ana={
    <span class="lb">色</span><div class="seg" id="ana-met">${Object.entries(this.METRICS).map(([k,m])=>`<button data-v="${k}">${m.label}</button>`).join("")}</div>
    <button class="btn ana-sm" id="ana-all" title="グラフの範囲と区間をリセット">全体</button>
    <button class="btn ana-sm ana-x" onclick="Fade.go(()=>Ana.close())">${ic("x")}閉じる</button></div>
-  <div class="ana-body" id="ana-body"><div class="ana-map" id="ana-map"><div class="ana-hint">ドラッグで回転 ・ 右ドラッグ / Shift で移動 ・ ホイール / 2 本指で拡大 ・ クリックで地点</div><div class="ana-compass" id="ana-compass" title="北の向き (クリックで北を上に)" onclick="Ana.map&&Ana.map.north()"><i></i><b>N</b></div><div class="ana-ctl"><button class="btn" title="左に回す" onclick="Ana.map.rot(-1)">${ic("rotate","flipx")}</button><button class="btn" title="右に回す" onclick="Ana.map.rot(1)">${ic("rotate")}</button><button class="btn" title="寝かせる" onclick="Ana.map.tilt(1)">${ic("chd")}</button><button class="btn" title="起こす" onclick="Ana.map.tilt(-1)">${ic("chu")}</button><button class="btn" title="北を上に" onclick="Ana.map.north()">N</button><button class="btn" title="真上から" onclick="Ana.map.top()">真上</button><button class="btn" title="区間に合わせる" onclick="Ana.map.fit()">合わせる</button><button class="btn" title="初期の向き" onclick="Ana.map.reset()">初期</button></div><div class="ana-leg" id="ana-leg"></div><div class="ana-tag" id="ana-tag"></div></div>
+  <div class="ana-body" id="ana-body"><div class="ana-map" id="ana-map"><div class="ana-hint">ドラッグで回転 ・ 右ドラッグ / Shift で移動 ・ ホイール / 2 本指で拡大 ・ クリックで地点</div><div class="ana-compass" id="ana-compass" title="北の向き (クリックで北を上に)" onclick="Ana.map&&Ana.map.north()"><i></i><b>N</b></div><div class="ana-ctl"><button class="btn" title="左に回す" onclick="Ana.map.rot(-1)">${ic("rotate","flipx")}</button><button class="btn" title="右に回す" onclick="Ana.map.rot(1)">${ic("rotate")}</button><button class="btn" title="寝かせる" onclick="Ana.map.tilt(1)">${ic("chd")}</button><button class="btn" title="起こす" onclick="Ana.map.tilt(-1)">${ic("chu")}</button><button class="btn" title="北を上に" onclick="Ana.map.north()">N</button><button class="btn" title="真上から" onclick="Ana.map.top()">真上</button><button class="btn" title="区間に合わせる" onclick="Ana.map.fit()">合わせる</button><button class="btn" title="初期の向き" onclick="Ana.map.reset()">初期</button></div><div class="ana-leg" id="ana-leg"></div><div class="ana-play" id="ana-play"><button class="btn" id="ana-pp" title="再生 / 一時停止" onclick="Ana.togglePlay()">${ic("play")}</button><div class="seg" id="ana-rate"><button data-r="600">×600</button><button data-r="3600">×3600</button><button data-r="14400">×4h</button></div><input type="range" id="ana-ps" min="0" max="1000" value="0" step="1"><label class="chk" title="地図を再生位置に合わせて動かす"><input type="checkbox" id="ana-follow" checked><i></i>追従</label><div class="ana-pr" id="ana-pr"></div></div><div class="ana-tag" id="ana-tag"></div></div>
    <div class="ana-pane" id="ana-pane"></div><div class="ana-charts" id="ana-charts"><div class="ana-days" id="ana-days"></div><canvas id="ana-cv"></canvas><canvas id="ana-cv2"></canvas><canvas id="ana-nav" title="つかんで動かす・端をつかんで範囲を変える"></canvas></div>
    <div class="ana-empty" id="ana-empty">走行ログがありません。レースモードで走るか、CSV を読み込むか、デモを追加してください。</div></div>
   <div class="ana-dlg" id="ana-dlg"><div class="box"><div class="ph">${ic("edit")}走行データの編集</div>
@@ -111,7 +111,7 @@ const Ana={
   document.body.appendChild(el);
   const seg=(id,key,cb)=>document.getElementById(id).addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; this[key]=b.dataset.v; cb&&cb(); this.render(); });
   seg("ana-lay","layout"); seg("ana-mode","mapMode",()=>this.map&&(this.map.dirty=true)); seg("ana-met","metric",()=>this.map&&(this.map.dirty=true));
-  document.getElementById("ana-run").onchange=e=>{ this.cur=+e.target.value; this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); };
+  document.getElementById("ana-run").onchange=e=>{ this.stopPlay(); this.play.t=null; this.cur=+e.target.value; this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); };
   document.getElementById("ana-cmp").onchange=e=>{ this.cmp=+e.target.value; this.render(); };
   document.getElementById("ana-demo").onclick=()=>{ try{ localStorage.removeItem("bwsc_ana_nodemo"); }catch(e){} this.emptied=false; this.addDemo(); };
   document.getElementById("ana-all").onclick=()=>{ this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); };
@@ -126,7 +126,7 @@ const Ana={
   document.getElementById("ana-dsave").onclick=()=>this.saveEdit();
   document.getElementById("ana-dn").onkeydown=e=>{ if(e.key==="Enter") this.saveEdit(); };
   document.getElementById("ana-days").addEventListener("click",e=>{ const b=e.target.closest("button"); if(b) this.zoomTo(b.dataset.d); });
-  this.initNav();
+  this.initNav(); this.initPlay();
   addEventListener("keydown",e=>{ if(this.isOpen()&&e.key==="Escape"){ e.stopPropagation(); const d=document.getElementById("ana-dlg"); if(d.classList.contains("on")) d.classList.remove("on"); else this.close(); } },true);
   this.initCharts();
  },
@@ -192,7 +192,40 @@ const Ana={
   if(this.cmp===i) this.cmp=-1; else if(this.cmp>i) this.cmp--;
   this.cur=Math.max(0,Math.min(i,this.runs.length-1)); if(!this.runs.length) this.emptied=true;
   this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); toast("削除しました","#8b9097"); },
- close(){ const e=document.getElementById("ana"); if(e) e.classList.remove("on"); },
+ close(){ this.stopPlay(); const e=document.getElementById("ana"); if(e) e.classList.remove("on"); },
+ /* ---------- 走りの再生: 走行ログの時刻に沿って、地図の上の印・グラフの縦線・数値を動かす (早送り) ---------- */
+ play:{on:false,t:null,rate:3600,raf:0,last:0},
+ playRows(run){ if(run._pr) return run._pr; const R=run.rows.filter(r=>Number.isFinite(r.abs)&&Number.isFinite(r.km)); return run._pr= R.length>1&&R[R.length-1].abs>R[0].abs? R : null; },
+ initPlay(){
+  document.getElementById("ana-rate").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; this.play.rate=+b.dataset.r; this.playUI(); });
+  const sl=document.getElementById("ana-ps"); sl.addEventListener("input",()=>{ const R=this.playRows(this.run()); if(!R) return; this.play.t=R[0].abs+(R[R.length-1].abs-R[0].abs)*sl.value/1000; this.playAt(); });
+  this.playUI();
+ },
+ playUI(){ document.querySelectorAll("#ana-rate button").forEach(b=>b.classList.toggle("on",+b.dataset.r===this.play.rate)); document.getElementById("ana-pp").innerHTML=ic(this.play.on?"pause":"play");
+  document.getElementById("ana-play").classList.toggle("off",!this.playRows(this.run()||{rows:[]})); },
+ togglePlay(){ const run=this.run(), R=run&&this.playRows(run); if(!R){ toast("この走行には時刻の列がないため再生できません","#f59e0b"); return; }
+  if(this.play.on){ this.stopPlay(); return; }
+  if(this.play.t==null||this.play.t>=R[R.length-1].abs||this.play.run!==run) this.play.t=R[0].abs;
+  this.play.run=run; this.play.on=true; this.play.last=performance.now(); this.lock=true; this.playUI();
+  const step=(now)=>{ if(!this.play.on) return; const dt=Math.min(0.1,(now-this.play.last)/1000); this.play.last=now; this.play.t+=dt*this.play.rate/3600;
+   if(this.play.t>=R[R.length-1].abs){ this.play.t=R[R.length-1].abs; this.playAt(); this.stopPlay(); return; }
+   this.playAt(); this.play.raf=requestAnimationFrame(step); };
+  this.play.raf=requestAnimationFrame(step); },
+ stopPlay(){ this.play.on=false; cancelAnimationFrame(this.play.raf); if(document.getElementById("ana-pp")) this.playUI(); },
+ /* 再生位置 (時刻 t) の行を前後の行から補間して表示 */
+ playAt(){
+  const run=this.run(), R=run&&this.playRows(run); if(!R) return; const t=this.play.t;
+  let lo=0, hi=R.length-1; while(lo<hi){ const m=(lo+hi)>>1; if(R[m].abs<t) lo=m+1; else hi=m; }
+  const b=R[lo], a=R[Math.max(0,lo-1)], u=b.abs>a.abs? clamp((t-a.abs)/(b.abs-a.abs),0,1) : 1, k=a.km+(b.km-a.km)*u, L=(x,y)=>Number.isFinite(x)&&Number.isFinite(y)? x+(y-x)*u : y;
+  // 追従: 地図の注視点を印へ寄せて近づける。グラフの範囲も印が外れたら動かす
+  if(document.getElementById("ana-follow").checked&&this.map&&this.layout==="A"){ const P=this.map.P, i=clamp(Math.round(k),0,P.length-1), v=this.map.view;
+   v.tx+= (P[i][0]-v.tx)*0.15; v.tz+= (P[i][1]-v.tz)*0.15; v.d+= (Math.min(v.d,140)-v.d)*0.05; }
+  if(this.xr&&(k<this.xr[0]||k>this.xr[1])){ const w=this.xr[1]-this.xr[0]; this.xr=[clamp(k-w*0.2,0,Math.max(0,run.kmMax-w)),0]; this.xr[1]=this.xr[0]+w; this.zoomDay=null; this.drawCharts(); }
+  this.setCursor(k);
+  const day=Math.floor(t/24)+1, hh=((t%24)+24)%24;
+  document.getElementById("ana-pr").innerHTML=`<b>Day${day} ${String(Math.floor(hh)).padStart(2,"0")}:${String(Math.floor(hh%1*60)).padStart(2,"0")}</b> ${k.toFixed(1)} km ・ ${(L(a.v,b.v)||0).toFixed(0)} km/h ・ SOC ${(L(a.soc,b.soc)||0).toFixed(1)} % ・ ${escHtml(b.st||"")}${b.drv&&b.drv!=="―"?" ・ "+escHtml(b.drv):""}`;
+  const sl=document.getElementById("ana-ps"); sl.value=String(Math.round((t-R[0].abs)/(R[R.length-1].abs-R[0].abs)*1000));
+ },
  run(){ return this.runs[this.cur]; }, cmpRun(){ return this.cmp>=0&&this.cmp!==this.cur? this.runs[this.cmp] : null; },
  render(){
   const run=this.run(), body=document.getElementById("ana-body");
@@ -201,6 +234,7 @@ const Ana={
   const opt=(sel,list,v,none)=>{ sel.innerHTML=(none?`<option value="-1">比較なし</option>`:"")+list.map((r,i)=>`<option value="${i}">${escHtml(this.label(r))}</option>`).join(""); sel.value=String(v); };
   opt(document.getElementById("ana-run"),this.runs,this.cur,false); opt(document.getElementById("ana-cmp"),this.runs,this.cmp,true);
   for(const id of ["ana-edit","ana-del"]) document.getElementById(id).disabled=!run;
+  this.playUI();
   if(!run) return;
   if(!this.xr) this.xr=[0,Math.max(10,run.kmMax)];
   this.renderMap(); this.drawCharts(); this.renderPane();
@@ -400,7 +434,7 @@ const Ana={
  setCursor(k,fromMap){ this.cursor=k; if(this.map) this.map.draw(); this.drawCursor(); },
  placeTag(){
   const tag=document.getElementById("ana-tag"), run=this.run(), k=this.cursor;
-  if(!tag) return; if(!run||k==null||!this.map||this.layout!=="A"){ tag.style.display="none"; return; }
+  if(!tag) return; if(!run||k==null||!this.map||this.layout!=="A"||this.play.on){ tag.style.display="none"; return; }   // 再生中は上の欄に出す
   const r=this.rowAt(run,k), p=this.map.screen(k); if(!r||p.z>1){ tag.style.display="none"; return; }
   const day=Math.floor((r.abs||8)/24)+1, h=((r.abs||8)%24);
   tag.style.display="block"; tag.style.left=Math.min(this.map.w-260,p.x+10)+"px"; tag.style.top=Math.max(4,p.y-18)+"px";

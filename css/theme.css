@@ -285,6 +285,17 @@ body.touch-on #crew-ui .crew-aim{ cursor:pointer; text-decoration:underline; tex
 .ana-rr{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
 .ana-rr input{ width:78px; padding:4px 6px; font-size:12px; }
 .ana-body.B .ana-compass, .ana-body.B .ana-ctl{ display:none; }
+/* 走りの再生 */
+.ana-play{ position:absolute; left:14px; top:10px; z-index:3; display:flex; align-items:center; gap:6px; flex-wrap:wrap; max-width:min(560px,calc(100% - 120px)); background:rgba(21,23,26,.88); border:1px solid var(--ln); padding:6px 8px; }
+.ana-play.off{ display:none; }
+.ana-play .btn{ padding:4px 9px; font-size:12px; }
+.ana-play .seg>button{ padding:3px 8px; font-size:11px; }
+.ana-play input[type=range]{ flex:1 1 140px; min-width:100px; accent-color:var(--acc); }
+.ana-play .chk{ font-size:11px; }
+.ana-pr{ flex-basis:100%; font:500 11.5px/1.5 var(--fn); color:var(--tx2); font-variant-numeric:tabular-nums; }
+.ana-pr:empty{ display:none; }
+.ana-pr b{ color:var(--tx); margin-right:6px; }
+.ana-body.B .ana-play{ display:none; }
 /* グラフ: 日付のボタン (上) と範囲のスライダー (下) */
 .ana-days{ position:absolute; left:0; right:0; top:0; height:30px; display:flex; align-items:center; gap:4px; padding:0 12px 0 8px; overflow-x:auto; scrollbar-width:none; z-index:1; }
 .ana-days::-webkit-scrollbar{ display:none; }
@@ -314,6 +325,7 @@ body.touch-on #crew-ui .crew-aim{ cursor:pointer; text-decoration:underline; tex
  .ana-leg{ left:8px; top:8px; bottom:auto; min-width:0; max-width:calc(100% - 70px); padding:6px 10px; }
  .ana-leg .lb{ font-size:10px; } .ana-leg .bar{ height:6px; }
  .ana-compass{ top:8px; right:8px; }
+ .ana-play{ left:8px; right:8px; top:auto; bottom:52px; max-width:none; }
  .ana-ctl{ left:8px; right:8px; bottom:8px; max-width:none; flex-wrap:nowrap; overflow-x:auto; justify-content:flex-start; }
  .ana-ctl .btn{ flex:none; padding:7px 9px; }
  .ana-top .lb{ display:none; }
