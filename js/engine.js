@@ -97,6 +97,11 @@ gridWait(){ const s=this.st; return P.mode==="race"&&!P.event&&!s.chapter&&s.day
 raceStartHour(){ return 8.0 + this.st.morningPenaltyMin/60; },   // 2027 Reg 3.21.1-2: 毎日 08:00 (超過ペナルティ分だけ遅らせる)
 /* 17:00 超過の翌朝ペナルティ (Reg 3.21.4): 10 分までは 1 分/分、それ以降は 2 分/分 */
 extPenaltyMin(ext){ return Math.ceil(Math.min(ext,10)+2*Math.max(0,ext-10)); },
+/* AI チームの車両 (r: 0 = 上位 … 1 = 下位)。2025 年 Challenger の一般的な値の範囲でばらつかせる */
+aiVehicle(r){ const j=()=>1+(Math.random()-0.5)*0.06;
+ return { socEve:0.12+0.15*Math.random(), vmax:125-35*r, m:(225+70*r)*j(), cda:(0.085+0.05*r)*j(), crr:(0.0036+0.0016*r)*j(), area:4.0, eff:(0.245-0.025*r)*j(), mppt:0.98, wh:3000, eta:0.955-0.03*r, aux:30 }; },
+aiDrivePower(tm,v){ const V=tm.veh, F=V.crr*(1+0.003*v)*V.m*9.81+0.5*1.17*V.cda*v*v; return F*v/V.eta+V.aux; },
+aiSolar(tm,tilted){ const pr=profileAt(tm.km), V=tm.veh; return V.area*V.eff*V.mppt*0.92*this.solarCalc(pr.lat,this.st.hour,tilted,pr.lon,pr.elev).G*PRO.solarScale; },
 initTeams(){
 /* 2025 年大会 Challenger クラスの実在チーム (HV.TEAMS: 看板用に送られた結果のスクショ由来、順位順)。自チーム (和歌山大) を除く */
 const SHORT={"BRUNEL SOLAR TEAM":"Brunel","SOLAR TEAM TWENTE":"Twente","INNOPTUS SOLAR TEAM":"Innoptus","TEAM SONNENWAGEN AACHEN":"Sonnenwagen",
@@ -116,6 +121,7 @@ km:0, status:"pre", delayH:(i-N/2)*0.5,
 retireKm:(Math.random()<PRO.aiRetire*(0.2+1.6*r))? 250+Math.random()*2450 : null,
 cs:new Set(), csT:0, latV:-2.4,
 soc:0.9+Math.random()*0.1, eff:0.85+Math.random()*0.3,
+veh:this.aiVehicle(r), vNow:0, solT:-1, psol:0, psolT:0, decT:-1,
 yieldT:0, holdT:0, passing:false, boost:false, askCd:0, reqCd:20+i, otPending:false });
 }
 return arr;
@@ -132,23 +138,28 @@ tm.status="run";
 
 } else continue;
 }
-if(tm.csT>0){ tm.csT-=dtS; if(tm.csT<=0&&tm.socRecover){ tm.soc=Math.min(1,tm.soc+0.25); tm.socRecover=false; } continue; }
-if(!racing){
-if(s.hour>=17||s.hour<8) tm.soc=Math.min(1,tm.soc+0.00003*dtS);
-continue;
+const absH=(s.day-1)*24+s.hour, Wh=tm.veh.wh;
+if(tm.csT>0||!racing){   // CS 停車中・夜: 傾けて充電 (夕方は日没まで、朝は 6:15 から)
+ if(tm.csT>0) tm.csT-=dtS;
+ if(tm.ssDay!==s.day){ tm.ssDay=s.day; tm.sunset=this.sunsetHour(profileAt(tm.km).lat); }
+ const charging= tm.csT>0 || s.hour>=17&&s.hour<tm.sunset || s.hour>=6.25&&s.hour<8;
+ if(charging){ if(absH-tm.solT>0.1){ tm.psolT=this.aiSolar(tm,true); tm.solT=absH; } tm.soc=Math.min(1,tm.soc+tm.psolT*dtS/3600/Wh); }
+ tm.vNow=0; continue;
 }
-const hoursLeft=Math.max(0.5,17-s.hour);
-let pace=1.0;
-if(s.weather) pace*=0.82;
-if(tm.soc<0.15) pace*=0.6;
-else if(tm.soc<0.35) pace*=0.85;
-if(s.hour>15.5 && tm.soc>0.4) pace*=1.15;
-const spd=tm.spd*pace*(tm.boost?1.35:1); tm.vNow=spd;
+if(absH-tm.solT>0.05){ tm.psol=this.aiSolar(tm,false); tm.solT=absH; tm.decT=-1; }
+if(tm.decT<0||absH-tm.decT>0.05){   // 速度の判断 (3 分ごと): 今の発電 + 「今日の終わりに目標の残量になる」までの電池を使う
+ tm.decT=absH;                       // (夜と朝の充電で戻る分を見込み、最終日以外は少し残す。最終日はゴールまでに使い切る)
+ const hToday=Math.max(0.3,17-s.hour), remKm=TOTAL_KM-tm.km, vRef=Math.max(50,tm.vNow||tm.spd);
+ const lastDay=remKm<=vRef*hToday, hUse=lastDay? Math.max(0.3,remKm/vRef) : hToday, target=lastDay? 0.05 : tm.veh.socEve;
+ const budget=tm.psol+Math.max(0,tm.soc-target)*Wh/hUse;
+ let lo=5, hi=Math.min(tm.veh.vmax,speedLimitAt(tm.km))/3.6;
+ if(this.aiDrivePower(tm,hi)<=budget) lo=hi; else for(let k=0;k<18;k++){ const m=(lo+hi)/2; if(this.aiDrivePower(tm,m)<=budget) lo=m; else hi=m; }
+ tm.vSet=lo*3.6;
+}
+const spd=Math.max(0,(tm.vSet||0)*(tm.boost?1.15:1)); tm.vNow=spd;
 tm.km+=spd*dtS/3600;
-const gain=(s.lastGeff/900)*0.00004*dtS;
-const drain=Math.pow(spd/85,2.3)*0.000055*dtS/tm.eff;
-tm.soc=clamp(tm.soc+gain-drain,0,1);
-if(tm.soc<=0.02 && !tm.socRecover){ tm.csT=600; tm.socRecover=true; }
+tm.soc=clamp(tm.soc+(tm.psol-this.aiDrivePower(tm,spd/3.6))*dtS/3600/Wh,0,1);
+if(tm.soc<=0.01){ tm.soc=0.01; tm.decT=-1; }
 if(!tm.passing && s.v>1 && s.stopTimer<=0 && !s.camp &&
 tm.km<s.km && tm.km>s.km-3.0){
 tm.km=Math.min(tm.km, s.km-22*P.timeScale/1000);

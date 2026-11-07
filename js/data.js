@@ -60,7 +60,7 @@ arrayArea:4.0, cellEff:0.24, mpptEff:0.98,
 batteryWh:3027, Cd:0.12, frontal:1.00,
 massDry:190, massDriver:68, Crr:0.004,
 motorMaxA:48, regenStrength:0.5, auxW:35,
-timeScale:60, infiniteBattery:false, crewProc:true,
+timeScale:60, infiniteBattery:false, crewProc:true, logStepM:50,
 uiMode:('ontouchstart' in window)?"mobile":"pc",
 };
 const PRO={
