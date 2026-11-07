@@ -1,15 +1,14 @@
 "use strict";
 /* ============ 音: 録音を使わず、実物の仕組みに沿ってその場で作る ============
- ・モーター: 車輪内蔵の 3 相ブラシレスモーター。電気角の周波数 f = 極対数 × 車輪の回転数。
-   トルクの脈動 (6 倍・12 倍…) が「キーン」という音の中心。電流が大きいほど強く、回生中は音色が変わる。
-   モーター制御器のスイッチングの「シー」という高音も小さく入れる
+ ・モーター: 交流モーターをインバーターで回す前提。回転の音 (速度に比例) に、低速で加速するときの
+   インバーターの「ヒュイーン」(一定の高さのキャリア音と、その上下に回転に合わせて動く音) を重ねる
  ・タイヤ: 路面 (町のなめらかな舗装 / 郊外の荒い舗装 / 路肩の砂利) で音色を変える。橋のつなぎ目で「トン」
  ・風: 対気速度の 2 乗で強くなる低い「ゴー」と高い「シュー」、キャノピーの細い笛鳴り。突風で揺れる
  ・車内 (運転席の視点): 狭い車体の反響をかける
  ・対向のロードトレイン: 低いディーゼル音。近づくと高く、離れると低く (ドップラー効果)、右側から聞こえる
  ・案内音: 無線は「ザッ」というスケルチ、ウインカーはリレーの「カチ」、ボタンは短いクリック */
 const Snd={
- ctx:null, started:false, PP_DEFAULT:16, HARM:[[1,0.18],[2,0.10],[6,0.55],[12,0.26],[18,0.10],[24,0.05]],
+ ctx:null, started:false, FC:1050,   // インバーターのキャリア周波数 [Hz] (低速域)
  init(){
   if(this.started) return;
   try{
@@ -21,13 +20,14 @@ const Snd={
    const conv=c.createConvolver(); conv.buffer=this.room(0.22,2800);
    this.master.connect(this.dry); this.master.connect(conv); conv.connect(this.wet); this.dry.connect(this.out); this.wet.connect(this.out);
    this.ui=c.createGain(); this.ui.gain.value=0.6; this.ui.connect(this.out);                 // 案内音は反響なし
-   // ---- モーター ----
+   // ---- モーター (交流モーター + インバーター) ----
+   // 回転の音: 前の版と同じ 3 つの波 (のこぎり波 1 倍・サイン 3 倍・矩形 6 倍)。高さは速度に比例
    this.motorBus=c.createGain(); this.motorBus.gain.value=0;
-   const mLp=c.createBiquadFilter(); mLp.type="lowpass"; mLp.frequency.value=9000; this.motorBus.connect(mLp); mLp.connect(this.master);
-   this.harm=this.HARM.map(([k,g])=>{ const o=c.createOscillator(); o.type="sine"; o.frequency.value=40*k; const gn=c.createGain(); gn.gain.value=0; o.connect(gn); gn.connect(this.motorBus); o.start(); return {o,gn,k,g}; });
-   this.jit=c.createOscillator(); this.jit.frequency.value=6.3; const jg=c.createGain(); jg.gain.value=0; this.jit.connect(jg); this.jitGain=jg; this.jit.start();
-   for(const h of this.harm) jg.connect(h.o.frequency);                                       // わずかな揺らぎ (完全な純音にしない)
-   this.inv=this.band(this.noise(),7600,3,0); this.inv.out.connect(this.master);              // 制御器のスイッチング
+   const mLp=c.createBiquadFilter(); mLp.type="lowpass"; mLp.frequency.value=3000; this.motorBus.connect(mLp); mLp.connect(this.master);
+   this.motorOsc=[["sawtooth",1,0.25],["sine",3,0.5],["square",6.02,0.06]].map(([type,mult,g])=>{ const o=c.createOscillator(); o.type=type; o.frequency.value=40; const og=c.createGain(); og.gain.value=g; o.connect(og); og.connect(this.motorBus); o.start(); return {o,mult}; });
+   // インバーター: 低速では一定の高さのキャリア音 (非同期 PWM) と、その上下に回転に合わせて動く側帯が鳴る
+   this.invBus=c.createGain(); this.invBus.gain.value=0; const iLp=c.createBiquadFilter(); iLp.type="lowpass"; iLp.frequency.value=4500; this.invBus.connect(iLp); iLp.connect(this.master);
+   this.carrier=[[0,0.5],[-2,0.3],[2,0.3],[-4,0.1],[4,0.1]].map(([k,g])=>{ const o=c.createOscillator(); o.type="sine"; o.frequency.value=this.FC; const og=c.createGain(); og.gain.value=g; o.connect(og); og.connect(this.invBus); o.start(); return {o,k}; });
    // ---- タイヤ・路面 ----
    const brown=this.noise(true);
    this.tyre=this.band(brown,0,0,0,"lowpass",180); this.tyre.out.connect(this.master);
@@ -56,16 +56,13 @@ const Snd={
   const es=typeof Engine!=="undefined"&&Engine.st, v=Math.max(0,vMs||0), now=this.ctx.currentTime;
   const regenW= es&&es.lastRegenW>0? es.lastRegenW : 0;
   // ---- モーター ----
-  const pp=(typeof PRO!=="undefined"&&PRO.motorPolePairs)||this.PP_DEFAULT, r=(typeof PRO!=="undefined"&&PRO.tireR)||0.27;
-  const fe=pp*v/(2*Math.PI*r), load=clamp(Math.abs(ampFrac||0),0,1), rg=clamp(regenW/700,0,1);
-  for(const h of this.harm){ const f=fe*h.k, audible=f>25&&f<15000;
-   this.set(h.o.frequency,Math.max(1,f),0.03);
-   const toneMix= h.k===6||h.k===12? 1+0.8*rg : 1-0.4*rg;                                  // 回生は脈動の成分が目立つ
-   this.set(h.gn.gain, audible? h.g*toneMix*clamp(f/120,0,1)*clamp(1.2-f/14000,0,1) : 0, 0.05); }
-  this.set(this.jitGain.gain,fe*0.004,0.2);
-  const mGain=(0.012+0.11*load+0.08*rg)*clamp(v/3,0,1);
-  this.set(this.motorBus.gain,mGain,0.06);
-  this.set(this.inv.g.gain,(0.004+0.03*load+0.02*rg)*clamp(v/2+0.3,0,1),0.08);
+  const load=clamp(Math.abs(ampFrac||0),0,1), rg=clamp(regenW/700,0,1), f=30+v*13;    // 回転の音の高さ (前の版と同じ)
+  for(const m of this.motorOsc) this.set(m.o.frequency,f*m.mult,0.05);
+  this.set(this.motorBus.gain,clamp(0.02+load*0.16+rg*0.08,0,0.22)*clamp(v/4+0.2,0.2,1),0.08);
+  // インバーター: キャリアの上下に「回転の高さ × 2」ずつ離れた音。加速で強く、速度が上がると (約 50 km/h まで) 消える
+  const fe=f*0.5;
+  for(const k of this.carrier) this.set(k.o.frequency,Math.max(20,this.FC+k.k*fe),0.04);
+  this.set(this.invBus.gain,(0.08*load+0.035*rg)*clamp(1-v/14,0,1)*clamp(v/0.6,0,1),0.06);
   // ---- 路面 ----
   let rough=0.55, gravel=false;
   if(es&&P.mode==="race"&&typeof View!=="undefined"&&View.road&&View.roadPoint){

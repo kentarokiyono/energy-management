@@ -64,7 +64,7 @@ const PRO_FIELDS=[
 ["aiCount","AIチーム数 (0-25)",1],["aiSpdMin","AI速度min km/h",1],
 ["aiSpdMax","AI速度max km/h",1],["aiRetire","AIリタイア率",0.05],
 ["trainPerHour","ロードトレイン台/h",0.5],["faultScale","故障確率係数",0.1],
-["gridRisk","グリッドリスク係数",0.1],["motorPolePairs","モーター極対数 (音)",1],
+["gridRisk","グリッドリスク係数",0.1],
 ];
 function buildProUI(){
 const g=document.getElementById("pro-grid"); if(!g) return;

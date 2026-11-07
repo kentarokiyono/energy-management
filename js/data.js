@@ -72,7 +72,7 @@ rWinding:0.12, ironK1:0.13, ironK2:0.00135, ctrlW:6, battCth:20000, battUA:4, al
 tempOffset:0, windBase:6, solarScale:1.0, cloudFactor:1.0, dayOfYear:236,
 aiCount:25, aiSpdMin:58, aiSpdMax:103, aiRetire:0.5,
 trainPerHour:3.5, faultScale:1.0, gridRisk:1.0,
-noSpeedCap:0, motorPolePairs:16 /* 音の高さ用 (モーターの極対数。不明なので一般的な値) */,
+noSpeedCap:0,
 };
 
 /* 2027 BWSC Event Regulations (Challenger): 2.4.2 太陽電池 6 m² 以下 / 2.5.2 蓄電 11 MJ 以下 */
