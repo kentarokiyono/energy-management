@@ -810,7 +810,13 @@ const flatTown=P.mode==="race"&&Route.real(es.km)&&OsmRoute.townAt(es.km);
 const nearWater=flatTown&&[-0.3,-0.15,0,0.15,0.3,0.45].some(d=>OsmRoute.waterAt(es.km+d));   // 水面の橋の近くでは川底より下へ
 this.ground.position.set(pHere.x,(pHere.y-(pHere.bh||0))-(flatTown?(nearWater?7:0.3):60),pHere.z);
 const alt=es.sunAlt||0, az=(es.sunAz||0);
-const relAz=az-profileAt(es.km).bearing;
+// 太陽の向き: 画面の道の向き (pHere.h) と実際の道の方位 (bearing) のずれ を足して画面の方位にする。
+// 町 (実際の道の形) とそれ以外 (作った道) でずれが変わるので、急に回らないよう走った距離に応じてゆっくり合わせる
+const wrapA=a=>Math.atan2(Math.sin(a),Math.cos(a)), geoB=profileAt(es.km).bearing, dOff=wrapA((Number.isFinite(pHere.h)?pHere.h:geoB)-geoB);
+if(this.sunOff==null||!Number.isFinite(this.sunOff)||Math.abs(es.km-this.sunKm)>5) this.sunOff=dOff;
+else this.sunOff=wrapA(this.sunOff+wrapA(dOff-this.sunOff)*clamp(Math.abs(es.km-this.sunKm)/8,0,1));
+this.sunKm=es.km;
+const relAz=az+this.sunOff;
 const sunDist=1400, sy=Math.sin(alt)*sunDist, shD=Math.cos(alt)*sunDist;
 this.sun.position.set(pHere.x+Math.sin(relAz)*shD, Math.max(sy,-80), pHere.z-Math.cos(relAz)*shD);
 this.sunLight.position.copy(this.sun.position);
