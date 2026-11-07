@@ -110,7 +110,7 @@ const near=this.nearestIdx();
 const pts=this.trackPts,n=this.trackN;
 const a=pts[near.i], b=pts[(near.i+1)%n];
 grade=(b.y-a.y)/(Math.hypot(b.x-a.x,b.z-a.z)||1);
-offTrack=near.d>HV.track().hw[near.i]+1.2 && HV.pitDist(this.x,this.z)>6.5;   // ピットレーン走行は可
+offTrack=near.d>HV.track().hw[near.i]+1.2 && HV.pitDist(this.x,this.z)>6.5; this.offTrack=offTrack;   // ピットレーン走行は可
 }
 this.grade=grade;
 const m=massTotal(), mEff=m+PRO.mRot;
@@ -186,7 +186,7 @@ this.camera.position.copy(camPos);
 }
 if(this.canopy) this.canopy.visible=(View.cam!==2);
 this.camera.lookAt(lookAt);
-View.renderer.render(this.scene,this.camera);
+Post.render(View.renderer,this.scene,this.camera);
 updateHUD();
 document.getElementById("hud-clock").textContent={circuit:"HOT LAP",slalom:"SLALOM",brake:"BRAKE",combo:"SLALOM+BRAKE",fig8:"FIGURE-8"}[this.kind];
 document.getElementById("hud-dist").textContent=(this.v*3.6).toFixed(0)+" km/h";
@@ -194,6 +194,7 @@ setT("hud-nextcp",{circuit:"目標 2:20台",slalom:"目標 <11.5s",brake:"40km/h
 document.getElementById("hud-limit").textContent="―";
 this.updateTestHud(); drawG();
 Snd.update(this.v, es.lastAmp/Math.max(motorMaxA(es.powerMode),1), false);
+FFB.update({v:this.v,steer:Input.gamepadOK?Input.gpSteer:Input.steer,offroad:!!this.offTrack,shoulder:false,rough:0.3,cross:0,trainRel:null,brake:es.brakePhys||0,gLat:es.gLat||0,dt:dtR});   // サーキット: 旋回の横 G・コース外
 },
 judge(dtR){
 const k=this.kind;

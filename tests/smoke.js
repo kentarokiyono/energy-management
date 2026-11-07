@@ -16,7 +16,9 @@ async function newPage(b,base,opt={}){
  p.on("pageerror",e=>p.errs.push(e.message)); p.on("console",m=>{ if(m.type()==="error") p.errs.push(m.text()); });
  p.on("request",r=>{ const u=r.url(); if(!u.startsWith(base)&&!/^(data|blob):/.test(u)) p.ext.push(u); });
  await p.goto(base+"index.html"); await p.waitForFunction(()=>typeof startGame==="function"&&typeof THREE!=="undefined");
- await p.waitForTimeout(500); return p; }
+ await p.waitForTimeout(500);
+ if(!opt.gfx) await p.evaluate(()=>{ P.gfx="low"; });   // 速さを見る確認は軽い画質で (ソフトウェア描画は遅い)。高画質は別に確認
+ return p; }
 const noErr=(p)=>p.errs.filter(e=>!/vehicle-private|404/.test(e));
 async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screenshot({path:path.join(OUT,name+".png")}); }
 (async()=>{
@@ -24,6 +26,12 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
  const b=await chromium.launch({args:["--use-gl=swiftshader","--enable-webgl","--ignore-gpu-blocklist"]});
  const T0=Date.now();
  try{
+ // ---- 画質「高」: ポストプロセスと映り込みの環境がエラーなく動く ----
+ { const p=await newPage(b,base,{gfx:true});
+  await p.evaluate(()=>{ P.gfx="high"; P.mode="race"; startGame(); }); await p.waitForTimeout(4000);
+  const g=await p.evaluate(()=>({post:!!Post.comp&&Post.want(),env:!!EnvLight.rt&&View.scene.environment===EnvLight.rt.texture,pbr:View.car.userData.upperTilt.children[0].children.some(m=>m.material&&m.material.isMeshPhysicalMaterial&&m.material.clearcoat>0.5)}));
+  check("画質「高」: ブルーム・映り込み・塗装",g.post&&g.env&&g.pbr&&noErr(p).length===0,JSON.stringify(g)+" "+noErr(p).slice(0,2).join(" | "));
+  await shot(p,"gfx-high"); await p.context().close(); }
  // ---- メニュー ----
  { const p=await newPage(b,base);
   const s=await p.evaluate(()=>({build:document.querySelector(".build").textContent, modes:document.querySelectorAll(".mode").length, seg:document.querySelectorAll("#seg-ts button").length, quali:document.getElementById("quali-info").textContent}));

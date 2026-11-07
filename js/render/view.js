@@ -17,7 +17,7 @@ if(!this.renderer){ const canvas=document.getElementById("three-canvas");
 this.renderer.setSize(innerWidth,innerHeight);
 this.scene=new THREE.Scene();
 this.scene.background=null;
-setupRenderQuality(this.renderer,this.scene);
+setupRenderQuality(this.renderer,this.scene); EnvLight.reset();
 this.skyDome=makeSkyDome(); this.skyDome.frustumCulled=false; this.scene.add(this.skyDome);
 this.camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,GFX.cur().far);
 this.hemiLight=new THREE.HemisphereLight(0xbfe6ff,0x8a5a33,0.9);
@@ -843,6 +843,8 @@ u.uTime.value=performance.now()/1000;
 this.skyDome.position.copy(this.camera.position);
 }
 this.hemiLight.intensity=clamp(Math.sin(alt)*0.9,0.12,0.8)*(es.weather?0.6:1);
+// 車体などに映る空 (時刻・天気・土地の色に合わせて作り直す。画質「低」は作らない)
+EnvLight.update(this.renderer,this.scene,top,hor,new THREE.Color(biomeAt(es.km).soil),this.sun.position.clone().sub(this.car.position).normalize(),clamp(Math.sin(alt)*1.3,0,1)*(es.weather?0.2:1),this.sunLight.color);
 this.updateEnvironment(es,pHere,alt,hor);
 this.updateLandmarks(es);
 this.updateRoadTrains(es,dtR);
@@ -885,7 +887,7 @@ this.speedLines.forEach((pl,i)=>{
     .addScaledVector(up,((i*29)%40)/10-2);
   pl.material.opacity=sInt*0.28;});
 Cockpit.renderRear(this);
-this.renderer.render(this.scene,this.camera);
+Post.render(this.renderer,this.scene,this.camera);   // 画質「高」はブルーム・周辺減光つき
 },
 updateEnvironment(es,pHere,alt,hor){
  const bio=biomeAt(es.km);
