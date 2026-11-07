@@ -67,7 +67,7 @@ function loop(t){
 if(!running) return;
 requestAnimationFrame(loop);
 let dtR=clamp((t-lastT)/1000,0,0.1); lastT=t;
-if(paused||modalPause){ Snd.silence(); FFB.update(null); return; }
+if(paused||modalPause){ Snd.silence(); FFB.update(null); return; }   // (読み上げは途中で切らない)
 updateInput(dtR);
 if(P.event){ EventGame.frame(dtR); if(!running||modalPause) return; }
 if(Test.active){ Test.frame(dtR); if(P.event) EventGame.postTest(); Perf.tick(dtR); if(P.event) EventGame.hud(); return; }
@@ -114,7 +114,7 @@ document.getElementById("game-container").classList.add("hidden");
 document.getElementById("test-hud").classList.add("hidden");
 show("result-screen",false); show("pause-overlay",false); show("stopmenu-overlay",false); show("test-result",false);
 document.getElementById("setup-screen").classList.remove("hidden"); refreshQuali();
-Snd.silence(); FFB.update(null);
+Snd.silence(); FFB.update(null); Speech.stop();
 }
 Settings.load();
 if(!/#r=/.test(location.hash)) Fade.intro();
@@ -125,6 +125,7 @@ segFromSelect("time-scale","seg-ts");
 segFromSelect("log-step","seg-log");
 segFromSelect("gfx","seg-gfx");
 segFromSelect("scenario","seg-scn",o=>o.value===""?"なし":o.textContent);
+segFromSelect("tts","seg-tts");
 segFromSelect("ffb","seg-ffb",o=>o.value==="off"?"振動 OFF":o.textContent);
 FFB.init();
 refreshQuali();

@@ -94,6 +94,8 @@
 <div class="opts">
 <div class="seg"><button id="ui-pc" type="button" onclick="setUIMode('pc')"><span data-ic="monitor"></span> PC</button><button id="ui-mobile" type="button" onclick="setUIMode('mobile')"><span data-ic="phone"></span> モバイル</button></div>
 <div class="seg" id="seg-gfx" title="画質: 自動は PC で高、スマホで標準から始めて、重いと自動で下げる"></div>
+<div class="seg" id="seg-tts" title="無線の読み上げ (音声): 指示のみ = 戦略班の速度・電流の指示だけ"></div>
+<select id="tts" class="hidden" onchange="P.tts=this.value"><option value="orders" selected>読み上げ 指示</option><option value="all">すべて</option><option value="off">OFF</option></select>
 <div class="seg" id="seg-ffb" title="振動・反力: ゲームパッドの振動とハンコンの反力 (反力はハンコン割当から有効化)"></div>
 <select id="ffb" class="hidden" onchange="P.ffb=this.value"><option value="off">振動 OFF</option><option value="low">弱</option><option value="mid" selected>中</option><option value="high">強</option></select>
 <select id="gfx" class="hidden" onchange="P.gfx=this.value"><option value="auto" selected>画質 自動</option><option value="high">高</option><option value="mid">標準</option><option value="low">低</option></select>

@@ -33,7 +33,7 @@ const Orders={
   let v=Math.round(plan&&plan.v||70); v=Math.min(v,this.limitAhead(es.km,dist));
   const I=this.current(es,v,es.km,dist);
   this.cur={v,I,k0:es.km,k1:es.km+dist,in:0,tot:0,dev:0,iSum:0,react:null,t0:performance.now()};
-  Radio.push(`時速 ${v} km・電流 ${I.toFixed(1)} A`,"戦略班"); if(Snd.radioBeep) Snd.radioBeep();
+  Radio.push(`時速 ${v} km・電流 ${I.toFixed(1)} A`,"戦略班",{speak:true}); if(Snd.radioBeep) Snd.radioBeep();
  },
  close(es){
   const c=this.cur; this.cur=null; this.nextKm=c.k1;
