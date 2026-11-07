@@ -150,6 +150,8 @@ document.getElementById("hud-elev").textContent=prof.elev.toFixed(0)+" m";
 document.getElementById("hud-slope").textContent=(Math.tan(Engine.st&&Engine.st.physSlope!=null?Engine.st.physSlope:View.carSlope)*100).toFixed(1)+" %";
 document.getElementById("hud-temp").textContent=(es.Tamb||30).toFixed(0)+"°C / ρ"+(es.lastRho||1.17).toFixed(3);
 document.getElementById("hud-geff").textContent=es.lastGeff.toFixed(0)+" W/m²";
+if(P.mode==="race"&&!P.event&&!document.body.classList.contains("detail-off")){ const pl=Strategy.plan(false);
+ setT("hud-plan", pl.ok? pl.v+" km/h" : "⚠ 電池不足"); setT("hud-plan-eta", pl.ok? fmtAbsH(pl.r.finishAbs) : `${pl.r.minKm.toFixed(0)} km で 5 %`); }
 if(P.mode==="race"&&es.teams){
 const rank= Engine.gridWait&&Engine.gridWait()? es.grid : 1+es.teams.filter(tm=>tm.km>es.km||(tm.km===es.km&&tm.status!=="pre"&&es.v<0.5)).length;   // 発進前はグリッド順
 setT("hud-pos",`P${rank}<span class="u">/ ${es.teams.length+1}</span>`,true);

@@ -53,6 +53,8 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   const ov=await p.evaluate(()=>document.querySelectorAll("#map-ov-rows tr").length);
   check("レース: 他チーム一覧",ov===26,"rows="+ov);
   await shot(p,"race"); await p.evaluate(()=>MapUI.toggle(false));
+  const st=await p.evaluate(()=>{ const pl=Strategy.plan(true); return {ok:pl.ok,v:pl.v,fin:pl.r.finishAbs,txt:document.getElementById("hud-plan").textContent}; });
+  check("戦略: 推奨速度とゴール予想",st.ok&&st.v>=40&&st.v<=130&&st.fin>24&&st.fin<24*7,JSON.stringify(st));
   // 走行ログ: ポーズ画面のボタンで CSV を保存
   await p.evaluate(()=>{ const s=Engine.st; s.km+=1.2; });   // km の境目をまたがせる
   await p.waitForTimeout(500);

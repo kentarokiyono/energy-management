@@ -415,8 +415,7 @@ if(!s.dcDone&&dc.km-s.km<2&&dc.km>s.km&&!s.radioCd.dc){ s.radioCd.dc=true;
 s.nextAdvice-=dtS;
 if(s.nextAdvice<=0 && s.v>3){
 s.nextAdvice=1200;
-const r=this.recommendSpeed();
-Radio.push(`時速${r.v}kmで走行してください。このペースなら${r.cs}到着時 SOC約${(r.pred*100).toFixed(0)}%です。${r.pred<0.45?"⚠ SOC50%維持が困難です。ペースを落として充電区間を作りましょう。":""}`);
+Radio.push(Strategy.text());
 }
 if(View.upcomingGrade!==0 && !s.radioCd.gradeMsg){
 s.radioCd.gradeMsg=true;

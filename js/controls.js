@@ -72,8 +72,7 @@ const closeAbs=csCloseAbs(next.km);
 const eta=s.v>3? (next.km-s.km)/(s.v*3.6):null;
 Radio.push(`${next.name}まで残り${(next.km-s.km).toFixed(0)}km${eta?`、現ペースで約${fmtDur(eta)}`:""}。クローズは${fmtAbsH(closeAbs)}(残り${fmtDur(closeAbs-absH)})です。`);
 } else if(kind==="pace"){
-const r=Engine.recommendSpeed();
-Radio.push(`推奨は時速${r.v}km。このペースなら${r.cs}到着時SOC約${(r.pred*100).toFixed(0)}%です。${r.pred<0.45?"⚠ 50%維持は困難、充電停車も検討を。":""}`);
+Radio.push(Strategy.text());
 } else if(kind==="weather"){
 const nexts=(s.weatherPlan||[]).filter(w=>w.start+w.dur>absH).slice(0,2);
 let msg=s.weather?`現在は${s.weather.type==="squall"?"スコール":"曇天"}の中です。`:"現在は快晴。";
