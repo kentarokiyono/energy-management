@@ -72,8 +72,12 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   for(const v of ["B","A"]) await p.click(`#ana-lay button[data-v="${v}"]`);
   for(const v of ["net","drv","v"]) await p.click(`#ana-met button[data-v="${v}"]`);
   await p.click('#ana-mode button[data-v="elev"]');
+  await p.click("#ana-demo"); await p.waitForTimeout(400);
+  const demo=await p.evaluate(()=>{ const r=Ana.run(); return {demo:!!r.demo,rows:r.rows.length,end:r.rows[r.rows.length-1].km,drv:r.drivers.length}; });
+  check("分析画面: デモ走行",demo.demo&&demo.rows>10000&&demo.end>3020&&demo.drv===2,JSON.stringify(demo));
+  await p.selectOption("#ana-run","1");
   const an=await p.evaluate(()=>({runs:Ana.runs.length,rows:Ana.run().rows.length,pane:/走行時間/.test(document.getElementById("ana-pane").textContent),gl:!!document.querySelector("#ana-map canvas")}));
-  check("分析画面: 今回の走行と CSV の読み込み",an.runs===2&&an.rows>=2&&an.pane&&an.gl,JSON.stringify(an));
+  check("分析画面: 今回の走行と CSV の読み込み",an.runs===3&&an.rows>=2&&an.pane&&an.gl,JSON.stringify(an));
   await shot(p,"analysis"); await p.evaluate(()=>Ana.close()); await p.waitForTimeout(300);
   const [dl]=await Promise.all([p.waitForEvent("download"),p.click("#log-btn-pause")]);
   const csv=fs.readFileSync(await dl.path(),"utf8"), lines=csv.trim().split(/\r?\n/); fs.mkdirSync(OUT,{recursive:true}); fs.writeFileSync(path.join(OUT,"log.csv"),csv);

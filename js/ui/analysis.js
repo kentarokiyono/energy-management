@@ -78,6 +78,7 @@ const Ana={
   <div class="ana-top"><img src="assets/img/logo.svg" class="logo" width="54" alt=""><span class="ana-ttl">RUN ANALYSIS</span>
    <span class="lb">走行</span><select id="ana-run"></select>
    <span class="lb">比較</span><select id="ana-cmp"></select>
+   <button class="btn ana-sm" id="ana-demo" title="お試し用のデモ走行を追加">${ic("play")}デモ</button>
    <label class="btn ana-sm" title="CSV を読み込む (複数可)">${ic("upload")}CSV 読み込み<input type="file" id="ana-file" accept=".csv,text/csv" multiple hidden></label>
    <span class="lb">表示</span><div class="seg" id="ana-lay"><button data-v="A">地図</button><button data-v="B">グラフ</button></div>
    <span class="lb">地図</span><div class="seg" id="ana-mode"><button data-v="band">帯</button><button data-v="elev">標高</button></div>
@@ -86,12 +87,13 @@ const Ana={
    <button class="btn ana-sm ana-x" onclick="Ana.close()">${ic("x")}閉じる</button></div>
   <div class="ana-body" id="ana-body"><div class="ana-map" id="ana-map"><div class="ana-hint">ドラッグで回転 ・ 右ドラッグ / Shift で移動 ・ ホイール / 2 本指で拡大 ・ クリックで地点</div><div class="ana-compass" id="ana-compass" title="北の向き (クリックで北を上に)" onclick="Ana.map&&Ana.map.north()"><i></i><b>N</b></div><div class="ana-ctl"><button class="btn" title="左に回す" onclick="Ana.map.rot(-1)">${ic("rotate","flipx")}</button><button class="btn" title="右に回す" onclick="Ana.map.rot(1)">${ic("rotate")}</button><button class="btn" title="寝かせる" onclick="Ana.map.tilt(1)">${ic("chd")}</button><button class="btn" title="起こす" onclick="Ana.map.tilt(-1)">${ic("chu")}</button><button class="btn" title="北を上に" onclick="Ana.map.north()">N</button><button class="btn" title="真上から" onclick="Ana.map.top()">真上</button><button class="btn" title="区間に合わせる" onclick="Ana.map.fit()">合わせる</button><button class="btn" title="初期の向き" onclick="Ana.map.reset()">初期</button></div><div class="ana-leg" id="ana-leg"></div><div class="ana-tag" id="ana-tag"></div></div>
    <div class="ana-pane" id="ana-pane"></div><div class="ana-charts" id="ana-charts"><canvas id="ana-cv"></canvas><canvas id="ana-cv2"></canvas></div>
-   <div class="ana-empty" id="ana-empty">走行ログがありません。レースモードで走るか、CSV を読み込んでください。</div></div>`;
+   <div class="ana-empty" id="ana-empty">走行ログがありません。レースモードで走るか、CSV を読み込むか、デモを追加してください。</div></div>`;
   document.body.appendChild(el);
   const seg=(id,key,cb)=>document.getElementById(id).addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; this[key]=b.dataset.v; cb&&cb(); this.render(); });
   seg("ana-lay","layout"); seg("ana-mode","mapMode",()=>this.map&&(this.map.dirty=true)); seg("ana-met","metric",()=>this.map&&(this.map.dirty=true));
   document.getElementById("ana-run").onchange=e=>{ this.cur=+e.target.value; this.sel=null; this.xr=null; this.map&&(this.map.dirty=true); this.render(); };
   document.getElementById("ana-cmp").onchange=e=>{ this.cmp=+e.target.value; this.render(); };
+  document.getElementById("ana-demo").onclick=()=>{ this.addDemo(); };
   document.getElementById("ana-all").onclick=()=>{ this.sel=null; this.xr=null; this.map&&(this.map.dirty=true); this.render(); };
   document.getElementById("ana-file").onchange=async e=>{ for(const f of e.target.files){ try{ this.runs.push(this.parseCSV(await f.text(),f.name)); this.cur=this.runs.length-1; }catch(err){ toast("読み込めません: "+escHtml(f.name)+" ― "+escHtml(err.message),"#ef4444"); } }
    e.target.value=""; this.sel=null; this.xr=null; this.map&&(this.map.dirty=true); this.render(); };
@@ -100,9 +102,44 @@ const Ana={
   this.initCharts();
  },
  isOpen(){ const e=document.getElementById("ana"); return !!e&&e.classList.contains("on"); },
+ /* デモ走行: ゲームと同じ物理・日射で、決まった乱数から毎回同じ全行程 (200 m ごと) を作る。
+  ドライバー 2 人 (CS と毎朝で交代)、天気の崩れ 3 回、CS・夕方・朝の充電を含む */
+ addDemo(){
+  if(this.runs.some(r=>r.demo)){ this.cur=this.runs.findIndex(r=>r.demo); this.sel=null; this.xr=null; this.map&&(this.map.dirty=true); this.render(); return; }
+  if(!Engine.st) Engine.init();
+  const s=Engine.st, save={doy:s.dayOfYear,km:s.km,w:s.weather,tilt:s.tiltDeg};
+  let seed=20251019; const rnd=()=>((seed=(seed*1103515245+12345)>>>0)/4294967296);
+  const plan=[{start:24+11.2,dur:1.3,factor:0.45},{start:48+13.5,dur:0.8,factor:0.15},{start:72+9.8,dur:2.0,factor:0.45}];
+  const Wh=Math.max(500,P.batteryWh), pv=(G)=>P.arrayArea*P.cellEff*P.mpptEff*G*PRO.solarScale*0.92, rows=[], D=["デモ 山本","デモ 佐々木"];
+  let abs=8, km=0, soc=1, drv=0, ci=0, sp=0, vPrev=0, thrPrev=0; const STEP=0.2, V0=74;
+  const G=(tilted)=>{ const day=Math.floor(abs/24)+1, h=abs-(day-1)*24, pr=profileAt(km); s.dayOfYear=PRO.dayOfYear+day-1; s.km=km; s.tiltDeg=40;
+   const w=plan.find(p=>abs>=p.start&&abs<p.start+p.dur); s.weather=w?{type:w.factor<0.3?"squall":"cloud",factor:w.factor}:null; return Engine.solarCalc(pr.lat,h,tilted,pr.lon,pr.elev).G; };
+  const push=(st,v,ps,pm,ghi,thr,brk,rgn,rgW)=>{ const pr=profileAt(km); rows.push({day:Math.floor(abs/24)+1,abs,km,st,v,lim:speedLimitAt(km),soc:soc*100,ps,pm,net:ps-pm,ghi,
+   el:pr.elev,gr:(profileAt(km+0.2).elev-pr.elev)/2,thr,brk,rgn,rgW,drv:D[drv],wx:s.weather?(s.weather.type==="squall"?"スコール":"曇天"):"快晴"}); };
+  const charge=(hours,st)=>{ for(let t=0;t<hours;t+=1/6){ const d=Math.min(1/6,hours-t), g=G(true), ps=pv(g); soc=Math.min(1,soc+ps*d/Wh); abs+=d; push(st,0,ps,0,g,0,0,0,0); } };
+  try{
+   for(let guard=0;guard<40000&&km<TOTAL_KM;guard++){
+    const day=Math.floor(abs/24), h=abs-day*24;
+    if(h>=17){ const pr=profileAt(km), ss=Engine.sunsetHour(pr.lat,pr.lon); charge(Math.max(0,ss-h),"夜営"); abs=(day+1)*24+6.25; charge(1.75,"夜営"); drv=(drv+1)%2; continue; }
+    const style=drv?1.04:1.0, noise=(rnd()-0.5)*(drv?6:3);
+    sp+=(rnd()-0.5)*0.6; sp*=0.92;
+    let v=Math.min(speedLimitAt(km+STEP/2), V0*style*(1+0.03*Math.sin(km/9))+sp*4+noise);
+    if(soc<0.12) v=Math.min(v,55);
+    const g=(profileAt(km+STEP).elev-profileAt(km).elev)/(STEP*1000), gi=G(false), ps=pv(gi), pm=Math.max(0,Strategy.drivePower(v/3.6,g));
+    const dv=v-vPrev, brk=dv<-6&&rnd()<(drv?0.5:0.25)?60:0, rgn=dv<-3&&!brk?70:0, rgW=rgn?Math.min(600,-dv*40):0;
+    const thr=clamp(pm/30+(rnd()-0.5)*(drv?10:4),0,100);
+    const dt=STEP/v; soc=clamp(soc+(ps-pm+rgW*0.5)*dt/Wh,0,1); km=Math.min(TOTAL_KM,km+STEP); abs+=dt; vPrev=v; thrPrev=thr;
+    push("走行",v,ps,pm,gi,thr,brk,rgn,rgW);
+    const c=RP_CS[ci]; if(c&&km>=c.km){ charge(0.5,"CS"); ci++; drv=(drv+1)%2; vPrev=0; }
+   }
+  } finally{ s.dayOfYear=save.doy; s.km=save.km; s.weather=save.w; s.tiltDeg=save.tilt; }
+  const run=this.prep({name:"デモ走行 (サンプル)",rows,demo:true}); this.runs.push(run); this.cur=this.runs.length-1;
+  this.sel=null; this.xr=null; this.map&&(this.map.dirty=true); this.render(); toast("デモ走行を追加しました","#34d399");
+ },
  open(){
   this.build(); const live=this.fromRunLog();
   this.runs=this.runs.filter(r=>!r.live); if(live){ this.runs.unshift(live); this.cur=0; }
+  if(!this.runs.length) this.addDemo();
   if(this.cur>=this.runs.length) this.cur=0;
   document.getElementById("ana").classList.add("on"); this.wasPaused=typeof paused!=="undefined"&&paused;
   this.map&&(this.map.dirty=true); this.render();
@@ -149,7 +186,7 @@ const Ana={
    if(D.length){ const best=(k,low)=>{ const v=D.map(x=>x.s[k]).filter(Number.isFinite); return v.length>1? (low?Math.min(...v):Math.max(...v)) : null; };
     const row=(lab,k,d,low,u)=>`<span>${lab}</span>`+D.map(x=>{ const v=x.s[k], bb=best(k,low); return `<b class="${bb!=null&&v===bb?"good":""}">${f(v,d)}${u||""}</b>`; }).join("");
     h+=`<div class="ph" style="margin-top:12px">${ic("users")}ドライバー${this.sel?" (区間)":" (全行程)"}</div>
-    <div class="ana-drv" style="grid-template-columns:1fr repeat(${D.length},64px)"><span></span>${D.map(x=>`<span class="lb">${escHtml(x.d.replace(/^ドライバー/,""))}</span>`).join("")}
+    <div class="ana-drv" style="grid-template-columns:1fr repeat(${D.length},78px)"><span></span>${D.map(x=>`<span class="lb">${escHtml(x.d.replace(/^ドライバー/,""))}</span>`).join("")}
     ${row("担当距離 km","dist",0)}${row("平均速度","avg",1)}${row("電費 Wh/km","whkm",1,true)}${row("70–85 km/h の電費","whkmBand",1,true)}
     ${row("速度のばらつき","sd",2,true)}${row("スロットル操作 /100km","thrOps",0,true)}${row("急な加減速 /100km","acc",1,true)}${row("登りの平均電力 W","upW",0,true)}
     ${row("物理ブレーキ使用 %","brk",1,true)}${row("回生使用 %","rgn",1)}${row("回生で回収 Wh","rg",0)}</div>
@@ -196,13 +233,19 @@ const Ana={
    H(b){ if(!b) return 0; if(self.mapMode==="elev") return 1+b.el*0.035; const m=self.METRICS[self.metric]; if(m.cat) return 8; const v=m.f(b); return Number.isFinite(v)? 1+clamp((v-m.lo)/(m.hi-m.lo),0,1)*30 : 0; },
    rebuild(){
     while(grp.children.length){ const o=grp.children.pop(); o.geometry.dispose(); o.material.dispose(); }
-    const run=self.run(); if(!run) return; const m=self.METRICS[self.metric], pos=[], col=[], top=[];
+    const run=self.run(); if(!run) return; const m=self.METRICS[self.metric], pos=[], col=[], top=[], fpos=[], fcol=[];
     const sel=self.sel;
     for(let k=1;k<run.bins.length&&k<P.length;k++){ const a=run.bins[k-1], b=run.bins[k]; if(!a||!b) continue;
      const [ax,az]=P[k-1], [bx,bz]=P[k], ha=this.H(a), hb=this.H(b), ca=self.color(m,m.f(a)), cb=self.color(m,m.f(b)), dim=sel&&(k<sel[0]||k>sel[1])?0.35:1;
      pos.push(ax,0.1,az, bx,0.1,bz, bx,hb,bz,  ax,0.1,az, bx,hb,bz, ax,ha,az);
      for(const c of [ca,cb,cb,ca,cb,ca]) col.push(c[0]*dim,c[1]*dim,c[2]*dim);
+     // 地面にも同じ色の帯 (帯を真横から見て細く見える向きでも色が分かるように)
+     const dx=bx-ax, dz=bz-az, L=Math.hypot(dx,dz)||1, nx=-dz/L*0.9, nz=dx/L*0.9;
+     fpos.push(ax-nx,0.08,az-nz, bx-nx,0.08,bz-nz, bx+nx,0.08,bz+nz,  ax-nx,0.08,az-nz, bx+nx,0.08,bz+nz, ax+nx,0.08,az+nz);
+     for(const c of [ca,cb,cb,ca,cb,ca]) fcol.push(c[0]*dim,c[1]*dim,c[2]*dim);
      top.push(new THREE.Vector3(ax,ha+0.05,az)); }
+    const fg=new THREE.BufferGeometry(); fg.setAttribute("position",new THREE.Float32BufferAttribute(fpos,3)); fg.setAttribute("color",new THREE.Float32BufferAttribute(fcol,3));
+    grp.add(new THREE.Mesh(fg,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide})));
     const g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); g.setAttribute("color",new THREE.Float32BufferAttribute(col,3));
     grp.add(new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide,transparent:true,opacity:0.92})));
     if(top.length>1) grp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(top),new THREE.LineBasicMaterial({color:0xe6e6e3,transparent:true,opacity:0.45})));
