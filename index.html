@@ -124,7 +124,7 @@
 </div></div>
 <!-- ============================ ハンコン設定 ============================ -->
 <div id="wheel-config" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:rgba(0,0,0,.75)">
-<div class="panel p-6 w-96">
+<div class="panel p-6 w-96" style="max-height:calc(100vh - 32px);overflow:auto">
 <div class="font-bold mb-2">🎮 ハンドルコントローラー割当</div>
 <div id="wheel-msg" class="text-sm text-cyan-100/80 min-h-[3rem] mb-3">各「検出」を押して指示どおり操作してください。アクセルペダル=スロットル開度、ブレーキペダル=物理ブレーキ、ボタン0=回生。</div>
 <div class="space-y-2 text-sm">
@@ -137,6 +137,7 @@
 <div class="text-xs mb-2" style="color:var(--tx2)">ゲームパッドの振動は接続するだけで動きます。ハンコンの反力は Chrome / Edge (パソコン) で、Logicool G29 / G27 / G25 / Driving Force GT に対応 (G920 / G923 の Xbox 版は未対応)。強さは OPTIONS の「振動」で選べます。</div>
 <div class="flex justify-between items-center gap-2"><button class="btn text-xs py-1" onclick="FFB.connect()">ハンコン反力を有効化</button><span id="ffb-hid-st" class="mono text-xs" style="color:var(--tx2)">未接続</span></div>
 <div class="flex justify-between items-center gap-2 mt-2"><label class="chk text-xs"><input type="checkbox" id="ffb-inv" onchange="P.ffbInv=this.checked;Settings.save()"><i></i>反力の向きを反転</label><button class="btn text-xs py-1" onclick="FFB.test()">テスト (振動・右→左)</button></div>
+<details class="mt-2"><summary class="text-xs" style="cursor:pointer;color:var(--tx2)">項目ごとの強さ (0〜200 %)</summary><div id="ffb-tune" class="mt-2"></div></details>
 </div>
 <div class="flex justify-end gap-2 mt-4">
 <button class="btn text-xs" onclick="closeWheelConfig()">閉じる</button>
