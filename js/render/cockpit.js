@@ -76,7 +76,7 @@ const Cockpit={
   const col=new THREE.Mesh(new THREE.CylinderGeometry(.011,.011,.45,12),alu); col.rotation.x=Math.PI/2; col.position.set(0,0,-.28); V.yokePivot.add(col);
   cock.add(V.yokePivot);
   // ---- スイッチ箱 (右斜め前の壁) ----
-  const sb=new THREE.Group(); sb.position.set(ow-.016,top-.1,ez-.36); sb.rotation.set(0,0,Math.PI/2);   // 右斜め前: 右の壁の側面に平らに付ける (操作面は内側)
+  const sb=new THREE.Group(); sb.position.set(ow-.016,top-.1,ez-.36); sb.rotation.set(0,0,Math.PI/2); sb.rotateOnWorldAxis(new THREE.Vector3(1,0,0),Math.PI/2);   // 右斜め前: 右の壁の側面に平らに付ける (操作面は内側, 横長)
   const paper=this.tex(512,300,(c,w,h)=>{ c.fillStyle="#8d9196"; c.fillRect(0,0,w,h); c.fillStyle="#f6f6f2"; c.fillRect(w*.12,h*.04,w*.76,h*.22);
    c.fillStyle="#333"; c.font="600 15px 'BIZ UDPGothic',sans-serif"; c.textAlign="left"; ["緊急停止 / プリチャージ / ハザード","前後 弱電 ZP モタコン テレメ"].forEach((t,i)=>c.fillText(t,w*.15,h*.12+i*22));
    c.textAlign="center"; c.font="700 18px 'BIZ UDPGothic',sans-serif"; ["前/後","弱電","ZP","モタコン","テレメ"].forEach((t,i)=>{ c.fillStyle="#f6f6f2"; c.fillRect(w*(.13+i*.17)-34,h*.86-16,68,22); c.fillStyle="#111"; c.fillText(t,w*(.13+i*.17),h*.86); }); });
