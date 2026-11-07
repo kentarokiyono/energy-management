@@ -125,6 +125,16 @@ const cid=bS.v.length/3;bS.v.push(0,(zBell(1)+zHull(1))/2,O.L-HL);bS.uv.push(O.L
 for(let r=0;r<n;r++){const a=vid(bS,Pp,Uv,i,r),c=vid(bS,Pp,Uv,i,(r+1)%n);bS.idx.push(cid,a,c);}}
 finish(bW);finish(bO);finish(bS);
 if(OPN.w>0) grp.userData.opening=OPN;
+// 胴体の上端からパネルの下面までの側面 (パネルは胴体に載っている。すき間から向こうが見えないように閉じる)
+{ const bWl=mkB(LIV?matOrange:matWhite), TH=0.035;
+  for(let i=0;i<O.seg;i++){ const P2=[i,i+1].map(k=>{ const u=k/O.seg; return {w:hullW(u),hd:zHull(u),ap:Math.max(zPanel(u),zHull(u)+PG)-TH,z:u*O.L-HL}; });
+   if(P2[0].ap-P2[0].hd<0.003&&P2[1].ap-P2[1].hd<0.003) continue;
+   for(const sd of [-1,1]){ const id=bWl.v.length/3;
+    for(const q of P2){ bWl.v.push(sd*q.w,q.hd,q.z, sd*q.w,Math.max(q.hd,q.ap),q.z); bWl.uv.push(0,0,0,1); }
+    bWl.idx.push(id,id+1,id+2, id+1,id+3,id+2); } }
+  finish(bWl); }
+// カタマラン (他チームの車): 胴体を細くして左右 2 本にする
+if(BD.cat){ const parts=grp.children.slice(); for(const m of parts){ grp.remove(m); for(const sd of [-1,1]){ const c=m.clone(); c.scale.x=BD.cat.s; c.position.x=sd*BD.cat.d; grp.add(c); } } }
 // ナンバープレート (後端の平らな面)
 if(BD.plate){ const cv=document.createElement("canvas"); cv.width=256; cv.height=92; const c=cv.getContext("2d");
  c.fillStyle="#f4f1ea"; c.fillRect(0,0,256,92); c.strokeStyle="#c2410c"; c.lineWidth=6; c.strokeRect(4,4,248,84);
@@ -136,7 +146,7 @@ if(BD.plate){ const cv=document.createElement("canvas"); cv.width=256; cv.height
 const nUpper0=grp.children.length;   // ここからアッパーカウル (パネル翼 + キャノピー)
 /* ==== パネル翼(ハルより≥6cm上の独立フラット面=構造的にZファイティング不可) ==== */
 {
-const bA=mkB(matArray),bO=mkB(matOrange),PW=6,Gp=[],Uv=[];
+const bA=mkB(matArray),bO=mkB(matOrange),PW=12,Gp=[],Uv=[];
 for(let i=0;i<=O.seg;i++){
 const u=i/O.seg,xl=u*O.L,wa=halfW(u);
 const ap=Math.max(zPanel(u),zHull(u)+PG),zPos=xl-HL;
@@ -152,12 +162,20 @@ function canopyLenSafe(){return O.canopyLen*0.52;}
 for(let i=0;i<O.seg;i++)for(let j=0;j<PW;j++){
 const uc=(i+0.5)/O.seg;
 const xc=((j+0.5)/PW*2-1)*((halfW(i/O.seg)+halfW((i+1)/O.seg))*0.5);
-if(uc>u0&&uc<u1&&Math.abs(xc)<wc) continue; // キャノピー開口はパネルをくり抜く
+if(uc>u0&&uc<u1&&Math.abs(xc-(BD.canopyOffset||0))<wc) continue; // キャノピー開口はパネルをくり抜く (キャノピーを左右にずらした車はその位置)
 const b=(i/O.seg)<O.orangeU?bO:bA;
 const a=vid2(b,i,j),c=vid2(b,i,j+1),d=vid2(b,i+1,j+1),e=vid2(b,i+1,j);
 b.idx.push(a,c,e,c,d,e);
 }
 finish(bA);finish(bO);
+// パネルの厚み: 白い下面と、外周の縁 (板が紙のように薄く見えないように)
+{ const TH=0.035, bU=mkB(matWhite), bE=mkB(matWhite), V=(b,x,y,z)=>{ b.v.push(x,y,z); b.uv.push(0,0); return b.v.length/3-1; };
+  for(let i=0;i<O.seg;i++)for(let j=0;j<PW;j++){ const uc=(i+0.5)/O.seg, xc=((j+0.5)/PW*2-1)*((halfW(i/O.seg)+halfW((i+1)/O.seg))*0.5);
+   if(uc>u0&&uc<u1&&Math.abs(xc-(BD.canopyOffset||0))<wc) continue;
+   const q=[Gp[i][j],Gp[i][j+1],Gp[i+1][j+1],Gp[i+1][j]].map(p=>V(bU,p.x,p.y-TH,p.z)); bU.idx.push(q[0],q[2],q[1],q[0],q[3],q[2]); }
+  for(let i=0;i<O.seg;i++) for(const j of [0,PW]){ const a=Gp[i][j], b=Gp[i+1][j], q=[V(bE,a.x,a.y,a.z),V(bE,b.x,b.y,b.z),V(bE,b.x,b.y-TH,b.z),V(bE,a.x,a.y-TH,a.z)]; bE.idx.push(q[0],q[1],q[2],q[0],q[2],q[3]); }
+  { const i=O.seg; for(let j=0;j<PW;j++){ const a=Gp[i][j], b=Gp[i][j+1], q=[V(bE,a.x,a.y,a.z),V(bE,b.x,b.y,b.z),V(bE,b.x,b.y-TH,b.z),V(bE,a.x,a.y-TH,a.z)]; bE.idx.push(q[0],q[1],q[2],q[0],q[2],q[3]); } }
+  finish(bU); finish(bE); }
 }
 /* ==== キャノピー ==== */
 let canopy=null;
@@ -224,6 +242,7 @@ let tiltX=0, tiltY=0; for(let i=0;i<=40;i++){ const u=i/40, w=halfW(u); if(w>til
 const tiltPivot=new THREE.Group(), upper=new THREE.Group(); tiltPivot.position.set(tiltX,tiltY,0); upper.position.set(-tiltX,-tiltY,0);
 tiltPivot.add(upper); grp.add(tiltPivot);
 for(const o of upperParts){ grp.remove(o); upper.add(o); o.userData.upper=true; }
+if(BD.canopyOffset&&canopy) canopy.position.x=BD.canopyOffset;   // カタマラン: キャノピーは左右どちらかの胴体の上
 /* ==== コンタクトシャドウ ==== */
 const shM=new THREE.Mesh(new THREE.PlaneGeometry(2.3*Math.max(1,halfW(.6)/.9),O.L+0.3),
 new THREE.MeshBasicMaterial({map:T.shadow,transparent:true,depthWrite:false}));

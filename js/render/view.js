@@ -423,8 +423,10 @@ const r=(k)=>((h>>>(k*3))%97)/96;   // チームごとに決まる 0〜1 の値
 const key=Object.keys(this.TEAM_COLOR).find(k=>name.toUpperCase().includes(k));
 const accent= key? this.TEAM_COLOR[key] : new THREE.Color().setHSL(((tm&&tm.hue)||h%360)/360,0.7,0.45).getHex();
 const L=4.5+0.45*r(1), cw=0.42+0.08*r(2), pw=0.82+0.12*r(3), hw=0.5+0.1*r(4);
+// カタマラン (半分ほどのチーム): 細い胴体 2 本、キャノピーは左右どちらかの胴体の上
+const cat= key==="TOKAI"||key==="SONNENWAGEN"||key==="WESTERN SYDNEY"||key==="ECLIPSE"||(!key&&r(12)<0.5), cd=0.52+0.08*r(13), cs=0.46, csd=(r(14)<0.5?-1:1);
 const sc=(arr,f)=>arr.map(([u,v])=>[u,v*f]);
-const BD={L, noOpening:true, noLogo:true, canopyCol:r(11)<0.6?0xeceef1:0x111316, accent, base:r(5)<0.15?0x24262b:0xeceef1, orangeU:0.08+0.08*r(6), skirtZ:0.26,
+const BD={L, noOpening:true, cat:cat?{d:cd,s:cs}:null, canopyOffset:cat?csd*cd:0, noLogo:true, canopyCol:r(11)<0.6?0xeceef1:0x111316, accent, base:(key? key==="INNOPTUS" : r(5)<0.15)?0x24262b:0xeceef1, orangeU:0.08+0.08*r(6), skirtZ:0.26,
  canopy:{x:L*(0.3+0.12*r(7)),len:1.3+0.3*r(8),w:cw,top:1.05+0.12*r(9)}, 
  profiles:{halfW:sc([[0,.001],[.05,.16],[.16,.44],[.30,.62],[.45,.85],[.60,.90],[.75,.86],[.90,.78],[1,.70]],pw/0.9),
   hullW:sc([[0,.001],[.06,.10],[.16,.30],[.30,.44],[.50,.58],[.70,.52],[.85,.40],[1,.26]],hw/0.58)}};
@@ -436,7 +438,7 @@ if(tm&&tm.cc&&typeof HV!=="undefined"&&HV.flag) try{ HV.flag(c,tm.cc,12,22,72,52
 c.fillStyle="#111"; c.font="900 58px 'Chakra Petch',Arial,sans-serif"; c.textAlign="center"; c.textBaseline="middle";
 c.fillText(String(tm&&(tm.no||(tm.car||"").replace(/[^A-Za-z0-9]/g,"").slice(0,3).toUpperCase())||""),170,52);
 const tx=new THREE.CanvasTexture(cv); tx.encoding=THREE.sRGBEncoding;
-for(const sd of [-1,1]){ const pl=new THREE.Mesh(new THREE.PlaneGeometry(0.46,0.17),new THREE.MeshBasicMaterial({map:tx})); pl.position.set(sd*(hw+0.03),0.36,0.1); pl.rotation.y=sd*Math.PI/2; g.add(pl); }
+for(const sd of [-1,1]){ const pl=new THREE.Mesh(new THREE.PlaneGeometry(0.46,0.17),new THREE.MeshBasicMaterial({map:tx})); pl.position.set(sd*(cat? cd+hw*cs+0.02 : hw+0.03),0.36,0.1); pl.rotation.y=sd*Math.PI/2; g.add(pl); }
 g.userData.top=Y.tilt; g.userData.hullM=null; g.userData.tiltSign=-1;
 return g;
 },
