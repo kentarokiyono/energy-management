@@ -1,5 +1,5 @@
 "use strict";
-const VEH_PRIV_REV=5;   // vehicle-private.js の必要な版 (rev)。古い版は設定画面で警告
+const VEH_PRIV_REV=6;   // vehicle-private.js の必要な版 (rev)。古い版は設定画面で警告
 /* ============ 車両諸元の差し替え ============
  js/data/vehicle-private.js (git 管理外) が VEHICLE_PRIVATE を定義していれば、その値で
  車体形状 (和大型モノハル) と走行の物理 (質量・タイヤ・制動・操舵・横風・転倒余裕) を置き換える。
