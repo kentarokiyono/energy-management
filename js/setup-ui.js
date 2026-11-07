@@ -177,7 +177,7 @@ const Settings={
 /* ---- レース開始時にドライバーの名前を入れる (前回の名前を初期値に) ---- */
 let DRIVER_NAMES=null;
 const DrvDlg={
- open(){ if(P.mode!=="race"){ startGame(); return; }
+ open(){ if(P.mode!=="race"){ Fade.go(startGame); return; }
   let last=[]; try{ last=JSON.parse(localStorage.getItem("bwsc_drivers")||"[]"); }catch(e){}
   document.getElementById("drv-n1").value=last[0]||""; document.getElementById("drv-n2").value=last[1]||"";
   show("drv-dlg",true); setTimeout(()=>document.getElementById("drv-n1").focus(),50); },
@@ -185,7 +185,7 @@ const DrvDlg={
  ok(){ const clean=(id,def)=>(document.getElementById(id).value||"").replace(/[<>&"'\\]/g,"").trim().slice(0,20)||def;
   DRIVER_NAMES=[clean("drv-n1","ドライバーA"),clean("drv-n2","ドライバーB")];
   try{ localStorage.setItem("bwsc_drivers",JSON.stringify(DRIVER_NAMES)); }catch(e){}
-  this.close(); startGame(); },
+  this.close(); Fade.go(startGame); },
 };
 addEventListener("keydown",e=>{ const d=document.getElementById("drv-dlg"); if(!d||d.classList.contains("hidden")) return;
  if(e.key==="Enter"){ e.preventDefault(); DrvDlg.ok(); } else if(e.key==="Escape"){ e.preventDefault(); DrvDlg.close(); } });

@@ -110,6 +110,7 @@ document.getElementById("setup-screen").classList.remove("hidden"); refreshQuali
 Snd.update(0,0,false);
 }
 Settings.load();
+if(!/#r=/.test(location.hash)) Fade.intro();
 buildSetupUI();
 refreshUIModeBtns(); Settings.badge();
 setEventLevel(EventGame.level); setEventCourse(EventGame.course); setEventPractice(EventGame.practice);

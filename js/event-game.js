@@ -315,8 +315,8 @@ showResult(total,code){
     <div class="text-xs text-cyan-100/70 mt-1" style="max-width:260px">QR を読み取ると、家で自分の走りを 3D で再生できます${this.course==="aus"?"。<br>そのゴーストと対戦もできます":""}</div></div>`:""}
   </div>
   <div class="flex gap-2 justify-end mt-5">
-   ${this.replay?(this.course==="aus"?`<button class="btn" onclick="EventGame.raceGhost()">👻 このゴーストと走る</button>`:""):`<button class="btn pri" onclick="EventGame.again()">${ic("refresh")} もう一度</button>`}
-   <button class="btn" onclick="EventGame.toMenu()">${ic("home")} メニューへ</button></div></div>`;
+   ${this.replay?(this.course==="aus"?`<button class="btn" onclick="Fade.go(()=>EventGame.raceGhost())">👻 このゴーストと走る</button>`:""):`<button class="btn pri" onclick="Fade.go(()=>EventGame.again())">${ic("refresh")} もう一度</button>`}
+   <button class="btn" onclick="Fade.go(()=>EventGame.toMenu())">${ic("home")} メニューへ</button></div></div>`;
  el.style.display="flex";
  if(url) this.drawQR(url);
  if(!this.replay) this.nickPad();
@@ -423,7 +423,7 @@ async decode(code){
 },
 decodeSync(code){ return this._decoded&&this._decoded[code]; },
 /* ---------- リプレイ再生 ---------- */
-startReplay(run){ this.replay=run; this.level=run.lv; this.course=run.course||"aus"; P.mode="event"; startGame(); },
+startReplay(run){ this.replay=run; this.level=run.lv; this.course=run.course||"aus"; P.mode="event"; Fade.go(startGame); },
 replayFrame(){
  const run=this.replay, s=Engine.st, m=this.MISSIONS[this.mi];
  if(m&&m.kind){   // ヒドゥンバレー: 記録した位置をなめらかにつないで車を動かす
