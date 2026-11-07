@@ -213,7 +213,8 @@ s.wDirDev+=-s.wDirDev*dtS/tauD+0.30*Math.sqrt(2*dtS/tauD)*Phys.gauss();
 s.wGust=clamp(s.wGust,-0.8,1.5); s.wDirDev=clamp(s.wDirDev,-1.2,1.2);
 s.windSpeed=Math.max(0,PRO.windBase*wc.f*(1+s.wGust)*0.6); // 車高(~1m)へ対数則換算
 s.windDirWorld=wc.toward+s.wDirDev;
-if(RealWx.on()){ const w=RealWx.wind(prof.lat,prof.lon,s.dayOfYear,s.hour); s.windSpeed=Math.max(0,w.ws*(1+0.5*s.wGust)*0.6); s.windDirWorld=w.toward+s.wDirDev*0.3; }
+const rw=RealWx.on()&&RealWx.wind(prof.lat,prof.lon,s.dayOfYear,s.hour);
+if(rw){ const w=rw; s.windSpeed=Math.max(0,w.ws*(1+0.5*s.wGust)*0.6); s.windDirWorld=w.toward+s.wDirDev*0.3; }
 }
 s.hour+=dtS/3600;
 if(s.boostT>0)s.boostT-=dtR; if(s.boostCd>0)s.boostCd-=dtR;
@@ -274,7 +275,7 @@ const sunset=this.sunsetHour(prof.lat);
 s.disconnected = (s.camp || (s.stopKind==="cp"&&s.stopTimer>0)) && (s.hour>=19.25 || s.hour<6.25);
 const tilted = parked || s.camp;
 const sol=this.solarCalc(prof.lat,s.hour,tilted);
-const Tamb= RealWx.on()? (RealWx.at("t",prof.lat,prof.lon,s.dayOfYear,s.hour)??ambientTemp(prof.lat,s.hour))+PRO.tempOffset : ambientTemp(prof.lat,s.hour);
+const tReal=RealWx.on()? RealWx.at("t",prof.lat,prof.lon,s.dayOfYear,s.hour) : null, Tamb= tReal!=null? tReal+PRO.tempOffset : ambientTemp(prof.lat,s.hour);
 const phiW=s.windDirWorld-prof.bearing+Math.PI;
 const airOverArray=tilted? s.windSpeed : Math.max(0,s.v+s.windSpeed*Math.cos(phiW));
 const TcSS=cellTempSS(Tamb,sol.G,airOverArray,tilted);

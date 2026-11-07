@@ -26,12 +26,13 @@ const RealWx={
  wts(lat,lon,doy,hour){
   const W=this.W, L=W.loc, c=Math.cos(lat*Math.PI/180); let i0=0,d0=1e9,i1=0,d1=1e9;
   for(let i=0;i<L.length;i++){ const d=Math.hypot(L[i][1]-lat,(L[i][2]-lon)*c); if(d<d0){ d1=d0; i1=i0; d0=d; i0=i; } else if(d<d1){ d1=d; i1=i; } }
-  const h=(doy-this.DOY0)*24+hour, k=clamp(Math.floor(h),0,W.hours-2), t=clamp(h-k,0,1), w0=(d0+d1)>0? d1/(d0+d1) : 1;
+  const h=(doy-this.DOY0)*24+hour; if(!(h>=0&&h<=W.hours-1)) return null;   // データの期間外 → 呼び出し側で従来の計算
+  const k=clamp(Math.floor(h),0,W.hours-2), t=clamp(h-k,0,1), w0=(d0+d1)>0? d1/(d0+d1) : 1;
   return [[i0,k,w0*(1-t)],[i0,k+1,w0*t],[i1,k,(1-w0)*(1-t)],[i1,k+1,(1-w0)*t]];
  },
- at(key,lat,lon,doy,hour){ const S=this.W[key]; let s=0,w=0; for(const [i,k,q] of this.wts(lat,lon,doy,hour)){ const v=S[i][k]; if(v==null) continue; s+=v*q; w+=q; } return w>0? s/w : null; },
+ at(key,lat,lon,doy,hour){ const S=this.W[key], W=this.wts(lat,lon,doy,hour); if(!W) return null; let s=0,w=0; for(const [i,k,q] of W){ const v=S[i][k]; if(v==null) continue; s+=v*q; w+=q; } return w>0? s/w : null; },
  /* 風: 向きは成分に分けて平均 (350° と 10° の間が 180° にならないように) */
- wind(lat,lon,doy,hour){ let u=0,v=0,w=0; for(const [i,k,q] of this.wts(lat,lon,doy,hour)){ const ws=this.W.ws[i][k], wd=this.W.wd[i][k]; if(ws==null||wd==null) continue;
+ wind(lat,lon,doy,hour){ const W=this.wts(lat,lon,doy,hour); if(!W) return null; let u=0,v=0,w=0; for(const [i,k,q] of W){ const ws=this.W.ws[i][k], wd=this.W.wd[i][k]; if(ws==null||wd==null) continue;
    const to=(wd+180)*Math.PI/180; u+=Math.sin(to)*ws*q; v+=Math.cos(to)*ws*q; w+=q; }
   if(!w) return {ws:0,toward:0}; u/=w; v/=w; return {ws:Math.hypot(u,v),toward:Math.atan2(u,v)}; },
 };

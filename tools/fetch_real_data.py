@@ -142,7 +142,7 @@ for km in wkm:
                                 "hourly": ",".join(VARS), "timezone": "Australia/Darwin", "wind_speed_unit": "ms"})
     d = get("https://archive-api.open-meteo.com/v1/archive?" + q, f"wx_{int(km):04d}.json")
     times = times or d["hourly"]["time"]; locs.append([round(km, 1), round(la, 3), round(lo, 3)])
-    for v in VARS: series[v].append([None if x is None else round(x) for x in d["hourly"][v]])
+    for v in VARS: series[v].append([None if x is None else (round(x, 1) if v in ("temperature_2m", "wind_speed_10m") else round(x)) for x in d["hourly"][v]])
 with open(os.path.join(ROOT, "js", "data", "weather-2025.js"), "w", encoding="utf-8") as f:
     f.write('"use strict";\n/* 2025 年大会期間の実際の天気 (tools/fetch_real_data.py が作成)\n'
             ' 出典: Open-Meteo Historical Weather API (ERA5 / ERA5-Land 再解析, Copernicus Climate Change Service), CC BY 4.0\n'
