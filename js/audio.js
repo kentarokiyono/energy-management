@@ -50,9 +50,16 @@ const Snd={
   for(let ch=0;ch<2;ch++){ const d=b.getChannelData(ch); let l=0; for(let i=0;i<n;i++){ const w=(Math.random()*2-1)*Math.pow(1-i/n,3.2); l+=(w-l)*Math.min(1,lp/c.sampleRate*6.28); d[i]=l; } }
   return b; },
  set(p,v,t=0.08){ p.setTargetAtTime(v,this.ctx.currentTime,t); },
+ /* 走行の音をすべて止める (ゴール・リタイア・一時停止・メニューへ戻る)。次の update で戻る */
+ silence(){
+  if(!this.started||this.muted) return; this.muted=true;
+  this.set(this.master.gain,0,0.12);
+  for(const [rt,T] of this.trucks){ this.set(T.g.gain,0,0.1); setTimeout(()=>{ try{ T.o.stop(); T.o2.stop(); }catch(e){} },600); } this.trucks.clear();
+ },
  /* 毎フレーム: v [m/s], 電流の割合 (0〜1), 炎上中か */
  update(vMs,ampFrac,fire){
   if(!this.started) return;
+  if(this.muted){ this.muted=false; this.set(this.master.gain,0.55,0.15); }
   const es=typeof Engine!=="undefined"&&Engine.st, v=Math.max(0,vMs||0), now=this.ctx.currentTime;
   const regenW= es&&es.lastRegenW>0? es.lastRegenW : 0;
   // ---- モーター ----

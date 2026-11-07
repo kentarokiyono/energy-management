@@ -122,6 +122,7 @@ if(BD.plate){ const cv=document.createElement("canvas"); cv.width=256; cv.height
  const pl=new THREE.Mesh(new THREE.PlaneGeometry(.30,.108),new THREE.MeshStandardMaterial({map:tx,roughness:.6,side:DS}));
  pl.position.set(0,zHull(1)-.062,O.L-HL+.004); grp.add(pl); }
 }
+const nUpper0=grp.children.length;   // ここからアッパーカウル (パネル翼 + キャノピー)
 /* ==== パネル翼(ハルより≥6cm上の独立フラット面=構造的にZファイティング不可) ==== */
 {
 const bA=mkB(matArray),bO=mkB(matOrange),PW=6,Gp=[],Uv=[];
@@ -205,9 +206,16 @@ new THREE.MeshPhysicalMaterial({color:0x040506,roughness:.3,clearcoat:.6,clearco
 new THREE.MeshPhysicalMaterial({color:0x040506,roughness:.35,clearcoat:.5,clearcoatRoughness:.3,envMapIntensity:.2,side:DS})]);
 canopy.castShadow=true;grp.add(canopy);
 }
+/* ==== アッパーカウル: 充電のときはこれだけを傾ける (ロアカウル = 胴体は地面に置いたまま)。
+ 回転軸はパネル翼の右の縁 (+x)。軸の位置へ移した入れ物に入れ、中身は元の座標のまま ==== */
+const upperParts=grp.children.slice(nUpper0);
+let tiltX=0, tiltY=0; for(let i=0;i<=40;i++){ const u=i/40, w=halfW(u); if(w>tiltX){ tiltX=w; tiltY=Math.max(zPanel(u),zHull(u)+PG); } }
+const tiltPivot=new THREE.Group(), upper=new THREE.Group(); tiltPivot.position.set(tiltX,tiltY,0); upper.position.set(-tiltX,-tiltY,0);
+tiltPivot.add(upper); grp.add(tiltPivot);
+for(const o of upperParts){ grp.remove(o); upper.add(o); o.userData.upper=true; }
 /* ==== コンタクトシャドウ ==== */
 const shM=new THREE.Mesh(new THREE.PlaneGeometry(2.3*Math.max(1,halfW(.6)/.9),O.L+0.3),
 new THREE.MeshBasicMaterial({map:T.shadow,transparent:true,depthWrite:false}));
 shM.rotation.x=-Math.PI/2;shM.position.y=.02;grp.add(shM);
-return {group:grp,canopy,opening:grp.userData.opening||null};
+return {group:grp,canopy,opening:grp.userData.opening||null,tilt:tiltPivot};
 }
