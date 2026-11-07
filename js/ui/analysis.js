@@ -379,7 +379,9 @@ const Ana={
    <span>発電の実効効率</span><span>${f(C.effPV*100,1)} %</span><span>${f(C.effModel*100,1)} %</span><span>${pct(C.effPV,C.effModel)}</span>
    <span>走行の消費 kWh</span><span>${f(C.eAct/1000,2)}</span><span>${f(C.eModel/1000,2)}</span><span>${pct(C.eAct,C.eModel)}</span></div>
    <div class="ana-note">使った行 ${C.n}・当てはまり R² ${f(C.r2,2)}${C.r2<0.6?" (低い: 速度の幅が狭い・風や加速の影響が大きい)":""}。「今の設定」の消費 = この走行と同じ速度・勾配で今の設定のモデルを走らせた値。CdA は空気抵抗係数 × 前面投影面積、Crr は η=${this.ETA} と置いた推定。発電は温度・角度の影響を含んだ実効値。</div>
-   <button class="btn ana-sm" onclick="Ana.applyCalib()" ${C.r2>=0.5?"":"disabled"}>${ic("check")}推定値を設定に反映</button>`;
+   <div class="ana-rr" style="margin-top:6px"><button class="btn ana-sm" onclick="Ana.applyCalib()" ${C.r2>=0.5?"":"disabled"}>${ic("check")}推定値を設定に反映</button>
+   ${(()=>{ const k=C.eAct/C.eModel; return Number.isFinite(k)&&k>0.6&&k<1.6? `<button class="btn ana-sm" onclick="Ana.useOrdersK(${k.toFixed(3)})" title="車両の設定は変えず、無線の電流の指示だけを ×${k.toFixed(2)} する">${ic("zap")}電流の指示に使う (×${k.toFixed(2)})</button>` : ""; })()}</div>
+   <div class="ana-note">電流の指示の補正: ${Math.abs((P.ordersK||1)-1)<0.001? "なし" : `×${(+P.ordersK).toFixed(2)} <a href="#" onclick="Ana.useOrdersK(1);return false" style="color:var(--acc)">外す</a>`}。「推定値を設定に反映」をした後は、補正は外してください (二重にかかります)。</div>`;
   return h;
  },
  runCalib(){ const run=this.run(); if(!run) return; try{ this.calib(run); }catch(e){ run._cal={err:"推定できませんでした: "+e.message}; } this.renderPane(); },
@@ -388,6 +390,7 @@ const Ana={
   const set=(id,v)=>{ const s=SLIDERS.find(x=>x.id===id); if(!s||!Number.isFinite(v)) return; P[id]=clamp(v,s.min,s.max); const el=document.getElementById("sl-"+id); if(el) el.value=P[id]; refreshSliderLabel(id); };
   set("Crr",C.Crr); set("Cd",C.CdA/P.frontal); set("auxW",C.aux); if(Number.isFinite(C.effPV)) set("cellEff",C.effPV/(P.mpptEff*0.92*PRO.solarScale));
   refreshDerived(); Settings.save(); this.run()._cal=null; Strategy.last=null; toast("車両の設定に反映しました","#34d399"); this.renderPane(); },
+ useOrdersK(k){ P.ordersK=clamp(+k||1,0.5,2); Settings.save(); toast(Math.abs(P.ordersK-1)<0.001? "電流の指示の補正を外しました" : `電流の指示を ×${P.ordersK.toFixed(2)} で出します`,"#34d399"); this.renderPane(); },
  runReview(){ const run=this.run(); if(!run) return; toast("計算中…","#22d3ee"); setTimeout(()=>{ try{ this.review(run); }catch(e){ run._rev={err:"計算できませんでした: "+e.message}; } this.renderPane(); this.drawCharts(); },30); },
  /* ---------- 立体地図 ---------- */
  renderMap(){

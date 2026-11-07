@@ -27,6 +27,7 @@ const Orders={
  current(es,v,k0,dist){
   const vms=v/3.6, gr=(profileAt(Math.min(TOTAL_KM,k0+dist)).elev-profileAt(k0).elev)/(dist*1000), head=Number.isFinite(es.lastHead)? es.lastHead : 0;
   let W=Strategy.drivePower(vms,gr)-P.auxW; const va=Math.max(0,vms+head); W+=0.5*1.17*P.Cd*P.frontal*(va*va-vms*vms)*vms;
+  W*=clamp(Number.isFinite(P.ordersK)?P.ordersK:1,0.5,2);   // 走行ログとの合わせ込みの補正 (分析画面の「電流の指示に使う」)
   const Vb=es.lastVterm>0? es.lastVterm : VOC(es.soc); return clamp(Math.max(0,W)/(Vb*0.99),0,motorMaxA(es.powerMode)); },
  issue(es){
   const dist=Math.min(this.STEP,TOTAL_KM-es.km); if(dist<1) return;

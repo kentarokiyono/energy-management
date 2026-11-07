@@ -144,7 +144,7 @@ function resetQuali(){ if(!confirm("予選のベストラップを消去しま�
 /* ---- 設定の保存 (この端末のブラウザ): 既定値から変えた項目だけを保存し、起動時に戻す ---- */
 const Settings={
  KEY:"bwsc_settings", PKEYS:null, def:null,
- keys(){ return this.PKEYS||(this.PKEYS=["shape","panel","infiniteBattery","crewProc","uiMode","logStepM","gfx","realWeather","ffb","ffbInv","ffbTune","orders","showFps","tts","fcErr",...SLIDERS.map(s=>s.id)]); },
+ keys(){ return this.PKEYS||(this.PKEYS=["shape","panel","infiniteBattery","crewProc","uiMode","logStepM","gfx","realWeather","ffb","ffbInv","ffbTune","orders","showFps","tts","fcErr","ordersK",...SLIDERS.map(s=>s.id)]); },
  snapshot(){ const o={P:{},PRO:{}}; for(const k of this.keys()) o.P[k]=P[k]; for(const [k] of PRO_FIELDS) o.PRO[k]=PRO[k]; o.PRO.noSpeedCap=PRO.noSpeedCap;
   o.ts=document.getElementById("time-scale").value; o.evCourse=EventGame.course; o.evLevel=EventGame.level; o.evPractice=EventGame.practice; o.testKind=P.testKind; return o; },
  load(){
