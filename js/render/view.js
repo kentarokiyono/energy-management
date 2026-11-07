@@ -412,32 +412,52 @@ _wireLocal(g,pts,heights,sag){
  const geo=new THREE.BufferGeometry(); geo.setAttribute("position",new THREE.Float32BufferAttribute(v,3));
  g.add(new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color:0x5a5048})));
 },
-/* 他チームの車: チームごとに形 (カタマラン / 非対称カタマラン / 単胴) と色を決めて作る。
- 下の胴体 (ロアカウル) と、上のパネル面 + キャノピー (アッパーカウル: 充電のときに右の縁を軸に傾ける) に分ける。
- 前は -z。両側にゼッケン (国旗 + 番号) */
+/* 他チームの車 (2025 年の Challenger クラスの写真を参考):
+  "wing" (Brunel・工学院型): 片側に背の高い細い胴体 (前の上にキャノピー)、反対側へ広がる平らなソーラーパネル、パネルの外側の下に小さな車輪のポッド。
+  "flat" (東海型): 低い 2 つのポッドの上に、先のとがった薄いパネル。キャノピーは前の角の泡形。
+  チームごとに形・向き (胴体が左か右か)・色を決める。前は -z。パネル (と flat のキャノピー) はアッパーカウルとして充電時に傾ける */
+TEAM_LOOK:{ "BRUNEL":["wing",0xf26b1d,-1], "TWENTE":["wing",0xc8102e,1], "INNOPTUS":["wing",0x111111,-1], "SONNENWAGEN":["flat",0x1f5fbf,1], "TOKAI":["flat",0x1d4fa8,1],
+ "MICHIGAN":["wing",0x00274c,-1], "KOGAKUIN":["wing",0x1d3f9a,-1], "WESTERN SYDNEY":["flat",0xd4001a,-1], "JU SOLAR":["wing",0x1b6fd1,1], "ECLIPSE":["flat",0x7a1fa2,1] },
 mkAICar(tm){
 const g=new THREE.Group(), name=tm&&tm.team||"", PBR=typeof GFX==="undefined"||GFX.key()!=="low";
 let h=0; for(let i=0;i<name.length;i++) h=(h*31+name.charCodeAt(i))>>>0;
-const kind=["cat","asym","cat","mono","asym","cat"][h%6];
-const hue=tm&&Number.isFinite(tm.hue)? tm.hue : 210, accent=new THREE.Color().setHSL(hue/360,0.7,0.5);
-const bodyC= h%3===0? accent.clone() : new THREE.Color(h%5===0?0x1b1d21:0xeef0f2), stripeC= bodyC.getHSL({}).l>0.6||bodyC.getHSL({}).l<0.2? accent : new THREE.Color(0xffffff);
-const paint=(c)=>PBR? new THREE.MeshPhysicalMaterial({color:c,roughness:.2,metalness:.1,clearcoat:1,clearcoatRoughness:.06,envMapIntensity:.9}) : new THREE.MeshStandardMaterial({color:c,roughness:.45});
-const bodyM=paint(bodyC), stripeM=paint(stripeC), cellM=PBR? new THREE.MeshPhysicalMaterial({color:0x141b4d,metalness:.8,roughness:.22,clearcoat:.6,envMapIntensity:1}) : new THREE.MeshStandardMaterial({color:0x101a2c,roughness:.4});
-const glassM=new THREE.MeshPhysicalMaterial({color:0x1a1f24,roughness:.08,metalness:.2,clearcoat:1,envMapIntensity:1}), tyreM=new THREE.MeshStandardMaterial({color:0x111214,roughness:.9});
-const ell=(rx,ry,rz,m,x,y,z,par)=>{ const e=new THREE.Mesh(new THREE.SphereGeometry(1,20,12),m); e.scale.set(rx,ry,rz); e.position.set(x,y,z); (par||g).add(e); e.castShadow=true; return e; };
-// ---- 下の胴体 ----
-const pods= kind==="mono"? [[0,0.62,0.34]] : kind==="asym"? [[-0.6,0.36,0.4],[0.62,0.26,0.32]] : [[-0.62,0.3,0.36],[0.62,0.3,0.36]];
-for(const [x,rx,ry] of pods){ ell(rx,ry,2.25,bodyM,x,0.5,0); ell(rx*0.98,0.05,1.9,stripeM,x,0.5+ry*0.55,0.05); }
-// 車輪 (カタマランは 4 輪、単胴は前 2・後 1)
-const wpos= kind==="mono"? [[-0.55,-1.5],[0.55,-1.5],[0,1.6]] : [[-0.62,-1.5],[0.62,-1.5],[-0.62,1.5],[0.62,1.5]];
-for(const [x,z] of wpos){ const w=new THREE.Mesh(new THREE.CylinderGeometry(0.27,0.27,0.08,16),tyreM); w.rotation.z=Math.PI/2; w.position.set(x,0.27,z); g.add(w); }
-// ---- 上: パネル面 + キャノピー (右の縁 x=+0.9 を軸に傾ける) ----
-const pivot=new THREE.Group(); pivot.position.set(0.9,0.86,0); g.add(pivot);
-const up=new THREE.Group(); up.position.set(-0.9,-0.86,0); pivot.add(up);
-const deck=new THREE.Mesh(new THREE.BoxGeometry(1.8,0.04,4.5),cellM); deck.position.set(0,0.88,0); up.add(deck); deck.castShadow=true;
-const rim=new THREE.Mesh(new THREE.BoxGeometry(1.84,0.035,4.56),stripeM); rim.position.set(0,0.85,0); up.add(rim);
-const cx= kind==="mono"? 0 : -0.6;
-ell(0.3,0.3,0.8,glassM,cx,0.98,-0.45,up);
+const key=Object.keys(this.TEAM_LOOK).find(k=>name.toUpperCase().includes(k)), look=key? this.TEAM_LOOK[key] : [h%3===0?"flat":"wing",new THREE.Color().setHSL(((tm&&tm.hue)||h%360)/360,0.7,0.45).getHex(),h%2?1:-1];
+const [kind,accHex,side]=look, sd=side;   // sd: 胴体の側 (-1 = 左, +1 = 右)
+const paint=(c)=>PBR? new THREE.MeshPhysicalMaterial({color:c,roughness:.2,metalness:.05,clearcoat:1,clearcoatRoughness:.06,envMapIntensity:.9}) : new THREE.MeshStandardMaterial({color:c,roughness:.45});
+const bodyM=paint(0xf2f3f4), accM=paint(accHex), cellM=PBR? new THREE.MeshPhysicalMaterial({color:0x0b1430,metalness:.35,roughness:.28,clearcoat:.8,clearcoatRoughness:.05,envMapIntensity:.6}) : new THREE.MeshStandardMaterial({color:0x101a2c,roughness:.4});
+const glassM=new THREE.MeshPhysicalMaterial({color:0x2a3138,roughness:.06,metalness:.2,clearcoat:1,transparent:true,opacity:.75,envMapIntensity:1}), tyreM=new THREE.MeshStandardMaterial({color:0x111214,roughness:.9}), darkM=new THREE.MeshStandardMaterial({color:0x1a1c20,roughness:.6});
+// 流線形のポッド: 前は丸く、後ろへ細く。底は少し平ら
+const pod=(len,w,hgt,m,x,y,z,par,taper=0.55)=>{ const geo=new THREE.SphereGeometry(1,28,16), q=geo.attributes.position;
+ for(let i=0;i<q.count;i++){ const zz=q.getZ(i), f=1-taper*Math.max(0,zz)**1.4; let yy=q.getY(i); if(yy<0) yy*=0.8; q.setXYZ(i,q.getX(i)*f*w/2,yy*f*hgt/2,zz*len/2); }
+ geo.computeVertexNormals(); const e=new THREE.Mesh(geo,m); e.position.set(x,y,z); e.castShadow=true; (par||g).add(e); return e; };
+const wheel=(x,z)=>{ const w=new THREE.Mesh(new THREE.CylinderGeometry(0.27,0.27,0.09,18),tyreM); w.rotation.z=Math.PI/2; w.position.set(x,0.27,z); g.add(w); };
+// ソーラーパネル: 上から見た形 (先のとがり具合・後ろの丸み) を押し出した薄い板。上下 = セル、縁 = 白
+// W: 幅, L: 長さ, nose: 先の絞りの長さ, tip: 先端の幅の割合, cx: 左右の位置
+const deck=(W,L,nose,y,par,tip=0.25,cx=0)=>{ const sh=new THREE.Shape(), hw=W/2, hl=L/2;
+ sh.moveTo(-hw,hl-0.2); sh.quadraticCurveTo(-hw,hl,-hw+0.2,hl); sh.lineTo(hw-0.2,hl); sh.quadraticCurveTo(hw,hl,hw,hl-0.2);
+ sh.lineTo(hw,-hl+nose); sh.quadraticCurveTo(hw*0.95,-hl+nose*0.15,hw*tip,-hl); sh.lineTo(-hw*tip,-hl); sh.quadraticCurveTo(-hw*0.95,-hl+nose*0.15,-hw,-hl+nose); sh.closePath();
+ const geo=new THREE.ExtrudeGeometry(sh,{depth:0.05,bevelEnabled:false,curveSegments:16}); geo.rotateX(Math.PI/2); geo.translate(cx,y+0.05,0);
+ const m=new THREE.Mesh(geo,[cellM,bodyM]); m.castShadow=true; (par||g).add(m); return m; };
+const pivot=new THREE.Group(), up=new THREE.Group(), PX=-sd*1.0;   // 充電で傾ける軸: 胴体と反対の縁
+pivot.position.set(PX,0.95,0); up.position.set(-PX,-0.95,0); pivot.add(up); g.add(pivot);
+let decalX;
+if(kind==="wing"){
+ const fx=sd*0.62;
+ pod(4.6,0.5,1.0,bodyM,fx,0.62,0.05);                                   // 背の高い胴体 (運転席)
+ pod(4.2,0.53,0.24,accM,fx,0.55,0.15);                                 // 胴体の色の帯 (チームの色)
+ const cowl=pod(1.5,0.46,0.46,bodyM,fx,1.08,-0.75); pod(0.9,0.4,0.36,glassM,fx,1.13,-0.95);   // キャノピー (白い覆い + 前の窓)
+ pod(2.2,0.3,0.42,bodyM,-sd*0.72,0.42,0.75,null,0.7);                   // パネル外側の下の車輪ポッド
+ deck(1.6,4.4,1.3,0.86,up,0.3,-sd*0.3);                               // パネルは胴体の横から外側へ (胴体の上は覆わない)
+ wheel(fx,-1.55); wheel(fx,1.6); wheel(-sd*0.72,0.75);
+ decalX=fx+sd*0.255;
+} else {
+ for(const x of [-0.6,0.6]) pod(3.9,0.42,0.42,bodyM,x,0.45,0.1,null,0.6);
+ for(const x of [-0.6,0.6]) pod(3.6,0.45,0.14,accM,x,0.42,0.15,null,0.6);
+ deck(1.9,4.6,1.9,0.66,up,0.12);                                      // 先がとがった薄いパネル
+ const cx=sd*0.62; pod(1.3,0.44,0.5,bodyM,cx,0.86,-1.1,up); pod(0.95,0.4,0.42,glassM,cx,0.92,-1.2,up);   // 前の角の泡形キャノピー
+ wheel(-0.6,-1.5); wheel(0.6,-1.5); wheel(-0.6,1.5); wheel(0.6,1.5);
+ decalX=sd*(0.6+0.215);
+}
 // ゼッケン: 国旗 + 番号 (番号がないチームは車名の頭文字)
 const cv=document.createElement("canvas"); cv.width=256; cv.height=96; const c=cv.getContext("2d");
 c.fillStyle="#fbfbf7"; c.fillRect(0,0,256,96); c.strokeStyle="#111"; c.lineWidth=4; c.strokeRect(2,2,252,92);
@@ -445,9 +465,8 @@ if(tm&&tm.cc&&typeof HV!=="undefined"&&HV.flag) try{ HV.flag(c,tm.cc,12,22,72,52
 c.fillStyle="#111"; c.font="900 58px 'Chakra Petch',Arial,sans-serif"; c.textAlign="center"; c.textBaseline="middle";
 c.fillText(String(tm&&(tm.no||(tm.car||"").replace(/[^A-Za-z0-9]/g,"").slice(0,3).toUpperCase())||""),170,52);
 const tx=new THREE.CanvasTexture(cv); tx.encoding=THREE.sRGBEncoding;
-for(const sd of [-1,1]){ const x0= kind==="mono"? sd*0.63 : sd*0.62+sd*(kind==="asym"&&sd<0?0.37:0.31);
- const pl=new THREE.Mesh(new THREE.PlaneGeometry(0.62,0.23),new THREE.MeshBasicMaterial({map:tx})); pl.position.set(x0+sd*0.01,0.55,0.3); pl.rotation.y=sd*Math.PI/2; g.add(pl); }
-g.userData.top=pivot; g.userData.hullM=bodyM;
+const pl=new THREE.Mesh(new THREE.PlaneGeometry(0.5,0.19),new THREE.MeshBasicMaterial({map:tx})); pl.position.set(decalX+sd*0.01,0.66,-0.15); pl.rotation.y=sd*Math.PI/2; g.add(pl);
+g.userData.top=pivot; g.userData.hullM=bodyM; g.userData.tiltSign=sd;
 return g;
 },
 /* 画質を「低」に下げたとき: 物理ベースの材質 (クリア塗装・透過) を軽い材質に置き換え、路面の凹凸マップを外す */
@@ -493,7 +512,7 @@ o.tm.latV=lerp(o.tm.latV,latT,clamp(dtR*1.5,0,1));
 const nx=Math.cos(rp.h), nz=Math.sin(rp.h);
 sl.mesh.position.set(rp.x+nx*o.tm.latV,rp.y,rp.z+nz*o.tm.latV);
 sl.mesh.rotation.y=-rp.h;
-const top=sl.mesh.userData.top; if(top){ const tw=stopped&&o.tm.status==="run"? -0.6 : 0; top.rotation.z=lerp(top.rotation.z,tw,clamp(dtR*2,0,1)); }   // 充電: アッパーカウルだけ傾ける
+const top=sl.mesh.userData.top; if(top){ const tw=stopped&&o.tm.status==="run"? 0.6*(sl.mesh.userData.tiltSign||-1) : 0; top.rotation.z=lerp(top.rotation.z,tw,clamp(dtR*2,0,1)); }   // 充電: アッパーカウルだけ傾ける
 // 自車との接触: 前後 4.6 m・左右 1.7 m 以内に入ったら当たり (近づく速さで 軽い接触 / 破損 / 大破)
 if(o.tm.status!=="dnf"&&Math.abs(o.rel)<4.6&&Math.abs(this.lateral-o.tm.latV)<1.7&&!es.crashed){
  const vAi=(o.tm.vNow||0)/3.6, vn=Math.abs(es.v-vAi);
@@ -996,7 +1015,7 @@ dynColliders(es){
    const b=new THREE.Box3().setFromObject(m); m.userData._cz=[(b.min.x+b.max.x)/2,(b.min.z+b.max.z)/2]; m.position.copy(q); m.rotation.y=r; m.updateMatrixWorld(true); }
   const [ox,oz]=m.userData._cz, c=Math.cos(m.rotation.y), sn=Math.sin(m.rotation.y);
   out.push({t:2,x:m.position.x+ox*c+oz*sn,z:m.position.z-ox*sn+oz*c,h:-m.rotation.y,L,W,v,kind}); };
- for(const sl of this.aiPool||[]) if(sl.team&&sl.mesh) add(sl.mesh,4.9,1.8,(sl.team.spd||0)/3.6,"vehicle");
+ for(const sl of this.aiPool||[]) if(sl.team&&sl.mesh) add(sl.mesh,4.9,2.0,(sl.team.spd||0)/3.6,"vehicle");
  add(this.escortLead,5.6,2.0,es.v,"vehicle"); add(this.escortChase,5.6,2.0,es.v,"vehicle");
  for(const rt of this.roadTrains) add(rt.mesh,53,2.6,-27,"vehicle");
  return out;
