@@ -264,7 +264,7 @@ const Ana={
    ${kv("発電",f(S.gen/1000,2),"kWh")}${kv("消費",f(S.use/1000,2),"kWh")}${kv("回生で回収",f(S.rg,0),"Wh")}${kv("SOC 変化",(S.dsoc>0?"+":"")+f(S.dsoc,1),"%")}`;
   if(cmp){ const C=this.stats(cmp,a,b), dt=(S.t-C.t)*60;
    h+=`<div class="ph" style="margin-top:12px">${ic("users")}比較: ${escHtml(cmp.name)}</div>${kv("走行時間の差",(dt>0?"+":"")+f(dt,1),"分")}${kv("平均速度",f(C.avg,1),"km/h")}${kv("電費",f(C.whkm,1),"Wh/km")}`; }
-  h+=this.reviewUI(run);
+  h+=this.reviewUI(run)+this.calibUI(run);
   const ds=run.drivers.filter(d=>d!=="―");
   if(ds.length){ const D=ds.map(d=>({d,s:this.stats(run,a,b,d)})).filter(x=>x.s.dist>0.5);
    if(D.length){ const best=(k,low)=>{ const v=D.map(x=>x.s[k]).filter(Number.isFinite); return v.length>1? (low?Math.min(...v):Math.max(...v)) : null; };
@@ -330,6 +330,64 @@ const Ana={
    <div class="ana-note">グラフの水色の点線 = 推奨で走った場合の速度と SOC。区間の時間 = 走っていた時間 + 停車 (CS など。夜は含めない)。到着 SOC = 実際 / 推奨。</div>`;
   return h;
  },
+ /* ---------- 車両モデルの合わせ込み: 走行ログから転がり抵抗・空気抵抗・一定の消費・発電の効率を推定し、今の設定と比べる ----------
+  一定速度に近い走行中の行 (加速度が小さい・ブレーキ/回生なし) で、
+   モーター電力 - 登り/加速の分 = a·v + b·(対気速度)²·v + c  を最小二乗で解く。
+   a = Crr·m·g/η, b = ½ρ·CdA/η, c = 一定の消費 (補機・制御)。η (駆動の効率) は 0.95 と置く
+  発電: 日射 300 W/m² 以上の行で 発電 ÷ (日射 × アレイ面積) = 実効の効率 */
+ ETA:0.95,
+ calib(run){
+  if(run._cal) return run._cal;
+  const R=run.rows, m=massTotal(), g=9.81, eta=this.ETA, X=[], Y=[];
+  for(let i=1;i<R.length-1;i++){ const p=R[i-1], r=R[i], q=R[i+1];
+   if(r.st!=="走行"||!Number.isFinite(r.pm)||!Number.isFinite(r.v)||r.v<25||r.pm<=0) continue;
+   if((r.brk||0)>1||(r.rgn||0)>1) continue;
+   const dtA=(q.abs-p.abs)*3600; let acc=0; if(Number.isFinite(dtA)&&dtA>0&&Number.isFinite(q.v)&&Number.isFinite(p.v)) acc=((q.v-p.v)/3.6)/dtA;
+   if(Math.abs(acc)>0.06) continue;
+   const v=r.v/3.6, va=Math.max(0,v+(Number.isFinite(r.head)?r.head:0)), gr=Number.isFinite(r.gr)? r.gr/100 : 0;
+   const rho=Number.isFinite(r.ta)? 1.225*288.15/(273.15+r.ta) : 1.17;
+   const y=r.pm-(m*g*gr*v+m*acc*v)/eta;
+   X.push([v,va*va*v*rho/1.17,1]); Y.push(y); }
+  if(X.length<30) return run._cal={err:"一定速度で走っている行が足りません (速度・モーター電力の列が必要)"};
+  // 正規方程式 (3×3) を解く
+  const A=[[0,0,0],[0,0,0],[0,0,0]], B=[0,0,0];
+  for(let i=0;i<X.length;i++) for(let j=0;j<3;j++){ B[j]+=X[i][j]*Y[i]; for(let k=0;k<3;k++) A[j][k]+=X[i][j]*X[i][k]; }
+  const sol=(M,b)=>{ const a=M.map((r,i)=>[...r,b[i]]); for(let c=0;c<3;c++){ let p=c; for(let r=c+1;r<3;r++) if(Math.abs(a[r][c])>Math.abs(a[p][c])) p=r; [a[c],a[p]]=[a[p],a[c]]; if(Math.abs(a[c][c])<1e-12) return null;
+    for(let r=0;r<3;r++) if(r!==c){ const f=a[r][c]/a[c][c]; for(let k=c;k<4;k++) a[r][k]-=f*a[c][k]; } } return a.map((r,i)=>r[3]/r[i]); };
+  const k=sol(A,B); if(!k) return run._cal={err:"推定できませんでした (速度の幅が狭すぎる)"};
+  const mean=Y.reduce((s,y)=>s+y,0)/Y.length; let ssr=0, sst=0; for(let i=0;i<X.length;i++){ const f=k[0]*X[i][0]+k[1]*X[i][1]+k[2]; ssr+=(Y[i]-f)**2; sst+=(Y[i]-mean)**2; }
+  const out={n:X.length,r2:sst>0?1-ssr/sst:NaN,Crr:k[0]*eta/(m*g),CdA:k[1]*eta*2/1.17,aux:k[2]};
+  // 発電の実効効率 (平らなパネル)
+  let sP=0,sG=0; for(const r of R) if(Number.isFinite(r.ps)&&Number.isFinite(r.ghi)&&r.ghi>300&&r.st==="走行"){ sP+=r.ps; sG+=r.ghi*P.arrayArea; }
+  out.effPV= sG>0? sP/sG : NaN; out.effModel=P.cellEff*P.mpptEff*0.92*PRO.solarScale;
+  // 今の設定で同じ速度の並びを走った場合の消費と、実際の消費
+  let eA=0,eM=0; for(let i=1;i<R.length;i++){ const p=R[i-1], r=R[i], d=r.abs-p.abs; if(!(d>0)||d>0.5||p.st!=="走行"||r.st!=="走行"||!Number.isFinite(r.pm)) continue;
+   eA+=r.pm*d; eM+=Math.max(0,Strategy.drivePower(r.v/3.6,Number.isFinite(r.gr)?r.gr/100:0))*d; }
+  out.eAct=eA; out.eModel=eM;
+  return run._cal=out;
+ },
+ calibUI(run){
+  const C=run._cal, f=(x,d)=>Number.isFinite(x)?x.toFixed(d):"―";
+  let h=`<div class="ph" style="margin-top:12px">${ic("sliders")}車両モデルの合わせ込み</div>`;
+  if(!C) return h+`<div class="ana-note" style="margin-top:0">走行ログの速度・モーター電力・発電・日射から、転がり抵抗・空気抵抗 (CdA)・一定の消費・発電の効率を推定し、今の設定と比べます。実戦のログ (同じ列名の CSV) で使えます。</div><button class="btn ana-sm" onclick="Ana.runCalib()">${ic("play")}推定する</button>`;
+  if(C.err) return h+`<div class="ana-note">${escHtml(C.err)}</div>`;
+  const cur={Crr:P.Crr,CdA:P.Cd*P.frontal,aux:P.auxW}, pct=(a,b)=>Number.isFinite(a)&&b? `${a>b?"+":""}${((a/b-1)*100).toFixed(0)} %` : "―";
+  h+=`<div class="ana-rvt" style="grid-template-columns:1.4fr 1fr 1fr 0.8fr"><span class="lb">項目</span><span class="lb">ログから</span><span class="lb">今の設定</span><span class="lb">差</span>
+   <span>転がり抵抗 Crr</span><span>${f(C.Crr,4)}</span><span>${f(cur.Crr,4)}</span><span>${pct(C.Crr,cur.Crr)}</span>
+   <span>空気抵抗 CdA m²</span><span>${f(C.CdA,3)}</span><span>${f(cur.CdA,3)}</span><span>${pct(C.CdA,cur.CdA)}</span>
+   <span>一定の消費 W</span><span>${f(C.aux,0)}</span><span>${f(cur.aux,0)}</span><span>${pct(C.aux,cur.aux)}</span>
+   <span>発電の実効効率</span><span>${f(C.effPV*100,1)} %</span><span>${f(C.effModel*100,1)} %</span><span>${pct(C.effPV,C.effModel)}</span>
+   <span>走行の消費 kWh</span><span>${f(C.eAct/1000,2)}</span><span>${f(C.eModel/1000,2)}</span><span>${pct(C.eAct,C.eModel)}</span></div>
+   <div class="ana-note">使った行 ${C.n}・当てはまり R² ${f(C.r2,2)}${C.r2<0.6?" (低い: 速度の幅が狭い・風や加速の影響が大きい)":""}。「今の設定」の消費 = この走行と同じ速度・勾配で今の設定のモデルを走らせた値。CdA は空気抵抗係数 × 前面投影面積、Crr は η=${this.ETA} と置いた推定。発電は温度・角度の影響を含んだ実効値。</div>
+   <button class="btn ana-sm" onclick="Ana.applyCalib()" ${C.r2>=0.5?"":"disabled"}>${ic("check")}推定値を設定に反映</button>`;
+  return h;
+ },
+ runCalib(){ const run=this.run(); if(!run) return; try{ this.calib(run); }catch(e){ run._cal={err:"推定できませんでした: "+e.message}; } this.renderPane(); },
+ applyCalib(){ const C=this.run()&&this.run()._cal; if(!C||C.err) return;
+  if(!confirm(`推定値を車両の設定に反映します (この端末に保存)。\nCrr ${C.Crr.toFixed(4)}・Cd ${(C.CdA/P.frontal).toFixed(3)} (CdA ${C.CdA.toFixed(3)} ÷ 前面投影 ${P.frontal})・一定の消費 ${C.aux.toFixed(0)} W${Number.isFinite(C.effPV)?`・セル効率 ${(C.effPV/(P.mpptEff*0.92*PRO.solarScale)*100).toFixed(1)} %`:""}`)) return;
+  const set=(id,v)=>{ const s=SLIDERS.find(x=>x.id===id); if(!s||!Number.isFinite(v)) return; P[id]=clamp(v,s.min,s.max); const el=document.getElementById("sl-"+id); if(el) el.value=P[id]; refreshSliderLabel(id); };
+  set("Crr",C.Crr); set("Cd",C.CdA/P.frontal); set("auxW",C.aux); if(Number.isFinite(C.effPV)) set("cellEff",C.effPV/(P.mpptEff*0.92*PRO.solarScale));
+  refreshDerived(); Settings.save(); this.run()._cal=null; Strategy.last=null; toast("車両の設定に反映しました","#34d399"); this.renderPane(); },
  runReview(){ const run=this.run(); if(!run) return; toast("計算中…","#22d3ee"); setTimeout(()=>{ try{ this.review(run); }catch(e){ run._rev={err:"計算できませんでした: "+e.message}; } this.renderPane(); this.drawCharts(); },30); },
  /* ---------- 立体地図 ---------- */
  renderMap(){
