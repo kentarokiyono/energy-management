@@ -387,3 +387,15 @@ body.touch-on.walking #crew-ui{ top:60px!important; }
 @keyframes fadebar{ 0%{ transform:translateX(-100%); } 100%{ transform:translateX(250%); } }
 @media (max-width:520px){ #fade .fade-name{ font-size:12px; letter-spacing:.18em; } }
 @media (prefers-reduced-motion: reduce){ #fade, #fade.out{ transition-duration:.12s; } #fade.on .fade-in>*, #fade.out .fade-in>*{ animation:none; opacity:1; transform:none; filter:none; } #fade .fade-bar i{ animation:none; width:100%; } }
+
+/* 練習シナリオの採点 */
+.scn-res{ position:fixed; inset:0; z-index:90; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.6); }
+.scn-res.on{ display:flex; }
+.scn-res .box{ width:min(520px,calc(100vw - 32px)); max-height:calc(100vh - 32px); overflow:auto; background:var(--pn); border:1px solid var(--ln); border-top:2px solid var(--acc); padding:18px 20px; }
+.scn-res h3{ font:700 20px var(--fn); margin:2px 0 6px; }
+.scn-res .why{ color:#ef6a5a; font-size:13px; margin-bottom:6px; }
+.scn-res .score{ display:flex; align-items:baseline; gap:6px; margin:6px 0 10px; } .scn-res .score b{ font:800 44px var(--fn); color:var(--acc); } .scn-res .score span{ color:var(--tx2); }
+.scn-res .rows{ display:grid; grid-template-columns:auto 1fr auto; gap:5px 12px; font-size:13px; }
+.scn-res .rows .bad{ color:#ef6a5a; font-family:var(--fn); } .scn-res .rows .good{ color:var(--ok); font-family:var(--fn); }
+.scn-res ul{ margin:4px 0 0 18px; font-size:12.5px; color:var(--tx2); line-height:1.7; list-style:disc; }
+.scn-res .btns{ display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }

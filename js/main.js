@@ -33,6 +33,8 @@ Engine.st.hour=10.5;
 document.getElementById("event-hud").classList.remove("hidden");
 } else {
 P.timeScale=parseInt(document.getElementById("time-scale").value);
+const scn= P.mode==="race"&&!P.event? Scenario.pick() : null; Scenario.reset();
+if(scn) P.timeScale=Scenario.LIST[scn].ts;   // 練習シナリオは時間をゆっくり
 document.getElementById("event-hud").classList.add("hidden");
 }
 eventElapsed=0;
@@ -45,7 +47,9 @@ document.getElementById("tilt-val").textContent=Engine.st.tiltDeg+"°";
 Radio.log.length=0; document.getElementById("radio-log").innerHTML="";
 Route.build(P.timeScale, P.mode!=="race");   // イベントモードは等倍ゾーンなし
 const chap= P.mode==="race"&&!P.event? parseInt((document.getElementById("chapter")||{}).value||"0") : 0;
-if(chap>0) Engine.applyChapter(chap);   // チャプター: CS の 2 km 手前から
+const scnId= P.mode==="race"&&!P.event? Scenario.pick() : null;
+if(scnId) Scenario.apply(scnId);   // 練習シナリオ (チャプターより優先)
+else if(chap>0) Engine.applyChapter(chap);   // チャプター: CS の 2 km 手前から
 RunLog.start();
 View.init(); View.buildCar(); View.buildEscorts();
 if(!MapUI.built) MapUI.build(); MapUI.reset(); MapUI.toggle(false);
@@ -53,6 +57,7 @@ initChart(); lastChartPush=0;
 running=true; paused=false; lastT=performance.now();
 requestAnimationFrame(loop);
 if(P.event) EventGame.begin();
+else if(Engine.st.scenario){}
 else if(Engine.st.chapter){ const c=RP_CS.find(q=>q.n===Engine.st.chapter), es=Engine.st, h=Math.floor(es.hour), mi=Math.floor(es.hour%1*60);
  Radio.push(`チャプター: CS${c.n} ${c.name} の 2 km 手前から。Day${es.day} ${h}:${String(mi).padStart(2,"0")}、電池 ${(es.soc*100).toFixed(0)} % (標準ペース 70 km/h の見積もり)。`); }
 else { const es=Engine.st, m=Math.round((es.gridStartH-8)*60);
@@ -88,6 +93,7 @@ if(eventElapsed>=EVENT_DURATION&&!es.finished){ es.finished=true; showResult(); 
 }
 View.update(dtR);
 if(P.event) EventGame.post();
+Scenario.frame(es,dtR);
 if(P.mode==="race"&&!es.finished&&!es.trailering) es.km=View.kmOfS(View.s);   // 走行位置(本線への射影)を正とする
 Snd.update(es.v, es.lastAmp/Math.max(motorMaxA(es.powerMode),1), es.fire);
 if(typeof Crew!=="undefined"&&Crew.phase==="outside") FFB.update(null); else FFB.update(FFB.fromRace(es,dtR));   // 振動・反力 (車外を歩いている間は止める)
@@ -118,6 +124,7 @@ setEventLevel(EventGame.level); setEventCourse(EventGame.course); setEventPracti
 segFromSelect("time-scale","seg-ts");
 segFromSelect("log-step","seg-log");
 segFromSelect("gfx","seg-gfx");
+segFromSelect("scenario","seg-scn",o=>o.value===""?"なし":o.textContent);
 segFromSelect("ffb","seg-ffb",o=>o.value==="off"?"振動 OFF":o.textContent);
 FFB.init();
 refreshQuali();

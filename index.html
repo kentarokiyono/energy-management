@@ -6,11 +6,11 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'self' blob: data:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>BWSC 3D Racing Simulator</title>
-<link rel="stylesheet" href="css/fonts.css?v=20261108-f1">
-<link rel="stylesheet" href="css/style.css?v=20261108-f1">
-<link rel="stylesheet" href="css/theme.css?v=20261108-f1">
+<link rel="stylesheet" href="css/fonts.css?v=20261108-s2">
+<link rel="stylesheet" href="css/style.css?v=20261108-s2">
+<link rel="stylesheet" href="css/theme.css?v=20261108-s2">
 <link rel="icon" href="assets/img/logo.svg">
-<link rel="stylesheet" href="css/tailwind.css?v=20261108-f1">
+<link rel="stylesheet" href="css/tailwind.css?v=20261108-s2">
 <script src="js/lib/three.min.js"></script>
 <script src="js/lib/three-post.js"></script>
 <script src="js/lib/chart.umd.js"></script>
@@ -52,7 +52,7 @@
 <button class="btn" onclick="Fade.go(()=>Ana.open())"><span data-ic="chart"></span> 走行の分析</button>
 <span class="lb" id="gamepad-status">未検出</span>
 </div>
-<div class="build">BUILD 20261108-f1</div>
+<div class="build">BUILD 20261108-s2</div>
 </div>
 <div class="r">
 <div class="sec"><h4><span data-ic="car"></span>BODY / SOLAR CELL</h4>
@@ -75,6 +75,8 @@
 <div class="sec"><h4><span data-ic="flag"></span>RACE</h4>
 <div class="opts" style="align-items:flex-start;gap:22px">
 <div><div class="lb mb-2">時間加速</div><div class="seg" id="seg-ts"></div></div>
+<div title="天候の急変を練習する場面から始める (時間はゆっくり進む)。選ぶとチャプターより優先"><div class="lb mb-2">練習シナリオ</div><div class="seg" id="seg-scn"></div></div>
+<select id="scenario" class="hidden"><option value="" selected>なし</option><option value="squall">スコール</option><option value="cross">強い横風</option><option value="cloud">長い曇り</option></select>
 <div title="コントロールストップの 2 km 手前から始める。日時・電池残量は標準ペース (70 km/h) での見積もり"><div class="lb mb-2">チャプター (CS の 2 km 手前から)</div><div class="seg" id="seg-chap"></div></div>
 </div>
 <select id="time-scale" class="hidden">
@@ -370,51 +372,52 @@
 <div style="display:flex;justify-content:flex-end;gap:10px"><button class="btn" onclick="Fade.go(()=>Ana.open())"><span data-ic="chart"></span>分析</button><button class="btn" id="log-btn-result" onclick="RunLog.download()">📄 走行ログ (CSV)</button><button class="btn pri" onclick="Fade.go(quitToMenu)"><span data-ic="home"></span>メニューへ戻る</button></div>
 </div>
 </div>
-<script src="js/data/route-2025.js?v=20261108-f1"></script>
-<script src="js/data/route-plan.js?v=20261108-f1"></script>
-<script src="js/data/route-osm.js?v=20261108-f1"></script>
-<script src="js/data/route-geo.js?v=20261108-f1"></script>
-<script src="js/data/weather-2025.js?v=20261108-f1"></script>
-<script src="js/route.js?v=20261108-f1"></script>
-<script src="js/data/australia.js?v=20261108-f1"></script>
-<script src="js/geo.js?v=20261108-f1"></script>
-<script src="js/data.js?v=20261108-f1"></script>
+<script src="js/data/route-2025.js?v=20261108-s2"></script>
+<script src="js/data/route-plan.js?v=20261108-s2"></script>
+<script src="js/data/route-osm.js?v=20261108-s2"></script>
+<script src="js/data/route-geo.js?v=20261108-s2"></script>
+<script src="js/data/weather-2025.js?v=20261108-s2"></script>
+<script src="js/route.js?v=20261108-s2"></script>
+<script src="js/data/australia.js?v=20261108-s2"></script>
+<script src="js/geo.js?v=20261108-s2"></script>
+<script src="js/data.js?v=20261108-s2"></script>
 <!-- 実車諸元 (手元だけのファイル): 書き換えがすぐ反映されるよう毎回キャッシュを使わずに読む -->
 <script>document.write('<script src="js/data/vehicle-private.js?t='+Date.now()+'" onerror="window.__vehPrivMissing=true"><\/script>');</script>
-<script src="js/vehicle.js?v=20261108-f1"></script>
-<script src="js/physics.js?v=20261108-f1"></script>
-<script src="js/setup-ui.js?v=20261108-f1"></script>
-<script src="js/audio.js?v=20261108-f1"></script>
-<script src="js/audio-radio.js?v=20261108-f1"></script>
-<script src="js/engine.js?v=20261108-f1"></script>
-<script src="js/controls.js?v=20261108-f1"></script>
-<script src="js/ffb.js?v=20261108-f1"></script>
-<script src="js/collide.js?v=20261108-f1"></script>
-<script src="js/render/quality.js?v=20261108-f1"></script>
-<script src="js/render/post.js?v=20261108-f1"></script>
-<script src="js/render/textures.js?v=20261108-f1"></script>
-<script src="js/render/yata.js?v=20261108-f1"></script>
-<script src="js/render/sky.js?v=20261108-f1"></script>
-<script src="js/render/biome.js?v=20261108-f1"></script>
-<script src="js/render/geobatch.js?v=20261108-f1"></script>
-<script src="js/render/materials.js?v=20261108-f1"></script>
-<script src="js/render/props.js?v=20261108-f1"></script>
-<script src="js/render/scenery.js?v=20261108-f1"></script>
-<script src="js/data/hidden-valley.js?v=20261108-f1"></script>
-<script src="js/render/hiddenvalley.js?v=20261108-f1"></script>
-<script src="js/render/cockpit.js?v=20261108-f1"></script>
-<script src="js/render/view.js?v=20261108-f1"></script>
-<script src="js/crew.js?v=20261108-f1"></script>
-<script src="js/strategy.js?v=20261108-f1"></script>
-<script src="js/runlog.js?v=20261108-f1"></script>
-<script src="js/hud.js?v=20261108-f1"></script>
-<script src="js/test-mode.js?v=20261108-f1"></script>
-<script src="js/lib/qrcode.js?v=20261108-f1"></script>
-<script src="js/event-game.js?v=20261108-f1"></script>
-<script src="js/ui/fade.js?v=20261108-f1"></script>
-<script src="js/ui/icons.js?v=20261108-f1"></script>
-<script src="js/ui/analysis.js?v=20261108-f1"></script>
-<script src="js/ui/map.js?v=20261108-f1"></script>
-<script src="js/main.js?v=20261108-f1"></script>
+<script src="js/vehicle.js?v=20261108-s2"></script>
+<script src="js/physics.js?v=20261108-s2"></script>
+<script src="js/setup-ui.js?v=20261108-s2"></script>
+<script src="js/audio.js?v=20261108-s2"></script>
+<script src="js/audio-radio.js?v=20261108-s2"></script>
+<script src="js/engine.js?v=20261108-s2"></script>
+<script src="js/controls.js?v=20261108-s2"></script>
+<script src="js/ffb.js?v=20261108-s2"></script>
+<script src="js/scenario.js?v=20261108-s2"></script>
+<script src="js/collide.js?v=20261108-s2"></script>
+<script src="js/render/quality.js?v=20261108-s2"></script>
+<script src="js/render/post.js?v=20261108-s2"></script>
+<script src="js/render/textures.js?v=20261108-s2"></script>
+<script src="js/render/yata.js?v=20261108-s2"></script>
+<script src="js/render/sky.js?v=20261108-s2"></script>
+<script src="js/render/biome.js?v=20261108-s2"></script>
+<script src="js/render/geobatch.js?v=20261108-s2"></script>
+<script src="js/render/materials.js?v=20261108-s2"></script>
+<script src="js/render/props.js?v=20261108-s2"></script>
+<script src="js/render/scenery.js?v=20261108-s2"></script>
+<script src="js/data/hidden-valley.js?v=20261108-s2"></script>
+<script src="js/render/hiddenvalley.js?v=20261108-s2"></script>
+<script src="js/render/cockpit.js?v=20261108-s2"></script>
+<script src="js/render/view.js?v=20261108-s2"></script>
+<script src="js/crew.js?v=20261108-s2"></script>
+<script src="js/strategy.js?v=20261108-s2"></script>
+<script src="js/runlog.js?v=20261108-s2"></script>
+<script src="js/hud.js?v=20261108-s2"></script>
+<script src="js/test-mode.js?v=20261108-s2"></script>
+<script src="js/lib/qrcode.js?v=20261108-s2"></script>
+<script src="js/event-game.js?v=20261108-s2"></script>
+<script src="js/ui/fade.js?v=20261108-s2"></script>
+<script src="js/ui/icons.js?v=20261108-s2"></script>
+<script src="js/ui/analysis.js?v=20261108-s2"></script>
+<script src="js/ui/map.js?v=20261108-s2"></script>
+<script src="js/main.js?v=20261108-s2"></script>
 </body>
 </html>
