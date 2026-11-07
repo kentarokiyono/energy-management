@@ -180,6 +180,39 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   await shot(p,"test");
   check("予選: エラーなし",noErr(p).length===0,noErr(p).slice(0,2).join(" | "));
   await p.context().close(); }
+ // ---- ヒドゥンバレー: コースを 1 周すると周回が数えられる (車をコースの点に沿って動かす) ----
+ { const p=await newPage(b,base);
+  await p.evaluate(()=>{ window.pushChart=()=>{}; P.mode="test"; P.testKind="circuit"; startGame(); }); await p.waitForTimeout(1200);
+  await p.evaluate(()=>{ const T=HV.track(), n=T.pts.length; let i=Test.lastIdx||0, moved=0; Test.v=12; Test.state="run";
+   window._lapT=setInterval(()=>{ const step=Math.max(1,Math.round(n/60)); i=(i+step)%n; moved+=step; const q=T.pts[i]; Test.x=q.x; Test.z=q.z; Test.v=12; if(moved>n*1.3) clearInterval(window._lapT); },60); });
+  await p.waitForFunction(()=>Test.laps.length>=1,null,{timeout:60000}).catch(()=>{});
+  const lp=await p.evaluate(()=>{ clearInterval(window._lapT); return {laps:Test.laps.length,t:Test.laps[0]}; });
+  check("ヒドゥンバレー: 周回の計測",lp.laps>=1&&lp.t>0,JSON.stringify(lp));
+  await p.context().close(); }
+ // ---- 振動・反力: 仮のゲームパッドと仮のハンコンで、出力の向きと強さ・OFF・項目ごとの強さ ----
+ { const ctx=await b.newContext({viewport:{width:1280,height:720}}); await ctx.addInitScript(()=>{ window._rum=[];
+   const pad={id:"Fake",index:0,connected:true,axes:[0,0,0,0],buttons:[{pressed:false}],vibrationActuator:{playEffect:(t,o)=>{ window._rum.push([o.strongMagnitude,o.weakMagnitude]); return Promise.resolve("complete"); }}};
+   navigator.getGamepads=()=>[pad]; });
+  const p=await ctx.newPage(); p.errs=[]; p.on("pageerror",e=>p.errs.push(e.message));
+  await p.goto(base+"index.html"); await p.waitForFunction(()=>typeof FFB==="object"); await p.waitForTimeout(300);
+  const f=await p.evaluate(async()=>{ const hid=[]; FFB.hid={sendReport:(id,d)=>{ hid.push([...d]); return Promise.resolve(); }}; P.ffb="high"; P.ffbTune={};
+   const base={v:25,steer:0,offroad:false,shoulder:false,rough:0.65,cross:0,trainRel:null,brake:0,gLat:0,dt:1/60};
+   const run=async(mod)=>{ window._rum.length=0; hid.length=0; FFB.on=false; for(let i=0;i<30;i++){ FFB.tSend=0; FFB.update(Object.assign({},base,mod)); await new Promise(r=>setTimeout(r,2)); }
+    const R=window._rum, H=hid.filter(x=>x[0]===0x11).map(x=>x[2]-128); return {s:R.reduce((a,x)=>a+x[0],0)/Math.max(1,R.length),w:R.reduce((a,x)=>a+x[1],0)/Math.max(1,R.length),t:H.length?H.reduce((a,x)=>a+x,0)/H.length:0,n:R.length}; };
+   const paved=await run({}), off=await run({offroad:true}), right=await run({steer:0.5});
+   P.ffbTune={road:0}; const noRoad=await run({}); P.ffbTune={};
+   P.ffb="off"; const offMode=await run({offroad:true}); P.ffb="mid";
+   return {paved,off,right,noRoad,offMode}; });
+  check("振動・反力",f.paved.n>0&&f.paved.w>0.05&&f.paved.s<0.05&&f.off.s>0.3&&f.right.t<-10&&f.noRoad.w<0.01&&f.offMode.n===0,JSON.stringify(f));
+  await ctx.close(); }
+ // ---- 分析画面 (スマホ縦): 地図・グラフ・右の欄が並び、地図の上の表示が重ならない ----
+ { const p=await newPage(b,base,{vp:{width:390,height:844},touch:true});
+  await p.evaluate(()=>Ana.open()); await p.waitForTimeout(1500);
+  const m=await p.evaluate(()=>{ const r=id=>document.getElementById(id).getBoundingClientRect(), mp=r("ana-map"), ch=r("ana-charts"), pn=r("ana-pane"), lg=r("ana-leg"), pl=r("ana-play"), cv=document.querySelector("#ana-map canvas").getBoundingClientRect();
+   const ov=(a,b)=>a.left<b.right-1&&b.left<a.right-1&&a.top<b.bottom-1&&b.top<a.bottom-1;
+   return {mapW:Math.round(mp.width),cvW:Math.round(cv.width),chartH:Math.round(ch.height),order:mp.top<ch.top&&ch.top<pn.top,legPlay:ov(lg,pl)}; });
+  check("分析画面 (スマホ縦)",m.mapW===390&&m.cvW===390&&m.chartH>=300&&m.order&&!m.legPlay,JSON.stringify(m));
+  await p.context().close(); }
  // ---- スマホ横画面: 部品が重ならない ----
  for(const vp of [{width:932,height:430},{width:844,height:390}]){ const p=await newPage(b,base,{vp,touch:true});
   await p.evaluate(()=>{ window.pushChart=()=>{}; P.uiMode="mobile"; P.mode="race"; P.crewProc=false; startGame(); modalPause=false; });
