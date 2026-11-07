@@ -67,8 +67,8 @@ const DS=THREE.DoubleSide;
 // 画質「標準」以上: 物理ベース (塗装はウレタンのクリア、セルはシリコンの青い反射、窓は透ける)。「低」は軽い材質のまま
 const PBR=typeof GFX==="undefined"||GFX.key()!=="low";
 const paint=(c)=>PBR? new THREE.MeshPhysicalMaterial({color:c,metalness:.1,roughness:.15,clearcoat:1,clearcoatRoughness:.05,side:DS,envMapIntensity:1}) : new THREE.MeshStandardMaterial({color:c,roughness:.5,side:DS,envMapIntensity:.3});
-const matWhite=paint(0xe8eaee);
-const matOrange=paint(BD.livery?0xe2560a:0xf27316);
+const matWhite=paint(BD.base!=null?BD.base:0xe8eaee);   // BD.base / BD.accent: 他チームの車の色
+const matOrange=paint(BD.accent!=null?BD.accent:BD.livery?0xe2560a:0xf27316);
 const matSkirt=PBR? new THREE.MeshPhysicalMaterial({color:0x101216,metalness:.1,roughness:.3,clearcoat:.8,clearcoatRoughness:.1,side:DS,envMapIntensity:.8}) : new THREE.MeshStandardMaterial({color:0x101216,roughness:.5,side:DS});
 const matArray=PBR? new THREE.MeshPhysicalMaterial({color:0x141b4d,metalness:.85,roughness:.2,reflectivity:.9,clearcoat:.6,clearcoatRoughness:.08,map:T.cellL,side:DS,envMapIntensity:1})
  : new THREE.MeshPhysicalMaterial({color:0x0b0e12,roughness:.42,clearcoat:.5,clearcoatRoughness:.25,map:T.cell,side:DS,envMapIntensity:.35});
@@ -109,7 +109,7 @@ const cu0=(O.canopyX-O.canopyLen*0.52)/O.L, cu1=(O.canopyX+O.canopyLen*0.52)/O.L
 const OPN={w:0,z0:1e9,z1:-1e9,yTop:0,yMin:1e9};
 for(let i=0;i<O.seg;i++)for(let r=0;r<R;r++){
 const r2=(r+1)%R,u=i/O.seg;
-if(TYP[i][r]==="K"){ const uc=(i+.5)/O.seg, xc=(Pp[i][r].x+Pp[i][r2].x+Pp[i+1][r].x+Pp[i+1][r2].x)/4;
+if(TYP[i][r]==="K"&&!BD.noOpening){ const uc=(i+.5)/O.seg, xc=(Pp[i][r].x+Pp[i][r2].x+Pp[i+1][r].x+Pp[i+1][r2].x)/4;
  if(uc>cu0&&uc<cu1&&Math.abs(xc)<cw0){ for(const q of [Pp[i][r],Pp[i][r2],Pp[i+1][r],Pp[i+1][r2]]){ OPN.w=Math.max(OPN.w,Math.abs(q.x)); OPN.z0=Math.min(OPN.z0,q.z); OPN.z1=Math.max(OPN.z1,q.z); OPN.yTop=Math.max(OPN.yTop,q.y); OPN.yMin=Math.min(OPN.yMin,q.y); } continue; } }
 const zm=(Pp[i][r].y+Pp[i][r2].y)/2;
 let b=TYP[i][r]==="K"?bS:(u<O.orangeU?bO:(zm<O.skirtZ?bS:bW));
@@ -186,15 +186,15 @@ if(BD.canopyShape==="yata61"){
  cg.setIndex(grp0.concat(grp1)); cg.addGroup(0,grp0.length,0); cg.addGroup(grp0.length,grp1.length,1); cg.computeVertexNormals();
  canopy=new THREE.Mesh(cg,[
   glassMat(0x2a3036,new THREE.MeshPhysicalMaterial({color:0x232528,roughness:.3,clearcoat:.4,envMapIntensity:.15,side:DS})),   // 横窓 (濃いグレー)
-  new THREE.MeshPhysicalMaterial({color:0x050607,roughness:.35,clearcoat:.5,envMapIntensity:.2,side:DS})]);  // 本体 (黒)
+  new THREE.MeshPhysicalMaterial({color:BD.canopyCol!=null?BD.canopyCol:0x050607,roughness:.35,clearcoat:.5,envMapIntensity:.2,side:DS})]);  // 本体 (黒。他チームは BD.canopyCol)
  canopy.castShadow=true; grp.add(canopy);
- // 「61 YATA」(キャノピー後半の両側)
- if(!YATA_CACHE.logo){ const cv=document.createElement("canvas"); cv.width=256; cv.height=160; const c=cv.getContext("2d");
+ // 「61 YATA」(キャノピー後半の両側。他チームの車には付けない)
+ if(!BD.noLogo&&!YATA_CACHE.logo){ const cv=document.createElement("canvas"); cv.width=256; cv.height=160; const c=cv.getContext("2d");
   c.font="italic bold 78px Arial Black,Arial,sans-serif"; c.textAlign="center";
   const g1=c.createLinearGradient(0,10,0,80); g1.addColorStop(0,"#ff6a00"); g1.addColorStop(1,"#ffd21f"); c.fillStyle=g1; c.fillText("61",120,74);
   c.font="italic bold 58px Arial Black,Arial,sans-serif"; c.fillStyle="#ffd21f"; c.fillText("YATA",128,140);
   YATA_CACHE.logo=new THREE.CanvasTexture(cv); YATA_CACHE.logo.encoding=THREE.sRGBEncoding; }
- for(const sd of [-1,1]){ const u=0.74, a=O.canopyW/2*wf(u)*Math.pow(Math.abs(Math.cos(Math.PI*0.3)),.5);
+ if(!BD.noLogo) for(const sd of [-1,1]){ const u=0.74, a=O.canopyW/2*wf(u)*Math.pow(Math.abs(Math.cos(Math.PI*0.3)),.5);
   const lg=new THREE.Mesh(new THREE.PlaneGeometry(0.34,0.21),new THREE.MeshBasicMaterial({map:YATA_CACHE.logo,transparent:true,side:DS,depthWrite:false}));
   lg.position.set(sd*(O.canopyW/2+0.004),apC-0.03+Hc*hf(u)*0.55,z0+u*Lc); lg.rotation.y=sd*Math.PI/2; canopy.add(lg); }
 } else {
@@ -214,7 +214,7 @@ cg.setIndex(g0.concat(g1));cg.clearGroups();
 cg.addGroup(0,g0.length,0);cg.addGroup(g0.length,g1.length,1);cg.computeVertexNormals();
 canopy=new THREE.Mesh(cg,[   // 外から見て黒 (スモーク) のキャノピー: 照り返しは控えめ
 glassMat(0x1a1e22,new THREE.MeshPhysicalMaterial({color:0x040506,roughness:.3,clearcoat:.6,clearcoatRoughness:.25,envMapIntensity:.25,side:DS})),
-new THREE.MeshPhysicalMaterial({color:0x040506,roughness:.35,clearcoat:.5,clearcoatRoughness:.3,envMapIntensity:.2,side:DS})]);
+new THREE.MeshPhysicalMaterial({color:BD.canopyCol!=null?BD.canopyCol:0x040506,roughness:.35,clearcoat:.5,clearcoatRoughness:.3,envMapIntensity:.2,side:DS})]);
 canopy.castShadow=true;grp.add(canopy);
 }
 /* ==== アッパーカウル: 充電のときはこれだけを傾ける (ロアカウル = 胴体は地面に置いたまま)。
