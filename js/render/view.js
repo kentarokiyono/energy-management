@@ -54,7 +54,7 @@ for(let i=0;i<12;i++){
   pl.visible=false;pl.frustumCulled=false;this.scene.add(pl);this.speedLines.push(pl);
 }
 this.aiPool=[];
-for(let i=0;i<6;i++){ const m=this.mkAICar(); m.visible=false; this.scene.add(m); this.aiPool.push({mesh:m,team:null}); }
+for(let i=0;i<10;i++){ const m=this.mkAICar(); m.visible=false; this.scene.add(m); this.aiPool.push({mesh:m,team:null}); }
 this.roadTrains.length=0; this.rollT=0;
 this.lmMap.clear(); this.redSignalKm=null; this.inPit=false; this.pitBlend=0; this.fireOn=false;
 this.resetRoad();
@@ -88,7 +88,7 @@ if(P.shape==="wadai"){
 const SB=VEH.active?VEH.spec.body:null;
 const Y=buildYATA(SB); this.cockOpening=Y.opening;
 body.add(Y.group);
-g.userData.canopy=Y.canopy;
+g.userData.canopy=Y.canopy; g.userData.upperTilt=Y.tilt;
 // 車輪 (諸元にある場合): [x, z(車体中心基準, 前方 -), 半径, 幅]
 if(SB&&SB.wheels){ const tm=new THREE.MeshStandardMaterial({color:0x111316,roughness:.85}), hm=new THREE.MeshStandardMaterial({color:0x8a8f96,roughness:.4,metalness:.6});
  g.userData.wheels=[];
@@ -144,8 +144,8 @@ if(LP&&LP.stop){ for(const [x,z,y] of LP.stop){ const b2=new THREE.Mesh(new THRE
   // ハイマウント (高い位置のもの) はキャノピー後端の表面に載せる
   const cn=g.userData.canopy; if(y>0.8&&cn){ body.updateMatrixWorld(true); cn.geometry.computeBoundingBox(); const bb=cn.geometry.boundingBox;
    const zz=bb.max.z-0.1, rc=new THREE.Raycaster(new THREE.Vector3(x,3,zz),new THREE.Vector3(0,-1,0)), h=rc.intersectObject(cn,false)[0];
-   if(h){ b2.position.set(x,h.point.y+0.012,zz); const n=h.face.normal; b2.rotation.x=-Math.atan2(n.z,n.y); } }
-  body.add(b2); } }
+   if(h){ b2.position.set(x,h.point.y+0.012,zz); const n=h.face.normal; b2.rotation.x=-Math.atan2(n.z,n.y); cn.add(b2); } }   // キャノピーと一緒に動く
+  if(!b2.parent) body.add(b2); } }
 else { const bl=new THREE.Mesh(new THREE.BoxGeometry(isW?0.22:0.7,isW?0.035:0.05,0.04),brakeMat);
 bl.position.set(0,isW?0.50:0.53,isW?2.52:2.18);body.add(bl); } // アレイ直下の細いブレーキライト
 g.userData.brakeMat=brakeMat;
@@ -161,8 +161,8 @@ for(const [wx,wz,wy] of winkPos){
   if(hullMeshes.length){ const sd=Math.sign(wx)||1, rc=new THREE.Raycaster(new THREE.Vector3(sd*3,wk.position.y,wz),new THREE.Vector3(-sd,0,0));
    const h=rc.intersectObjects(hullMeshes,false)[0];
    if(h){ wk.geometry.dispose(); wk.geometry=new THREE.BoxGeometry(0.012,0.04,0.22); const n=h.face.normal.clone().transformDirection(h.object.matrixWorld);
-    wk.position.copy(h.point).addScaledVector(n,-0.003); wk.lookAt(wk.position.clone().add(n)); wk.rotateY(Math.PI/2); } }
-  body.add(wk);
+    wk.position.copy(h.point).addScaledVector(n,-0.003); wk.lookAt(wk.position.clone().add(n)); wk.rotateY(Math.PI/2); if(h.object.userData.upper) h.object.add(wk); } }   // アッパーカウルに付くものは一緒に傾く
+  if(!wk.parent) body.add(wk);
   (wx<0?g.userData.winkL:g.userData.winkR).push(wm);
 }
 // 後端の両角: 透明レンズのブレーキランプ兼ウインカー/ハザード (諸元 lamps.rearCombo: [x, z, y, 幅])
@@ -418,7 +418,7 @@ const hullM=new THREE.MeshPhongMaterial({color:0xffffff});
 const hull=new THREE.Mesh(new THREE.SphereGeometry(0.6,16,12),hullM);
 hull.scale.set(1.6,0.55,3.8); hull.position.y=0.45; g.add(hull);
 const top=new THREE.Mesh(new THREE.BoxGeometry(1.8,0.05,4.0),new THREE.MeshPhongMaterial({color:0x101a2c}));
-top.position.y=0.72; g.add(top);
+top.position.y=0.72; g.add(top); g.userData.top=top;
 const can=new THREE.Mesh(new THREE.SphereGeometry(0.3,12,10),new THREE.MeshPhongMaterial({color:0x0a1015}));
 can.scale.set(0.9,0.9,1.6); can.position.set(0,0.9,-0.2); g.add(can);
 g.userData.hullM=hullM;
@@ -429,11 +429,11 @@ if(P.mode!=="race"||!es.teams||!this.aiPool){ if(this.aiPool) this.aiPool.forEac
 const near=[];
 for(const tm of es.teams){
 if(tm.status==="pre") continue;
-const rel=Route.visDist(es.km,tm.km);
-if(Math.abs(rel)<1200) near.push({tm,rel});
+const rel=Route.visDist(es.km,tm.km), keep=this.aiPool.some(sl=>sl.team===tm);
+if(Math.abs(rel)<(keep?1400:1150)) near.push({tm,rel,keep});   // 出す距離と消す距離に差をつけて、境目で出たり消えたりしない
 }
-near.sort((a,b)=>Math.abs(a.rel)-Math.abs(b.rel));
-const shown=near.slice(0,6);
+near.sort((a,b)=>(b.keep-a.keep)||Math.abs(a.rel)-Math.abs(b.rel));   // いま出ている車を優先 (入れ替わりで消えない)
+const shown=near.slice(0,this.aiPool.length);
 for(const sl of this.aiPool){ if(!shown.some(o=>o.tm===sl.team)){ sl.team=null; sl.mesh.visible=false; } }
 for(const o of shown){
 let sl=this.aiPool.find(x=>x.team===o.tm)||this.aiPool.find(x=>!x.team);
@@ -443,13 +443,24 @@ sl.mesh.userData.hullM.color.setHSL(o.tm.hue/360,0.6,0.55);
 const rp=this.roadPoint(clamp(this.s+o.rel,0,this.road.builtS-this.SEG));
 let latT=-2.4;
 const multi=rp.m1>0.3||rp.ow||rp.L>6;   // 片側2車線以上・分離帯あり: 追い越しは自分側の空いている車線
+const stopped=o.tm.status==="run"&&!(o.tm.vNow>0.5), pStop=es.v<1||es.stopTimer>0||es.camp;
 if(o.tm.status==="dnf") latT=-(rp.L+6);
+else if(stopped) latT=-(rp.L+4.5);   // CS・夜・充電: 道の外に止めて、アッパーカウルを傾ける
+else if(pStop&&Math.abs(o.rel)<45&&!o.tm.passing) latT= multi? -(rp.L-1.75) : 2.4;   // 止まっている自車の横を抜ける
 else if(o.tm.yieldT>0) latT=-(rp.L-0.1);
 else if(o.tm.passing) latT= multi? (this.lateral>-rp.L/2? -(rp.L-1.75) : -1.75) : 2.4;
 o.tm.latV=lerp(o.tm.latV,latT,clamp(dtR*1.5,0,1));
 const nx=Math.cos(rp.h), nz=Math.sin(rp.h);
 sl.mesh.position.set(rp.x+nx*o.tm.latV,rp.y,rp.z+nz*o.tm.latV);
 sl.mesh.rotation.y=-rp.h;
+const top=sl.mesh.userData.top; if(top){ const tw=stopped&&o.tm.status==="run"? 0.55 : 0; top.rotation.z=lerp(top.rotation.z,tw,clamp(dtR*2,0,1)); top.position.y=0.72+Math.abs(top.rotation.z)*0.5; }
+// 自車との接触: 前後 4.6 m・左右 1.7 m 以内に入ったら当たり (近づく速さで 軽い接触 / 破損 / 大破)
+if(o.tm.status!=="dnf"&&Math.abs(o.rel)<4.6&&Math.abs(this.lateral-o.tm.latV)<1.7&&!es.crashed){
+ const vAi=(o.tm.vNow||0)/3.6, vn=Math.abs(es.v-vAi);
+ if(o.rel>0&&es.v>vAi){   // 自車が前の車に追いついて当たった場合 (後ろの車は車間をとって付いてくる)
+  const level= vn<Collide.LIGHT? "light" : vn<Collide.HEAVY? "damage" : "heavy";
+  Engine.collision({level,kind:"team",vn});
+  es.v=Math.min(es.v,vAi*0.95); } }
 if(o.tm.yieldT>0) o.tm.yieldT-=dtR;
 if(o.tm.holdT>0) o.tm.holdT-=dtR;
 if(o.tm.passing&&o.rel>70){ o.tm.passing=false; o.tm.boost=false; }
@@ -731,7 +742,9 @@ this.car.rotation.x=-Math.atan(pHere.g)*0.8+clamp(-es.gLong*0.025,-0.045,0.045);
 let wantTilt=(es.camp||es.stopTimer>0||StopMenu.mode==="charge")&&!es.disconnected;
 if(typeof Crew!=="undefined"&&Crew.busy()&&Crew.phase!=="outside") wantTilt=false;   // ドライバーが乗っている間は傾けない
 const targetRoll=wantTilt? -es.tiltDeg*Math.PI/180*0.85 : 0;
-this.carBody.rotation.z=lerp(this.carBody.rotation.z,targetRoll,dtR*2);
+const UT=this.car.userData.upperTilt;   // 和大型: アッパーカウルだけを傾ける
+if(UT){ UT.rotation.z=lerp(UT.rotation.z,targetRoll,dtR*2); this.carBody.rotation.z=0; }
+else this.carBody.rotation.z=lerp(this.carBody.rotation.z,targetRoll,dtR*2);
 if(es.offroad&&es.v>2) this.car.position.y+=Math.random()*0.05;
 if(es.burst&&es.v>2) this.car.position.y+=Math.random()*0.04;
 if(this.car.userData.brakeMat)
@@ -797,7 +810,13 @@ const flatTown=P.mode==="race"&&Route.real(es.km)&&OsmRoute.townAt(es.km);
 const nearWater=flatTown&&[-0.3,-0.15,0,0.15,0.3,0.45].some(d=>OsmRoute.waterAt(es.km+d));   // 水面の橋の近くでは川底より下へ
 this.ground.position.set(pHere.x,(pHere.y-(pHere.bh||0))-(flatTown?(nearWater?7:0.3):60),pHere.z);
 const alt=es.sunAlt||0, az=(es.sunAz||0);
-const relAz=az-profileAt(es.km).bearing;
+// 太陽の向き: 画面の道の向き (pHere.h) と実際の道の方位 (bearing) のずれ を足して画面の方位にする。
+// 町 (実際の道の形) とそれ以外 (作った道) でずれが変わるので、急に回らないよう走った距離に応じてゆっくり合わせる
+const wrapA=a=>Math.atan2(Math.sin(a),Math.cos(a)), geoB=profileAt(es.km).bearing, dOff=wrapA((Number.isFinite(pHere.h)?pHere.h:geoB)-geoB);
+if(this.sunOff==null||!Number.isFinite(this.sunOff)||Math.abs(es.km-this.sunKm)>5) this.sunOff=dOff;
+else this.sunOff=wrapA(this.sunOff+wrapA(dOff-this.sunOff)*clamp(Math.abs(es.km-this.sunKm)/8,0,1));
+this.sunKm=es.km;
+const relAz=az+this.sunOff;
 const sunDist=1400, sy=Math.sin(alt)*sunDist, shD=Math.cos(alt)*sunDist;
 this.sun.position.set(pHere.x+Math.sin(relAz)*shD, Math.max(sy,-80), pHere.z-Math.cos(relAz)*shD);
 this.sunLight.position.copy(this.sun.position);

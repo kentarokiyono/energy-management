@@ -54,11 +54,11 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   check("レース: 他チーム一覧",ov===26,"rows="+ov);
   await shot(p,"race"); await p.evaluate(()=>MapUI.toggle(false));
   const st=await p.evaluate(()=>{ const pl=Strategy.plan(true); return {ok:pl.ok,v:pl.v,fin:pl.r.finishAbs,txt:document.getElementById("hud-plan").textContent}; });
-  const ai=await p.evaluate(()=>{ const s=Engine.st, keep={h:s.hour,d:s.day,doy:s.dayOfYear,km:s.km,teams:s.teams};
+  const ai=await p.evaluate(()=>{ const s=Engine.st, keep={h:s.hour,d:s.day,doy:s.dayOfYear,km:s.km,teams:s.teams,v:s.v}; s.v=0;   // 自車は止めておく (走っている自車には後ろから付いて走るため)
    s.teams=Engine.initTeams(); Engine.setupGrid(); for(const t of s.teams) t.retireKm=null; s.hour=8; s.day=1;
    for(let k=0;k<24*60;k++){ s.hour+=1/60; if(s.hour>=24){ s.hour-=24; s.day++; s.dayOfYear++; } Engine.updateTeams(60); }
    const top=s.teams[0], last=s.teams[s.teams.length-1], r={top:top.km,last:last.km,soc:s.teams.map(t=>t.soc)};
-   s.teams=keep.teams; s.hour=keep.h; s.day=keep.d; s.dayOfYear=keep.doy; s.km=keep.km; return {top:r.top.toFixed(0),last:r.last.toFixed(0),socOk:r.soc.every(x=>x>=0&&x<=1)}; });
+   s.teams=keep.teams; s.hour=keep.h; s.day=keep.d; s.dayOfYear=keep.doy; s.km=keep.km; s.v=keep.v; return {top:r.top.toFixed(0),last:r.last.toFixed(0),socOk:r.soc.every(x=>x>=0&&x<=1)}; });
   check("AI チーム: 1 日の走行距離",ai.top>450&&ai.top<800&&ai.last>250&&ai.socOk,JSON.stringify(ai));
   check("戦略: 推奨速度とゴール予想",st.ok&&st.v>=40&&st.v<=130&&st.fin>24&&st.fin<24*7,JSON.stringify(st));
   // 走行ログ: ポーズ画面のボタンで CSV を保存

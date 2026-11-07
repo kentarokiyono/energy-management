@@ -86,4 +86,4 @@ resolve(st,L,W,dyn){
 /* 自車の寸法 [長さ, 幅] (実車諸元があればその値) */
 function carDims(){ const d=typeof VEH!=="undefined"&&VEH.active&&VEH.spec.dims; return d&&d.L&&d.W? [d.L,d.W] : [4.6,1.8]; }
 /* 衝突の強さに応じた処理の文言 */
-const COLLIDE_WHAT={person:"人",vehicle:"車両",wall:"壁・ガードレール",solid:"障害物"};
+const COLLIDE_WHAT={person:"人",vehicle:"車両",team:"他チームの車両",wall:"壁・ガードレール",solid:"障害物"};

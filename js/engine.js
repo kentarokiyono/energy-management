@@ -156,14 +156,17 @@ if(tm.decT<0||absH-tm.decT>0.05){   // 速度の判断 (3 分ごと): 今の発�
  if(this.aiDrivePower(tm,hi)<=budget) lo=hi; else for(let k=0;k<18;k++){ const m=(lo+hi)/2; if(this.aiDrivePower(tm,m)<=budget) lo=m; else hi=m; }
  tm.vSet=lo*3.6;
 }
-const spd=Math.max(0,(tm.vSet||0)*(tm.boost?1.15:1)); tm.vNow=spd;
+let spd=Math.max(0,(tm.vSet||0)*(tm.boost?1.15:1));
+// 自車に後ろから追いついたら、追い越しの許可が出るまで車間 (約 35 m) をとって自車の速さで付いて走る。
+// 自車が止まっているとき (停車・CS・夜) は横を抜ける。距離は画面の距離 (早送りの区間も同じ尺度)
+if(P.mode==="race"&&!tm.passing&&s.v>=1&&s.stopTimer<=0&&!s.camp&&!s.finished){
+ const gap=Route.visDist(tm.km,s.km);   // > 0: 自車が前
+ if(gap>-3&&gap<400) spd=Math.min(spd,Math.max(0,s.v*3.6+(gap-35)*0.5));
+}
+tm.vNow=spd;
 tm.km+=spd*dtS/3600;
 tm.soc=clamp(tm.soc+(tm.psol-this.aiDrivePower(tm,spd/3.6))*dtS/3600/Wh,0,1);
 if(tm.soc<=0.01){ tm.soc=0.01; tm.decT=-1; }
-if(!tm.passing && s.v>1 && s.stopTimer<=0 && !s.camp &&
-tm.km<s.km && tm.km>s.km-3.0){
-tm.km=Math.min(tm.km, s.km-22*P.timeScale/1000);
-}
 for(const cp of ROUTE) if(cp.cp&&!tm.cs.has(cp.km)&&tm.km>=cp.km){ tm.cs.add(cp.km); tm.csT=1800; break; }
 if(tm.retireKm&&tm.km>=tm.retireKm) tm.status="dnf";
 if(tm.km>=TOTAL_KM){ tm.status="fin"; tm.km=TOTAL_KM; }

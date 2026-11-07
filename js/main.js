@@ -62,7 +62,7 @@ function loop(t){
 if(!running) return;
 requestAnimationFrame(loop);
 let dtR=clamp((t-lastT)/1000,0,0.1); lastT=t;
-if(paused||modalPause) return;
+if(paused||modalPause){ Snd.silence(); return; }
 updateInput(dtR);
 if(P.event){ EventGame.frame(dtR); if(!running||modalPause) return; }
 if(Test.active){ Test.frame(dtR); if(P.event) EventGame.postTest(); Perf.tick(dtR); if(P.event) EventGame.hud(); return; }
@@ -107,7 +107,7 @@ document.getElementById("game-container").classList.add("hidden");
 document.getElementById("test-hud").classList.add("hidden");
 show("result-screen",false); show("pause-overlay",false); show("stopmenu-overlay",false); show("test-result",false);
 document.getElementById("setup-screen").classList.remove("hidden"); refreshQuali();
-Snd.update(0,0,false);
+Snd.silence();
 }
 Settings.load();
 if(!/#r=/.test(location.hash)) Fade.intro();
