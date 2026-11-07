@@ -203,7 +203,7 @@ const apC=Math.max(zPanel(uC),zHull(uC)+PG);
 const cg=new THREE.SphereGeometry(1,48,24);
 {const p=cg.attributes.position;
 for(let i=0;i<p.count;i++){const z=p.getZ(i),f=z>0?1-.45*z*z:1-.25*z*z;
-p.setX(i,p.getX(i)*f);p.setY(i,p.getY(i)*f);}}
+p.setX(i,p.getX(i)*f);p.setY(i,p.getY(i)*f*(p.getY(i)<0?0.15:1));}}   // 下半分は平らに (胴体の下へはみ出さない)
 cg.scale(O.canopyW/2,O.canopyTop-apC+0.05,O.canopyLen/2);
 cg.translate(0,apC-0.05,O.canopyX-HL);
 const idx=cg.index.array,g0=[],g1=[],p=cg.attributes.position;
