@@ -18,7 +18,7 @@ inCar(){ return this.phase==="drive"||this.phase==="egress"||this.phase==="ingre
 /* 走行できない (手順中・発車許可待ち) */
 locked(){ if(P.mode!=="race") return false; return this.phase!=="drive"||(this.st&&!this.st.depart); },
 reset(){
- this.phase="drive"; this.ctx=null; this.walker=null; this.hover=null;
+ this.phase="drive"; this.ctx=null; this.walker=null; this.hover=null; this.stick=null; document.body.classList.remove("walking");
  this.st={pbrake:false,motor:true,belt:true,bandL:true,bandR:true,canopy:false,wheel:true,depart:true};
  this.prep={ballast:true,helmet:true,radio:true,water:true};
  this.check=null; this.timing=null;
@@ -289,7 +289,10 @@ walk(dt){
  let fx=0, fz=0; const sy=Math.sin(w.yaw), cy=Math.cos(w.yaw);
  if(k["w"]){ fx+=sy; fz-=cy; } if(k["s"]){ fx-=sy; fz+=cy; } if(k["a"]){ fx-=cy; fz-=sy; } if(k["d"]){ fx+=cy; fz+=sy; }
  if(k["arrowleft"]) w.yaw-=1.8*dt; if(k["arrowright"]) w.yaw+=1.8*dt; if(k["arrowup"]) w.pitch=clamp(w.pitch+1.2*dt,-1.2,1.0); if(k["arrowdown"]) w.pitch=clamp(w.pitch-1.2*dt,-1.2,1.0);
- const L=Math.hypot(fx,fz); if(L>0){ w.x+=fx/L*run*dt; w.z+=fz/L*run*dt; }
+ let L=Math.hypot(fx,fz), spd=run;
+ const st=this.stick; if(st&&Math.hypot(st.x,st.y)>0.08){   // 画面のスティック (タッチ): 倒した量で速さ、いっぱいに倒すと走る
+  const m=Math.min(1,Math.hypot(st.x,st.y)); fx=sy*(-st.y)+cy*st.x; fz=-cy*(-st.y)+sy*st.x; L=Math.hypot(fx,fz); spd= m>0.95? 4.5 : 1.6*m/0.95; }
+ if(L>0){ w.x+=fx/L*spd*dt; w.z+=fz/L*spd*dt; }
  // 車体にめり込まない (車体座標の箱)
  const car=View.car, inv=new THREE.Matrix4().copy(car.matrixWorld).invert(), p=new THREE.Vector3(w.x,0,w.z).applyMatrix4(inv);
  const hx=.95, hz=3.05; if(Math.abs(p.x)<hx&&Math.abs(p.z)<hz){ if(hx-Math.abs(p.x)<hz-Math.abs(p.z)) p.x=Math.sign(p.x||1)*hx; else p.z=Math.sign(p.z||1)*hz; const q=p.applyMatrix4(car.matrixWorld); w.x=q.x; w.z=q.z; }
@@ -355,7 +358,7 @@ aim(stepId){
 },
 drawUI(){
  if(!this.ui) return;
- const vis=this.phase!=="drive"; this.ui.root.style.display=vis?"block":"none"; this.ui.cross.style.display=vis?"block":"none"; this.ui.prompt.style.display=vis?"block":"none";
+ const vis=this.phase!=="drive"; document.body.classList.toggle("walking",this.phase==="outside"); this.ui.root.style.display=vis?"block":"none"; this.ui.cross.style.display=vis?"block":"none"; this.ui.prompt.style.display=vis?"block":"none";
  if(!vis) return;
  const li=(done,t,next,aim)=>`<div ${next&&aim?`data-aim="${aim}" class="crew-aim" `:""}style="display:flex;gap:8px;align-items:center;color:${done?'#5cb85c':next?'#e6e6e3':'#8b9097'}">${done?ic("check"):next?ic("chr","acc"):'<span style="width:1.05em;text-align:center">・</span>'}<span>${t}</span></div>`;
  let h="";
@@ -366,7 +369,7 @@ drawUI(){
  else if(this.phase==="ingress"){ h+=`<b>乗車手順</b>`; const nx=this.nextStep(this.INGRESS); for(const s of this.INGRESS) h+=li(s!==nx&&s.done(this.st),s.t,s===nx,s.id);
   if(this.ctx&&this.ctx.kind==="cs") h+=`<div style="margin-top:4px">発車まで ${mm(Math.max(0,es.stopTimer))}</div>`; }
  else if(this.phase==="outside"){
-  h+=`<b>車外</b> <span style="color:#8b9097">${document.body.classList.contains("touch-on")?"スロ＋/− で前後・◀▶ で横移動 / ドラッグで視点 / 中央の丸を対象に合わせてタップ":"WASD 移動 / Shift 走る / ドラッグ・矢印で視点 / E・クリックで操作"}</span>`;
+  h+=`<b>車外</b> <span style="color:#8b9097">${document.body.classList.contains("touch-on")?"左下のスティックで歩く (いっぱいに倒すと走る) / ドラッグで視点 / 中央の丸を対象に合わせてタップ":"WASD 移動 / Shift 走る / ドラッグ・矢印で視点 / E・クリックで操作"}</span>`;
   if(this.ctx&&this.ctx.kind==="cs"){
    const t=this.timing; h+=li(t&&t.started,"本部テントまで走って計測開始ボタンを押す",!(t&&t.started));
    if(t&&t.started) h+=`<div>発車まで ${mm(Math.max(0,es.stopTimer))} (乗り込みは残り 5:00 から)</div>`;
@@ -410,4 +413,13 @@ function fmtH(h){ const H=Math.floor(h), M=Math.round((h-H)*60); return `${H}:${
   if(k==="e"&&Crew.busy()){ const save=Crew.mouseNDC; Crew.mouseNDC={x:0,y:0}; Crew.pick(); if(Crew.hover) Crew.act(Crew.hover.id); Crew.mouseNDC=save; }
   if(k==="f"&&typeof running!=="undefined"&&running) Crew.toggleF();
  });
+})();
+/* ---------- 車外を歩くスティック (タッチ操作) ---------- */
+(()=>{ const el=document.getElementById("t-stick"); if(!el) return; const knob=el.querySelector(".knob"); let id=null;
+ const set=(e)=>{ const r=el.getBoundingClientRect(), R=r.width/2-18, dx=e.clientX-(r.left+r.width/2), dy=e.clientY-(r.top+r.height/2), d=Math.hypot(dx,dy), k=d>R? R/d : 1;
+  knob.style.transform=`translate(${dx*k}px,${dy*k}px)`; Crew.stick={x:dx*k/R,y:dy*k/R}; };
+ el.addEventListener("pointerdown",e=>{ id=e.pointerId; el.setPointerCapture(id); set(e); e.stopPropagation(); });
+ el.addEventListener("pointermove",e=>{ if(e.pointerId===id) set(e); });
+ const end=e=>{ if(e.pointerId!==id) return; id=null; knob.style.transform=""; Crew.stick=null; };
+ el.addEventListener("pointerup",end); el.addEventListener("pointercancel",end);
 })();

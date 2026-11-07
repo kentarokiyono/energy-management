@@ -285,3 +285,11 @@ body.touch-on #crew-ui .crew-aim{ cursor:pointer; text-decoration:underline; tex
 .nickpad span{ min-width:26px; padding:3px 6px; text-align:center; border:1px solid var(--ln); font:700 13px var(--fn); cursor:pointer; background:var(--pn2); }
 .nickpad span.on{ background:var(--acc); border-color:var(--acc); color:#111; }
 .nickpad span.del{ min-width:46px; }
+#t-stick{ position:absolute; left:16px; bottom:16px; width:140px; height:140px; border-radius:50%; border:1px solid var(--ln2); background:rgba(21,23,26,.6); display:none; touch-action:none; }
+#t-stick .knob{ position:absolute; left:50%; top:50%; width:52px; height:52px; margin:-26px 0 0 -26px; border-radius:50%; background:rgba(242,107,29,.85); border:1px solid var(--acc); }
+#t-stick span{ position:absolute; left:0; right:0; top:-22px; text-align:center; font:700 11px var(--fn); color:var(--dim); letter-spacing:.12em; }
+body.touch-on.walking #t-stick{ display:block; }
+body.touch-on.walking #t-steer, body.touch-on.walking #t-ped, body.touch-on.walking #t-spd{ display:none; }
+body.touch-on.walking #hud-radio{ display:none; }
+body.touch-on.walking #crew-ui{ top:60px!important; }
+@media (max-height:560px){ #t-stick{ width:120px; height:120px; } }
