@@ -27,7 +27,7 @@ const Scenario={
   if(RP_RULES.driverChange.km<sc.km) s.dcDone=true;
   s.camp=false; s.stopTimer=0; s.chapter=null; s.scenario=id; s.gridStartH=0;
   const abs0=(sc.day-1)*24+sc.hour;
-  s.weatherPlan=sc.wx.map(w=>({start:abs0+w.in,dur:w.dur,type:w.type,factor:w.factor}));
+  s.weatherPlan=sc.wx.map(w=>({start:abs0+w.in,dur:w.dur,type:w.type,factor:w.factor})); s.fc=null;   // シナリオは予報どおり
   for(const tm of s.teams||[]){ tm.status="run"; tm.km=clamp(sc.km+(Math.random()-0.5)*60+(tm.spd-70)*0.8,0,TOTAL_KM-1); for(const cp of ROUTE) if(cp.cp&&cp.km<tm.km) tm.cs.add(cp.km); }
   this.id=id; this.cur={sc,abs0,goal:sc.km+sc.dist,minSoc:sc.soc,off:0,hits:0,warned:{},done:false,t0:performance.now()};
   Radio.push(`練習シナリオ「${sc.name}」: ${sc.brief}`,"チーフ");
@@ -76,7 +76,7 @@ const Scenario={
    <div class="lb" style="margin-top:12px">ポイント</div><ul>${sc.tip.map(t=>`<li>${escHtml(t)}</li>`).join("")}</ul>
    <div class="btns"><button class="btn" onclick="Scenario.closeRes();quitToMenu()">メニューへ</button><button class="btn pri" onclick="Scenario.closeRes();startGame()">もう一度</button></div></div>`;
   el.classList.add("on"); modalPause=true; Snd.silence(); if(typeof FFB!=="undefined") FFB.update(null); Snd.chime&&Snd.chime();
-  this.last={id:this.id,score,ok};
+  this.last={id:this.id,score,ok}; DrvRec.record(); DrvRec.scenario(this.id,score);
  },
  closeRes(){ const el=document.getElementById("scn-result"); if(el) el.classList.remove("on"); modalPause=false; },
  reset(){ this.cur=null; this.id=null; },

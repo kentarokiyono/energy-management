@@ -15,7 +15,8 @@ const Orders={
   const pause= es.camp||es.stopTimer>0||(Engine.gridWait&&Engine.gridWait())||(typeof Crew!=="undefined"&&Crew.busy());
   if(!this.cur){ if(!pause&&es.km>=this.nextKm&&es.v>1) this.issue(es); this.ui(); return; }
   const c=this.cur, kmh=es.v*3.6, lim=speedLimitAt(es.km);
-  if(!pause&&es.v>3&&lim>=c.v-0.5){ c.tot+=dtR; const ok=Math.abs(kmh-c.v)<=this.TOL; if(ok) c.in+=dtR; c.dev+=Math.abs(kmh-c.v)*dtR; c.iSum+=(es.lastAmp||0)*dtR;
+  const dk=Math.max(0,es.km-(c.lastKm==null?es.km:c.lastKm)); c.lastKm=es.km;
+  if(!pause&&es.v>3&&lim>=c.v-0.5){ c.tot+=dtR; c.cnt=(c.cnt||0)+dk; const ok=Math.abs(kmh-c.v)<=this.TOL; if(ok) c.in+=dtR; c.dev+=Math.abs(kmh-c.v)*dtR; c.iSum+=(es.lastAmp||0)*dtR;
    if(ok&&c.react==null) c.react=(performance.now()-c.t0)/1000; }
   if(es.km>=c.k1) this.close(es);
   this.ui();
@@ -26,21 +27,22 @@ const Orders={
  current(es,v,k0,dist){
   const vms=v/3.6, gr=(profileAt(Math.min(TOTAL_KM,k0+dist)).elev-profileAt(k0).elev)/(dist*1000), head=Number.isFinite(es.lastHead)? es.lastHead : 0;
   let W=Strategy.drivePower(vms,gr)-P.auxW; const va=Math.max(0,vms+head); W+=0.5*1.17*P.Cd*P.frontal*(va*va-vms*vms)*vms;
+  W*=clamp(Number.isFinite(P.ordersK)?P.ordersK:1,0.5,2);   // 走行ログとの合わせ込みの補正 (分析画面の「電流の指示に使う」)
   const Vb=es.lastVterm>0? es.lastVterm : VOC(es.soc); return clamp(Math.max(0,W)/(Vb*0.99),0,motorMaxA(es.powerMode)); },
  issue(es){
   const dist=Math.min(this.STEP,TOTAL_KM-es.km); if(dist<1) return;
   const plan=typeof Strategy!=="undefined"? Strategy.plan(true) : null;
-  let v=Math.round(plan&&plan.v||70); v=Math.min(v,this.limitAhead(es.km,dist));
+  let v=Math.round(plan? Strategy.speedFor(plan,es.km,dist,es.soc,es.lastSolar||0) : 70); v=Math.min(v,this.limitAhead(es.km,dist));   // 速度配分 (勾配で変わる) をこの 10 km で平均
   const I=this.current(es,v,es.km,dist);
   this.cur={v,I,k0:es.km,k1:es.km+dist,in:0,tot:0,dev:0,iSum:0,react:null,t0:performance.now()};
-  Radio.push(`時速 ${v} km・電流 ${I.toFixed(1)} A`,"戦略班"); if(Snd.radioBeep) Snd.radioBeep();
+  Radio.push(`時速 ${v} km・電流 ${I.toFixed(1)} A`,"戦略班",{speak:true}); if(Snd.radioBeep) Snd.radioBeep();
  },
  close(es){
   const c=this.cur; this.cur=null; this.nextKm=c.k1;
   const until=performance.now()+15000;
-  if(c.tot<20){ this.last={na:true,until}; return; }   // ほとんど数えられなかった区間 (制限速度・停車ばかり) は採点しない
+  if(!(c.tot>0)||(c.cnt||0)<3){ this.last={na:true,until}; return; }   // 数えられた距離が 3 km 未満 (制限速度・停車ばかり) の区間は採点しない
   const pct=c.in/c.tot, dev=c.dev/c.tot, iAvg=c.iSum/c.tot, grade= pct>=0.85&&dev<2? "A" : pct>=0.6&&dev<4? "B" : "C";
-  this.hist.push({v:c.v,pct,dev,react:c.react,km:c.k0,grade,iAvg,I:c.I});
+  this.hist.push({v:c.v,pct,dev,react:c.react,km:c.k0,grade,iAvg,I:c.I,drv:typeof Crew!=="undefined"&&Crew.drivers?Crew.drivers[Crew.driverIdx].name:"―"});
   this.last={grade,pct,dev,iAvg,I:c.I,until};
  },
  summary(){ const H=this.hist; if(!H.length) return null; const w=H.reduce((s,h)=>s+1,0);

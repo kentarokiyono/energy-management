@@ -284,7 +284,7 @@ const Ana={
   if(run._rev) return run._rev;
   const R=run.rows.filter(r=>Number.isFinite(r.abs)&&Number.isFinite(r.km)&&Number.isFinite(r.soc)); if(R.length<10) return run._rev={err:"時刻・SOC の入った行が足りません"};
   if(!Engine.st) Engine.init();
-  const f=R[0], best=Strategy.best({abs:f.abs,km:f.km,soc:clamp(f.soc/100,0,1),trace:true}), tr=best.r.trace||[];
+  const f=R[0], best=Strategy.bestProfile({abs:f.abs,km:f.km,soc:clamp(f.soc/100,0,1),trace:true}), tr=best.r.trace||[];
   if(tr.length<2) return run._rev={err:"推奨の計算ができませんでした"};
   const first=(arr,km,K)=>{ let lo=0,hi=arr.length-1; while(lo<hi){ const m=(lo+hi)>>1; if(K(arr[m])<km) lo=m+1; else hi=m; } return arr[lo]; };
   const aAt=(km)=>first(R,km,r=>r.km), rAt=(km)=>first(tr,km,t=>t[0]);
@@ -316,10 +316,10 @@ const Ana={
  reviewUI(run){
   const R=run._rev, hm=(h)=>{ if(!Number.isFinite(h)) return "―"; const s=h<0?"-":"", m=Math.round(Math.abs(h)*60); return `${s}${Math.floor(m/60)}:${String(m%60).padStart(2,"0")}`; };
   let h=`<div class="ph" style="margin-top:12px">${ic("gauge")}戦略の答え合わせ</div>`;
-  if(!R) return h+`<div class="ana-note" style="margin-top:0">走り始めの時刻・場所・電池から、電池が持つ最も速い一定速度 (推奨) で走った場合と比べます。</div><button class="btn ana-sm" onclick="Ana.runReview()">${ic("play")}比べる</button>`;
+  if(!R) return h+`<div class="ana-note" style="margin-top:0">走り始めの時刻・場所・電池から、電池が持つ最も速い速度配分 (推奨。登りは遅め・平地と下りは速め) で走った場合と比べます。</div><button class="btn ana-sm" onclick="Ana.runReview()">${ic("play")}比べる</button>`;
   if(R.err) return h+`<div class="ana-note">${escHtml(R.err)}</div>`;
   const tot=R.legs.reduce((s,L)=>s+L.dt,0);
-  h+=`<div class="kv"><span>推奨の一定速度</span><span>${R.v}<span class="u">km/h${R.ok?"":" (それでも電池が尽きる)"}</span></span></div>
+  h+=`<div class="kv"><span>推奨の速度 (平地)</span><span>${R.v}<span class="u">km/h${R.ok?"":" (それでも電池が尽きる)"}</span></span></div>
    <div class="kv"><span>走行 + 停車の時間の差</span><span class="${tot>0?"bad":"good"}">${tot>0?"+":""}${hm(tot)}<span class="u">${tot>0?"遅い":"速い"}</span></span></div>`;
   if(R.finished&&Number.isFinite(R.finR)) h+=`<div class="kv"><span>ゴール時刻</span><span>${fmtAbsH(R.finA)}<span class="u">推奨 ${fmtAbsH(R.finR)}</span></span></div>`;
   if(R.finished) h+=`<div class="kv"><span>ゴール時の電池</span><span>${R.socEnd.toFixed(0)}<span class="u">%${R.socEnd>10?" (使い残し)":""}</span></span></div>`;
@@ -379,7 +379,9 @@ const Ana={
    <span>発電の実効効率</span><span>${f(C.effPV*100,1)} %</span><span>${f(C.effModel*100,1)} %</span><span>${pct(C.effPV,C.effModel)}</span>
    <span>走行の消費 kWh</span><span>${f(C.eAct/1000,2)}</span><span>${f(C.eModel/1000,2)}</span><span>${pct(C.eAct,C.eModel)}</span></div>
    <div class="ana-note">使った行 ${C.n}・当てはまり R² ${f(C.r2,2)}${C.r2<0.6?" (低い: 速度の幅が狭い・風や加速の影響が大きい)":""}。「今の設定」の消費 = この走行と同じ速度・勾配で今の設定のモデルを走らせた値。CdA は空気抵抗係数 × 前面投影面積、Crr は η=${this.ETA} と置いた推定。発電は温度・角度の影響を含んだ実効値。</div>
-   <button class="btn ana-sm" onclick="Ana.applyCalib()" ${C.r2>=0.5?"":"disabled"}>${ic("check")}推定値を設定に反映</button>`;
+   <div class="ana-rr" style="margin-top:6px"><button class="btn ana-sm" onclick="Ana.applyCalib()" ${C.r2>=0.5?"":"disabled"}>${ic("check")}推定値を設定に反映</button>
+   ${(()=>{ const k=C.eAct/C.eModel; return Number.isFinite(k)&&k>0.6&&k<1.6? `<button class="btn ana-sm" onclick="Ana.useOrdersK(${k.toFixed(3)})" title="車両の設定は変えず、無線の電流の指示だけを ×${k.toFixed(2)} する">${ic("zap")}電流の指示に使う (×${k.toFixed(2)})</button>` : ""; })()}</div>
+   <div class="ana-note">電流の指示の補正: ${Math.abs((P.ordersK||1)-1)<0.001? "なし" : `×${(+P.ordersK).toFixed(2)} <a href="#" onclick="Ana.useOrdersK(1);return false" style="color:var(--acc)">外す</a>`}。「推定値を設定に反映」をした後は、補正は外してください (二重にかかります)。</div>`;
   return h;
  },
  runCalib(){ const run=this.run(); if(!run) return; try{ this.calib(run); }catch(e){ run._cal={err:"推定できませんでした: "+e.message}; } this.renderPane(); },
@@ -388,6 +390,7 @@ const Ana={
   const set=(id,v)=>{ const s=SLIDERS.find(x=>x.id===id); if(!s||!Number.isFinite(v)) return; P[id]=clamp(v,s.min,s.max); const el=document.getElementById("sl-"+id); if(el) el.value=P[id]; refreshSliderLabel(id); };
   set("Crr",C.Crr); set("Cd",C.CdA/P.frontal); set("auxW",C.aux); if(Number.isFinite(C.effPV)) set("cellEff",C.effPV/(P.mpptEff*0.92*PRO.solarScale));
   refreshDerived(); Settings.save(); this.run()._cal=null; Strategy.last=null; toast("車両の設定に反映しました","#34d399"); this.renderPane(); },
+ useOrdersK(k){ P.ordersK=clamp(+k||1,0.5,2); Settings.save(); toast(Math.abs(P.ordersK-1)<0.001? "電流の指示の補正を外しました" : `電流の指示を ×${P.ordersK.toFixed(2)} で出します`,"#34d399"); this.renderPane(); },
  runReview(){ const run=this.run(); if(!run) return; toast("計算中…","#22d3ee"); setTimeout(()=>{ try{ this.review(run); }catch(e){ run._rev={err:"計算できませんでした: "+e.message}; } this.renderPane(); this.drawCharts(); },30); },
  /* ---------- 立体地図 ---------- */
  renderMap(){

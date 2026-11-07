@@ -129,7 +129,7 @@ document.querySelectorAll("[data-test]").forEach(b=>b.classList.toggle("on",b.da
 function segFromSelect(selId,boxId,label){
  const sel=document.getElementById(selId), box=document.getElementById(boxId); if(!sel||!box) return;
  box.innerHTML=""; for(const o of sel.options){ const b=document.createElement("button"); b.type="button"; b.textContent=label?label(o):o.textContent; b.title=o.textContent; b.dataset.v=o.value;
-  b.onclick=()=>{ sel.value=o.value; sel.dispatchEvent(new Event("change")); if(selId==="time-scale"||selId==="log-step"||selId==="gfx"||selId==="ffb") Settings.save(); box.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.v===sel.value)); };
+  b.onclick=()=>{ sel.value=o.value; sel.dispatchEvent(new Event("change")); if(selId==="time-scale"||selId==="log-step"||selId==="gfx"||selId==="ffb"||selId==="tts"||selId==="fc-err") Settings.save(); box.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.v===sel.value)); };
   if(o.value===sel.value) b.classList.add("on"); box.appendChild(b); }
 }
 /* 予選ベスト (レースのグリッド) の表示とリセット */
@@ -144,7 +144,7 @@ function resetQuali(){ if(!confirm("予選のベストラップを消去しま�
 /* ---- 設定の保存 (この端末のブラウザ): 既定値から変えた項目だけを保存し、起動時に戻す ---- */
 const Settings={
  KEY:"bwsc_settings", PKEYS:null, def:null,
- keys(){ return this.PKEYS||(this.PKEYS=["shape","panel","infiniteBattery","crewProc","uiMode","logStepM","gfx","realWeather","ffb","ffbInv","ffbTune","orders","showFps",...SLIDERS.map(s=>s.id)]); },
+ keys(){ return this.PKEYS||(this.PKEYS=["shape","panel","infiniteBattery","crewProc","uiMode","logStepM","gfx","realWeather","ffb","ffbInv","ffbTune","orders","showFps","tts","fcErr","ordersK",...SLIDERS.map(s=>s.id)]); },
  snapshot(){ const o={P:{},PRO:{}}; for(const k of this.keys()) o.P[k]=P[k]; for(const [k] of PRO_FIELDS) o.PRO[k]=PRO[k]; o.PRO.noSpeedCap=PRO.noSpeedCap;
   o.ts=document.getElementById("time-scale").value; o.evCourse=EventGame.course; o.evLevel=EventGame.level; o.evPractice=EventGame.practice; o.testKind=P.testKind; return o; },
  load(){
@@ -159,6 +159,8 @@ const Settings={
   if(d.evCourse==="aus"||d.evCourse==="hv") EventGame.course=d.evCourse; if(typeof d.evPractice==="boolean") EventGame.practice=d.evPractice; if(d.evLevel==="kid"||d.evLevel==="adult") EventGame.level=d.evLevel;
   if(d.testKind in TEST_DESC) P.testKind=d.testKind;
   { const gs=document.getElementById("gfx"); if(![...gs.options].some(o=>o.value===P.gfx)) P.gfx="auto"; gs.value=P.gfx; }
+  { const fe=document.getElementById("fc-err"); if(fe){ if(![...fe.options].some(o=>o.value===P.fcErr)) P.fcErr="mid"; fe.value=P.fcErr; } }
+  { const ts=document.getElementById("tts"); if(ts){ if(![...ts.options].some(o=>o.value===P.tts)) P.tts="orders"; ts.value=P.tts; } }
   { const fs=document.getElementById("ffb"); if(fs){ if(![...fs.options].some(o=>o.value===P.ffb)) P.ffb="mid"; fs.value=P.ffb; } }
   { const ls=document.getElementById("log-step"); if(![...ls.options].some(o=>+o.value===P.logStepM)) P.logStepM=this.def.P.logStepM; ls.value=String(P.logStepM); }
   { const rw=document.getElementById("real-wx"); if(rw) rw.checked=P.realWeather!==false; }

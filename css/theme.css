@@ -419,3 +419,8 @@ body.touch-on #hud-order{ top:96px; bottom:auto; }
 #hud-order .r{ font-size:11px; color:var(--tx2); line-height:1.5; margin-top:2px; }
 #hud-order .g{ display:inline-block; font-style:normal; font-weight:800; width:18px; text-align:center; margin-right:6px; color:#111; }
 #hud-order .gA{ background:var(--ok); } #hud-order .gB{ background:#fbbf24; } #hud-order .gC{ background:#ef6a5a; }
+
+.drt{ width:100%; border-collapse:collapse; font-size:12.5px; margin-top:6px; }
+.drt th{ text-align:left; font:600 11px var(--fn); color:var(--dim); letter-spacing:.06em; padding:6px 8px; border-bottom:1px solid var(--ln); white-space:nowrap; }
+.drt td{ padding:7px 8px; border-bottom:1px solid var(--ln); font-variant-numeric:tabular-nums; vertical-align:top; white-space:nowrap; }
+.drt .dim{ color:var(--dim); font-size:11px; }
