@@ -430,7 +430,6 @@ const glassM=new THREE.MeshPhysicalMaterial({color:0x2a3138,roughness:.06,metaln
 const pod=(len,w,hgt,m,x,y,z,par,taper=0.55)=>{ const geo=new THREE.SphereGeometry(1,28,16), q=geo.attributes.position;
  for(let i=0;i<q.count;i++){ const zz=q.getZ(i), f=1-taper*Math.max(0,zz)**1.4; let yy=q.getY(i); if(yy<0) yy*=0.8; q.setXYZ(i,q.getX(i)*f*w/2,yy*f*hgt/2,zz*len/2); }
  geo.computeVertexNormals(); const e=new THREE.Mesh(geo,m); e.position.set(x,y,z); e.castShadow=true; (par||g).add(e); return e; };
-const wheel=(x,z)=>{ const w=new THREE.Mesh(new THREE.CylinderGeometry(0.27,0.27,0.09,18),tyreM); w.rotation.z=Math.PI/2; w.position.set(x,0.27,z); g.add(w); };
 // ソーラーパネル: 上から見た形 (先のとがり具合・後ろの丸み) を押し出した薄い板。上下 = セル、縁 = 白
 // W: 幅, L: 長さ, nose: 先の絞りの長さ, tip: 先端の幅の割合, cx: 左右の位置
 const deck=(W,L,nose,y,par,tip=0.25,cx=0)=>{ const sh=new THREE.Shape(), hw=W/2, hl=L/2;
@@ -438,6 +437,9 @@ const deck=(W,L,nose,y,par,tip=0.25,cx=0)=>{ const sh=new THREE.Shape(), hw=W/2,
  sh.lineTo(hw,-hl+nose); sh.quadraticCurveTo(hw*0.95,-hl+nose*0.15,hw*tip,-hl); sh.lineTo(-hw*tip,-hl); sh.quadraticCurveTo(-hw*0.95,-hl+nose*0.15,-hw,-hl+nose); sh.closePath();
  const geo=new THREE.ExtrudeGeometry(sh,{depth:0.05,bevelEnabled:false,curveSegments:16}); geo.rotateX(Math.PI/2); geo.translate(cx,y+0.05,0);
  const m=new THREE.Mesh(geo,[cellM,bodyM]); m.castShadow=true; (par||g).add(m); return m; };
+// 車輪: 白い車輪カバー (細い縦長のポッド) で包み、地面すれすれの下端だけ見える
+const wheel=(x,z)=>{ const w=new THREE.Mesh(new THREE.CylinderGeometry(0.27,0.27,0.09,18),tyreM); w.rotation.z=Math.PI/2; w.position.set(x,0.27,z); g.add(w);
+ pod(0.95,0.17,0.66,bodyM,x,0.33,z,null,0.45); };
 const pivot=new THREE.Group(), up=new THREE.Group(), PX=-sd*1.0;   // 充電で傾ける軸: 胴体と反対の縁
 pivot.position.set(PX,0.95,0); up.position.set(-PX,-0.95,0); pivot.add(up); g.add(pivot);
 let decalX;
