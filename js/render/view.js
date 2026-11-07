@@ -53,8 +53,8 @@ for(let i=0;i<12;i++){
   const pl=new THREE.Mesh(new THREE.PlaneGeometry(0.05,5+Math.random()*7),mt);
   pl.visible=false;pl.frustumCulled=false;this.scene.add(pl);this.speedLines.push(pl);
 }
-this.aiPool=[];
-for(let i=0;i<10;i++){ const m=this.mkAICar(); m.visible=false; this.scene.add(m); this.aiPool.push({mesh:m,team:null}); }
+this.aiPool=[]; this.aiMeshes=new Map();   // 表示枠 10 台。車の形はチームごとに作って使い回す
+for(let i=0;i<10;i++) this.aiPool.push({mesh:null,team:null});
 this.roadTrains.length=0; this.rollT=0;
 this.lmMap.clear(); this.redSignalKm=null; this.inPit=false; this.pitBlend=0; this.fireOn=false;
 this.resetRoad();
@@ -412,20 +412,48 @@ _wireLocal(g,pts,heights,sag){
  const geo=new THREE.BufferGeometry(); geo.setAttribute("position",new THREE.Float32BufferAttribute(v,3));
  g.add(new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color:0x5a5048})));
 },
-mkAICar(){
-const g=new THREE.Group();
-const hullM=new THREE.MeshPhongMaterial({color:0xffffff});
-const hull=new THREE.Mesh(new THREE.SphereGeometry(0.6,16,12),hullM);
-hull.scale.set(1.6,0.55,3.8); hull.position.y=0.45; g.add(hull);
-const top=new THREE.Mesh(new THREE.BoxGeometry(1.8,0.05,4.0),new THREE.MeshPhongMaterial({color:0x101a2c}));
-top.position.y=0.72; g.add(top); g.userData.top=top;
-const can=new THREE.Mesh(new THREE.SphereGeometry(0.3,12,10),new THREE.MeshPhongMaterial({color:0x0a1015}));
-can.scale.set(0.9,0.9,1.6); can.position.set(0,0.9,-0.2); g.add(can);
-g.userData.hullM=hullM;
+/* 他チームの車: チームごとに形 (カタマラン / 非対称カタマラン / 単胴) と色を決めて作る。
+ 下の胴体 (ロアカウル) と、上のパネル面 + キャノピー (アッパーカウル: 充電のときに右の縁を軸に傾ける) に分ける。
+ 前は -z。両側にゼッケン (国旗 + 番号) */
+mkAICar(tm){
+const g=new THREE.Group(), name=tm&&tm.team||"", PBR=typeof GFX==="undefined"||GFX.key()!=="low";
+let h=0; for(let i=0;i<name.length;i++) h=(h*31+name.charCodeAt(i))>>>0;
+const kind=["cat","asym","cat","mono","asym","cat"][h%6];
+const hue=tm&&Number.isFinite(tm.hue)? tm.hue : 210, accent=new THREE.Color().setHSL(hue/360,0.7,0.5);
+const bodyC= h%3===0? accent.clone() : new THREE.Color(h%5===0?0x1b1d21:0xeef0f2), stripeC= bodyC.getHSL({}).l>0.6||bodyC.getHSL({}).l<0.2? accent : new THREE.Color(0xffffff);
+const paint=(c)=>PBR? new THREE.MeshPhysicalMaterial({color:c,roughness:.2,metalness:.1,clearcoat:1,clearcoatRoughness:.06,envMapIntensity:.9}) : new THREE.MeshStandardMaterial({color:c,roughness:.45});
+const bodyM=paint(bodyC), stripeM=paint(stripeC), cellM=PBR? new THREE.MeshPhysicalMaterial({color:0x141b4d,metalness:.8,roughness:.22,clearcoat:.6,envMapIntensity:1}) : new THREE.MeshStandardMaterial({color:0x101a2c,roughness:.4});
+const glassM=new THREE.MeshPhysicalMaterial({color:0x1a1f24,roughness:.08,metalness:.2,clearcoat:1,envMapIntensity:1}), tyreM=new THREE.MeshStandardMaterial({color:0x111214,roughness:.9});
+const ell=(rx,ry,rz,m,x,y,z,par)=>{ const e=new THREE.Mesh(new THREE.SphereGeometry(1,20,12),m); e.scale.set(rx,ry,rz); e.position.set(x,y,z); (par||g).add(e); e.castShadow=true; return e; };
+// ---- 下の胴体 ----
+const pods= kind==="mono"? [[0,0.62,0.34]] : kind==="asym"? [[-0.6,0.36,0.4],[0.62,0.26,0.32]] : [[-0.62,0.3,0.36],[0.62,0.3,0.36]];
+for(const [x,rx,ry] of pods){ ell(rx,ry,2.25,bodyM,x,0.5,0); ell(rx*0.98,0.05,1.9,stripeM,x,0.5+ry*0.55,0.05); }
+// 車輪 (カタマランは 4 輪、単胴は前 2・後 1)
+const wpos= kind==="mono"? [[-0.55,-1.5],[0.55,-1.5],[0,1.6]] : [[-0.62,-1.5],[0.62,-1.5],[-0.62,1.5],[0.62,1.5]];
+for(const [x,z] of wpos){ const w=new THREE.Mesh(new THREE.CylinderGeometry(0.27,0.27,0.08,16),tyreM); w.rotation.z=Math.PI/2; w.position.set(x,0.27,z); g.add(w); }
+// ---- 上: パネル面 + キャノピー (右の縁 x=+0.9 を軸に傾ける) ----
+const pivot=new THREE.Group(); pivot.position.set(0.9,0.86,0); g.add(pivot);
+const up=new THREE.Group(); up.position.set(-0.9,-0.86,0); pivot.add(up);
+const deck=new THREE.Mesh(new THREE.BoxGeometry(1.8,0.04,4.5),cellM); deck.position.set(0,0.88,0); up.add(deck); deck.castShadow=true;
+const rim=new THREE.Mesh(new THREE.BoxGeometry(1.84,0.035,4.56),stripeM); rim.position.set(0,0.85,0); up.add(rim);
+const cx= kind==="mono"? 0 : -0.6;
+ell(0.3,0.3,0.8,glassM,cx,0.98,-0.45,up);
+// ゼッケン: 国旗 + 番号 (番号がないチームは車名の頭文字)
+const cv=document.createElement("canvas"); cv.width=256; cv.height=96; const c=cv.getContext("2d");
+c.fillStyle="#fbfbf7"; c.fillRect(0,0,256,96); c.strokeStyle="#111"; c.lineWidth=4; c.strokeRect(2,2,252,92);
+if(tm&&tm.cc&&typeof HV!=="undefined"&&HV.flag) try{ HV.flag(c,tm.cc,12,22,72,52); }catch(e){}
+c.fillStyle="#111"; c.font="900 58px 'Chakra Petch',Arial,sans-serif"; c.textAlign="center"; c.textBaseline="middle";
+c.fillText(String(tm&&(tm.no||(tm.car||"").replace(/[^A-Za-z0-9]/g,"").slice(0,3).toUpperCase())||""),170,52);
+const tx=new THREE.CanvasTexture(cv); tx.encoding=THREE.sRGBEncoding;
+for(const sd of [-1,1]){ const x0= kind==="mono"? sd*0.63 : sd*0.62+sd*(kind==="asym"&&sd<0?0.37:0.31);
+ const pl=new THREE.Mesh(new THREE.PlaneGeometry(0.62,0.23),new THREE.MeshBasicMaterial({map:tx})); pl.position.set(x0+sd*0.01,0.55,0.3); pl.rotation.y=sd*Math.PI/2; g.add(pl); }
+g.userData.top=pivot; g.userData.hullM=bodyM;
 return g;
 },
+/* チームの車 (一度作ったら使い回す) */
+aiMesh(tm){ let m=this.aiMeshes.get(tm); if(!m){ m=this.mkAICar(tm); m.visible=false; this.scene.add(m); this.aiMeshes.set(tm,m); } return m; },
 updateAITeams(es,dtR){
-if(P.mode!=="race"||!es.teams||!this.aiPool){ if(this.aiPool) this.aiPool.forEach(sl=>sl.mesh.visible=false); return; }
+if(P.mode!=="race"||!es.teams||!this.aiPool){ if(this.aiPool) this.aiPool.forEach(sl=>{ if(sl.mesh) sl.mesh.visible=false; }); return; }
 const near=[];
 for(const tm of es.teams){
 if(tm.status==="pre") continue;
@@ -434,12 +462,12 @@ if(Math.abs(rel)<(keep?1400:1150)) near.push({tm,rel,keep});   // 出す距離�
 }
 near.sort((a,b)=>(b.keep-a.keep)||Math.abs(a.rel)-Math.abs(b.rel));   // いま出ている車を優先 (入れ替わりで消えない)
 const shown=near.slice(0,this.aiPool.length);
-for(const sl of this.aiPool){ if(!shown.some(o=>o.tm===sl.team)){ sl.team=null; sl.mesh.visible=false; } }
+for(const sl of this.aiPool){ if(!shown.some(o=>o.tm===sl.team)){ sl.team=null; if(sl.mesh) sl.mesh.visible=false; sl.mesh=null; } }
 for(const o of shown){
 let sl=this.aiPool.find(x=>x.team===o.tm)||this.aiPool.find(x=>!x.team);
 if(!sl) break;
-sl.team=o.tm; sl.mesh.visible=true;
-sl.mesh.userData.hullM.color.setHSL(o.tm.hue/360,0.6,0.55);
+if(sl.team!==o.tm){ sl.team=o.tm; sl.mesh=this.aiMesh(o.tm); }
+sl.mesh.visible=true;
 const rp=this.roadPoint(clamp(this.s+o.rel,0,this.road.builtS-this.SEG));
 let latT=-2.4;
 const multi=rp.m1>0.3||rp.ow||rp.L>6;   // 片側2車線以上・分離帯あり: 追い越しは自分側の空いている車線
@@ -453,7 +481,7 @@ o.tm.latV=lerp(o.tm.latV,latT,clamp(dtR*1.5,0,1));
 const nx=Math.cos(rp.h), nz=Math.sin(rp.h);
 sl.mesh.position.set(rp.x+nx*o.tm.latV,rp.y,rp.z+nz*o.tm.latV);
 sl.mesh.rotation.y=-rp.h;
-const top=sl.mesh.userData.top; if(top){ const tw=stopped&&o.tm.status==="run"? 0.55 : 0; top.rotation.z=lerp(top.rotation.z,tw,clamp(dtR*2,0,1)); top.position.y=0.72+Math.abs(top.rotation.z)*0.5; }
+const top=sl.mesh.userData.top; if(top){ const tw=stopped&&o.tm.status==="run"? -0.6 : 0; top.rotation.z=lerp(top.rotation.z,tw,clamp(dtR*2,0,1)); }   // 充電: アッパーカウルだけ傾ける
 // 自車との接触: 前後 4.6 m・左右 1.7 m 以内に入ったら当たり (近づく速さで 軽い接触 / 破損 / 大破)
 if(o.tm.status!=="dnf"&&Math.abs(o.rel)<4.6&&Math.abs(this.lateral-o.tm.latV)<1.7&&!es.crashed){
  const vAi=(o.tm.vNow||0)/3.6, vn=Math.abs(es.v-vAi);
@@ -947,7 +975,7 @@ dynColliders(es){
    const b=new THREE.Box3().setFromObject(m); m.userData._cz=[(b.min.x+b.max.x)/2,(b.min.z+b.max.z)/2]; m.position.copy(q); m.rotation.y=r; m.updateMatrixWorld(true); }
   const [ox,oz]=m.userData._cz, c=Math.cos(m.rotation.y), sn=Math.sin(m.rotation.y);
   out.push({t:2,x:m.position.x+ox*c+oz*sn,z:m.position.z-ox*sn+oz*c,h:-m.rotation.y,L,W,v,kind}); };
- for(const sl of this.aiPool||[]) if(sl.team) add(sl.mesh,4.9,1.8,(sl.team.spd||0)/3.6,"vehicle");
+ for(const sl of this.aiPool||[]) if(sl.team&&sl.mesh) add(sl.mesh,4.9,1.8,(sl.team.spd||0)/3.6,"vehicle");
  add(this.escortLead,5.6,2.0,es.v,"vehicle"); add(this.escortChase,5.6,2.0,es.v,"vehicle");
  for(const rt of this.roadTrains) add(rt.mesh,53,2.6,-27,"vehicle");
  return out;
