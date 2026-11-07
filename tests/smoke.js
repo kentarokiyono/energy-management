@@ -140,6 +140,13 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
    return {hit,out}; });
   check(`スマホ ${vp.width}×${vp.height}: 重なり・はみ出しなし`,o.hit.length===0&&o.out===0,JSON.stringify(o));
   await shot(p,`touch-${vp.width}`); await p.context().close(); }
+ // ---- オフライン: 一度開いたら回線なしで起動できる ----
+ { const p=await newPage(b,base);
+  await p.waitForFunction(()=>/OFFLINE READY/.test(document.querySelector(".menu .build").textContent),null,{timeout:30000});
+  await p.context().setOffline(true); await p.reload(); await p.waitForTimeout(1500);
+  const o=await p.evaluate(()=>({game:typeof startGame,three:typeof THREE,chart:typeof Chart,font:document.fonts.check("700 16px 'Chakra Petch'")}));
+  check("オフラインで起動",o.game==="function"&&o.three==="object"&&o.chart==="function",JSON.stringify(o));
+  await p.context().close(); }
  } catch(e){ check("テスト実行",false,e.message); }
  await b.close(); srv.close();
  console.log(results.join("\n")); console.log(`\n${results.length-failed}/${results.length} 件成功 (${((Date.now()-T0)/1000).toFixed(0)} 秒)`);

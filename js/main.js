@@ -130,3 +130,8 @@ let _sbT=null;
 _sb.addEventListener("pointerdown",e=>{e.stopPropagation();_sbT=setTimeout(()=>location.reload(),3000);});
 ["pointerup","pointerleave"].forEach(ev=>_sb.addEventListener(ev,()=>clearTimeout(_sbT)));
 document.body.appendChild(_sb);
+/* オフライン動作 (sw.js): https か localhost で開いたときだけ */
+if("serviceWorker" in navigator&&(location.protocol==="https:"||/^(localhost|127\.0\.0\.1)$/.test(location.hostname))){
+ navigator.serviceWorker.register("sw.js").then(()=>navigator.serviceWorker.ready).then(()=>{
+  const b=document.querySelector(".menu .build"); if(b&&!/OFFLINE/.test(b.textContent)) b.textContent+=" ・ OFFLINE READY"; }).catch(()=>{});
+}
