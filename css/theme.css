@@ -267,6 +267,11 @@ body.touch-on #crew-ui .crew-aim{ cursor:pointer; text-decoration:underline; tex
 .ana-drv b.good{ color:var(--ok); }
 .ana-drv .lb{ text-align:right; }
 .ana-note{ font-size:11px; color:var(--dim); margin-top:10px; line-height:1.7; }
+.ana-rv{ font-size:12px; line-height:1.6; padding:6px 8px; margin-bottom:6px; background:#16181b; border-left:2px solid var(--acc); }
+.ana-rv span:not(.bad){ color:var(--tx2); }
+.ana-rvt{ display:grid; grid-template-columns:1.6fr 0.8fr 0.8fr 0.8fr 1.1fr; gap:3px 8px; font-size:11.5px; margin-top:10px; font-variant-numeric:tabular-nums; }
+.ana-rvt>span:not(.lb){ font-family:var(--fn); }
+.ana-pane .bad{ color:#ef6a5a; } .ana-pane .good{ color:var(--ok); }
 .ana-empty{ position:absolute; inset:0; display:none; align-items:center; justify-content:center; color:var(--dim); font-size:14px; background:var(--bg); z-index:3; }
 @media (max-width:900px){ .ana-body.A,.ana-body.B{ grid-template-columns:1fr; grid-template-rows:55vh 220px auto; overflow:auto; } .ana-pane{ grid-row:auto; grid-column:1; border-left:0; border-top:1px solid var(--ln); } .ana-body.B .ana-map{ height:60vh; } }
 .ana-ctl{ position:absolute; right:12px; bottom:12px; display:flex; flex-wrap:wrap; gap:4px; z-index:2; max-width:260px; justify-content:flex-end; }
@@ -280,6 +285,17 @@ body.touch-on #crew-ui .crew-aim{ cursor:pointer; text-decoration:underline; tex
 .ana-rr{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
 .ana-rr input{ width:78px; padding:4px 6px; font-size:12px; }
 .ana-body.B .ana-compass, .ana-body.B .ana-ctl{ display:none; }
+/* 走りの再生 */
+.ana-play{ position:absolute; left:14px; top:10px; z-index:3; display:flex; align-items:center; gap:6px; flex-wrap:wrap; max-width:min(560px,calc(100% - 120px)); background:rgba(21,23,26,.88); border:1px solid var(--ln); padding:6px 8px; }
+.ana-play.off{ display:none; }
+.ana-play .btn{ padding:4px 9px; font-size:12px; }
+.ana-play .seg>button{ padding:3px 8px; font-size:11px; }
+.ana-play input[type=range]{ flex:1 1 140px; min-width:100px; accent-color:var(--acc); }
+.ana-play .chk{ font-size:11px; }
+.ana-pr{ flex-basis:100%; font:500 11.5px/1.5 var(--fn); color:var(--tx2); font-variant-numeric:tabular-nums; }
+.ana-pr:empty{ display:none; }
+.ana-pr b{ color:var(--tx); margin-right:6px; }
+.ana-body.B .ana-play{ display:none; }
 /* グラフ: 日付のボタン (上) と範囲のスライダー (下) */
 .ana-days{ position:absolute; left:0; right:0; top:0; height:30px; display:flex; align-items:center; gap:4px; padding:0 12px 0 8px; overflow-x:auto; scrollbar-width:none; z-index:1; }
 .ana-days::-webkit-scrollbar{ display:none; }
@@ -309,6 +325,7 @@ body.touch-on #crew-ui .crew-aim{ cursor:pointer; text-decoration:underline; tex
  .ana-leg{ left:8px; top:8px; bottom:auto; min-width:0; max-width:calc(100% - 70px); padding:6px 10px; }
  .ana-leg .lb{ font-size:10px; } .ana-leg .bar{ height:6px; }
  .ana-compass{ top:8px; right:8px; }
+ .ana-play{ left:8px; right:8px; top:auto; bottom:52px; max-width:none; }
  .ana-ctl{ left:8px; right:8px; bottom:8px; max-width:none; flex-wrap:nowrap; overflow-x:auto; justify-content:flex-start; }
  .ana-ctl .btn{ flex:none; padding:7px 9px; }
  .ana-top .lb{ display:none; }
@@ -370,3 +387,31 @@ body.touch-on.walking #crew-ui{ top:60px!important; }
 @keyframes fadebar{ 0%{ transform:translateX(-100%); } 100%{ transform:translateX(250%); } }
 @media (max-width:520px){ #fade .fade-name{ font-size:12px; letter-spacing:.18em; } }
 @media (prefers-reduced-motion: reduce){ #fade, #fade.out{ transition-duration:.12s; } #fade.on .fade-in>*, #fade.out .fade-in>*{ animation:none; opacity:1; transform:none; filter:none; } #fade .fade-bar i{ animation:none; width:100%; } }
+
+/* 練習シナリオの採点 */
+.scn-res{ position:fixed; inset:0; z-index:90; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.6); }
+.scn-res.on{ display:flex; }
+.scn-res .box{ width:min(520px,calc(100vw - 32px)); max-height:calc(100vh - 32px); overflow:auto; background:var(--pn); border:1px solid var(--ln); border-top:2px solid var(--acc); padding:18px 20px; }
+.scn-res h3{ font:700 20px var(--fn); margin:2px 0 6px; }
+.scn-res .why{ color:#ef6a5a; font-size:13px; margin-bottom:6px; }
+.scn-res .score{ display:flex; align-items:baseline; gap:6px; margin:6px 0 10px; } .scn-res .score b{ font:800 44px var(--fn); color:var(--acc); } .scn-res .score span{ color:var(--tx2); }
+.scn-res .rows{ display:grid; grid-template-columns:auto 1fr auto; gap:5px 12px; font-size:13px; }
+.scn-res .rows .bad{ color:#ef6a5a; font-family:var(--fn); } .scn-res .rows .good{ color:var(--ok); font-family:var(--fn); }
+.scn-res ul{ margin:4px 0 0 18px; font-size:12.5px; color:var(--tx2); line-height:1.7; list-style:disc; }
+.scn-res .btns{ display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
+
+/* 無線の速度指示 (速度パネルの上) */
+#hud-order{ position:fixed; left:50%; transform:translateX(-50%); bottom:124px; width:290px; align-items:center; gap:6px; padding:5px 12px!important; border-left:3px solid #22d3ee; font-family:var(--fn); z-index:20; }
+#hud-order.ok{ border-left-color:var(--ok); }
+#hud-order b{ font-size:20px; } #hud-order .u{ font-size:11px; color:var(--tx2); }
+#hud-order .d{ margin-left:auto; font-size:12px; font-weight:700; color:#fbbf24; } #hud-order.ok .d{ color:var(--ok); }
+#hud-order .r{ font-size:10.5px; color:var(--dim); width:100%; display:none; }
+#hud-order{ flex-wrap:wrap; } #hud-order .r{ display:block; }
+body.touch-on #hud-order{ top:96px; bottom:auto; }
+
+.ffb-t{ display:grid; grid-template-columns:7.5em 1fr 3.2em; align-items:center; gap:8px; font-size:12px; margin:3px 0; }
+.ffb-t input{ accent-color:var(--acc); } .ffb-t b{ font:600 11px var(--fn); text-align:right; color:var(--tx2); }
+
+#fps-meter{ position:fixed; left:50%; top:4px; transform:translateX(-50%); z-index:60; font:600 11px var(--fn); color:#e6e6e3; background:rgba(13,14,16,.75); padding:2px 8px; border:1px solid var(--ln); pointer-events:none; font-variant-numeric:tabular-nums; }
+
+.ana-pane .btn:disabled{ opacity:.4; cursor:default; }

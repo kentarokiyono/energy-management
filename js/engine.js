@@ -218,6 +218,7 @@ s.windSpeed=Math.max(0,PRO.windBase*wc.f*(1+s.wGust)*0.6); // 車高(~1m)へ対�
 s.windDirWorld=wc.toward+s.wDirDev;
 const rw=RealWx.on()&&RealWx.wind(prof.lat,prof.lon,s.dayOfYear,s.hour);
 if(rw){ const w=rw; s.windSpeed=Math.max(0,w.ws*(1+0.5*s.wGust)*0.6); s.windDirWorld=w.toward+s.wDirDev*0.3; }
+const sw=typeof Scenario!=="undefined"&&Scenario.wind(s,prof); if(sw){ s.windSpeed=sw.ms; s.windDirWorld=sw.to; }   // 練習シナリオの横風
 }
 s.hour+=dtS/3600;
 if(s.boostT>0)s.boostT-=dtR; if(s.boostCd>0)s.boostCd-=dtR;
@@ -543,6 +544,7 @@ collision(hit){
  if(P.event){ EventGame.onHit(hit); return; }   // イベント: 減点のみ (リタイアしない)
  const now=performance.now(); if(now<(s.hitCd||0)&&hit.level==="light") return;
  const what=COLLIDE_WHAT[hit.kind]||"障害物", kmh=(hit.vn*3.6).toFixed(0);
+ if(typeof Scenario!=="undefined") Scenario.hit();
  if(typeof FFB!=="undefined") FFB.kick(hit.level==="light"?0.5:1,hit.level==="light"?0.4:0.9,hit.level==="light"?220:450);   // 接触・衝突の衝撃
  if(hit.level==="light"){ s.hitCd=now+2500; Snd.alarm(); toast(`⚠ ${what}に接触 (${kmh} km/h)`,"#f59e0b"); Radio.push(`${what}に軽く接触しました (${kmh} km/h)。車体を確認しながら走行を続けてください。`,"チーフ"); return; }
  if(hit.level==="damage"&&s.stopKind==="repair"&&s.stopTimer>0) return;   // 修理停車中の重ねた判定は数えない

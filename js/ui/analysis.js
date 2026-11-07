@@ -102,7 +102,7 @@ const Ana={
    <span class="lb">色</span><div class="seg" id="ana-met">${Object.entries(this.METRICS).map(([k,m])=>`<button data-v="${k}">${m.label}</button>`).join("")}</div>
    <button class="btn ana-sm" id="ana-all" title="グラフの範囲と区間をリセット">全体</button>
    <button class="btn ana-sm ana-x" onclick="Fade.go(()=>Ana.close())">${ic("x")}閉じる</button></div>
-  <div class="ana-body" id="ana-body"><div class="ana-map" id="ana-map"><div class="ana-hint">ドラッグで回転 ・ 右ドラッグ / Shift で移動 ・ ホイール / 2 本指で拡大 ・ クリックで地点</div><div class="ana-compass" id="ana-compass" title="北の向き (クリックで北を上に)" onclick="Ana.map&&Ana.map.north()"><i></i><b>N</b></div><div class="ana-ctl"><button class="btn" title="左に回す" onclick="Ana.map.rot(-1)">${ic("rotate","flipx")}</button><button class="btn" title="右に回す" onclick="Ana.map.rot(1)">${ic("rotate")}</button><button class="btn" title="寝かせる" onclick="Ana.map.tilt(1)">${ic("chd")}</button><button class="btn" title="起こす" onclick="Ana.map.tilt(-1)">${ic("chu")}</button><button class="btn" title="北を上に" onclick="Ana.map.north()">N</button><button class="btn" title="真上から" onclick="Ana.map.top()">真上</button><button class="btn" title="区間に合わせる" onclick="Ana.map.fit()">合わせる</button><button class="btn" title="初期の向き" onclick="Ana.map.reset()">初期</button></div><div class="ana-leg" id="ana-leg"></div><div class="ana-tag" id="ana-tag"></div></div>
+  <div class="ana-body" id="ana-body"><div class="ana-map" id="ana-map"><div class="ana-hint">ドラッグで回転 ・ 右ドラッグ / Shift で移動 ・ ホイール / 2 本指で拡大 ・ クリックで地点</div><div class="ana-compass" id="ana-compass" title="北の向き (クリックで北を上に)" onclick="Ana.map&&Ana.map.north()"><i></i><b>N</b></div><div class="ana-ctl"><button class="btn" title="左に回す" onclick="Ana.map.rot(-1)">${ic("rotate","flipx")}</button><button class="btn" title="右に回す" onclick="Ana.map.rot(1)">${ic("rotate")}</button><button class="btn" title="寝かせる" onclick="Ana.map.tilt(1)">${ic("chd")}</button><button class="btn" title="起こす" onclick="Ana.map.tilt(-1)">${ic("chu")}</button><button class="btn" title="北を上に" onclick="Ana.map.north()">N</button><button class="btn" title="真上から" onclick="Ana.map.top()">真上</button><button class="btn" title="区間に合わせる" onclick="Ana.map.fit()">合わせる</button><button class="btn" title="初期の向き" onclick="Ana.map.reset()">初期</button></div><div class="ana-leg" id="ana-leg"></div><div class="ana-play" id="ana-play"><button class="btn" id="ana-pp" title="再生 / 一時停止" onclick="Ana.togglePlay()">${ic("play")}</button><div class="seg" id="ana-rate"><button data-r="600">×600</button><button data-r="3600">×3600</button><button data-r="14400">×4h</button></div><input type="range" id="ana-ps" min="0" max="1000" value="0" step="1"><label class="chk" title="地図を再生位置に合わせて動かす"><input type="checkbox" id="ana-follow" checked><i></i>追従</label><div class="ana-pr" id="ana-pr"></div></div><div class="ana-tag" id="ana-tag"></div></div>
    <div class="ana-pane" id="ana-pane"></div><div class="ana-charts" id="ana-charts"><div class="ana-days" id="ana-days"></div><canvas id="ana-cv"></canvas><canvas id="ana-cv2"></canvas><canvas id="ana-nav" title="つかんで動かす・端をつかんで範囲を変える"></canvas></div>
    <div class="ana-empty" id="ana-empty">走行ログがありません。レースモードで走るか、CSV を読み込むか、デモを追加してください。</div></div>
   <div class="ana-dlg" id="ana-dlg"><div class="box"><div class="ph">${ic("edit")}走行データの編集</div>
@@ -111,7 +111,7 @@ const Ana={
   document.body.appendChild(el);
   const seg=(id,key,cb)=>document.getElementById(id).addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; this[key]=b.dataset.v; cb&&cb(); this.render(); });
   seg("ana-lay","layout"); seg("ana-mode","mapMode",()=>this.map&&(this.map.dirty=true)); seg("ana-met","metric",()=>this.map&&(this.map.dirty=true));
-  document.getElementById("ana-run").onchange=e=>{ this.cur=+e.target.value; this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); };
+  document.getElementById("ana-run").onchange=e=>{ this.stopPlay(); this.play.t=null; this.cur=+e.target.value; this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); };
   document.getElementById("ana-cmp").onchange=e=>{ this.cmp=+e.target.value; this.render(); };
   document.getElementById("ana-demo").onclick=()=>{ try{ localStorage.removeItem("bwsc_ana_nodemo"); }catch(e){} this.emptied=false; this.addDemo(); };
   document.getElementById("ana-all").onclick=()=>{ this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); };
@@ -126,7 +126,7 @@ const Ana={
   document.getElementById("ana-dsave").onclick=()=>this.saveEdit();
   document.getElementById("ana-dn").onkeydown=e=>{ if(e.key==="Enter") this.saveEdit(); };
   document.getElementById("ana-days").addEventListener("click",e=>{ const b=e.target.closest("button"); if(b) this.zoomTo(b.dataset.d); });
-  this.initNav();
+  this.initNav(); this.initPlay();
   addEventListener("keydown",e=>{ if(this.isOpen()&&e.key==="Escape"){ e.stopPropagation(); const d=document.getElementById("ana-dlg"); if(d.classList.contains("on")) d.classList.remove("on"); else this.close(); } },true);
   this.initCharts();
  },
@@ -192,7 +192,40 @@ const Ana={
   if(this.cmp===i) this.cmp=-1; else if(this.cmp>i) this.cmp--;
   this.cur=Math.max(0,Math.min(i,this.runs.length-1)); if(!this.runs.length) this.emptied=true;
   this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); toast("削除しました","#8b9097"); },
- close(){ const e=document.getElementById("ana"); if(e) e.classList.remove("on"); },
+ close(){ this.stopPlay(); const e=document.getElementById("ana"); if(e) e.classList.remove("on"); },
+ /* ---------- 走りの再生: 走行ログの時刻に沿って、地図の上の印・グラフの縦線・数値を動かす (早送り) ---------- */
+ play:{on:false,t:null,rate:3600,raf:0,last:0},
+ playRows(run){ if(run._pr) return run._pr; const R=run.rows.filter(r=>Number.isFinite(r.abs)&&Number.isFinite(r.km)); return run._pr= R.length>1&&R[R.length-1].abs>R[0].abs? R : null; },
+ initPlay(){
+  document.getElementById("ana-rate").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; this.play.rate=+b.dataset.r; this.playUI(); });
+  const sl=document.getElementById("ana-ps"); sl.addEventListener("input",()=>{ const R=this.playRows(this.run()); if(!R) return; this.play.t=R[0].abs+(R[R.length-1].abs-R[0].abs)*sl.value/1000; this.playAt(); });
+  this.playUI();
+ },
+ playUI(){ document.querySelectorAll("#ana-rate button").forEach(b=>b.classList.toggle("on",+b.dataset.r===this.play.rate)); document.getElementById("ana-pp").innerHTML=ic(this.play.on?"pause":"play");
+  document.getElementById("ana-play").classList.toggle("off",!this.playRows(this.run()||{rows:[]})); },
+ togglePlay(){ const run=this.run(), R=run&&this.playRows(run); if(!R){ toast("この走行には時刻の列がないため再生できません","#f59e0b"); return; }
+  if(this.play.on){ this.stopPlay(); return; }
+  if(this.play.t==null||this.play.t>=R[R.length-1].abs||this.play.run!==run) this.play.t=R[0].abs;
+  this.play.run=run; this.play.on=true; this.play.last=performance.now(); this.lock=true; this.playUI();
+  const step=(now)=>{ if(!this.play.on) return; const dt=Math.min(0.1,(now-this.play.last)/1000); this.play.last=now; this.play.t+=dt*this.play.rate/3600;
+   if(this.play.t>=R[R.length-1].abs){ this.play.t=R[R.length-1].abs; this.playAt(); this.stopPlay(); return; }
+   this.playAt(); this.play.raf=requestAnimationFrame(step); };
+  this.play.raf=requestAnimationFrame(step); },
+ stopPlay(){ this.play.on=false; cancelAnimationFrame(this.play.raf); if(document.getElementById("ana-pp")) this.playUI(); },
+ /* 再生位置 (時刻 t) の行を前後の行から補間して表示 */
+ playAt(){
+  const run=this.run(), R=run&&this.playRows(run); if(!R) return; const t=this.play.t;
+  let lo=0, hi=R.length-1; while(lo<hi){ const m=(lo+hi)>>1; if(R[m].abs<t) lo=m+1; else hi=m; }
+  const b=R[lo], a=R[Math.max(0,lo-1)], u=b.abs>a.abs? clamp((t-a.abs)/(b.abs-a.abs),0,1) : 1, k=a.km+(b.km-a.km)*u, L=(x,y)=>Number.isFinite(x)&&Number.isFinite(y)? x+(y-x)*u : y;
+  // 追従: 地図の注視点を印へ寄せて近づける。グラフの範囲も印が外れたら動かす
+  if(document.getElementById("ana-follow").checked&&this.map&&this.layout==="A"){ const P=this.map.P, i=clamp(Math.round(k),0,P.length-1), v=this.map.view;
+   v.tx+= (P[i][0]-v.tx)*0.15; v.tz+= (P[i][1]-v.tz)*0.15; v.d+= (Math.min(v.d,140)-v.d)*0.05; }
+  if(this.xr&&(k<this.xr[0]||k>this.xr[1])){ const w=this.xr[1]-this.xr[0]; this.xr=[clamp(k-w*0.2,0,Math.max(0,run.kmMax-w)),0]; this.xr[1]=this.xr[0]+w; this.zoomDay=null; this.drawCharts(); }
+  this.setCursor(k);
+  const day=Math.floor(t/24)+1, hh=((t%24)+24)%24;
+  document.getElementById("ana-pr").innerHTML=`<b>Day${day} ${String(Math.floor(hh)).padStart(2,"0")}:${String(Math.floor(hh%1*60)).padStart(2,"0")}</b> ${k.toFixed(1)} km ・ ${(L(a.v,b.v)||0).toFixed(0)} km/h ・ SOC ${(L(a.soc,b.soc)||0).toFixed(1)} % ・ ${escHtml(b.st||"")}${b.drv&&b.drv!=="―"?" ・ "+escHtml(b.drv):""}`;
+  const sl=document.getElementById("ana-ps"); sl.value=String(Math.round((t-R[0].abs)/(R[R.length-1].abs-R[0].abs)*1000));
+ },
  run(){ return this.runs[this.cur]; }, cmpRun(){ return this.cmp>=0&&this.cmp!==this.cur? this.runs[this.cmp] : null; },
  render(){
   const run=this.run(), body=document.getElementById("ana-body");
@@ -201,6 +234,7 @@ const Ana={
   const opt=(sel,list,v,none)=>{ sel.innerHTML=(none?`<option value="-1">比較なし</option>`:"")+list.map((r,i)=>`<option value="${i}">${escHtml(this.label(r))}</option>`).join(""); sel.value=String(v); };
   opt(document.getElementById("ana-run"),this.runs,this.cur,false); opt(document.getElementById("ana-cmp"),this.runs,this.cmp,true);
   for(const id of ["ana-edit","ana-del"]) document.getElementById(id).disabled=!run;
+  this.playUI();
   if(!run) return;
   if(!this.xr) this.xr=[0,Math.max(10,run.kmMax)];
   this.renderMap(); this.drawCharts(); this.renderPane();
@@ -230,6 +264,7 @@ const Ana={
    ${kv("発電",f(S.gen/1000,2),"kWh")}${kv("消費",f(S.use/1000,2),"kWh")}${kv("回生で回収",f(S.rg,0),"Wh")}${kv("SOC 変化",(S.dsoc>0?"+":"")+f(S.dsoc,1),"%")}`;
   if(cmp){ const C=this.stats(cmp,a,b), dt=(S.t-C.t)*60;
    h+=`<div class="ph" style="margin-top:12px">${ic("users")}比較: ${escHtml(cmp.name)}</div>${kv("走行時間の差",(dt>0?"+":"")+f(dt,1),"分")}${kv("平均速度",f(C.avg,1),"km/h")}${kv("電費",f(C.whkm,1),"Wh/km")}`; }
+  h+=this.reviewUI(run)+this.calibUI(run);
   const ds=run.drivers.filter(d=>d!=="―");
   if(ds.length){ const D=ds.map(d=>({d,s:this.stats(run,a,b,d)})).filter(x=>x.s.dist>0.5);
    if(D.length){ const best=(k,low)=>{ const v=D.map(x=>x.s[k]).filter(Number.isFinite); return v.length>1? (low?Math.min(...v):Math.max(...v)) : null; };
@@ -243,6 +278,117 @@ const Ana={
   document.getElementById("ana-pane").innerHTML=(this.layout==="B"?`<div id="ana-mini"></div>`:"")+h;
   if(this.layout==="B"&&this.map){ const mini=document.getElementById("ana-mini"); mini.appendChild(this.map.r.domElement); this.map.resize(); this.map.draw(); }
  },
+ /* ---------- 戦略の答え合わせ: 走り始めの時刻・場所・SOC から「電池が持つ最も速い一定速度」で走った場合と比べる ----------
+  区間 (スタート / CS / 走行の終わり) ごとに、かかった時間・到着 SOC・巡航の速さ・停車時間の差を出し、損の大きい順に理由を付ける */
+ review(run){
+  if(run._rev) return run._rev;
+  const R=run.rows.filter(r=>Number.isFinite(r.abs)&&Number.isFinite(r.km)&&Number.isFinite(r.soc)); if(R.length<10) return run._rev={err:"時刻・SOC の入った行が足りません"};
+  if(!Engine.st) Engine.init();
+  const f=R[0], best=Strategy.best({abs:f.abs,km:f.km,soc:clamp(f.soc/100,0,1),trace:true}), tr=best.r.trace||[];
+  if(tr.length<2) return run._rev={err:"推奨の計算ができませんでした"};
+  const first=(arr,km,K)=>{ let lo=0,hi=arr.length-1; while(lo<hi){ const m=(lo+hi)>>1; if(K(arr[m])<km) lo=m+1; else hi=m; } return arr[lo]; };
+  const aAt=(km)=>first(R,km,r=>r.km), rAt=(km)=>first(tr,km,t=>t[0]);
+  const end=Math.min(run.kmMax,tr[tr.length-1][0]);
+  const marks=[f.km,...RP_CS.map(c=>c.km).filter(k=>k>f.km+1&&k<end-0.5),end];
+  const name=(k)=>{ const c=RP_CS.find(q=>Math.abs(q.km-k)<0.01); return c? `CS${c.n}` : k===f.km? (f.km<1?"スタート":`${f.km.toFixed(0)} km`) : `${k.toFixed(0)} km`; };
+  // 区間の時間 = 走っていた時間 + 停車 (CS・任意の停車・修理など。夜と発進待ちは含めない)。区間 = [a, b) を CS の手前 0.3 km でくぎる
+  const NOSTOP={"走行":1,"夜営":1,"発進待ち":1,"ゴール":1};
+  const actH=(a,b)=>{ let m=0, st=0; for(let i=1;i<R.length;i++){ const p=R[i-1], r=R[i], d=r.abs-p.abs; if(!(d>0)||d>1||p.km<a-0.3||p.km>=b-0.3) continue;
+    if(p.st==="走行"&&r.st==="走行") m+=d; else if(!NOSTOP[p.st]) st+=d; } return [m,st]; };
+  const refH=(a,b)=>{ let m=0; for(let i=1;i<tr.length;i++){ const q=tr[i]; if(q[0]-0.001<a-0.3||q[0]-0.001>=b-0.3) continue; m+=q[4]||0; }
+    const st=RP_CS.some(c=>Math.abs(c.km-a)<0.01)? 0.5 : 0; return [m,st]; };
+  const legs=[];
+  for(let i=0;i<marks.length-1;i++){ const a=marks[i], b=marks[i+1], A0=aAt(a), A1=aAt(b), T0=rAt(a), T1=rAt(b); if(!A0||!A1||!T0||!T1) continue;
+   const [mA,sA]=actH(a,b), [mR,sR]=refH(a,b), dist=b-a, tA=mA+sA, tR=mR+sR;
+   legs.push({a,b,from:name(a),to:name(b),tA,tR,dt:tA-tR,socA:A1.soc,socR:T1[2]*100,vA:mA>0?dist/mA:NaN,vR:mR>0?dist/mR:NaN,stopA:sA,stopR:sR}); }
+  const why=(L)=>{ const out=[], dv=L.vA-L.vR, ds=(L.stopA-L.stopR)*60;
+   if(ds>5) out.push(`停車が ${ds.toFixed(0)} 分長い`);
+   if(dv<-2) out.push(`巡航が ${(-dv).toFixed(1)} km/h 遅い`);
+   if(dv>2) out.push(`推奨より ${dv.toFixed(1)} km/h 速い (電池を多く使用)`);
+   if(L.socA-L.socR>15&&dv<0) out.push(`到着時に電池が ${(L.socA-L.socR).toFixed(0)} % 余分に残った (もっと速く走れた)`);
+   if(L.socR-L.socA>15) out.push(`電池が推奨より ${(L.socR-L.socA).toFixed(0)} % 少ない`);
+   return out.join("、")||"推奨に近い"; };
+  for(const L of legs) L.why=why(L);
+  const last=R[R.length-1], finished=run.kmMax>=TOTAL_KM-1;
+  return run._rev={v:best.v,ok:best.ok,legs,finished,finA:finished?last.abs:null,finR:best.r.finishAbs,socEnd:last.soc,
+   pts:tr.map(t=>({km:t[0],v:t[3]>0?t[3]:NaN,soc:t[2]*100}))};
+ },
+ reviewUI(run){
+  const R=run._rev, hm=(h)=>{ if(!Number.isFinite(h)) return "―"; const s=h<0?"-":"", m=Math.round(Math.abs(h)*60); return `${s}${Math.floor(m/60)}:${String(m%60).padStart(2,"0")}`; };
+  let h=`<div class="ph" style="margin-top:12px">${ic("gauge")}戦略の答え合わせ</div>`;
+  if(!R) return h+`<div class="ana-note" style="margin-top:0">走り始めの時刻・場所・電池から、電池が持つ最も速い一定速度 (推奨) で走った場合と比べます。</div><button class="btn ana-sm" onclick="Ana.runReview()">${ic("play")}比べる</button>`;
+  if(R.err) return h+`<div class="ana-note">${escHtml(R.err)}</div>`;
+  const tot=R.legs.reduce((s,L)=>s+L.dt,0);
+  h+=`<div class="kv"><span>推奨の一定速度</span><span>${R.v}<span class="u">km/h${R.ok?"":" (それでも電池が尽きる)"}</span></span></div>
+   <div class="kv"><span>走行 + 停車の時間の差</span><span class="${tot>0?"bad":"good"}">${tot>0?"+":""}${hm(tot)}<span class="u">${tot>0?"遅い":"速い"}</span></span></div>`;
+  if(R.finished&&Number.isFinite(R.finR)) h+=`<div class="kv"><span>ゴール時刻</span><span>${fmtAbsH(R.finA)}<span class="u">推奨 ${fmtAbsH(R.finR)}</span></span></div>`;
+  if(R.finished) h+=`<div class="kv"><span>ゴール時の電池</span><span>${R.socEnd.toFixed(0)}<span class="u">%${R.socEnd>10?" (使い残し)":""}</span></span></div>`;
+  const worst=[...R.legs].sort((x,y)=>y.dt-x.dt).filter(L=>L.dt>2/60).slice(0,3);
+  if(worst.length) h+=`<div class="lb" style="margin:8px 0 4px">損が大きい区間</div>`+worst.map(L=>`<div class="ana-rv"><b>${escHtml(L.from)} → ${escHtml(L.to)}</b> <span class="bad">+${hm(L.dt)}</span><br><span>${escHtml(L.why)}</span></div>`).join("");
+  h+=`<div class="ana-rvt"><span class="lb">区間</span><span class="lb">実際</span><span class="lb">推奨</span><span class="lb">差</span><span class="lb">到着 SOC</span>`+
+   R.legs.map(L=>`<span>${escHtml(L.from)}→${escHtml(L.to)}</span><span>${hm(L.tA)}</span><span>${hm(L.tR)}</span><span class="${L.dt>0.02?"bad":L.dt<-0.02?"good":""}">${L.dt>0?"+":""}${hm(L.dt)}</span><span>${L.socA.toFixed(0)} / ${L.socR.toFixed(0)} %</span>`).join("")+`</div>
+   <div class="ana-note">グラフの水色の点線 = 推奨で走った場合の速度と SOC。区間の時間 = 走っていた時間 + 停車 (CS など。夜は含めない)。到着 SOC = 実際 / 推奨。</div>`;
+  return h;
+ },
+ /* ---------- 車両モデルの合わせ込み: 走行ログから転がり抵抗・空気抵抗・一定の消費・発電の効率を推定し、今の設定と比べる ----------
+  一定速度に近い走行中の行 (加速度が小さい・ブレーキ/回生なし) で、
+   モーター電力 - 登り/加速の分 = a·v + b·(対気速度)²·v + c  を最小二乗で解く。
+   a = Crr·m·g/η, b = ½ρ·CdA/η, c = 一定の消費 (補機・制御)。η (駆動の効率) は 0.95 と置く
+  発電: 日射 300 W/m² 以上の行で 発電 ÷ (日射 × アレイ面積) = 実効の効率 */
+ ETA:0.95,
+ calib(run){
+  if(run._cal) return run._cal;
+  const R=run.rows, m=massTotal(), g=9.81, eta=this.ETA, X=[], Y=[];
+  for(let i=1;i<R.length-1;i++){ const p=R[i-1], r=R[i], q=R[i+1];
+   if(r.st!=="走行"||!Number.isFinite(r.pm)||!Number.isFinite(r.v)||r.v<25||r.pm<=0) continue;
+   if((r.brk||0)>1||(r.rgn||0)>1) continue;
+   const dtA=(q.abs-p.abs)*3600; let acc=0; if(Number.isFinite(dtA)&&dtA>0&&Number.isFinite(q.v)&&Number.isFinite(p.v)) acc=((q.v-p.v)/3.6)/dtA;
+   if(Math.abs(acc)>0.06) continue;
+   const v=r.v/3.6, va=Math.max(0,v+(Number.isFinite(r.head)?r.head:0)), gr=Number.isFinite(r.gr)? r.gr/100 : 0;
+   const rho=Number.isFinite(r.ta)? 1.225*288.15/(273.15+r.ta) : 1.17;
+   const y=r.pm-(m*g*gr*v+m*acc*v)/eta;
+   X.push([v,va*va*v*rho/1.17,1]); Y.push(y); }
+  if(X.length<30) return run._cal={err:"一定速度で走っている行が足りません (速度・モーター電力の列が必要)"};
+  // 正規方程式 (3×3) を解く
+  const A=[[0,0,0],[0,0,0],[0,0,0]], B=[0,0,0];
+  for(let i=0;i<X.length;i++) for(let j=0;j<3;j++){ B[j]+=X[i][j]*Y[i]; for(let k=0;k<3;k++) A[j][k]+=X[i][j]*X[i][k]; }
+  const sol=(M,b)=>{ const a=M.map((r,i)=>[...r,b[i]]); for(let c=0;c<3;c++){ let p=c; for(let r=c+1;r<3;r++) if(Math.abs(a[r][c])>Math.abs(a[p][c])) p=r; [a[c],a[p]]=[a[p],a[c]]; if(Math.abs(a[c][c])<1e-12) return null;
+    for(let r=0;r<3;r++) if(r!==c){ const f=a[r][c]/a[c][c]; for(let k=c;k<4;k++) a[r][k]-=f*a[c][k]; } } return a.map((r,i)=>r[3]/r[i]); };
+  const k=sol(A,B); if(!k) return run._cal={err:"推定できませんでした (速度の幅が狭すぎる)"};
+  const mean=Y.reduce((s,y)=>s+y,0)/Y.length; let ssr=0, sst=0; for(let i=0;i<X.length;i++){ const f=k[0]*X[i][0]+k[1]*X[i][1]+k[2]; ssr+=(Y[i]-f)**2; sst+=(Y[i]-mean)**2; }
+  const out={n:X.length,r2:sst>0?1-ssr/sst:NaN,Crr:k[0]*eta/(m*g),CdA:k[1]*eta*2/1.17,aux:k[2]};
+  // 発電の実効効率 (平らなパネル)
+  let sP=0,sG=0; for(const r of R) if(Number.isFinite(r.ps)&&Number.isFinite(r.ghi)&&r.ghi>300&&r.st==="走行"){ sP+=r.ps; sG+=r.ghi*P.arrayArea; }
+  out.effPV= sG>0? sP/sG : NaN; out.effModel=P.cellEff*P.mpptEff*0.92*PRO.solarScale;
+  // 今の設定で同じ速度の並びを走った場合の消費と、実際の消費
+  let eA=0,eM=0; for(let i=1;i<R.length;i++){ const p=R[i-1], r=R[i], d=r.abs-p.abs; if(!(d>0)||d>0.5||p.st!=="走行"||r.st!=="走行"||!Number.isFinite(r.pm)) continue;
+   eA+=r.pm*d; eM+=Math.max(0,Strategy.drivePower(r.v/3.6,Number.isFinite(r.gr)?r.gr/100:0))*d; }
+  out.eAct=eA; out.eModel=eM;
+  return run._cal=out;
+ },
+ calibUI(run){
+  const C=run._cal, f=(x,d)=>Number.isFinite(x)?x.toFixed(d):"―";
+  let h=`<div class="ph" style="margin-top:12px">${ic("sliders")}車両モデルの合わせ込み</div>`;
+  if(!C) return h+`<div class="ana-note" style="margin-top:0">走行ログの速度・モーター電力・発電・日射から、転がり抵抗・空気抵抗 (CdA)・一定の消費・発電の効率を推定し、今の設定と比べます。実戦のログ (同じ列名の CSV) で使えます。</div><button class="btn ana-sm" onclick="Ana.runCalib()">${ic("play")}推定する</button>`;
+  if(C.err) return h+`<div class="ana-note">${escHtml(C.err)}</div>`;
+  const cur={Crr:P.Crr,CdA:P.Cd*P.frontal,aux:P.auxW}, pct=(a,b)=>Number.isFinite(a)&&b? `${a>b?"+":""}${((a/b-1)*100).toFixed(0)} %` : "―";
+  h+=`<div class="ana-rvt" style="grid-template-columns:1.4fr 1fr 1fr 0.8fr"><span class="lb">項目</span><span class="lb">ログから</span><span class="lb">今の設定</span><span class="lb">差</span>
+   <span>転がり抵抗 Crr</span><span>${f(C.Crr,4)}</span><span>${f(cur.Crr,4)}</span><span>${pct(C.Crr,cur.Crr)}</span>
+   <span>空気抵抗 CdA m²</span><span>${f(C.CdA,3)}</span><span>${f(cur.CdA,3)}</span><span>${pct(C.CdA,cur.CdA)}</span>
+   <span>一定の消費 W</span><span>${f(C.aux,0)}</span><span>${f(cur.aux,0)}</span><span>${pct(C.aux,cur.aux)}</span>
+   <span>発電の実効効率</span><span>${f(C.effPV*100,1)} %</span><span>${f(C.effModel*100,1)} %</span><span>${pct(C.effPV,C.effModel)}</span>
+   <span>走行の消費 kWh</span><span>${f(C.eAct/1000,2)}</span><span>${f(C.eModel/1000,2)}</span><span>${pct(C.eAct,C.eModel)}</span></div>
+   <div class="ana-note">使った行 ${C.n}・当てはまり R² ${f(C.r2,2)}${C.r2<0.6?" (低い: 速度の幅が狭い・風や加速の影響が大きい)":""}。「今の設定」の消費 = この走行と同じ速度・勾配で今の設定のモデルを走らせた値。CdA は空気抵抗係数 × 前面投影面積、Crr は η=${this.ETA} と置いた推定。発電は温度・角度の影響を含んだ実効値。</div>
+   <button class="btn ana-sm" onclick="Ana.applyCalib()" ${C.r2>=0.5?"":"disabled"}>${ic("check")}推定値を設定に反映</button>`;
+  return h;
+ },
+ runCalib(){ const run=this.run(); if(!run) return; try{ this.calib(run); }catch(e){ run._cal={err:"推定できませんでした: "+e.message}; } this.renderPane(); },
+ applyCalib(){ const C=this.run()&&this.run()._cal; if(!C||C.err) return;
+  if(!confirm(`推定値を車両の設定に反映します (この端末に保存)。\nCrr ${C.Crr.toFixed(4)}・Cd ${(C.CdA/P.frontal).toFixed(3)} (CdA ${C.CdA.toFixed(3)} ÷ 前面投影 ${P.frontal})・一定の消費 ${C.aux.toFixed(0)} W${Number.isFinite(C.effPV)?`・セル効率 ${(C.effPV/(P.mpptEff*0.92*PRO.solarScale)*100).toFixed(1)} %`:""}`)) return;
+  const set=(id,v)=>{ const s=SLIDERS.find(x=>x.id===id); if(!s||!Number.isFinite(v)) return; P[id]=clamp(v,s.min,s.max); const el=document.getElementById("sl-"+id); if(el) el.value=P[id]; refreshSliderLabel(id); };
+  set("Crr",C.Crr); set("Cd",C.CdA/P.frontal); set("auxW",C.aux); if(Number.isFinite(C.effPV)) set("cellEff",C.effPV/(P.mpptEff*0.92*PRO.solarScale));
+  refreshDerived(); Settings.save(); this.run()._cal=null; Strategy.last=null; toast("車両の設定に反映しました","#34d399"); this.renderPane(); },
+ runReview(){ const run=this.run(); if(!run) return; toast("計算中…","#22d3ee"); setTimeout(()=>{ try{ this.review(run); }catch(e){ run._rev={err:"計算できませんでした: "+e.message}; } this.renderPane(); this.drawCharts(); },30); },
  /* ---------- 立体地図 ---------- */
  renderMap(){
   if(!this.map) this.map=this.makeMap();
@@ -346,7 +492,7 @@ const Ana={
  setCursor(k,fromMap){ this.cursor=k; if(this.map) this.map.draw(); this.drawCursor(); },
  placeTag(){
   const tag=document.getElementById("ana-tag"), run=this.run(), k=this.cursor;
-  if(!tag) return; if(!run||k==null||!this.map||this.layout!=="A"){ tag.style.display="none"; return; }
+  if(!tag) return; if(!run||k==null||!this.map||this.layout!=="A"||this.play.on){ tag.style.display="none"; return; }   // 再生中は上の欄に出す
   const r=this.rowAt(run,k), p=this.map.screen(k); if(!r||p.z>1){ tag.style.display="none"; return; }
   const day=Math.floor((r.abs||8)/24)+1, h=((r.abs||8)%24);
   tag.style.display="block"; tag.style.left=Math.min(this.map.w-260,p.x+10)+"px"; tag.style.top=Math.max(4,p.y-18)+"px";
@@ -392,6 +538,7 @@ const Ana={
     flush(); c.stroke(); c.setLineDash([]); };
    if(cmp) for(const s of row.s) if(!s.dash) line(cmp.rows,s.k,"#6b7077",1);
    for(const s of row.s) line(run.rows,s.k,s.c,s.w,s.dash);
+   if(run._rev&&run._rev.pts) for(const s of row.s) if(s.k==="v"||s.k==="soc") line(run._rev.pts,s.k,"#22d3ee",1.2,true);   // 答え合わせ: 推奨速度で走った場合
    c.save(); c.beginPath(); c.rect(L,y0,PW,rh); c.restore(); });
   c.fillStyle="#8b9097"; const span=x1-x0, step=[1,2,5,10,20,50,100,200,500].find(s=>span/s<=10)||500;
   for(let k=Math.ceil(x0/step)*step;k<=x1;k+=step) c.fillText(k+" km",X(k)-12,H-10);

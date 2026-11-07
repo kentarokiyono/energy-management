@@ -21,7 +21,7 @@ const Geo={
 const RealWx={
  ok:false, DOY0:234,
  init(){ if(typeof WEATHER_2025==="undefined") return; this.W=WEATHER_2025; this.ok=true; },
- on(){ return this.ok&&P.realWeather!==false&&P.mode==="race"&&!P.event; },
+ on(){ return this.ok&&P.realWeather!==false&&P.mode==="race"&&!P.event&&!(typeof Engine!=="undefined"&&Engine.st&&Engine.st.scenario); },   // 練習シナリオは決めた天気
  /* 場所 (緯度経度) と 通日・時刻 → 補間の重み。地点はルート上 100 km ごと: 近い 2 地点を距離で、前後の 1 時間を時刻で */
  wts(lat,lon,doy,hour){
   const W=this.W, L=W.loc, c=Math.cos(lat*Math.PI/180); let i0=0,d0=1e9,i1=0,d1=1e9;

@@ -67,8 +67,8 @@ const DS=THREE.DoubleSide;
 // 画質「標準」以上: 物理ベース (塗装はウレタンのクリア、セルはシリコンの青い反射、窓は透ける)。「低」は軽い材質のまま
 const PBR=typeof GFX==="undefined"||GFX.key()!=="low";
 const paint=(c)=>PBR? new THREE.MeshPhysicalMaterial({color:c,metalness:.1,roughness:.15,clearcoat:1,clearcoatRoughness:.05,side:DS,envMapIntensity:1}) : new THREE.MeshStandardMaterial({color:c,roughness:.5,side:DS,envMapIntensity:.3});
-const matWhite=paint(0xe8eaee);
-const matOrange=paint(BD.livery?0xe2560a:0xf27316);
+const matWhite=paint(BD.base!=null?BD.base:0xe8eaee);   // BD.base / BD.accent: 他チームの車の色
+const matOrange=paint(BD.accent!=null?BD.accent:BD.livery?0xe2560a:0xf27316);
 const matSkirt=PBR? new THREE.MeshPhysicalMaterial({color:0x101216,metalness:.1,roughness:.3,clearcoat:.8,clearcoatRoughness:.1,side:DS,envMapIntensity:.8}) : new THREE.MeshStandardMaterial({color:0x101216,roughness:.5,side:DS});
 const matArray=PBR? new THREE.MeshPhysicalMaterial({color:0x141b4d,metalness:.85,roughness:.2,reflectivity:.9,clearcoat:.6,clearcoatRoughness:.08,map:T.cellL,side:DS,envMapIntensity:1})
  : new THREE.MeshPhysicalMaterial({color:0x0b0e12,roughness:.42,clearcoat:.5,clearcoatRoughness:.25,map:T.cell,side:DS,envMapIntensity:.35});
@@ -109,7 +109,7 @@ const cu0=(O.canopyX-O.canopyLen*0.52)/O.L, cu1=(O.canopyX+O.canopyLen*0.52)/O.L
 const OPN={w:0,z0:1e9,z1:-1e9,yTop:0,yMin:1e9};
 for(let i=0;i<O.seg;i++)for(let r=0;r<R;r++){
 const r2=(r+1)%R,u=i/O.seg;
-if(TYP[i][r]==="K"){ const uc=(i+.5)/O.seg, xc=(Pp[i][r].x+Pp[i][r2].x+Pp[i+1][r].x+Pp[i+1][r2].x)/4;
+if(TYP[i][r]==="K"&&!BD.noOpening){ const uc=(i+.5)/O.seg, xc=(Pp[i][r].x+Pp[i][r2].x+Pp[i+1][r].x+Pp[i+1][r2].x)/4;
  if(uc>cu0&&uc<cu1&&Math.abs(xc)<cw0){ for(const q of [Pp[i][r],Pp[i][r2],Pp[i+1][r],Pp[i+1][r2]]){ OPN.w=Math.max(OPN.w,Math.abs(q.x)); OPN.z0=Math.min(OPN.z0,q.z); OPN.z1=Math.max(OPN.z1,q.z); OPN.yTop=Math.max(OPN.yTop,q.y); OPN.yMin=Math.min(OPN.yMin,q.y); } continue; } }
 const zm=(Pp[i][r].y+Pp[i][r2].y)/2;
 let b=TYP[i][r]==="K"?bS:(u<O.orangeU?bO:(zm<O.skirtZ?bS:bW));
@@ -125,6 +125,16 @@ const cid=bS.v.length/3;bS.v.push(0,(zBell(1)+zHull(1))/2,O.L-HL);bS.uv.push(O.L
 for(let r=0;r<n;r++){const a=vid(bS,Pp,Uv,i,r),c=vid(bS,Pp,Uv,i,(r+1)%n);bS.idx.push(cid,a,c);}}
 finish(bW);finish(bO);finish(bS);
 if(OPN.w>0) grp.userData.opening=OPN;
+// 胴体の上端からパネルの下面までの側面 (パネルは胴体に載っている。すき間から向こうが見えないように閉じる)
+{ const bWl=mkB(LIV?matOrange:matWhite), TH=0.035;
+  for(let i=0;i<O.seg;i++){ const P2=[i,i+1].map(k=>{ const u=k/O.seg; return {w:hullW(u),hd:zHull(u),ap:Math.max(zPanel(u),zHull(u)+PG)-TH,z:u*O.L-HL}; });
+   if(P2[0].ap-P2[0].hd<0.003&&P2[1].ap-P2[1].hd<0.003) continue;
+   for(const sd of [-1,1]){ const id=bWl.v.length/3;
+    for(const q of P2){ bWl.v.push(sd*q.w,q.hd,q.z, sd*q.w,Math.max(q.hd,q.ap),q.z); bWl.uv.push(0,0,0,1); }
+    bWl.idx.push(id,id+1,id+2, id+1,id+3,id+2); } }
+  finish(bWl); }
+// カタマラン (他チームの車): 胴体を細くして左右 2 本にする
+if(BD.cat){ const parts=grp.children.slice(); for(const m of parts){ grp.remove(m); for(const sd of [-1,1]){ const c=m.clone(); c.scale.x=BD.cat.s; c.position.x=sd*BD.cat.d; grp.add(c); } } }
 // ナンバープレート (後端の平らな面)
 if(BD.plate){ const cv=document.createElement("canvas"); cv.width=256; cv.height=92; const c=cv.getContext("2d");
  c.fillStyle="#f4f1ea"; c.fillRect(0,0,256,92); c.strokeStyle="#c2410c"; c.lineWidth=6; c.strokeRect(4,4,248,84);
@@ -136,7 +146,7 @@ if(BD.plate){ const cv=document.createElement("canvas"); cv.width=256; cv.height
 const nUpper0=grp.children.length;   // ここからアッパーカウル (パネル翼 + キャノピー)
 /* ==== パネル翼(ハルより≥6cm上の独立フラット面=構造的にZファイティング不可) ==== */
 {
-const bA=mkB(matArray),bO=mkB(matOrange),PW=6,Gp=[],Uv=[];
+const bA=mkB(matArray),bO=mkB(matOrange),PW=12,Gp=[],Uv=[];
 for(let i=0;i<=O.seg;i++){
 const u=i/O.seg,xl=u*O.L,wa=halfW(u);
 const ap=Math.max(zPanel(u),zHull(u)+PG),zPos=xl-HL;
@@ -152,12 +162,20 @@ function canopyLenSafe(){return O.canopyLen*0.52;}
 for(let i=0;i<O.seg;i++)for(let j=0;j<PW;j++){
 const uc=(i+0.5)/O.seg;
 const xc=((j+0.5)/PW*2-1)*((halfW(i/O.seg)+halfW((i+1)/O.seg))*0.5);
-if(uc>u0&&uc<u1&&Math.abs(xc)<wc) continue; // キャノピー開口はパネルをくり抜く
+if(uc>u0&&uc<u1&&Math.abs(xc-(BD.canopyOffset||0))<wc) continue; // キャノピー開口はパネルをくり抜く (キャノピーを左右にずらした車はその位置)
 const b=(i/O.seg)<O.orangeU?bO:bA;
 const a=vid2(b,i,j),c=vid2(b,i,j+1),d=vid2(b,i+1,j+1),e=vid2(b,i+1,j);
 b.idx.push(a,c,e,c,d,e);
 }
 finish(bA);finish(bO);
+// パネルの厚み: 白い下面と、外周の縁 (板が紙のように薄く見えないように)
+{ const TH=0.035, bU=mkB(matWhite), bE=mkB(matWhite), V=(b,x,y,z)=>{ b.v.push(x,y,z); b.uv.push(0,0); return b.v.length/3-1; };
+  for(let i=0;i<O.seg;i++)for(let j=0;j<PW;j++){ const uc=(i+0.5)/O.seg, xc=((j+0.5)/PW*2-1)*((halfW(i/O.seg)+halfW((i+1)/O.seg))*0.5);
+   if(uc>u0&&uc<u1&&Math.abs(xc-(BD.canopyOffset||0))<wc) continue;
+   const q=[Gp[i][j],Gp[i][j+1],Gp[i+1][j+1],Gp[i+1][j]].map(p=>V(bU,p.x,p.y-TH,p.z)); bU.idx.push(q[0],q[2],q[1],q[0],q[3],q[2]); }
+  for(let i=0;i<O.seg;i++) for(const j of [0,PW]){ const a=Gp[i][j], b=Gp[i+1][j], q=[V(bE,a.x,a.y,a.z),V(bE,b.x,b.y,b.z),V(bE,b.x,b.y-TH,b.z),V(bE,a.x,a.y-TH,a.z)]; bE.idx.push(q[0],q[1],q[2],q[0],q[2],q[3]); }
+  { const i=O.seg; for(let j=0;j<PW;j++){ const a=Gp[i][j], b=Gp[i][j+1], q=[V(bE,a.x,a.y,a.z),V(bE,b.x,b.y,b.z),V(bE,b.x,b.y-TH,b.z),V(bE,a.x,a.y-TH,a.z)]; bE.idx.push(q[0],q[1],q[2],q[0],q[2],q[3]); } }
+  finish(bU); finish(bE); }
 }
 /* ==== キャノピー ==== */
 let canopy=null;
@@ -186,15 +204,15 @@ if(BD.canopyShape==="yata61"){
  cg.setIndex(grp0.concat(grp1)); cg.addGroup(0,grp0.length,0); cg.addGroup(grp0.length,grp1.length,1); cg.computeVertexNormals();
  canopy=new THREE.Mesh(cg,[
   glassMat(0x2a3036,new THREE.MeshPhysicalMaterial({color:0x232528,roughness:.3,clearcoat:.4,envMapIntensity:.15,side:DS})),   // 横窓 (濃いグレー)
-  new THREE.MeshPhysicalMaterial({color:0x050607,roughness:.35,clearcoat:.5,envMapIntensity:.2,side:DS})]);  // 本体 (黒)
+  new THREE.MeshPhysicalMaterial({color:BD.canopyCol!=null?BD.canopyCol:0x050607,roughness:.35,clearcoat:.5,envMapIntensity:.2,side:DS})]);  // 本体 (黒。他チームは BD.canopyCol)
  canopy.castShadow=true; grp.add(canopy);
- // 「61 YATA」(キャノピー後半の両側)
- if(!YATA_CACHE.logo){ const cv=document.createElement("canvas"); cv.width=256; cv.height=160; const c=cv.getContext("2d");
+ // 「61 YATA」(キャノピー後半の両側。他チームの車には付けない)
+ if(!BD.noLogo&&!YATA_CACHE.logo){ const cv=document.createElement("canvas"); cv.width=256; cv.height=160; const c=cv.getContext("2d");
   c.font="italic bold 78px Arial Black,Arial,sans-serif"; c.textAlign="center";
   const g1=c.createLinearGradient(0,10,0,80); g1.addColorStop(0,"#ff6a00"); g1.addColorStop(1,"#ffd21f"); c.fillStyle=g1; c.fillText("61",120,74);
   c.font="italic bold 58px Arial Black,Arial,sans-serif"; c.fillStyle="#ffd21f"; c.fillText("YATA",128,140);
   YATA_CACHE.logo=new THREE.CanvasTexture(cv); YATA_CACHE.logo.encoding=THREE.sRGBEncoding; }
- for(const sd of [-1,1]){ const u=0.74, a=O.canopyW/2*wf(u)*Math.pow(Math.abs(Math.cos(Math.PI*0.3)),.5);
+ if(!BD.noLogo) for(const sd of [-1,1]){ const u=0.74, a=O.canopyW/2*wf(u)*Math.pow(Math.abs(Math.cos(Math.PI*0.3)),.5);
   const lg=new THREE.Mesh(new THREE.PlaneGeometry(0.34,0.21),new THREE.MeshBasicMaterial({map:YATA_CACHE.logo,transparent:true,side:DS,depthWrite:false}));
   lg.position.set(sd*(O.canopyW/2+0.004),apC-0.03+Hc*hf(u)*0.55,z0+u*Lc); lg.rotation.y=sd*Math.PI/2; canopy.add(lg); }
 } else {
@@ -203,7 +221,7 @@ const apC=Math.max(zPanel(uC),zHull(uC)+PG);
 const cg=new THREE.SphereGeometry(1,48,24);
 {const p=cg.attributes.position;
 for(let i=0;i<p.count;i++){const z=p.getZ(i),f=z>0?1-.45*z*z:1-.25*z*z;
-p.setX(i,p.getX(i)*f);p.setY(i,p.getY(i)*f);}}
+p.setX(i,p.getX(i)*f);p.setY(i,p.getY(i)*f*(p.getY(i)<0?0.15:1));}}   // 下半分は平らに (胴体の下へはみ出さない)
 cg.scale(O.canopyW/2,O.canopyTop-apC+0.05,O.canopyLen/2);
 cg.translate(0,apC-0.05,O.canopyX-HL);
 const idx=cg.index.array,g0=[],g1=[],p=cg.attributes.position;
@@ -214,7 +232,7 @@ cg.setIndex(g0.concat(g1));cg.clearGroups();
 cg.addGroup(0,g0.length,0);cg.addGroup(g0.length,g1.length,1);cg.computeVertexNormals();
 canopy=new THREE.Mesh(cg,[   // 外から見て黒 (スモーク) のキャノピー: 照り返しは控えめ
 glassMat(0x1a1e22,new THREE.MeshPhysicalMaterial({color:0x040506,roughness:.3,clearcoat:.6,clearcoatRoughness:.25,envMapIntensity:.25,side:DS})),
-new THREE.MeshPhysicalMaterial({color:0x040506,roughness:.35,clearcoat:.5,clearcoatRoughness:.3,envMapIntensity:.2,side:DS})]);
+new THREE.MeshPhysicalMaterial({color:BD.canopyCol!=null?BD.canopyCol:0x040506,roughness:.35,clearcoat:.5,clearcoatRoughness:.3,envMapIntensity:.2,side:DS})]);
 canopy.castShadow=true;grp.add(canopy);
 }
 /* ==== アッパーカウル: 充電のときはこれだけを傾ける (ロアカウル = 胴体は地面に置いたまま)。
@@ -224,6 +242,7 @@ let tiltX=0, tiltY=0; for(let i=0;i<=40;i++){ const u=i/40, w=halfW(u); if(w>til
 const tiltPivot=new THREE.Group(), upper=new THREE.Group(); tiltPivot.position.set(tiltX,tiltY,0); upper.position.set(-tiltX,-tiltY,0);
 tiltPivot.add(upper); grp.add(tiltPivot);
 for(const o of upperParts){ grp.remove(o); upper.add(o); o.userData.upper=true; }
+if(BD.canopyOffset&&canopy) canopy.position.x=BD.canopyOffset;   // カタマラン: キャノピーは左右どちらかの胴体の上
 /* ==== コンタクトシャドウ ==== */
 const shM=new THREE.Mesh(new THREE.PlaneGeometry(2.3*Math.max(1,halfW(.6)/.9),O.L+0.3),
 new THREE.MeshBasicMaterial({map:T.shadow,transparent:true,depthWrite:false}));

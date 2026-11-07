@@ -32,6 +32,19 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   const g=await p.evaluate(()=>({post:!!Post.comp&&Post.want(),env:!!EnvLight.rt&&View.scene.environment===EnvLight.rt.texture,pbr:View.car.userData.upperTilt.children[0].children.some(m=>m.material&&m.material.isMeshPhysicalMaterial&&m.material.clearcoat>0.5)}));
   check("画質「高」: ブルーム・映り込み・塗装",g.post&&g.env&&g.pbr&&noErr(p).length===0,JSON.stringify(g)+" "+noErr(p).slice(0,2).join(" | "));
   await shot(p,"gfx-high"); await p.context().close(); }
+ // ---- 練習シナリオ (スコール) と無線の速度指示 ----
+ { const p=await newPage(b,base);
+  await p.click('#seg-scn button[data-v="squall"]');
+  await p.evaluate(()=>{ P.mode="race"; P.crewProc=false; startGame(); }); await p.waitForTimeout(1500);
+  const sc=await p.evaluate(()=>({km:Engine.st.km,day:Engine.st.day,ts:P.timeScale,wx:Engine.st.weatherPlan.length,real:RealWx.on()}));
+  await p.evaluate(()=>{ Orders.nextKm=Engine.st.km; Engine.st.v=20; }); await p.waitForTimeout(1200);
+  const od=await p.evaluate(()=>({cur:!!Orders.cur,ui:document.getElementById("hud-order").style.display}));
+  await p.evaluate(()=>{ const es=Engine.st; es.km=Scenario.cur.goal+0.05; View.s=View.sOfKm(es.km); }); await p.waitForTimeout(1200);
+  const rs=await p.evaluate(()=>({on:document.getElementById("scn-result").classList.contains("on"),last:Scenario.last}));
+  check("練習シナリオ: 開始と採点",Math.abs(sc.km-760)<0.5&&sc.day===2&&sc.ts===12&&sc.wx===1&&!sc.real&&rs.on&&rs.last&&rs.last.score>=0,JSON.stringify({sc,rs}));
+  check("無線の速度指示",od.cur&&od.ui==="flex",JSON.stringify(od));
+  check("練習シナリオ: エラーなし",noErr(p).length===0,noErr(p).slice(0,2).join(" | "));
+  await p.evaluate(()=>{ Scenario.closeRes(); quitToMenu(); document.getElementById("scenario").value=""; }); await p.context().close(); }
  // ---- メニュー ----
  { const p=await newPage(b,base);
   const s=await p.evaluate(()=>({build:document.querySelector(".build").textContent, modes:document.querySelectorAll(".mode").length, seg:document.querySelectorAll("#seg-ts button").length, quali:document.getElementById("quali-info").textContent}));
@@ -102,6 +115,14 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   p.once("dialog",d=>d.accept()); await p.click("#ana-del"); await p.waitForTimeout(300);
   const st2=await p.evaluate(async()=>({n:Ana.runs.length,db:(await Ana.DB.all()).map(o=>o.name)}));
   check("分析画面: 走行データの編集・保存・削除",dbS.includes("編集テスト|2025-10-20")&&st2.n===2&&!st2.db.includes("編集テスト"),JSON.stringify({dbS,st2}));
+  // 戦略の答え合わせ・走りの再生 (デモ走行)
+  await p.evaluate(()=>{ try{ localStorage.removeItem("bwsc_ana_nodemo"); }catch(e){} if(!Ana.runs.some(r=>r.demo)) Ana.addDemo(); Ana.cur=Ana.runs.findIndex(r=>r.demo); Ana.xr=null; Ana.render(); });   // 前の確認で消したデモを戻す
+  const rv=await p.evaluate(()=>{ const R=Ana.review(Ana.run()); return {v:R.v,legs:R.legs&&R.legs.length,err:R.err||null,pts:R.pts&&R.pts.length}; });
+  check("分析画面: 戦略の答え合わせ",rv.v>=40&&rv.legs>=8&&rv.pts>500&&!rv.err,JSON.stringify(rv));
+  await p.click('#ana-lay button[data-v="A"]'); await p.click("#ana-pp"); await p.waitForTimeout(1500);
+  const pl=await p.evaluate(()=>{ const R=Ana.playRows(Ana.run()); return {on:Ana.play.on,adv:Ana.play.t-R[0].abs,txt:/km\/h/.test(document.getElementById("ana-pr").textContent)}; });
+  await p.click("#ana-pp");
+  check("分析画面: 走りの再生",pl.on&&pl.adv>0&&pl.txt,JSON.stringify(pl));
   await shot(p,"analysis"); await p.evaluate(()=>Ana.close());
   check("レース: エラーなし",noErr(p).length===0,noErr(p).slice(0,2).join(" | "));
   await p.context().close(); }
@@ -158,6 +179,39 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
    check(`予選 ${k}`,r.active&&Number.isFinite(r.x)&&r.v>0.02,JSON.stringify(r)); }
   await shot(p,"test");
   check("予選: エラーなし",noErr(p).length===0,noErr(p).slice(0,2).join(" | "));
+  await p.context().close(); }
+ // ---- ヒドゥンバレー: コースを 1 周すると周回が数えられる (車をコースの点に沿って動かす) ----
+ { const p=await newPage(b,base);
+  await p.evaluate(()=>{ window.pushChart=()=>{}; P.mode="test"; P.testKind="circuit"; startGame(); }); await p.waitForTimeout(1200);
+  await p.evaluate(()=>{ const T=HV.track(), n=T.pts.length; let i=Test.lastIdx||0, moved=0; Test.v=12; Test.state="run";
+   window._lapT=setInterval(()=>{ const step=Math.max(1,Math.round(n/60)); i=(i+step)%n; moved+=step; const q=T.pts[i]; Test.x=q.x; Test.z=q.z; Test.v=12; if(moved>n*1.3) clearInterval(window._lapT); },60); });
+  await p.waitForFunction(()=>Test.laps.length>=1,null,{timeout:60000}).catch(()=>{});
+  const lp=await p.evaluate(()=>{ clearInterval(window._lapT); return {laps:Test.laps.length,t:Test.laps[0]}; });
+  check("ヒドゥンバレー: 周回の計測",lp.laps>=1&&lp.t>0,JSON.stringify(lp));
+  await p.context().close(); }
+ // ---- 振動・反力: 仮のゲームパッドと仮のハンコンで、出力の向きと強さ・OFF・項目ごとの強さ ----
+ { const ctx=await b.newContext({viewport:{width:1280,height:720}}); await ctx.addInitScript(()=>{ window._rum=[];
+   const pad={id:"Fake",index:0,connected:true,axes:[0,0,0,0],buttons:[{pressed:false}],vibrationActuator:{playEffect:(t,o)=>{ window._rum.push([o.strongMagnitude,o.weakMagnitude]); return Promise.resolve("complete"); }}};
+   navigator.getGamepads=()=>[pad]; });
+  const p=await ctx.newPage(); p.errs=[]; p.on("pageerror",e=>p.errs.push(e.message));
+  await p.goto(base+"index.html"); await p.waitForFunction(()=>typeof FFB==="object"); await p.waitForTimeout(300);
+  const f=await p.evaluate(async()=>{ const hid=[]; FFB.hid={sendReport:(id,d)=>{ hid.push([...d]); return Promise.resolve(); }}; P.ffb="high"; P.ffbTune={};
+   const base={v:25,steer:0,offroad:false,shoulder:false,rough:0.65,cross:0,trainRel:null,brake:0,gLat:0,dt:1/60};
+   const run=async(mod)=>{ window._rum.length=0; hid.length=0; FFB.on=false; for(let i=0;i<30;i++){ FFB.tSend=0; FFB.update(Object.assign({},base,mod)); await new Promise(r=>setTimeout(r,2)); }
+    const R=window._rum, H=hid.filter(x=>x[0]===0x11).map(x=>x[2]-128); return {s:R.reduce((a,x)=>a+x[0],0)/Math.max(1,R.length),w:R.reduce((a,x)=>a+x[1],0)/Math.max(1,R.length),t:H.length?H.reduce((a,x)=>a+x,0)/H.length:0,n:R.length}; };
+   const paved=await run({}), off=await run({offroad:true}), right=await run({steer:0.5});
+   P.ffbTune={road:0}; const noRoad=await run({}); P.ffbTune={};
+   P.ffb="off"; const offMode=await run({offroad:true}); P.ffb="mid";
+   return {paved,off,right,noRoad,offMode}; });
+  check("振動・反力",f.paved.n>0&&f.paved.w>0.05&&f.paved.s<0.05&&f.off.s>0.3&&f.right.t<-10&&f.noRoad.w<0.01&&f.offMode.n===0,JSON.stringify(f));
+  await ctx.close(); }
+ // ---- 分析画面 (スマホ縦): 地図・グラフ・右の欄が並び、地図の上の表示が重ならない ----
+ { const p=await newPage(b,base,{vp:{width:390,height:844},touch:true});
+  await p.evaluate(()=>Ana.open()); await p.waitForTimeout(1500);
+  const m=await p.evaluate(()=>{ const r=id=>document.getElementById(id).getBoundingClientRect(), mp=r("ana-map"), ch=r("ana-charts"), pn=r("ana-pane"), lg=r("ana-leg"), pl=r("ana-play"), cv=document.querySelector("#ana-map canvas").getBoundingClientRect();
+   const ov=(a,b)=>a.left<b.right-1&&b.left<a.right-1&&a.top<b.bottom-1&&b.top<a.bottom-1;
+   return {mapW:Math.round(mp.width),cvW:Math.round(cv.width),chartH:Math.round(ch.height),order:mp.top<ch.top&&ch.top<pn.top,legPlay:ov(lg,pl)}; });
+  check("分析画面 (スマホ縦)",m.mapW===390&&m.cvW===390&&m.chartH>=300&&m.order&&!m.legPlay,JSON.stringify(m));
   await p.context().close(); }
  // ---- スマホ横画面: 部品が重ならない ----
  for(const vp of [{width:932,height:430},{width:844,height:390}]){ const p=await newPage(b,base,{vp,touch:true});

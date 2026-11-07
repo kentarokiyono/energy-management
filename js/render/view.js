@@ -53,8 +53,8 @@ for(let i=0;i<12;i++){
   const pl=new THREE.Mesh(new THREE.PlaneGeometry(0.05,5+Math.random()*7),mt);
   pl.visible=false;pl.frustumCulled=false;this.scene.add(pl);this.speedLines.push(pl);
 }
-this.aiPool=[];
-for(let i=0;i<10;i++){ const m=this.mkAICar(); m.visible=false; this.scene.add(m); this.aiPool.push({mesh:m,team:null}); }
+this.aiPool=[]; this.aiMeshes=new Map();   // 表示枠 10 台。車の形はチームごとに作って使い回す
+for(let i=0;i<10;i++) this.aiPool.push({mesh:null,team:null});
 this.roadTrains.length=0; this.rollT=0;
 this.lmMap.clear(); this.redSignalKm=null; this.inPit=false; this.pitBlend=0; this.fireOn=false;
 this.resetRoad();
@@ -412,20 +412,52 @@ _wireLocal(g,pts,heights,sag){
  const geo=new THREE.BufferGeometry(); geo.setAttribute("position",new THREE.Float32BufferAttribute(v,3));
  g.add(new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color:0x5a5048})));
 },
-mkAICar(){
-const g=new THREE.Group();
-const hullM=new THREE.MeshPhongMaterial({color:0xffffff});
-const hull=new THREE.Mesh(new THREE.SphereGeometry(0.6,16,12),hullM);
-hull.scale.set(1.6,0.55,3.8); hull.position.y=0.45; g.add(hull);
-const top=new THREE.Mesh(new THREE.BoxGeometry(1.8,0.05,4.0),new THREE.MeshPhongMaterial({color:0x101a2c}));
-top.position.y=0.72; g.add(top); g.userData.top=top;
-const can=new THREE.Mesh(new THREE.SphereGeometry(0.3,12,10),new THREE.MeshPhongMaterial({color:0x0a1015}));
-can.scale.set(0.9,0.9,1.6); can.position.set(0,0.9,-0.2); g.add(can);
-g.userData.hullM=hullM;
+/* 他チームの車: 自車 (YATA) と同じ作り方 (buildYATA) で、なめらかな胴体に車輪を収め、上にソーラーパネルとキャノピーを載せる。
+ チームごとに 全長・キャノピーの位置/幅/高さ・パネルの幅・胴体の幅・キャノピーの形・色 を変える。前は -z。
+ 充電のときはアッパーカウル (パネル + キャノピー) だけを傾ける */
+TEAM_COLOR:{ "BRUNEL":0xf26b1d, "TWENTE":0xc8102e, "INNOPTUS":0x1a1a1a, "SONNENWAGEN":0x1f5fbf, "TOKAI":0x1d4fa8, "MICHIGAN":0x00274c, "KOGAKUIN":0x1d3f9a, "WESTERN SYDNEY":0xd4001a, "JU SOLAR":0x1b6fd1, "ECLIPSE":0x7a1fa2 },
+mkAICar(tm){
+const g=new THREE.Group(), name=tm&&tm.team||"";
+let h=0; for(let i=0;i<name.length;i++) h=(h*31+name.charCodeAt(i))>>>0;
+const r=(k)=>((h>>>(k*3))%97)/96;   // チームごとに決まる 0〜1 の値
+const key=Object.keys(this.TEAM_COLOR).find(k=>name.toUpperCase().includes(k));
+const accent= key? this.TEAM_COLOR[key] : new THREE.Color().setHSL(((tm&&tm.hue)||h%360)/360,0.7,0.45).getHex();
+const L=4.5+0.45*r(1), cw=0.42+0.08*r(2), pw=0.82+0.12*r(3), hw=0.5+0.1*r(4);
+// カタマラン (半分ほどのチーム): 細い胴体 2 本、キャノピーは左右どちらかの胴体の上
+const cat= key==="TOKAI"||key==="SONNENWAGEN"||key==="WESTERN SYDNEY"||key==="ECLIPSE"||(!key&&r(12)<0.5), cd=0.52+0.08*r(13), cs=0.46, csd=(r(14)<0.5?-1:1);
+const sc=(arr,f)=>arr.map(([u,v])=>[u,v*f]);
+const BD={L, noOpening:true, cat:cat?{d:cd,s:cs}:null, canopyOffset:cat?csd*cd:0, noLogo:true, canopyCol:r(11)<0.6?0xeceef1:0x111316, accent, base:(key? key==="INNOPTUS" : r(5)<0.15)?0x24262b:0xeceef1, orangeU:0.08+0.08*r(6), skirtZ:0.26,
+ canopy:{x:L*(0.3+0.12*r(7)),len:1.3+0.3*r(8),w:cw,top:1.05+0.12*r(9)}, 
+ profiles:{halfW:sc([[0,.001],[.05,.16],[.16,.44],[.30,.62],[.45,.85],[.60,.90],[.75,.86],[.90,.78],[1,.70]],pw/0.9),
+  hullW:sc([[0,.001],[.06,.10],[.16,.30],[.30,.44],[.50,.58],[.70,.52],[.85,.40],[1,.26]],hw/0.58)}};
+const Y=buildYATA(BD); g.add(Y.group);
+// ゼッケン: 国旗 + 番号 (番号がないチームは車名の頭文字)。胴体の両側
+const cv=document.createElement("canvas"); cv.width=256; cv.height=96; const c=cv.getContext("2d");
+c.fillStyle="#fbfbf7"; c.fillRect(0,0,256,96); c.strokeStyle="#111"; c.lineWidth=4; c.strokeRect(2,2,252,92);
+if(tm&&tm.cc&&typeof HV!=="undefined"&&HV.flag) try{ HV.flag(c,tm.cc,12,22,72,52); }catch(e){}
+c.fillStyle="#111"; c.font="900 58px 'Chakra Petch',Arial,sans-serif"; c.textAlign="center"; c.textBaseline="middle";
+c.fillText(String(tm&&(tm.no||(tm.car||"").replace(/[^A-Za-z0-9]/g,"").slice(0,3).toUpperCase())||""),170,52);
+const tx=new THREE.CanvasTexture(cv); tx.encoding=THREE.sRGBEncoding;
+for(const sd of [-1,1]){ const pl=new THREE.Mesh(new THREE.PlaneGeometry(0.46,0.17),new THREE.MeshBasicMaterial({map:tx})); pl.position.set(sd*(cat? cd+hw*cs+0.02 : hw+0.03),0.36,0.1); pl.rotation.y=sd*Math.PI/2; g.add(pl); }
+g.userData.top=Y.tilt; g.userData.hullM=null; g.userData.tiltSign=-1;
 return g;
 },
+/* 画質を「低」に下げたとき: 物理ベースの材質 (クリア塗装・透過) を軽い材質に置き換え、路面の凹凸マップを外す */
+lighten(){
+ if(!this.scene) return; const map=new Map();
+ const lite=(m)=>{ if(!m) return m; if(map.has(m)) return map.get(m); let n=m;
+  if(m.isMeshPhysicalMaterial){ n=new THREE.MeshStandardMaterial({color:m.color,map:m.map,roughness:Math.max(0.35,m.roughness),metalness:Math.min(0.5,m.metalness),side:m.side,
+    transparent:m.transparent||m.transmission>0,opacity:m.transmission>0?0.55:m.opacity,depthWrite:m.depthWrite,envMapIntensity:0.4,vertexColors:m.vertexColors}); }
+  else if(m.isMeshStandardMaterial&&(m.normalMap||m.roughnessMap)){ m.normalMap=null; m.roughnessMap=null; m.needsUpdate=true; }
+  map.set(m,n); return n; };
+ this.scene.traverse(o=>{ if(!o.isMesh||!o.material) return; o.material= Array.isArray(o.material)? o.material.map(lite) : lite(o.material); });
+ const cm=this.canopyMesh; if(cm&&cm.userData.extMat) cm.userData.extMat= Array.isArray(cm.userData.extMat)? cm.userData.extMat.map(lite) : lite(cm.userData.extMat);
+ if(this.scene.environment&&typeof EnvLight!=="undefined") EnvLight.t=Infinity;   // 映り込みの作り直しも止める
+},
+/* チームの車 (一度作ったら使い回す) */
+aiMesh(tm){ let m=this.aiMeshes.get(tm); if(!m){ m=this.mkAICar(tm); m.visible=false; this.scene.add(m); this.aiMeshes.set(tm,m); } return m; },
 updateAITeams(es,dtR){
-if(P.mode!=="race"||!es.teams||!this.aiPool){ if(this.aiPool) this.aiPool.forEach(sl=>sl.mesh.visible=false); return; }
+if(P.mode!=="race"||!es.teams||!this.aiPool){ if(this.aiPool) this.aiPool.forEach(sl=>{ if(sl.mesh) sl.mesh.visible=false; }); return; }
 const near=[];
 for(const tm of es.teams){
 if(tm.status==="pre") continue;
@@ -434,12 +466,12 @@ if(Math.abs(rel)<(keep?1400:1150)) near.push({tm,rel,keep});   // 出す距離�
 }
 near.sort((a,b)=>(b.keep-a.keep)||Math.abs(a.rel)-Math.abs(b.rel));   // いま出ている車を優先 (入れ替わりで消えない)
 const shown=near.slice(0,this.aiPool.length);
-for(const sl of this.aiPool){ if(!shown.some(o=>o.tm===sl.team)){ sl.team=null; sl.mesh.visible=false; } }
+for(const sl of this.aiPool){ if(!shown.some(o=>o.tm===sl.team)){ sl.team=null; if(sl.mesh) sl.mesh.visible=false; sl.mesh=null; } }
 for(const o of shown){
 let sl=this.aiPool.find(x=>x.team===o.tm)||this.aiPool.find(x=>!x.team);
 if(!sl) break;
-sl.team=o.tm; sl.mesh.visible=true;
-sl.mesh.userData.hullM.color.setHSL(o.tm.hue/360,0.6,0.55);
+if(sl.team!==o.tm){ sl.team=o.tm; sl.mesh=this.aiMesh(o.tm); }
+sl.mesh.visible=true;
 const rp=this.roadPoint(clamp(this.s+o.rel,0,this.road.builtS-this.SEG));
 let latT=-2.4;
 const multi=rp.m1>0.3||rp.ow||rp.L>6;   // 片側2車線以上・分離帯あり: 追い越しは自分側の空いている車線
@@ -453,7 +485,7 @@ o.tm.latV=lerp(o.tm.latV,latT,clamp(dtR*1.5,0,1));
 const nx=Math.cos(rp.h), nz=Math.sin(rp.h);
 sl.mesh.position.set(rp.x+nx*o.tm.latV,rp.y,rp.z+nz*o.tm.latV);
 sl.mesh.rotation.y=-rp.h;
-const top=sl.mesh.userData.top; if(top){ const tw=stopped&&o.tm.status==="run"? 0.55 : 0; top.rotation.z=lerp(top.rotation.z,tw,clamp(dtR*2,0,1)); top.position.y=0.72+Math.abs(top.rotation.z)*0.5; }
+const top=sl.mesh.userData.top; if(top){ const tw=stopped&&o.tm.status==="run"? 0.6*(sl.mesh.userData.tiltSign||-1) : 0; top.rotation.z=lerp(top.rotation.z,tw,clamp(dtR*2,0,1)); }   // 充電: アッパーカウルだけ傾ける
 // 自車との接触: 前後 4.6 m・左右 1.7 m 以内に入ったら当たり (近づく速さで 軽い接触 / 破損 / 大破)
 if(o.tm.status!=="dnf"&&Math.abs(o.rel)<4.6&&Math.abs(this.lateral-o.tm.latV)<1.7&&!es.crashed){
  const vAi=(o.tm.vNow||0)/3.6, vn=Math.abs(es.v-vAi);
@@ -551,10 +583,19 @@ if(!this.prog&&P.mode==="race"){
 }
 this.lastGenKm=km;
 if(this.prog&&this.prog.length){
- const p=this.prog[0]; p.len-=this.SEG; const k=p.k; if(p.len<=0) this.prog.shift(); if(!this.prog.length) this.prog=null;
+ const p=this.prog[0]; p.len-=this.SEG; const k=p.k; if(p.len<=0) this.prog.shift(); if(!this.prog.length){ this.prog=null; this.geoHold=km+0.6; }   // 曲がったあとしばらくは実際の方位に合わせない (同じ曲がりを二重にしない)
  return {grade:g.grade,curv:k};
 }
-if(osmCurv!==null){ g.curv=0; g.targetCurv=0; g.curvRemain=60; return {grade:g.grade,curv:osmCurv}; }
+if(osmCurv!==null){ g.curv=0; g.targetCurv=0; g.curvRemain=60; this.geoOff=null; return {grade:g.grade,curv:osmCurv}; }
+// 町の外: 画面の道の向きを実際の道の方位 (なめらかにしたもの) に少しずつ合わせる。
+// 圧縮区間 (画面 1 m = 実際の数十 m) では実際の曲がりをそのまま描くと急になりすぎるので、曲がりの強さに上限を付ける
+if(typeof Geo!=="undefined"&&Geo.ok&&P.mode==="race"&&!(P.event&&typeof EventGame!=="undefined"&&EventGame.hilly)){
+ if(this.geoHold!=null&&km<this.geoHold){ g.curv=0; return {grade:g.grade,curv:0}; }
+ const w=zone?0.3:1.5, a=Math.max(0,km-w), b=Math.min(TOTAL_KM,km+w), la=Geo.lat(a), lb=Geo.lat(b), B=Math.atan2((Geo.lon(b)-Geo.lon(a))*Math.cos(la*Math.PI/180),lb-la);
+ if(this.geoOff==null||this.geoHold!=null){ this.geoOff=lastH-B; this.geoHold=null; }
+ const err=Math.atan2(Math.sin(this.geoOff+B-lastH),Math.cos(this.geoOff+B-lastH)), kmax=zone?1/150:1/450;
+ const curv=clamp(err/(zone?40:120),-kmax,kmax); g.curv=curv; return {grade:g.grade,curv};
+}
 // 等倍ゾーン(町中)は直線、それ以外は緩いカーブを自動生成
 g.curvRemain-=this.SEG;
 if(g.curvRemain<=0){
@@ -630,7 +671,7 @@ resetRoad(){
  if(typeof Collide!=="undefined") Collide.clear();
  const es=Engine.st, km=es?es.km:0;
  this.road={pts:[{x:0,z:0,y:0,h:0,g:0,c:0,L:5,m1:0,R:5}],builtS:0,chunks:[]};
- this.branches=[]; this.junctions=[]; this.prog=null; this.doneMan=new Set(); this.lastGenKm=-1; this.osmTown=null;
+ this.branches=[]; this.junctions=[]; this.prog=null; this.doneMan=new Set(); this.lastGenKm=-1; this.osmTown=null; this.geoOff=null; this.geoHold=null;
  this.s=320; this.visOrigin=Route.vis(km)-this.s;
  // 現在地より手前の動作は実行済み扱い
  for(const m of RP_MANEUVERS) if(m.km<this.kmOfS(0)) this.doneMan.add(m);
@@ -947,7 +988,7 @@ dynColliders(es){
    const b=new THREE.Box3().setFromObject(m); m.userData._cz=[(b.min.x+b.max.x)/2,(b.min.z+b.max.z)/2]; m.position.copy(q); m.rotation.y=r; m.updateMatrixWorld(true); }
   const [ox,oz]=m.userData._cz, c=Math.cos(m.rotation.y), sn=Math.sin(m.rotation.y);
   out.push({t:2,x:m.position.x+ox*c+oz*sn,z:m.position.z-ox*sn+oz*c,h:-m.rotation.y,L,W,v,kind}); };
- for(const sl of this.aiPool||[]) if(sl.team) add(sl.mesh,4.9,1.8,(sl.team.spd||0)/3.6,"vehicle");
+ for(const sl of this.aiPool||[]) if(sl.team&&sl.mesh) add(sl.mesh,4.9,2.0,(sl.team.spd||0)/3.6,"vehicle");
  add(this.escortLead,5.6,2.0,es.v,"vehicle"); add(this.escortChase,5.6,2.0,es.v,"vehicle");
  for(const rt of this.roadTrains) add(rt.mesh,53,2.6,-27,"vehicle");
  return out;

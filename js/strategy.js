@@ -10,12 +10,14 @@ const Strategy={
   return F*vms+motorIronW(vms)+(F/PRO.kt)**2*PRO.rWinding+PRO.ctrlW+0.01*F*vms+P.auxW;
  },
  /* 速度 v [km/h] で今から走り切ったときの経過 → {ok, minSoc, minKm, finishAbs, socNextCS, kmToday, lateCS} */
- simulate(v){
-  const s=Engine.st, save={doy:s.dayOfYear,km:s.km,w:s.weather}, Wh=Math.max(500,P.batteryWh);
+ /* o (任意): {abs, km, soc} から始める (走行の答え合わせ用)。o.trace があれば 2 km ごとの [km, 時刻, SOC, 速度] を残す */
+ simulate(v,o){
+  const s=Engine.st, save={doy:s.dayOfYear,km:s.km,w:s.weather}, Wh=Math.max(500,P.batteryWh), tr=o&&o.trace? [] : null;
   const pv=(G)=>P.arrayArea*P.cellEff*P.mpptEff*G*PRO.solarScale*0.92;
-  let abs=(s.day-1)*24+s.hour, km=s.km, soc=s.soc, minSoc=soc, minKm=km, socNextCS=null, kmToday=null, lateCS=null;
-  const csList=RP_CS.filter(c=>!s.passedCP.has(c.km)&&c.km>km-0.2), nextCS=csList[0];
-  let ci=0, stopH= s.stopTimer>0? s.stopTimer/3600 : 0;
+  let abs=o? o.abs : (s.day-1)*24+s.hour, km=o? o.km : s.km, soc=o? o.soc : s.soc, minSoc=soc, minKm=km, socNextCS=null, kmToday=null, lateCS=null;
+  const csList=RP_CS.filter(c=>(o||!s.passedCP.has(c.km))&&c.km>km-0.2), nextCS=csList[0];
+  let ci=0, stopH= o? 0 : s.stopTimer>0? s.stopTimer/3600 : 0;
+  if(tr) tr.push([km,abs,soc,0]);
   const G=(tilted)=>{ const day=Math.floor(abs/24)+1, h=abs-(day-1)*24, pr=profileAt(km);
    s.dayOfYear=PRO.dayOfYear+day-1; s.km=km; s.weather= RealWx.on()? null : (s.weatherPlan||[]).find(w=>abs>=w.start&&abs<w.start+w.dur)||null;
    return pv(Engine.solarCalc(pr.lat,h,tilted,pr.lon,pr.elev).G); };
@@ -34,22 +36,26 @@ const Strategy={
     const seg=Math.min(this.SEG,TOTAL_KM-km), vk=Math.min(v,speedLimitAt(km+seg/2)), vms=vk/3.6;
     const grade=(profileAt(km+seg).elev-profileAt(km).elev)/(seg*1000);
     const dt=seg/vk, Ps=G(false), Pd=this.drivePower(vms,grade);
-    soc=Math.min(1,soc+(Ps-Pd)*dt/Wh); km+=seg; abs+=dt;
+    soc=Math.min(1,soc+(Ps-Pd)*dt/Wh); km+=seg; abs+=dt; if(tr) tr.push([km,abs,soc,vk,dt]);
     if(soc<minSoc){ minSoc=soc; minKm=km; }
-    if(soc<this.FLOOR) return {ok:false,minSoc,minKm,v};
+    if(soc<this.FLOOR) return {ok:false,minSoc,minKm,v,trace:tr};
     const c=csList[ci];
     if(c&&km>=c.km){ if(c===nextCS) socNextCS=soc; if(lateCS==null&&abs>csCloseAbs(c.km)) lateCS=c; ci++; stopH=0.5; }
    }
   } finally{ s.dayOfYear=save.doy; s.km=save.km; s.weather=save.w; }
-  return {ok:km>=TOTAL_KM-0.01,minSoc,minKm,finishAbs:abs,socNextCS,kmToday:kmToday==null?km:kmToday,lateCS,v};
+  return {ok:km>=TOTAL_KM-0.01,minSoc,minKm,finishAbs:abs,socNextCS,kmToday:kmToday==null?km:kmToday,lateCS,v,trace:tr};
+ },
+ /* 電池が持つ最も速い一定の巡航速度 (o を渡すとその地点・時刻・SOC から) */
+ best(o){
+  let lo=30, hi=PRO.noSpeedCap?160:130;
+  let best=this.simulate(lo,o);
+  if(!best.ok) return {v:lo,ok:false,r:best};
+  while(hi-lo>1){ const mid=Math.round((lo+hi)/2), r=this.simulate(mid,o); if(r.ok){ lo=mid; best=r; } else hi=mid; }
+  return {v:lo,ok:true,r:best};
  },
  plan(force){
   const now=performance.now(); if(!force&&this.last&&now-this.lastT<20000) return this.last;
-  let lo=30, hi=PRO.noSpeedCap?160:130;
-  let best=this.simulate(lo);
-  if(!best.ok){ this.last={v:lo,ok:false,r:best}; this.lastT=now; return this.last; }
-  while(hi-lo>1){ const mid=Math.round((lo+hi)/2), r=this.simulate(mid); if(r.ok){ lo=mid; best=r; } else hi=mid; }
-  this.last={v:lo,ok:true,r:best}; this.lastT=now; return this.last;
+  this.last=this.best(); this.lastT=now; return this.last;
  },
  text(){
   const p=this.plan(true), r=p.r, s=Engine.st, nx=RP_CS.find(c=>!s.passedCP.has(c.km)&&c.km>s.km-0.2);

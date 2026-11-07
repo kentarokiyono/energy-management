@@ -261,7 +261,7 @@ function roadDetail(kind){
 function makeRoadMaterial(kind){
 // 画質「標準」以上は物理ベース (凹凸と粗さで光が散らばる)。「低」は軽い材質
 const pbr=typeof GFX!=="undefined"&&GFX.key()!=="low", D=pbr? roadDetail(kind) : null;
-const mat= pbr? new THREE.MeshStandardMaterial({map:roadTex(kind),vertexColors:true,normalMap:D.normal,normalScale:new THREE.Vector2(0.6,0.6),roughnessMap:D.rough,roughness:1,metalness:0,envMapIntensity:0.5})
+const mat= pbr? new THREE.MeshStandardMaterial({map:roadTex(kind),vertexColors:true,normalMap:D.normal,normalScale:new THREE.Vector2(0.35,0.35),roughnessMap:D.rough,roughness:1,metalness:0,envMapIntensity:0.5})
  : new THREE.MeshLambertMaterial({map:roadTex(kind),vertexColors:true});
 mat.userData.gfx=pbr?"pbr":"low";
 mat.userData.uniforms={uMirage:{value:0},uSkyCol:{value:new THREE.Color(0.7,0.8,0.9)},uTime:{value:0}};
