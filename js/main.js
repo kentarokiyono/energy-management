@@ -6,7 +6,7 @@ function startGame(){
 Snd.init();
 if(P.mode==="event") EventGame.prepare();   // イベント: 内部はレースモードで動かし、課題を重ねる
 Engine.init();
-if(typeof Crew!=="undefined") Crew.reset();
+if(typeof Crew!=="undefined"){ Crew.reset(); Crew.driverIdx=0; if(DRIVER_NAMES&&P.mode==="race"&&!P.event){ Crew.drivers[0].name=DRIVER_NAMES[0]; Crew.drivers[1].name=DRIVER_NAMES[1]; } }
 Test.active=false;
 if(P.mode==="test"){
 Engine.st.hour=12;

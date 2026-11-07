@@ -171,3 +171,18 @@ const Settings={
  badge(){ const n=this.changed(), el=document.getElementById("settings-state"); if(el) el.textContent= n? `既定値から ${n} 項目を変更 (この端末に保存)` : "既定値"; const b=document.getElementById("settings-reset"); if(b){ b.disabled=!n; b.style.opacity=n?1:.4; } },
  reset(){ if(!confirm("車両・レース・オプションの設定を既定値に戻します。よろしいですか？")) return; try{ localStorage.removeItem(this.KEY); }catch(e){} location.reload(); },
 };
+/* ---- レース開始時にドライバーの名前を入れる (前回の名前を初期値に) ---- */
+let DRIVER_NAMES=null;
+const DrvDlg={
+ open(){ if(P.mode!=="race"){ startGame(); return; }
+  let last=[]; try{ last=JSON.parse(localStorage.getItem("bwsc_drivers")||"[]"); }catch(e){}
+  document.getElementById("drv-n1").value=last[0]||""; document.getElementById("drv-n2").value=last[1]||"";
+  show("drv-dlg",true); setTimeout(()=>document.getElementById("drv-n1").focus(),50); },
+ close(){ show("drv-dlg",false); },
+ ok(){ const clean=(id,def)=>(document.getElementById(id).value||"").replace(/[<>&"'\\]/g,"").trim().slice(0,20)||def;
+  DRIVER_NAMES=[clean("drv-n1","ドライバーA"),clean("drv-n2","ドライバーB")];
+  try{ localStorage.setItem("bwsc_drivers",JSON.stringify(DRIVER_NAMES)); }catch(e){}
+  this.close(); startGame(); },
+};
+addEventListener("keydown",e=>{ const d=document.getElementById("drv-dlg"); if(!d||d.classList.contains("hidden")) return;
+ if(e.key==="Enter"){ e.preventDefault(); DrvDlg.ok(); } else if(e.key==="Escape"){ e.preventDefault(); DrvDlg.close(); } });

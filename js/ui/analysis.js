@@ -84,7 +84,7 @@ const Ana={
    <span class="lb">色</span><div class="seg" id="ana-met">${Object.entries(this.METRICS).map(([k,m])=>`<button data-v="${k}">${m.label}</button>`).join("")}</div>
    <button class="btn ana-sm" id="ana-all" title="グラフの範囲と区間をリセット">全体</button>
    <button class="btn ana-sm ana-x" onclick="Ana.close()">${ic("x")}閉じる</button></div>
-  <div class="ana-body" id="ana-body"><div class="ana-map" id="ana-map"><div class="ana-hint">ドラッグで回転 ・ ホイール / 2 本指で拡大 ・ クリックで地点</div><div class="ana-leg" id="ana-leg"></div><div class="ana-tag" id="ana-tag"></div></div>
+  <div class="ana-body" id="ana-body"><div class="ana-map" id="ana-map"><div class="ana-hint">ドラッグで回転 ・ 右ドラッグ / Shift で移動 ・ ホイール / 2 本指で拡大 ・ クリックで地点</div><div class="ana-compass" id="ana-compass" title="北の向き (クリックで北を上に)" onclick="Ana.map&&Ana.map.north()"><i></i><b>N</b></div><div class="ana-ctl"><button class="btn" title="左に回す" onclick="Ana.map.rot(-1)">${ic("rotate","flipx")}</button><button class="btn" title="右に回す" onclick="Ana.map.rot(1)">${ic("rotate")}</button><button class="btn" title="寝かせる" onclick="Ana.map.tilt(1)">${ic("chd")}</button><button class="btn" title="起こす" onclick="Ana.map.tilt(-1)">${ic("chu")}</button><button class="btn" title="北を上に" onclick="Ana.map.north()">N</button><button class="btn" title="真上から" onclick="Ana.map.top()">真上</button><button class="btn" title="区間に合わせる" onclick="Ana.map.fit()">合わせる</button><button class="btn" title="初期の向き" onclick="Ana.map.reset()">初期</button></div><div class="ana-leg" id="ana-leg"></div><div class="ana-tag" id="ana-tag"></div></div>
    <div class="ana-pane" id="ana-pane"></div><div class="ana-charts" id="ana-charts"><canvas id="ana-cv"></canvas><canvas id="ana-cv2"></canvas></div>
    <div class="ana-empty" id="ana-empty">走行ログがありません。レースモードで走るか、CSV を読み込んでください。</div></div>`;
   document.body.appendChild(el);
@@ -120,10 +120,26 @@ const Ana={
   this.renderMap(); this.drawCharts(); this.renderPane();
  },
  /* ---------- 右の欄 ---------- */
+ setSel(a,b){ const run=this.run(); if(!run) return; a=clamp(+a,0,run.kmMax); b=clamp(+b,0,run.kmMax);
+  this.sel= Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(b-a)>=0.1? [Math.min(a,b),Math.max(a,b)] : null; this.pickSel=0; this.map&&(this.map.dirty=true); this.render(); },
+ mapPick(k){ if(this.pickSel===1){ this.pickA=k; this.pickSel=2; this.setCursor(k); toast("区間の終わりの地点をクリック","#22d3ee"); } else { this.setSel(this.pickA,k); } },
+ startPick(){ this.pickSel=1; toast("地図で区間の始まりの地点をクリック","#22d3ee"); },
+ presets(run){ const out=[["全行程",0,run.kmMax]], R=run.rows.filter(r=>r.st==="走行");
+  const days=[...new Set(R.map(r=>r.day).filter(Number.isFinite))]; for(const d of days){ const a=R.filter(r=>r.day===d); out.push([`Day${d}`,a[0].km,a[a.length-1].km]); }
+  const cs=[0,...RP_CS.map(c=>c.km),TOTAL_KM]; for(let i=0;i<cs.length-1;i++) if(cs[i]<run.kmMax) out.push([`${i?"CS"+i:"スタート"} → ${i<cs.length-2?"CS"+(i+1):"ゴール"}`,cs[i],Math.min(cs[i+1],run.kmMax)]);
+  let st=null; for(const r of R){ if(!st||st.d!==r.drv){ if(st&&st.b-st.a>=5) out.push([`${st.d} ${st.a.toFixed(0)}–${st.b.toFixed(0)} km`,st.a,st.b]); st={d:r.drv,a:r.km,b:r.km}; } else st.b=r.km; }
+  if(st&&st.b-st.a>=5) out.push([`${st.d} ${st.a.toFixed(0)}–${st.b.toFixed(0)} km`,st.a,st.b]);
+  return out; },
+ rangeUI(run){ const P=this.presets(run), [a,b]=this.sel||[0,run.kmMax];
+  return `<div class="ana-range"><select id="ana-preset" onchange="const p=Ana._pre[this.value]; if(p) Ana.setSel(p[1],p[2])"><option value="">区間を選ぶ…</option>${P.map((p,i)=>`<option value="${i}">${escHtml(p[0])}</option>`).join("")}</select>
+   <div class="ana-rr"><input type="number" id="ana-a" step="0.1" value="${a.toFixed(1)}"><span>–</span><input type="number" id="ana-b" step="0.1" value="${b.toFixed(1)}"><span class="u">km</span>
+   <button class="btn ana-sm" onclick="Ana.setSel(document.getElementById('ana-a').value,document.getElementById('ana-b').value)">適用</button>
+   <button class="btn ana-sm ${this.pickSel?"on":""}" onclick="Ana.startPick()">${ic("pin")}地図で選ぶ</button></div></div>`; },
  renderPane(){
   const run=this.run(), cmp=this.cmpRun(), [a,b]=this.sel||[0,run.kmMax], S=this.stats(run,a,b), f=(x,d)=>Number.isFinite(x)?x.toFixed(d):"―";
   const kv=(k,v,u)=>`<div class="kv"><span>${k}</span><span>${v}<span class="u">${u||""}</span></span></div>`;
-  let h=`<div class="ph">${ic("route")}${this.sel?`区間 ${a.toFixed(1)}–${b.toFixed(1)} km`:"全行程"}</div>
+  this._pre=this.presets(run);
+  let h=this.rangeUI(run)+`<div class="ph">${ic("route")}${this.sel?`区間 ${a.toFixed(1)}–${b.toFixed(1)} km`:"全行程"}</div>
    ${kv("距離",f(S.dist,1),"km")}${kv("走行時間",f(S.t,2),"h")}${kv("平均速度",f(S.avg,1),"km/h")}${kv("電費",f(S.whkm,1),"Wh/km")}
    ${kv("発電",f(S.gen/1000,2),"kWh")}${kv("消費",f(S.use/1000,2),"kWh")}${kv("回生で回収",f(S.rg,0),"Wh")}${kv("SOC 変化",(S.dsoc>0?"+":"")+f(S.dsoc,1),"%")}`;
   if(cmp){ const C=this.stats(cmp,a,b), dt=(S.t-C.t)*60;
@@ -198,7 +214,7 @@ const Ana={
     const run=self.run(), k=self.cursor;
     if(run&&k!=null){ const i=clamp(Math.round(k),0,P.length-1), b=run.bins[clamp(Math.floor(k),0,run.bins.length-1)], h=Math.max(this.H(b),2)+12;
      pole.visible=true; pole.scale.y=h; pole.position.set(P[i][0],h/2,P[i][1]); } else pole.visible=false;
-    r.render(sc,cam); self.placeTag();
+    r.render(sc,cam); self.placeTag(); this.compass();
    },
    screen(k){ const i=clamp(Math.round(k),0,P.length-1), b=self.run()&&self.run().bins[clamp(Math.floor(k),0,P.length-1)]; const v=new THREE.Vector3(P[i][0],Math.max(this.H(b),2)+12,P[i][1]).project(cam); return {x:(v.x+1)/2*this.w,y:(1-v.y)/2*this.h,z:v.z}; },
    pick(x,y){ let best=null,bd=28*28; const v=new THREE.Vector3();
@@ -215,10 +231,24 @@ const Ana={
    if(p.b===2||p.sh){ const s=view.d/600; view.tx-=(dx*Math.cos(view.th)+dy*Math.sin(view.th))*s; view.tz-=(-dx*Math.sin(view.th)+dy*Math.cos(view.th))*s; }
    else { view.th-=dx*0.006; view.ph=clamp(view.ph-dy*0.004,0.15,1.45); }
    p.x=e.clientX; p.y=e.clientY; M.draw(); });
-  const up=e=>{ const p=pts.get(e.pointerId); pts.delete(e.pointerId); if(p&&!moved){ const rc=el.getBoundingClientRect(), k=M.pick(e.clientX-rc.left,e.clientY-rc.top); if(k!=null){ self.lock=true; self.setCursor(k,true); } else { self.lock=false; } } };
+  const up=e=>{ const p=pts.get(e.pointerId); pts.delete(e.pointerId); if(p&&!moved){ const rc=el.getBoundingClientRect(), k=M.pick(e.clientX-rc.left,e.clientY-rc.top); if(k!=null&&self.pickSel){ self.mapPick(k); return; }
+   if(k!=null){ self.lock=true; self.setCursor(k,true); } else { self.lock=false; } } };
   el.addEventListener("pointerup",up); el.addEventListener("pointercancel",e=>pts.delete(e.pointerId));
   el.addEventListener("contextmenu",e=>e.preventDefault());
   el.addEventListener("wheel",e=>{ e.preventDefault(); view.d=clamp(view.d*Math.exp(e.deltaY*0.001),40,1500); M.draw(); },{passive:false});
+  const V0={...view};
+  Object.assign(M,{
+   rot(d){ view.th+=d*Math.PI/8; M.draw(); },
+   tilt(d){ view.ph=clamp(view.ph+d*0.15,0.02,1.45); M.draw(); },
+   north(){ view.th=0; M.draw(); },
+   top(){ view.ph=0.02; M.draw(); },
+   reset(){ Object.assign(view,V0); M.draw(); },
+   fit(){ const run=self.run(); if(!run) return; const [a,b]=self.sel||[0,run.kmMax]; let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
+    for(let k=Math.max(0,Math.floor(a));k<=Math.min(P.length-1,Math.ceil(b));k++){ const [x,z]=P[k]; x0=Math.min(x0,x); x1=Math.max(x1,x); z0=Math.min(z0,z); z1=Math.max(z1,z); }
+    view.tx=(x0+x1)/2; view.tz=(z0+z1)/2; view.d=clamp(Math.hypot(x1-x0,z1-z0)*1.6+40,40,1500); M.draw();
+    if(self.sel){ const m=(b-a)*0.05; self.xr=[Math.max(0,a-m),Math.min(run.kmMax,b+m)]; self.drawCharts(); } },
+   compass(){ const el=document.getElementById("ana-compass"); if(!el) return; const a=new THREE.Vector3(view.tx,0,view.tz).project(cam), b=new THREE.Vector3(view.tx,0,view.tz-20).project(cam);
+    const ang=Math.atan2((b.x-a.x)*this.w,(b.y-a.y)*this.h); el.style.transform=`rotate(${ang}rad)`; }});
   return M;
  },
  setCursor(k,fromMap){ this.cursor=k; if(this.map) this.map.draw(); this.drawCursor(); },
