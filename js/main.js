@@ -126,6 +126,7 @@ segFromSelect("log-step","seg-log");
 segFromSelect("gfx","seg-gfx");
 segFromSelect("scenario","seg-scn",o=>o.value===""?"なし":o.textContent);
 segFromSelect("tts","seg-tts");
+segFromSelect("fc-err","seg-fc");
 segFromSelect("ffb","seg-ffb",o=>o.value==="off"?"振動 OFF":o.textContent);
 FFB.init();
 refreshQuali();

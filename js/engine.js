@@ -27,6 +27,20 @@ nextRoadTrainH:0.15+Math.random()*0.3,
 this.st.teams=this.initTeams();
 this.setupGrid();
 this.st.weatherPlan=this.genWeatherPlan();
+this.st.fc=this.genForecast(this.st.weatherPlan);
+},
+/* 天気予報 (戦略と偵察車の予報が使う): 実際の天気から、選んだ大きさだけずらす。
+ 気候値の天気: 雲・スコールの時刻・長さ・強さをずらし、予報だけにある雲 (来ない)・予報にない雲 (実際に来る) を混ぜる。
+ 実際の天気 (2025 年のデータ): 日ごとに時刻をずらし、日射を何割か多め/少なめに見積もる */
+FC_LEVEL:{off:null,low:{t:0.25,d:0.15,p:0},mid:{t:0.5,d:0.3,p:0.3},high:{t:1,d:0.5,p:0.55}},
+genForecast(plan){
+ const L=this.FC_LEVEL[P.fcErr||"mid"]; if(!L) return null;
+ const g=()=>Phys.gauss(), fc=[];
+ for(const w of plan){ if(Math.random()<L.p*0.4) continue;   // 予報にない雲 (実際には来る)
+  fc.push({start:w.start+g()*L.t,dur:Math.max(0.2,w.dur*(1+g()*L.d)),type:w.type,factor:clamp(w.factor*(1+g()*L.d),0.05,0.9)}); }
+ for(let day=1;day<=6;day++) if(Math.random()<L.p*0.4){ const sq=Math.random()<0.3;   // 予報だけの雲 (実際には来ない)
+  fc.push({start:(day-1)*24+9+Math.random()*7,dur:0.4+Math.random()*1.2,type:sq?"squall":"cloud",factor:sq?0.15:0.45}); }
+ return {plan:fc.sort((a,b)=>a.start-b.start),shift:[...Array(7)].map(()=>g()*L.t),scale:[...Array(7)].map(()=>clamp(1+g()*L.d*0.5,0.6,1.4))};
 },
 genWeatherPlan(){
 const plan=[];
@@ -184,7 +198,8 @@ const sp=Phys.sunPos(lat,lon,s.dayOfYear,hour);
 const alt=sp.alt, az=sp.az;
 if(alt<=0) return {G:0,alt:0,az,ghi:0,dni:0};
 let {dni,dhi}=Phys.clearSky(alt,elev,s.dayOfYear);
-if(RealWx.on()){ const d=RealWx.at("dni",lat,lon,s.dayOfYear,hour+0.5), f=RealWx.at("dhi",lat,lon,s.dayOfYear,hour+0.5); if(d!=null&&f!=null){ dni=d; dhi=f; } }
+if(RealWx.on()){ let hh=hour, k=1; const fc=s.fc; if(fc&&typeof Strategy!=="undefined"&&Strategy.fcOn){ const di=clamp(s.dayOfYear-PRO.dayOfYear,0,6); hh+=fc.shift[di]; k=fc.scale[di]; }   // 予報 (戦略の先読み) は時刻と強さがずれる
+ const d=RealWx.at("dni",lat,lon,s.dayOfYear,hh+0.5), f=RealWx.at("dhi",lat,lon,s.dayOfYear,hh+0.5); if(d!=null&&f!=null){ dni=d*k; dhi=f*(0.5+0.5*k); } }
 else if(s.weather){ const wf=s.weather.factor; dni*=wf; dhi*=(2-wf)*(0.5+0.5*wf); }
 const cz=Math.sin(alt);
 const ghi=dni*cz+dhi;

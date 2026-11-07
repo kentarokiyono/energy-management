@@ -21,10 +21,10 @@ const Strategy={
   let ci=0, stopH= o? 0 : s.stopTimer>0? s.stopTimer/3600 : 0;
   if(tr) tr.push([km,abs,soc,0]);
   const G=(tilted)=>{ const day=Math.floor(abs/24)+1, h=abs-(day-1)*24, pr=profileAt(km);
-   s.dayOfYear=PRO.dayOfYear+day-1; s.km=km; s.weather= RealWx.on()? null : (s.weatherPlan||[]).find(w=>abs>=w.start&&abs<w.start+w.dur)||null;
+   s.dayOfYear=PRO.dayOfYear+day-1; s.km=km; s.weather= RealWx.on()? null : ((s.fc&&s.fc.plan)||s.weatherPlan||[]).find(w=>abs>=w.start&&abs<w.start+w.dur)||null;   // 予報で見積もる
    return pv(Engine.solarCalc(pr.lat,h,tilted,pr.lon,pr.elev).G); };
   const charge=(hours)=>{ for(let t=0;t<hours;t+=0.25){ const d=Math.min(0.25,hours-t); soc=Math.min(1,soc+G(true)*d/Wh); abs+=d; } };
-  const startDay=Math.floor(abs/24);
+  const startDay=Math.floor(abs/24); this.fcOn=true;
   let psNow=null; const Ps0=()=>(psNow=G(false));   // 今の発電 (満タンの判定と、その区間の計算で 1 回だけ求める)
   try{
    for(let guard=0;guard<6000&&km<TOTAL_KM;guard++){
@@ -46,7 +46,7 @@ const Strategy={
     const c=csList[ci];
     if(c&&km>=c.km){ if(c===nextCS) socNextCS=soc; if(lateCS==null&&abs>csCloseAbs(c.km)) lateCS=c; ci++; stopH=0.5; }
    }
-  } finally{ s.dayOfYear=save.doy; s.km=save.km; s.weather=save.w; }
+  } finally{ s.dayOfYear=save.doy; s.km=save.km; s.weather=save.w; this.fcOn=false; }
   return {ok:km>=TOTAL_KM-0.01,minSoc,minKm,finishAbs:abs,socNextCS,kmToday:kmToday==null?km:kmToday,lateCS,v,trace:tr};
  },
  /* 電池が持つ最も速い一定の巡航速度 (o を渡すとその地点・時刻・SOC から) */
