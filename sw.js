@@ -10,7 +10,7 @@ self.addEventListener("install",e=>{
   const res=await fetch("./index.html",{cache:"no-cache"}); if(!res.ok) return;
   await c.put("./index.html",res.clone()); await c.put("./",res.clone());
   const html=await res.text(), urls=new Set(["assets/img/logo.svg"]);
-  for(const m of html.matchAll(/(?:src|href)="([^"#:]+\.(?:js|css|svg)(?:\?[^"]*)?)"/g)) urls.add(m[1]);
+  for(const m of html.matchAll(/(?:src|href)="([^"#:]+\.(?:js|css|svg)(?:\?[^"]*)?)"/g)) if(!/vehicle-private/.test(m[1])) urls.add(m[1]);   // 実車諸元は保存しない
   await Promise.all([...urls].map(async u=>{ try{ const r=await fetch(u); if(r.ok) await c.put(u,r); }catch(err){} }));
   const keep=new Set([...urls].map(u=>new URL(u,self.registration.scope).href));   // 古い版 (?v= が違うもの) を消す
   for(const k of await c.keys()) if(/[?&]v=/.test(k.url)&&!keep.has(k.url)) await c.delete(k);
