@@ -42,7 +42,12 @@ cv=document.createElement("canvas");cv.width=256;cv.height=128;g=cv.getContext("
 const rd=g.createRadialGradient(128,64,10,128,64,120);
 rd.addColorStop(0,"rgba(0,0,0,.5)");rd.addColorStop(1,"rgba(0,0,0,0)");
 g.fillStyle=rd;g.fillRect(0,0,256,128);
-YATA_CACHE.tex={cell:ct,shadow:new THREE.CanvasTexture(cv)};
+// セルの模様 (明るい地に細い線): 色はマテリアル側で付ける (物理ベースの見た目用)
+const cv2=document.createElement("canvas"); cv2.width=cv2.height=256; const g2=cv2.getContext("2d"); g2.fillStyle="#ffffff"; g2.fillRect(0,0,256,256);
+g2.strokeStyle="#5a6070"; g2.lineWidth=3; for(let i=0;i<=8;i++){ g2.beginPath(); g2.moveTo(i*32,0); g2.lineTo(i*32,256); g2.stroke(); g2.beginPath(); g2.moveTo(0,i*32); g2.lineTo(256,i*32); g2.stroke(); }
+g2.strokeStyle="rgba(200,205,220,.55)"; g2.lineWidth=1; for(let i=0;i<32;i++){ g2.beginPath(); g2.moveTo(i*8+4,0); g2.lineTo(i*8+4,256); g2.stroke(); }
+const ct2=new THREE.CanvasTexture(cv2); ct2.wrapS=ct2.wrapT=THREE.RepeatWrapping; ct2.anisotropy=8; ct2.encoding=THREE.sRGBEncoding;
+YATA_CACHE.tex={cell:ct,cellL:ct2,shadow:new THREE.CanvasTexture(cv)};
 }
 const T=YATA_CACHE.tex;
 const spl=a=>{const c=new THREE.SplineCurve(a.map(p=>new THREE.Vector2(p[0],p[1])));
@@ -59,10 +64,16 @@ const zHull=spl(PF.zHull||[[0,.24],[.15,.38],[.35,.48],[.60,.50],[.80,.44],[1,.3
 const zBell=spl(PF.zBell||[[0,O.noseTip],[.12,.20],[.30,.145],[.60,.15],[.80,.20],[1,.28]]);
 const HL=O.L/2;   // 車体中心 (z=0) から先端までの距離
 const DS=THREE.DoubleSide;
-const matWhite=new THREE.MeshStandardMaterial({color:0xe8eaee,roughness:.5,side:DS,envMapIntensity:.3});
-const matOrange=new THREE.MeshStandardMaterial({color:BD.livery?0xe2560a:0xf27316,roughness:.45,side:DS,envMapIntensity:.35});
-const matSkirt=new THREE.MeshStandardMaterial({color:0x101216,roughness:.5,side:DS});
-const matArray=new THREE.MeshPhysicalMaterial({color:0x0b0e12,roughness:.42,clearcoat:.5,clearcoatRoughness:.25,map:T.cell,side:DS,envMapIntensity:.35});
+// 画質「標準」以上: 物理ベース (塗装はウレタンのクリア、セルはシリコンの青い反射、窓は透ける)。「低」は軽い材質のまま
+const PBR=typeof GFX==="undefined"||GFX.key()!=="low";
+const paint=(c)=>PBR? new THREE.MeshPhysicalMaterial({color:c,metalness:.1,roughness:.15,clearcoat:1,clearcoatRoughness:.05,side:DS,envMapIntensity:1}) : new THREE.MeshStandardMaterial({color:c,roughness:.5,side:DS,envMapIntensity:.3});
+const matWhite=paint(0xe8eaee);
+const matOrange=paint(BD.livery?0xe2560a:0xf27316);
+const matSkirt=PBR? new THREE.MeshPhysicalMaterial({color:0x101216,metalness:.1,roughness:.3,clearcoat:.8,clearcoatRoughness:.1,side:DS,envMapIntensity:.8}) : new THREE.MeshStandardMaterial({color:0x101216,roughness:.5,side:DS});
+const matArray=PBR? new THREE.MeshPhysicalMaterial({color:0x141b4d,metalness:.85,roughness:.2,reflectivity:.9,clearcoat:.6,clearcoatRoughness:.08,map:T.cellL,side:DS,envMapIntensity:1})
+ : new THREE.MeshPhysicalMaterial({color:0x0b0e12,roughness:.42,clearcoat:.5,clearcoatRoughness:.25,map:T.cell,side:DS,envMapIntensity:.35});
+// キャノピーの窓: 透過 (外から中が少し見える濃い色のガラス)
+const glassMat=(c,fallback)=> PBR? new THREE.MeshPhysicalMaterial({color:c,transmission:.9,transparent:true,opacity:1,ior:1.5,roughness:.05,metalness:0,clearcoat:1,clearcoatRoughness:.03,side:DS,envMapIntensity:1,depthWrite:false}) : fallback;
 const grp=new THREE.Group();
 const mkB=mat=>({mat,v:[],uv:[],idx:[],map:new Map()});
 const vid=(b,Pp,Uv,i,r)=>{const k=i*1000+r;let id=b.map.get(k);
@@ -174,7 +185,7 @@ if(BD.canopyShape==="yata61"){
  const cg=new THREE.BufferGeometry(); cg.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); cg.setAttribute("uv",new THREE.Float32BufferAttribute(uv,2));
  cg.setIndex(grp0.concat(grp1)); cg.addGroup(0,grp0.length,0); cg.addGroup(grp0.length,grp1.length,1); cg.computeVertexNormals();
  canopy=new THREE.Mesh(cg,[
-  new THREE.MeshPhysicalMaterial({color:0x232528,roughness:.3,clearcoat:.4,envMapIntensity:.15,side:DS}),   // 横窓 (濃いグレー)
+  glassMat(0x2a3036,new THREE.MeshPhysicalMaterial({color:0x232528,roughness:.3,clearcoat:.4,envMapIntensity:.15,side:DS})),   // 横窓 (濃いグレー)
   new THREE.MeshPhysicalMaterial({color:0x050607,roughness:.35,clearcoat:.5,envMapIntensity:.2,side:DS})]);  // 本体 (黒)
  canopy.castShadow=true; grp.add(canopy);
  // 「61 YATA」(キャノピー後半の両側)
@@ -202,7 +213,7 @@ const cz=(p.getZ(idx[i])+p.getZ(idx[i+1])+p.getZ(idx[i+2]))/3;
 cg.setIndex(g0.concat(g1));cg.clearGroups();
 cg.addGroup(0,g0.length,0);cg.addGroup(g0.length,g1.length,1);cg.computeVertexNormals();
 canopy=new THREE.Mesh(cg,[   // 外から見て黒 (スモーク) のキャノピー: 照り返しは控えめ
-new THREE.MeshPhysicalMaterial({color:0x040506,roughness:.3,clearcoat:.6,clearcoatRoughness:.25,envMapIntensity:.25,side:DS}),
+glassMat(0x1a1e22,new THREE.MeshPhysicalMaterial({color:0x040506,roughness:.3,clearcoat:.6,clearcoatRoughness:.25,envMapIntensity:.25,side:DS})),
 new THREE.MeshPhysicalMaterial({color:0x040506,roughness:.35,clearcoat:.5,clearcoatRoughness:.3,envMapIntensity:.2,side:DS})]);
 canopy.castShadow=true;grp.add(canopy);
 }

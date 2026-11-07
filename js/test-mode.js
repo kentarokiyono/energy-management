@@ -186,7 +186,7 @@ this.camera.position.copy(camPos);
 }
 if(this.canopy) this.canopy.visible=(View.cam!==2);
 this.camera.lookAt(lookAt);
-View.renderer.render(this.scene,this.camera);
+Post.render(View.renderer,this.scene,this.camera);
 updateHUD();
 document.getElementById("hud-clock").textContent={circuit:"HOT LAP",slalom:"SLALOM",brake:"BRAKE",combo:"SLALOM+BRAKE",fig8:"FIGURE-8"}[this.kind];
 document.getElementById("hud-dist").textContent=(this.v*3.6).toFixed(0)+" km/h";

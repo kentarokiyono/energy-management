@@ -241,8 +241,29 @@ mat.onBeforeCompile=(sh)=>{
 return mat;
 }
 /* ---- 道路マテリアル (逃げ水=蜃気楼つき) ---- */
+/* 路面の凹凸 (骨材の粒) の法線マップと、粗さのマップ (轍は磨かれて少しつるつる)。roadTex と同じ大きさ・同じ並びで繰り返す */
+function roadDetail(kind){
+ const key="roadN_"+kind; if(TEX[key]) return TEX[key];
+ const W=256,H=512, hgt=new Float32Array(W*H), urban=kind==="urban";
+ let seed=kind.length*7919+17; const rnd=()=>((seed=(seed*1103515245+12345)>>>0)/4294967296);
+ for(let i=0;i<(urban?14000:22000);i++){ const x=Math.floor(rnd()*W), y=Math.floor(rnd()*H), r=rnd()<0.75?1:2, h=0.4+rnd()*0.6;
+  for(let dy=-r;dy<=r;dy++) for(let dx=-r;dx<=r;dx++){ if(dx*dx+dy*dy>r*r) continue; const k=((y+dy+H)%H)*W+((x+dx+W)%W); hgt[k]=Math.max(hgt[k],h*(1-(dx*dx+dy*dy)/(r*r+1))); } }
+ const [nc,n]=_cv(W,H), [rc,rg]=_cv(W,H), ni=n.createImageData(W,H), ri=rg.createImageData(W,H), S=urban?2.2:3.0;
+ const at=(x,y)=>hgt[((y+H)%H)*W+((x+W)%W)];
+ for(let y=0;y<H;y++) for(let x=0;x<W;x++){ const dx=(at(x+1,y)-at(x-1,y))*S, dy=(at(x,y+1)-at(x,y-1))*S, L=Math.hypot(dx,dy,1), o=(y*W+x)*4;
+  ni.data[o]=(-dx/L*0.5+0.5)*255; ni.data[o+1]=(dy/L*0.5+0.5)*255; ni.data[o+2]=(1/L*0.5+0.5)*255; ni.data[o+3]=255;
+  const u=x/W, rut=[0.14,0.36,0.64,0.86].some(c=>Math.abs(u-c)<0.04), r=(urban?0.78:0.88)-(rut?0.2:0)-at(x,y)*0.08;
+  ri.data[o]=ri.data[o+1]=ri.data[o+2]=Math.round(clamp(r,0,1)*255); ri.data[o+3]=255; }
+ n.putImageData(ni,0,0); rg.putImageData(ri,0,0);
+ const mk=(cv)=>{ const t=new THREE.CanvasTexture(cv); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.anisotropy=8; return t; };
+ return TEX[key]={normal:mk(nc),rough:mk(rc)};
+}
 function makeRoadMaterial(kind){
-const mat=new THREE.MeshLambertMaterial({map:roadTex(kind),vertexColors:true});
+// 画質「標準」以上は物理ベース (凹凸と粗さで光が散らばる)。「低」は軽い材質
+const pbr=typeof GFX!=="undefined"&&GFX.key()!=="low", D=pbr? roadDetail(kind) : null;
+const mat= pbr? new THREE.MeshStandardMaterial({map:roadTex(kind),vertexColors:true,normalMap:D.normal,normalScale:new THREE.Vector2(0.6,0.6),roughnessMap:D.rough,roughness:1,metalness:0,envMapIntensity:0.5})
+ : new THREE.MeshLambertMaterial({map:roadTex(kind),vertexColors:true});
+mat.userData.gfx=pbr?"pbr":"low";
 mat.userData.uniforms={uMirage:{value:0},uSkyCol:{value:new THREE.Color(0.7,0.8,0.9)},uTime:{value:0}};
 mat.onBeforeCompile=(sh)=>{
  Object.assign(sh.uniforms,mat.userData.uniforms);
@@ -265,6 +286,7 @@ return mat;
 const SceneMats={
 _m:{},
 get(name){
+ if(this._m[name]&&name.startsWith("road_")&&typeof GFX!=="undefined"&&this._m[name].mat.userData.gfx!==(GFX.key()!=="low"?"pbr":"low")) delete this._m[name];   // 画質を変えたら作り直す
  if(this._m[name]) return this._m[name];
  const L=(o)=>new THREE.MeshLambertMaterial(Object.assign({vertexColors:true},o));
  const DS=THREE.DoubleSide;
