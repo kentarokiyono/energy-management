@@ -112,7 +112,7 @@ Radio.push(`SOC ${(s.soc*100).toFixed(1)}% / ${VOC(s.soc).toFixed(1)}V / ${s.las
 function toggleSignal(dir){
 const s=Engine.st; if(!s||!running) return;
 s.signal = s.signal===dir ? 0 : dir;
-Snd.blip(1200,0.05,"square",0.12);
+Snd.click();
 }
 let _winkPhase=null;
 function updateWinkers(carGroup,es){
@@ -122,7 +122,7 @@ const L=es.signal===-1||es.signal===2, R=es.signal===1||es.signal===2;
 carGroup.userData.winkL.forEach(m=>m.color.setHex(L&&on?0xffb020:0x4a3005));
 carGroup.userData.winkR.forEach(m=>m.color.setHex(R&&on?0xffb020:0x4a3005));
 if(es.signal!==0){
-if(on!==_winkPhase){ _winkPhase=on; if(on) Snd.blip(1350,0.025,"square",0.05); }
+if(on!==_winkPhase){ _winkPhase=on; Snd.relay(on); }   // ウインカーのリレー (カチ・コチ)
 } else _winkPhase=null;
 const lc=(L&&on)?"#f26b1d":"#33373d", rc=(R&&on)?"#f26b1d":"#33373d";
 const wl=document.getElementById("wl"), wr=document.getElementById("wr");
