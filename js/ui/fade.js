@@ -3,7 +3,7 @@
  Fade.go(fn): 暗転 → (ロゴを表示したまま) fn を実行 → 少し待って明転。
  走行の準備 (3D の構築) のような重い処理も、ロゴを出した状態で行う */
 const Fade={
- busy:false, IN:380, OUT:520, HOLD:650,
+ busy:false, IN:380, OUT:560, HOLD:1150,   // ロゴが見えている時間 ≒ IN + HOLD ≒ 1.5 秒
  el(){
   let e=document.getElementById("fade");
   if(!e){ e=document.createElement("div"); e.id="fade";
@@ -15,12 +15,12 @@ const Fade={
  frame(){ return new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))); },
  /* ページを開いたとき: ロゴから明転 */
  async intro(){ const e=this.el(); e.style.transition="none"; e.style.display="flex"; e.classList.add("on"); void e.offsetWidth; e.style.transition="";
-  this.busy=true; await this.wait(this.reduced()?150:700); e.classList.remove("on"); e.classList.add("out"); await this.wait(this.OUT); e.style.display="none"; e.classList.remove("out"); this.busy=false; },
+  this.busy=true; await this.wait(this.reduced()?300:1500); e.classList.remove("on"); e.classList.add("out"); await this.wait(this.OUT); e.style.display="none"; e.classList.remove("out"); this.busy=false; },
  async go(fn){
   if(this.busy){ if(this.pending) return; this.pending=true; while(this.busy) await this.wait(40); this.pending=false; }   // 開いた直後の明転中などは終わってから
   this.busy=true;
   const e=this.el(), k=this.reduced()?0.3:1, t0=performance.now();
-  e.classList.remove("out"); e.style.display="flex"; void e.offsetWidth; e.classList.add("on");
+  e.classList.remove("out","on"); e.style.display="flex"; void e.offsetWidth; e.classList.add("on");
   await this.wait(this.IN*k); await this.frame();           // 暗転しきってロゴが描かれてから
   try{ fn&&fn(); }catch(err){ console.error(err); }
   await this.frame();
