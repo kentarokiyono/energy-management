@@ -181,7 +181,8 @@ const sp=Phys.sunPos(lat,lon,s.dayOfYear,hour);
 const alt=sp.alt, az=sp.az;
 if(alt<=0) return {G:0,alt:0,az,ghi:0,dni:0};
 let {dni,dhi}=Phys.clearSky(alt,elev,s.dayOfYear);
-if(s.weather){ const wf=s.weather.factor; dni*=wf; dhi*=(2-wf)*(0.5+0.5*wf); }
+if(RealWx.on()){ const d=RealWx.at("dni",lat,lon,s.dayOfYear,hour+0.5), f=RealWx.at("dhi",lat,lon,s.dayOfYear,hour+0.5); if(d!=null&&f!=null){ dni=d; dhi=f; } }
+else if(s.weather){ const wf=s.weather.factor; dni*=wf; dhi*=(2-wf)*(0.5+0.5*wf); }
 const cz=Math.sin(alt);
 const ghi=dni*cz+dhi;
 let G;
@@ -212,6 +213,7 @@ s.wDirDev+=-s.wDirDev*dtS/tauD+0.30*Math.sqrt(2*dtS/tauD)*Phys.gauss();
 s.wGust=clamp(s.wGust,-0.8,1.5); s.wDirDev=clamp(s.wDirDev,-1.2,1.2);
 s.windSpeed=Math.max(0,PRO.windBase*wc.f*(1+s.wGust)*0.6); // 車高(~1m)へ対数則換算
 s.windDirWorld=wc.toward+s.wDirDev;
+if(RealWx.on()){ const w=RealWx.wind(prof.lat,prof.lon,s.dayOfYear,s.hour); s.windSpeed=Math.max(0,w.ws*(1+0.5*s.wGust)*0.6); s.windDirWorld=w.toward+s.wDirDev*0.3; }
 }
 s.hour+=dtS/3600;
 if(s.boostT>0)s.boostT-=dtR; if(s.boostCd>0)s.boostCd-=dtR;
@@ -222,7 +224,11 @@ s.v=Math.max(0,s.v-4*dtR);
 if(s.fireSec>6){ showResult(); }
 return;
 }
-if(P.mode==="race"&&s.weatherPlan){
+if(RealWx.on()){
+ const pr=profileAt(s.km), cc=RealWx.at("cc",pr.lat,pr.lon,s.dayOfYear,s.hour)||0, typ= cc>=85?"cloud":null;
+ if(typ&&!s.weather){ s.weather={type:"cloud",factor:1,real:true}; Radio.push(`雲が厚くなってきました (雲量 ${cc.toFixed(0)} %)。発電量低下に注意`,"偵察車"); }
+ else if(!typ&&s.weather&&cc<70){ s.weather=null; Radio.push("雲が切れてきました。日射戻ります。","偵察車"); }
+} else if(P.mode==="race"&&s.weatherPlan){
 const absH=(s.day-1)*24+s.hour;
 const ev=s.weatherPlan.find(w=>absH>=w.start&&absH<w.start+w.dur);
 if(ev&&!s.weather){
@@ -268,7 +274,7 @@ const sunset=this.sunsetHour(prof.lat);
 s.disconnected = (s.camp || (s.stopKind==="cp"&&s.stopTimer>0)) && (s.hour>=19.25 || s.hour<6.25);
 const tilted = parked || s.camp;
 const sol=this.solarCalc(prof.lat,s.hour,tilted);
-const Tamb=ambientTemp(prof.lat,s.hour);
+const Tamb= RealWx.on()? (RealWx.at("t",prof.lat,prof.lon,s.dayOfYear,s.hour)??ambientTemp(prof.lat,s.hour))+PRO.tempOffset : ambientTemp(prof.lat,s.hour);
 const phiW=s.windDirWorld-prof.bearing+Math.PI;
 const airOverArray=tilted? s.windSpeed : Math.max(0,s.v+s.windSpeed*Math.cos(phiW));
 const TcSS=cellTempSS(Tamb,sol.G,airOverArray,tilted);

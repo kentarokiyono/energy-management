@@ -93,6 +93,7 @@
 <div class="seg" id="seg-gfx" title="画質: 自動は PC で高、スマホで標準から始めて、重いと自動で下げる"></div>
 <select id="gfx" class="hidden" onchange="P.gfx=this.value"><option value="auto" selected>画質 自動</option><option value="high">高</option><option value="mid">標準</option><option value="low">低</option></select>
 <label class="chk" title="CS・17 時停車・朝の出発で乗り降りの手順を実践する (F キーでいつでも乗り降り)"><input type="checkbox" id="crew-proc" checked onchange="P.crewProc=this.checked;Settings.save()"><i></i>乗降手順を実践</label>
+<label class="chk" title="オン: 2025 年大会期間 (8/24〜) の実際の日射・気温・風 (ERA5 再解析)。オフ: 気候値と乱数の天気"><input type="checkbox" id="real-wx" checked onchange="P.realWeather=this.checked;Settings.save()"><i></i>2025 年の実際の天気</label>
 <label class="chk"><input type="checkbox" id="inf-batt" onchange="P.infiniteBattery=this.checked;Settings.save()"><i></i>バッテリー無限</label>
 </div></div>
 <div class="opts" style="margin-top:-12px"><span class="lb" style="text-transform:none;letter-spacing:.06em;font-size:12px" id="settings-state"></span>
@@ -363,8 +364,11 @@
 <script src="js/data/route-2025.js?v=20261107-w2"></script>
 <script src="js/data/route-plan.js?v=20261107-w2"></script>
 <script src="js/data/route-osm.js?v=20261107-w2"></script>
+<script src="js/data/route-geo.js?v=20261107-r1"></script>
+<script src="js/data/weather-2025.js?v=20261107-r1"></script>
 <script src="js/route.js?v=20261107-w2"></script>
 <script src="js/data/australia.js?v=20261107-w2"></script>
+<script src="js/geo.js?v=20261107-r1"></script>
 <script src="js/data.js?v=20261107-w2"></script>
 <script src="js/data/vehicle-private.js?v=20261107-w2" onerror="window.__vehPrivMissing=true"></script>
 <script src="js/vehicle.js?v=20261107-w2"></script>

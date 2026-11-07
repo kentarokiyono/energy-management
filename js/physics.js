@@ -139,6 +139,7 @@ function fmtDur(h){ const sg=h<0?"-":""; h=Math.abs(h);
 return `${sg}${Math.floor(h)}:${String(Math.floor(h%1*60)).padStart(2,"0")}`; }
 function profileAt(km){
 const d=clamp(km,0,TOTAL_KM);
+if(typeof Geo!=="undefined"&&Geo.ok) return { elev:Geo.elev(d), slope:Math.atan(Geo.grade(d)), lat:Geo.lat(d), lon:Geo.lon(d), bearing:Geo.bearing(d) };
 let i=0;
 while(i<ROUTE.length-2 && ROUTE[i+1].km<=d) i++;
 const p1=ROUTE[i], p2=ROUTE[i+1];
