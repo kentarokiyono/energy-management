@@ -202,7 +202,7 @@ function showResult(){
 const es=Engine.st;
 running=false;
 Snd.update(0,0,false);
-show("result-screen",true);
+show("result-screen",true); { const lb=document.getElementById("log-btn-result"); if(lb) lb.style.display=RunLog.rows.length?"":"none"; if(RunLog.on) RunLog.add(); }
 const title=document.getElementById("result-title");
 const body=document.getElementById("result-body");
 const rows=[];

@@ -17,6 +17,7 @@ document.getElementById("event-hud").classList.add("hidden");
 document.getElementById("test-hud").classList.remove("hidden");
 Radio.log.length=0; document.getElementById("radio-log").innerHTML="";
 applyTouchMode(); document.body.classList.add("hide-map"); MapUI.toggle(false);
+RunLog.start();
 Test.start(P.testKind);
 initChart();
 if(P.event) EventGame.begin();   // イベント (ヒドゥンバレー版)
@@ -45,6 +46,7 @@ Radio.log.length=0; document.getElementById("radio-log").innerHTML="";
 Route.build(P.timeScale, P.mode!=="race");   // イベントモードは等倍ゾーンなし
 const chap= P.mode==="race"&&!P.event? parseInt((document.getElementById("chapter")||{}).value||"0") : 0;
 if(chap>0) Engine.applyChapter(chap);   // チャプター: CS の 2 km 手前から
+RunLog.start();
 View.init(); View.buildCar(); View.buildEscorts();
 if(!MapUI.built) MapUI.build(); MapUI.reset(); MapUI.toggle(false);
 initChart(); lastChartPush=0;
@@ -88,7 +90,7 @@ View.update(dtR);
 if(P.event) EventGame.post();
 if(P.mode==="race"&&!es.finished&&!es.trailering) es.km=View.kmOfS(View.s);   // 走行位置(本線への射影)を正とする
 Snd.update(es.v, es.lastAmp/Math.max(motorMaxA(es.powerMode),1), es.fire);
-updateHUD(); drawWind(); drawG(); MapUI.frame();
+updateHUD(); drawWind(); drawG(); MapUI.frame(); RunLog.tick();
 Perf.tick(dtR);
 if(t-lastChartPush>1500){ pushChart(); drawMap(); lastChartPush=t; }
 }

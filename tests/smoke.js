@@ -53,6 +53,14 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   const ov=await p.evaluate(()=>document.querySelectorAll("#map-ov-rows tr").length);
   check("レース: 他チーム一覧",ov===26,"rows="+ov);
   await shot(p,"race"); await p.evaluate(()=>MapUI.toggle(false));
+  // 走行ログ: ポーズ画面のボタンで CSV を保存
+  await p.evaluate(()=>{ const s=Engine.st; s.km+=1.2; });   // km の境目をまたがせる
+  await p.waitForTimeout(500);
+  await p.keyboard.press("Escape"); await p.waitForTimeout(300);
+  const [dl]=await Promise.all([p.waitForEvent("download"),p.click("#log-btn-pause")]);
+  const csv=fs.readFileSync(await dl.path(),"utf8"), lines=csv.trim().split(/\r?\n/); fs.mkdirSync(OUT,{recursive:true}); fs.writeFileSync(path.join(OUT,"log.csv"),csv);
+  check("走行ログ CSV",csv.charCodeAt(0)===0xfeff&&/^日,時刻,経過h,km/.test(lines[0])&&lines.length>=3&&lines.slice(1).every(l=>l.replace(/"([^"]|"")*"/g,"x").split(",").length===lines[0].split(",").length),`${dl.suggestedFilename()} ${lines.length} 行 | ${lines[1].slice(0,120)}`);
+  await p.keyboard.press("Escape");
   check("レース: エラーなし",noErr(p).length===0,noErr(p).slice(0,2).join(" | "));
   await p.context().close(); }
  // ---- チャプター (CS5 の手前から) ----

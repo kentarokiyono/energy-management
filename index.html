@@ -326,6 +326,7 @@
 <div class="panel px-10 py-8 text-center space-y-3">
 <img src="assets/img/logo.svg" class="logo mx-auto" width="80" alt=""><div class="ttl" style="font-size:24px;letter-spacing:.2em">PAUSE</div>
 <button class="btn pri block w-full" onclick="togglePause()">▶ 再開</button>
+<button class="btn block w-full" id="log-btn-pause" onclick="RunLog.download()">📄 走行ログ (CSV) を保存</button>
 <button class="btn block w-full" onclick="openWheelConfig()">🎮 ハンコン割当</button>
 <button class="btn btn-amber block w-full" onclick="quitToMenu()">🏠 メニューへ戻る</button>
 </div>
@@ -337,7 +338,7 @@
 <div class="hd"><span class="lb">Result</span><img src="assets/img/logo.svg" class="logo" width="72" alt=""></div>
 <h2 id="result-title">FINISH!</h2>
 <div id="result-body" class="my-4"></div>
-<div style="display:flex;justify-content:flex-end"><button class="btn pri" onclick="quitToMenu()"><span data-ic="home"></span>メニューへ戻る</button></div>
+<div style="display:flex;justify-content:flex-end;gap:10px"><button class="btn" id="log-btn-result" onclick="RunLog.download()">📄 走行ログ (CSV)</button><button class="btn pri" onclick="quitToMenu()"><span data-ic="home"></span>メニューへ戻る</button></div>
 </div>
 </div>
 <script src="js/data/route-2025.js?v=20261107-m2"></script>
@@ -367,6 +368,7 @@
 <script src="js/render/hiddenvalley.js?v=20261107-m2"></script>
 <script src="js/render/view.js?v=20261107-m2"></script>
 <script src="js/crew.js?v=20261107-m2"></script>
+<script src="js/runlog.js?v=20261107-m2"></script>
 <script src="js/hud.js?v=20261107-m2"></script>
 <script src="js/test-mode.js?v=20261107-m2"></script>
 <script src="js/lib/qrcode.js?v=20261107-m2"></script>
