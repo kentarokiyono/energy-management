@@ -70,14 +70,13 @@ const Cockpit={
   const dial=(sd)=>{ const d=new THREE.Mesh(new THREE.CylinderGeometry(.016,.016,.012,18),this.mat(0x2a2d31,{roughness:.4,metalness:.3})); d.rotation.z=Math.PI/2; d.position.set(sd*(W/2-.05),.055,-.03); wheel.add(d);
    const tick=box(.013,.002,.004,white,0,.016,0,d); return d; };
   this.thrDial=dial(1); this.rgnDial=dial(-1);
-  box(.03,.016,.012,white,.135,.085,.004,wheel); btn(.97,-.1,0xff2a2a,.002,.004);                 // 右上の白いコネクタ (赤いランプ)
   V.yokeMesh=wheel; V.yokePivot.add(wheel);
   // 軸 (銀) とクイックリリース (金)
   const qr=new THREE.Mesh(new THREE.CylinderGeometry(.022,.022,.035,18),gold); qr.rotation.x=Math.PI/2; qr.position.set(0,0,-.04); V.yokePivot.add(qr);
   const col=new THREE.Mesh(new THREE.CylinderGeometry(.011,.011,.45,12),alu); col.rotation.x=Math.PI/2; col.position.set(0,0,-.28); V.yokePivot.add(col);
   cock.add(V.yokePivot);
   // ---- スイッチ箱 (右斜め前の壁) ----
-  const sb=new THREE.Group(); sb.position.set(ow-.07,top-.05,ez-.36); sb.rotation.set(.55,0,.7);   // ドライバーから見て右斜め前の壁
+  const sb=new THREE.Group(); sb.position.set(ow-.016,top-.1,ez-.36); sb.rotation.set(0,0,Math.PI/2);   // 右斜め前: 右の壁の側面に平らに付ける (操作面は内側)
   const paper=this.tex(512,300,(c,w,h)=>{ c.fillStyle="#8d9196"; c.fillRect(0,0,w,h); c.fillStyle="#f6f6f2"; c.fillRect(w*.12,h*.04,w*.76,h*.22);
    c.fillStyle="#333"; c.font="600 15px 'BIZ UDPGothic',sans-serif"; c.textAlign="left"; ["緊急停止 / プリチャージ / ハザード","前後 弱電 ZP モタコン テレメ"].forEach((t,i)=>c.fillText(t,w*.15,h*.12+i*22));
    c.textAlign="center"; c.font="700 18px 'BIZ UDPGothic',sans-serif"; ["前/後","弱電","ZP","モタコン","テレメ"].forEach((t,i)=>{ c.fillStyle="#f6f6f2"; c.fillRect(w*(.13+i*.17)-34,h*.86-16,68,22); c.fillStyle="#111"; c.fillText(t,w*(.13+i*.17),h*.86); }); });
