@@ -17,7 +17,17 @@ function setupRenderQuality(renderer,scene){
   scene.fog=new THREE.Fog(0x87b6e8,320,2000);
 }
 /* ============ ③ 品質監視 ============ */
-const Perf={acc:0,fr:0,lv:0,tick(dt){this.acc+=dt;this.fr++;
-  if(this.acc>=2){const fps=this.fr/this.acc;this.acc=0;this.fr=0;
-    if(fps<45&&this.lv===0&&View.renderer){this.lv=1;View.renderer.shadowMap.enabled=false;View.renderer.setPixelRatio(1.0);}
-    else if(fps<45&&this.lv===1&&View.renderer){this.lv=2;View.renderer.setPixelRatio(0.85);}}}};
+/* 描画の重さに合わせて解像度を自動調整。下げるのは平均 fps が 28 未満が続いたとき、上げるのは 55 以上が続いたとき。
+ 解像度は端末の画素密度の範囲で 2.0 → 1.5 → 1.25 → 1.0 まで (1.0 未満には下げない)。影は 2 段階下げたら切る */
+const Perf={acc:0,fr:0,lv:0,good:0,
+  steps(){ const d=Math.min(devicePixelRatio||1,2); return [d,1.5,1.25,1.0].filter((x,i,a)=>x<=d&&a.indexOf(x)===i); },
+  apply(){ const r=View.renderer; if(!r) return; const st=this.steps(), pr=st[Math.min(this.lv,st.length-1)];
+    if(Math.abs(r.getPixelRatio()-pr)>0.01){ r.setPixelRatio(pr); r.setSize(innerWidth,innerHeight); }
+    r.shadowMap.enabled= this.lv<2; },
+  reset(){ this.acc=0; this.fr=0; this.lv=0; this.good=0; this.apply(); },
+  tick(dt){ this.acc+=dt; this.fr++;
+    if(this.acc<3) return; const fps=this.fr/this.acc; this.acc=0; this.fr=0;
+    const n=this.steps().length;
+    if(fps<28&&this.lv<n-1){ this.lv++; this.good=0; this.apply(); }
+    else if(fps>55&&this.lv>0){ if(++this.good>=2){ this.lv--; this.good=0; this.apply(); } }
+    else this.good=0; }};
