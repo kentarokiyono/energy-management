@@ -6,6 +6,8 @@
   登りでは電力が大きく増えるので遅め、平地・下りでは速めになる。電池が FLOOR を割らない最小の μ を 2 分探索で求める */
 const Strategy={
  FLOOR:0.05, SEG:2, last:null, lastT:-1e9,
+ /* 電池の下限 (残しておく量): 天気予報のずれが大きいほど多めに残す (予報より悪い天気になっても尽きないように) */
+ floor(){ const s=Engine.st; return (s&&s.scenario)||!(s&&s.fc)? this.FLOOR : ({off:0.05,low:0.08,mid:0.12,high:0.18})[P.fcErr]||this.FLOOR; },
  drivePower(vms,grade){   // [W] 巡航に必要な電力 (下りは回生 6 割)
   const m=massTotal(), F=Phys.crr(vms)*m*9.81+0.5*1.17*P.Cd*P.frontal*vms*vms+m*9.81*grade;
   if(F<=0) return F*vms*0.6*(P.regenStrength>0?1:0)+P.auxW;
@@ -24,7 +26,7 @@ const Strategy={
    s.dayOfYear=PRO.dayOfYear+day-1; s.km=km; s.weather= RealWx.on()? null : ((s.fc&&s.fc.plan)||s.weatherPlan||[]).find(w=>abs>=w.start&&abs<w.start+w.dur)||null;   // 予報で見積もる
    return pv(Engine.solarCalc(pr.lat,h,tilted,pr.lon,pr.elev).G); };
   const charge=(hours)=>{ for(let t=0;t<hours;t+=0.25){ const d=Math.min(0.25,hours-t); soc=Math.min(1,soc+G(true)*d/Wh); abs+=d; } };
-  const startDay=Math.floor(abs/24); this.fcOn=true;
+  const startDay=Math.floor(abs/24), FL=this.floor(); this.fcOn=true;
   let psNow=null; const Ps0=()=>(psNow=G(false));   // 今の発電 (満タンの判定と、その区間の計算で 1 回だけ求める)
   try{
    for(let guard=0;guard<6000&&km<TOTAL_KM;guard++){
@@ -42,7 +44,7 @@ const Strategy={
     const dt=seg/vk, Ps=psNow!=null? psNow : G(false), Pd=this.drivePower(vms,grade); psNow=null;
     soc=Math.min(1,soc+(Ps-Pd)*dt/Wh); km+=seg; abs+=dt; if(tr) tr.push([km,abs,soc,vk,dt]);
     if(soc<minSoc){ minSoc=soc; minKm=km; }
-    if(soc<this.FLOOR) return {ok:false,minSoc,minKm,v,trace:tr};
+    if(soc<FL) return {ok:false,minSoc,minKm,v,trace:tr};
     const c=csList[ci];
     if(c&&km>=c.km){ if(c===nextCS) socNextCS=soc; if(lateCS==null&&abs>csCloseAbs(c.km)) lateCS=c; ci++; stopH=0.5; }
    }
@@ -51,14 +53,18 @@ const Strategy={
  },
  /* 電池が持つ最も速い一定の巡航速度 (o を渡すとその地点・時刻・SOC から) */
  best(o){
-  let lo=30, hi=PRO.noSpeedCap?160:130;
+  let lo=30, hi=Math.min(PRO.noSpeedCap?160:130,this.topSpeed(true));
   let best=this.simulate(lo,o);
   if(!best.ok) return {v:lo,ok:false,r:best};
   while(hi-lo>1){ const mid=Math.round((lo+hi)/2), r=this.simulate(mid,o); if(r.ok){ lo=mid; best=r; } else hi=mid; }
   return {v:lo,ok:true,r:best};
  },
  /* 勾配 g → 速度 [km/h]: (1 + μ·電力(v, g)) / v が最小の v (μ が小さいほど速い)。勾配 0.1 % ごとに覚えておく */
- profile(mu){ const vmax=PRO.noSpeedCap?160:130, memo=new Map();
+ /* モーターで出せる最高速度 [km/h] (平地・電流いっぱい)。mode: false = ECO, true = POWER */
+ topSpeed(mode,soc){ const m=massTotal(); let v=30;
+  for(let x=30;x<=170;x+=1){ const vms=x/3.6, mm=motorModel(motorMaxA(mode),vms,soc==null?0.8:soc,mode), Fd=Phys.crr(vms)*m*9.81+0.5*1.17*P.Cd*P.frontal*vms*vms; if(mm.F>=Fd) v=x; else break; }
+  return v; },
+ profile(mu){ const vmax=Math.min(PRO.noSpeedCap?160:130,this.topSpeed(true)), memo=new Map();   // 出せない速度は選ばない (POWER モードの最高速度まで)
   const f=(g)=>{ const k=Math.round(g*1000); let v=memo.get(k); if(v!=null) return v; let bv=30, bc=Infinity;
    for(let x=30;x<=vmax;x+=1){ const c=(1+mu*this.drivePower(x/3.6,k/1000))/x; if(c<bc){ bc=c; bv=x; } } memo.set(k,bv); return bv; };
   f.mu=mu;

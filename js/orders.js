@@ -15,7 +15,8 @@ const Orders={
   const pause= es.camp||es.stopTimer>0||(Engine.gridWait&&Engine.gridWait())||(typeof Crew!=="undefined"&&Crew.busy());
   if(!this.cur){ if(!pause&&es.km>=this.nextKm&&es.v>1) this.issue(es); this.ui(); return; }
   const c=this.cur, kmh=es.v*3.6, lim=speedLimitAt(es.km);
-  if(!pause&&es.v>3&&lim>=c.v-0.5){ c.tot+=dtR; const ok=Math.abs(kmh-c.v)<=this.TOL; if(ok) c.in+=dtR; c.dev+=Math.abs(kmh-c.v)*dtR; c.iSum+=(es.lastAmp||0)*dtR;
+  const dk=Math.max(0,es.km-(c.lastKm==null?es.km:c.lastKm)); c.lastKm=es.km;
+  if(!pause&&es.v>3&&lim>=c.v-0.5){ c.tot+=dtR; c.cnt=(c.cnt||0)+dk; const ok=Math.abs(kmh-c.v)<=this.TOL; if(ok) c.in+=dtR; c.dev+=Math.abs(kmh-c.v)*dtR; c.iSum+=(es.lastAmp||0)*dtR;
    if(ok&&c.react==null) c.react=(performance.now()-c.t0)/1000; }
   if(es.km>=c.k1) this.close(es);
   this.ui();
@@ -38,7 +39,7 @@ const Orders={
  close(es){
   const c=this.cur; this.cur=null; this.nextKm=c.k1;
   const until=performance.now()+15000;
-  if(c.tot<20){ this.last={na:true,until}; return; }   // ほとんど数えられなかった区間 (制限速度・停車ばかり) は採点しない
+  if(!(c.tot>0)||(c.cnt||0)<3){ this.last={na:true,until}; return; }   // 数えられた距離が 3 km 未満 (制限速度・停車ばかり) の区間は採点しない
   const pct=c.in/c.tot, dev=c.dev/c.tot, iAvg=c.iSum/c.tot, grade= pct>=0.85&&dev<2? "A" : pct>=0.6&&dev<4? "B" : "C";
   this.hist.push({v:c.v,pct,dev,react:c.react,km:c.k0,grade,iAvg,I:c.I,drv:typeof Crew!=="undefined"&&Crew.drivers?Crew.drivers[Crew.driverIdx].name:"―"});
   this.last={grade,pct,dev,iAvg,I:c.I,until};
