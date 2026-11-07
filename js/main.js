@@ -115,6 +115,7 @@ refreshUIModeBtns(); Settings.badge();
 setEventLevel(EventGame.level); setEventCourse(EventGame.course);
 segFromSelect("time-scale","seg-ts");
 segFromSelect("log-step","seg-log");
+segFromSelect("gfx","seg-gfx");
 refreshQuali();
 segFromSelect("chapter","seg-chap",o=>o.value==="0"?"スタート":"CS"+o.value);
 setInterval(pollGamepad,800);

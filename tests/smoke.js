@@ -90,6 +90,9 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   await p.evaluate(()=>{ window.pushChart=()=>{}; P.mode="race"; P.crewProc=false; document.getElementById("chapter").value="5"; startGame(); modalPause=false; Engine.st.throttleSet=0.5; });
   await p.waitForTimeout(4000);
   const r=await p.evaluate(()=>({km:Engine.st.km,day:Engine.st.day,y:View.car&&View.car.position.y}));
+  const gq=await p.evaluate(()=>{ const keep=P.gfx; P.gfx="low"; Perf.reset(); const r={pr:View.renderer.getPixelRatio(),sh:View.renderer.shadowMap.enabled,skip:[...Array(1000)].filter((_,i)=>GFX.skip(i*3.1,i*7.7)).length};
+   P.gfx=keep; Perf.reset(); return r; });
+  check("画質「低」: 解像度・影・景観の間引き",gq.pr===1&&gq.sh===false&&gq.skip>500&&gq.skip<800,JSON.stringify(gq));
   check("チャプター CS5",r.km>1490&&r.km<1500&&Number.isFinite(r.y),JSON.stringify(r));
   check("チャプター: エラーなし",noErr(p).length===0,noErr(p).slice(0,2).join(" | "));
   await p.context().close(); }

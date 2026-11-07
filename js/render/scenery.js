@@ -254,11 +254,13 @@ surfHit(ctx,x,z,pad){
 /* 景観の部品 (PR.*) を呼ぶ前に、置き場所が路面の上なら置かない */
 guardPR(){
  if(PR.__guarded) return; PR.__guarded=true;
- const keep=new Set(["solarCar","woodPole","stobie"]);   // 柱は電線の高さを返すので常に置く (位置は clearAt で道路を避け済み)
+ const keep=new Set(["solarCar","woodPole","stobie"]), DECOR=new Set(["tree","desertoak","mulga","spinifex","grass","saltbush","pandanus","palm","termite","rock"]);   // 柱は電線の高さを返すので常に置く (位置は clearAt で道路を避け済み)
  const pad={tree:0.8,redgum:0.8,houseOutback:2.5,houseTropical:2.5,houseBrick:2.5,shopStrip:3,shed:2,roadhouse:3,tower:4,windmill:1,termite:0.4,rock:0.3,tank:1};
  for(const k of Object.keys(PR)){ const f=PR[k]; if(typeof f!=="function") continue;
   const kp=keep.has(k);
+  const decor=DECOR.has(k);
   PR[k]=function(bs,x,y,z,...r){ const g=Scenery._guard; if(!kp&&g&&Scenery.surfHit(g,x,z,pad[k]!=null?pad[k]:0.25)) return;
+   if(decor&&typeof GFX!=="undefined"&&GFX.skip(x,z)) return;   // 画質設定で景観の小物を間引く
    if(typeof Collide!=="undefined"&&Collide.owner!=null) Collide.addPR(k,x,z);   // 当たり判定に登録
    return f.call(this,bs,x,y,z,...r); }; }
 },
