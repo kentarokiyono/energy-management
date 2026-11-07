@@ -32,6 +32,19 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   const g=await p.evaluate(()=>({post:!!Post.comp&&Post.want(),env:!!EnvLight.rt&&View.scene.environment===EnvLight.rt.texture,pbr:View.car.userData.upperTilt.children[0].children.some(m=>m.material&&m.material.isMeshPhysicalMaterial&&m.material.clearcoat>0.5)}));
   check("画質「高」: ブルーム・映り込み・塗装",g.post&&g.env&&g.pbr&&noErr(p).length===0,JSON.stringify(g)+" "+noErr(p).slice(0,2).join(" | "));
   await shot(p,"gfx-high"); await p.context().close(); }
+ // ---- 練習シナリオ (スコール) と無線の速度指示 ----
+ { const p=await newPage(b,base);
+  await p.click('#seg-scn button[data-v="squall"]');
+  await p.evaluate(()=>{ P.mode="race"; P.crewProc=false; startGame(); }); await p.waitForTimeout(1500);
+  const sc=await p.evaluate(()=>({km:Engine.st.km,day:Engine.st.day,ts:P.timeScale,wx:Engine.st.weatherPlan.length,real:RealWx.on()}));
+  await p.evaluate(()=>{ Orders.nextKm=Engine.st.km; Engine.st.v=20; }); await p.waitForTimeout(1200);
+  const od=await p.evaluate(()=>({cur:!!Orders.cur,ui:document.getElementById("hud-order").style.display}));
+  await p.evaluate(()=>{ const es=Engine.st; es.km=Scenario.cur.goal+0.05; View.s=View.sOfKm(es.km); }); await p.waitForTimeout(1200);
+  const rs=await p.evaluate(()=>({on:document.getElementById("scn-result").classList.contains("on"),last:Scenario.last}));
+  check("練習シナリオ: 開始と採点",Math.abs(sc.km-760)<0.5&&sc.day===2&&sc.ts===12&&sc.wx===1&&!sc.real&&rs.on&&rs.last&&rs.last.score>=0,JSON.stringify({sc,rs}));
+  check("無線の速度指示",od.cur&&od.ui==="flex",JSON.stringify(od));
+  check("練習シナリオ: エラーなし",noErr(p).length===0,noErr(p).slice(0,2).join(" | "));
+  await p.evaluate(()=>{ Scenario.closeRes(); quitToMenu(); document.getElementById("scenario").value=""; }); await p.context().close(); }
  // ---- メニュー ----
  { const p=await newPage(b,base);
   const s=await p.evaluate(()=>({build:document.querySelector(".build").textContent, modes:document.querySelectorAll(".mode").length, seg:document.querySelectorAll("#seg-ts button").length, quali:document.getElementById("quali-info").textContent}));
@@ -102,6 +115,14 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   p.once("dialog",d=>d.accept()); await p.click("#ana-del"); await p.waitForTimeout(300);
   const st2=await p.evaluate(async()=>({n:Ana.runs.length,db:(await Ana.DB.all()).map(o=>o.name)}));
   check("分析画面: 走行データの編集・保存・削除",dbS.includes("編集テスト|2025-10-20")&&st2.n===2&&!st2.db.includes("編集テスト"),JSON.stringify({dbS,st2}));
+  // 戦略の答え合わせ・走りの再生 (デモ走行)
+  await p.evaluate(()=>{ try{ localStorage.removeItem("bwsc_ana_nodemo"); }catch(e){} if(!Ana.runs.some(r=>r.demo)) Ana.addDemo(); Ana.cur=Ana.runs.findIndex(r=>r.demo); Ana.xr=null; Ana.render(); });   // 前の確認で消したデモを戻す
+  const rv=await p.evaluate(()=>{ const R=Ana.review(Ana.run()); return {v:R.v,legs:R.legs&&R.legs.length,err:R.err||null,pts:R.pts&&R.pts.length}; });
+  check("分析画面: 戦略の答え合わせ",rv.v>=40&&rv.legs>=8&&rv.pts>500&&!rv.err,JSON.stringify(rv));
+  await p.click('#ana-lay button[data-v="A"]'); await p.click("#ana-pp"); await p.waitForTimeout(1500);
+  const pl=await p.evaluate(()=>{ const R=Ana.playRows(Ana.run()); return {on:Ana.play.on,adv:Ana.play.t-R[0].abs,txt:/km\/h/.test(document.getElementById("ana-pr").textContent)}; });
+  await p.click("#ana-pp");
+  check("分析画面: 走りの再生",pl.on&&pl.adv>0&&pl.txt,JSON.stringify(pl));
   await shot(p,"analysis"); await p.evaluate(()=>Ana.close());
   check("レース: エラーなし",noErr(p).length===0,noErr(p).slice(0,2).join(" | "));
   await p.context().close(); }
