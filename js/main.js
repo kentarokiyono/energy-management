@@ -52,7 +52,7 @@ const scnId= !resumed&&P.mode==="race"&&!P.event? Scenario.pick() : null;
 if(resumed){}
 else if(scnId) Scenario.apply(scnId);   // 練習シナリオ (チャプターより優先)
 else if(chap>0) Engine.applyChapter(chap);   // チャプター: CS の 2 km 手前から
-RunLog.start(); Orders.start(); if(resumed) Save.applyRest();
+RunLog.start(); Orders.start(); if(resumed) Save.applyRest(); DrvRec.start();
 View.init(); View.buildCar(); View.buildEscorts();
 if(!MapUI.built) MapUI.build(); MapUI.reset(); MapUI.toggle(false);
 initChart(); lastChartPush=0;
@@ -110,6 +110,7 @@ show("pause-overlay",paused);
 if(!paused) lastT=performance.now();
 }
 function quitToMenu(){
+if(running&&Engine.st&&!Test.active) DrvRec.record();   // ドライバー成績 (途中でやめた走行も)
 if(typeof EventGame!=="undefined") EventGame.end();
 running=false; paused=false; Test.active=false;
 document.getElementById("game-container").classList.add("hidden");

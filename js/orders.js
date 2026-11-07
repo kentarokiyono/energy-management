@@ -40,7 +40,7 @@ const Orders={
   const until=performance.now()+15000;
   if(c.tot<20){ this.last={na:true,until}; return; }   // ほとんど数えられなかった区間 (制限速度・停車ばかり) は採点しない
   const pct=c.in/c.tot, dev=c.dev/c.tot, iAvg=c.iSum/c.tot, grade= pct>=0.85&&dev<2? "A" : pct>=0.6&&dev<4? "B" : "C";
-  this.hist.push({v:c.v,pct,dev,react:c.react,km:c.k0,grade,iAvg,I:c.I});
+  this.hist.push({v:c.v,pct,dev,react:c.react,km:c.k0,grade,iAvg,I:c.I,drv:typeof Crew!=="undefined"&&Crew.drivers?Crew.drivers[Crew.driverIdx].name:"―"});
   this.last={grade,pct,dev,iAvg,I:c.I,until};
  },
  summary(){ const H=this.hist; if(!H.length) return null; const w=H.reduce((s,h)=>s+1,0);
