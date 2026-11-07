@@ -33,7 +33,7 @@ Engine.st.hour=10.5;
 document.getElementById("event-hud").classList.remove("hidden");
 } else {
 P.timeScale=parseInt(document.getElementById("time-scale").value);
-const scn= P.mode==="race"&&!P.event? Scenario.pick() : null; Scenario.reset();
+const scn= P.mode==="race"&&!P.event&&!Save.pending? Scenario.pick() : null; Scenario.reset();
 if(scn) P.timeScale=Scenario.LIST[scn].ts;   // 練習シナリオは時間をゆっくり
 document.getElementById("event-hud").classList.add("hidden");
 }
@@ -47,17 +47,19 @@ document.getElementById("tilt-val").textContent=Engine.st.tiltDeg+"°";
 Radio.log.length=0; document.getElementById("radio-log").innerHTML="";
 Route.build(P.timeScale, P.mode!=="race");   // イベントモードは等倍ゾーンなし
 const chap= P.mode==="race"&&!P.event? parseInt((document.getElementById("chapter")||{}).value||"0") : 0;
-const scnId= P.mode==="race"&&!P.event? Scenario.pick() : null;
-if(scnId) Scenario.apply(scnId);   // 練習シナリオ (チャプターより優先)
+const resumed=P.mode==="race"&&!P.event&&Save.applyEngine();   // 「続きから」: 保存した状態に戻す (シナリオ・チャプターより優先)
+const scnId= !resumed&&P.mode==="race"&&!P.event? Scenario.pick() : null;
+if(resumed){}
+else if(scnId) Scenario.apply(scnId);   // 練習シナリオ (チャプターより優先)
 else if(chap>0) Engine.applyChapter(chap);   // チャプター: CS の 2 km 手前から
-RunLog.start(); Orders.start();
+RunLog.start(); Orders.start(); if(resumed) Save.applyRest();
 View.init(); View.buildCar(); View.buildEscorts();
 if(!MapUI.built) MapUI.build(); MapUI.reset(); MapUI.toggle(false);
 initChart(); lastChartPush=0;
 running=true; paused=false; lastT=performance.now();
 requestAnimationFrame(loop);
 if(P.event) EventGame.begin();
-else if(Engine.st.scenario){}
+else if(Engine.st.scenario||resumed){}
 else if(Engine.st.chapter){ const c=RP_CS.find(q=>q.n===Engine.st.chapter), es=Engine.st, h=Math.floor(es.hour), mi=Math.floor(es.hour%1*60);
  Radio.push(`チャプター: CS${c.n} ${c.name} の 2 km 手前から。Day${es.day} ${h}:${String(mi).padStart(2,"0")}、電池 ${(es.soc*100).toFixed(0)} % (標準ペース 70 km/h の見積もり)。`); }
 else { const es=Engine.st, m=Math.round((es.gridStartH-8)*60);
@@ -113,7 +115,7 @@ running=false; paused=false; Test.active=false;
 document.getElementById("game-container").classList.add("hidden");
 document.getElementById("test-hud").classList.add("hidden");
 show("result-screen",false); show("pause-overlay",false); show("stopmenu-overlay",false); show("test-result",false);
-document.getElementById("setup-screen").classList.remove("hidden"); refreshQuali();
+document.getElementById("setup-screen").classList.remove("hidden"); refreshQuali(); Save.menu();
 Snd.silence(); FFB.update(null); Speech.stop();
 }
 Settings.load();
@@ -129,7 +131,7 @@ segFromSelect("tts","seg-tts");
 segFromSelect("fc-err","seg-fc");
 segFromSelect("ffb","seg-ffb",o=>o.value==="off"?"振動 OFF":o.textContent);
 FFB.init();
-refreshQuali();
+refreshQuali(); Save.menu();
 segFromSelect("chapter","seg-chap",o=>o.value==="0"?"スタート":"CS"+o.value);
 setInterval(pollGamepad,800);
 addEventListener("gamepadconnected",e=>toast("🎮 コントローラー接続: "+escHtml(e.gamepad.id.slice(0,40)),"#34d399"));
