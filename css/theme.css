@@ -238,13 +238,13 @@ body.touch-on #crew-ui .crew-aim{ cursor:pointer; text-decoration:underline; tex
 #ana.on{ display:flex; }
 .ana-top{ min-height:56px; display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px; padding:8px 16px; border-bottom:1px solid var(--ln); background:#111316; }
 .ana-ttl{ font:700 17px var(--fn); letter-spacing:.08em; margin-right:6px; }
-.ana-top select{ padding:5px 8px; font-size:12px; max-width:200px; }
+.ana-top select{ padding:5px 8px; font-size:12px; max-width:280px; }
 .ana-top .seg>button{ padding:5px 10px; font-size:12px; }
 .ana-top .lb{ letter-spacing:.1em; }
 .ana-sm{ padding:5px 12px!important; font-size:12px!important; letter-spacing:.06em!important; cursor:pointer; }
 .ana-x{ margin-left:auto; }
 .ana-body{ flex:1; min-height:0; display:grid; position:relative; }
-.ana-body.A{ grid-template-columns:1fr 360px; grid-template-rows:1fr 260px; }
+.ana-body.A{ grid-template-columns:1fr 360px; grid-template-rows:1fr 320px; }
 .ana-body.B{ grid-template-columns:1fr 400px; grid-template-rows:1fr; }
 .ana-map{ position:relative; overflow:hidden; min-height:0; }
 .ana-map canvas{ display:block; }
@@ -280,6 +280,58 @@ body.touch-on #crew-ui .crew-aim{ cursor:pointer; text-decoration:underline; tex
 .ana-rr{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
 .ana-rr input{ width:78px; padding:4px 6px; font-size:12px; }
 .ana-body.B .ana-compass, .ana-body.B .ana-ctl{ display:none; }
+/* グラフ: 日付のボタン (上) と範囲のスライダー (下) */
+.ana-days{ position:absolute; left:0; right:0; top:0; height:30px; display:flex; align-items:center; gap:4px; padding:0 12px 0 8px; overflow-x:auto; scrollbar-width:none; z-index:1; }
+.ana-days::-webkit-scrollbar{ display:none; }
+.ana-days .lb{ margin-right:4px; flex:none; }
+.ana-days button{ flex:none; padding:2px 9px; font:600 11px var(--fn); color:var(--tx2); background:var(--pn2); border:1px solid var(--ln); cursor:pointer; }
+.ana-days button:hover{ border-color:var(--dim); }
+.ana-days button.on{ background:var(--acc); border-color:var(--acc); color:#111; }
+#ana-nav{ position:absolute; left:0; bottom:0; touch-action:none; cursor:pointer; border-top:1px solid var(--ln); }
+.ana-ico{ padding:5px 8px!important; }
+.ana-ico:disabled{ opacity:.4; cursor:default; }
+/* 走行データの編集 */
+.ana-dlg{ position:absolute; inset:0; z-index:10; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); }
+.ana-dlg.on{ display:flex; }
+.ana-dlg .box{ width:min(420px,calc(100vw - 32px)); background:var(--pn); border:1px solid var(--ln); border-top:2px solid var(--acc); padding:16px 18px; display:flex; flex-direction:column; gap:12px; }
+.ana-dlg label{ display:flex; flex-direction:column; gap:5px; }
+.ana-dlg input{ padding:8px 10px; font-size:14px; font-family:inherit; letter-spacing:0; }
+.ana-dlg .row{ display:flex; justify-content:flex-end; gap:8px; }
+/* スマホ (縦): 上の帯を詰め、地図の上の表示を重ならない位置へ */
+@media (max-width:900px){
+ .ana-top{ padding:8px 10px; gap:6px; }
+ .ana-top .logo{ width:38px; order:-3; } .ana-ttl{ font-size:14px; order:-2; }
+ .ana-x{ order:-1; }
+ .ana-top select{ flex:1 1 140px; max-width:none; min-width:0; }
+ .ana-top .seg{ flex-wrap:nowrap; overflow-x:auto; max-width:100%; scrollbar-width:none; }
+ .ana-top .seg::-webkit-scrollbar{ display:none; }
+ .ana-hint{ display:none; }
+ .ana-leg{ left:8px; top:8px; bottom:auto; min-width:0; max-width:calc(100% - 70px); padding:6px 10px; }
+ .ana-leg .lb{ font-size:10px; } .ana-leg .bar{ height:6px; }
+ .ana-compass{ top:8px; right:8px; }
+ .ana-ctl{ left:8px; right:8px; bottom:8px; max-width:none; flex-wrap:nowrap; overflow-x:auto; justify-content:flex-start; }
+ .ana-ctl .btn{ flex:none; padding:7px 9px; }
+ .ana-top .lb{ display:none; }
+ .ana-body.A,.ana-body.B{ grid-template-rows:56vh 340px auto; }
+ .ana-body.A .ana-charts{ grid-row:2; grid-column:1; }
+ .ana-body.A .ana-pane{ grid-row:3; }
+ .ana-body.B{ grid-template-rows:80vh auto; }
+ .ana-body.B .ana-pane{ grid-row:2; }
+ .ana-body.B .ana-map{ height:auto; }
+ #ana-mini{ height:230px; }
+}
+/* スマホ (横): ページごと縦に送る。地図と右の欄を横に並べる */
+@media (orientation:landscape) and (max-height:560px){
+ #ana{ overflow-y:auto; }
+ .ana-top{ padding:6px 12px; gap:6px; min-height:0; }
+ .ana-body{ flex:none; overflow:visible; }
+ .ana-body.A{ grid-template-columns:1fr 300px; grid-template-rows:86vh 300px; }
+ .ana-body.B{ grid-template-columns:1fr 300px; grid-template-rows:86vh; }
+ .ana-pane, .ana-body.A .ana-pane{ grid-row:1/3; grid-column:2; border-left:1px solid var(--ln); border-top:0; }
+ .ana-body.A .ana-charts{ grid-row:2; grid-column:1; }
+ .ana-body.B .ana-pane{ grid-row:1; }
+ #ana-mini{ height:180px; }
+}
 .drvf{ display:flex; flex-direction:column; gap:4px; margin-top:12px; } .drvf input{ padding:8px 10px; font-size:15px; }
 .nickpad{ display:flex; flex-wrap:wrap; gap:3px; margin-top:10px; max-width:440px; }
 .nickpad span{ min-width:26px; padding:3px 6px; text-align:center; border:1px solid var(--ln); font:700 13px var(--fn); cursor:pointer; background:var(--pn2); }

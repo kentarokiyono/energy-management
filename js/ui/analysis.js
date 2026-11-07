@@ -5,7 +5,21 @@
  ・グラフ: なぞると地図に地点、ドラッグで区間を選ぶ (ダブルクリックで解除)、ホイールで拡大
  ・右の欄: 区間の集計・比較する走行との差・ドライバーごとの特性 */
 const Ana={
- runs:[], cur:0, cmp:-1, layout:"A", metric:"v", mapMode:"band", sel:null, cursor:null, xr:null, built:false,
+ runs:[], cur:0, cmp:-1, layout:"A", metric:"v", mapMode:"band", sel:null, cursor:null, xr:null, built:false, zoomDay:null, hidden:new Set(),
+ /* ---------- 保存 (この端末のブラウザ内 IndexedDB): 読み込んだ CSV と、名前・日付を編集した走行 ---------- */
+ DB:{
+  open(){ if(this.p) return this.p; this.p=new Promise(res=>{ try{ const q=indexedDB.open("bwsc-runs",1); q.onupgradeneeded=()=>q.result.createObjectStore("runs",{keyPath:"id"}); q.onsuccess=()=>res(q.result); q.onerror=()=>res(null); }catch(e){ res(null); } }); return this.p; },
+  async tx(mode,fn){ const db=await this.open(); if(!db) return null; return new Promise(res=>{ try{ const t=db.transaction("runs",mode), st=t.objectStore("runs"), q=fn(st); t.oncomplete=()=>res(q&&q.result!==undefined?q.result:true); t.onerror=t.onabort=()=>res(null); }catch(e){ res(null); } }); },
+  all(){ return this.tx("readonly",st=>st.getAll()).then(r=>Array.isArray(r)?r:[]); },
+  put(o){ return this.tx("readwrite",st=>st.put(o)); },
+  del(id){ return this.tx("readwrite",st=>st.delete(id)); } },
+ ymd(t){ const d=new Date(t); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; },
+ newId(k){ return k+"-"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); },
+ save(run){ run.stored=true; return this.DB.put({id:run.id,name:run.name,date:run.date||"",demo:!!run.demo,live:!!run.live,rows:run.rows,ts:Date.now()}).then(ok=>{ if(!ok) toast("この端末に保存できませんでした (ブラウザの設定を確認)","#f59e0b"); return ok; }); },
+ async loadStored(){ if(this.loaded) return; this.loaded=true;
+  for(const o of await this.DB.all()){ if(!o||!o.id||!Array.isArray(o.rows)||this.runs.some(r=>r.id===o.id)) continue;
+   try{ const run=this.prep({id:String(o.id),name:String(o.name||"走行"),date:String(o.date||""),demo:!!o.demo,live:false,wasLive:!!o.live,rows:o.rows}); run.stored=true; this.runs.push(run); }catch(e){} } },
+ label(r){ return r.name+(r.date?` ・ ${r.date}`:""); },
  COLMAP:{"日":"day","経過h":"eh","km":"km","状態":"st","速度km/h":"v","制限km/h":"lim","SOC%":"soc","発電W":"ps","モーターW":"pm","収支W":"net",
   "日射W/m²":"ghi","気温°C":"ta","セル温度°C":"tc","風速m/s":"wind","向かい風m/s":"head","勾配%":"gr","標高m":"el","スロットル%":"thr",
   "物理ブレーキ%":"brk","回生%":"rgn","回生W":"rgW","ドライバー":"drv","天候":"wx","順位":"rank","メモ":"memo"},
@@ -22,9 +36,9 @@ const Ana={
   if(!RunLog.rows.length) return null;
   const idx={}; RunLog.COLS.forEach((c,i)=>{ if(this.COLMAP[c]) idx[this.COLMAP[c]]=i; });
   const rows=RunLog.rows.map(r=>{ const o={}; for(const k in idx) o[k]=r[idx[k]]; o.abs=r[1]; return o; });
-  const d=new Date(); return this.prep({name:`今回の走行 (${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")} 時点)`,rows,live:true});
+  const d=new Date(); return this.prep({id:"live-"+(RunLog.sid||"0"),date:this.ymd(Date.now()),name:`今回の走行 (${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")} 時点)`,rows,live:true});
  },
- parseCSV(text,name){
+ parseCSV(text,name,date){
   text=text.replace(/^﻿/,""); const lines=[]; let row=[], f="", q=false;
   for(let i=0;i<text.length;i++){ const c=text[i];
    if(q){ if(c==='"'){ if(text[i+1]==='"'){ f+='"'; i++; } else q=false; } else f+=c; }
@@ -36,7 +50,7 @@ const Ana={
   const rows=lines.filter(l=>l.length>=head.length-1).map(l=>{ const o={}; for(const k in idx){ const v=l[idx[k]]; o[k]=TXT[k]? (v||"") : (v===""||v==null? NaN : +v); }
    o.abs= Number.isFinite(o.eh)? o.eh+8 : NaN; return o; }).filter(o=>Number.isFinite(o.km));
   if(!rows.length) throw new Error("データ行がありません");
-  return this.prep({name,rows});
+  return this.prep({id:this.newId("csv"),name,date:date||"",rows});
  },
  prep(run){
   const R=run.rows;
@@ -49,6 +63,9 @@ const Ana={
    drv:Object.entries(a.drv).sort((x,y)=>y[1]-x[1])[0][0]} : null);
   run.drivers=[...new Set(R.filter(r=>r.st==="走行").map(r=>r.drv))];
   run.kmMax=R.reduce((m,r)=>Math.max(m,r.km),0);
+  // 日ごとの距離の範囲 (グラフの日付の拡大用)
+  const dm=new Map(); for(const r of R){ const d=Number.isFinite(r.day)? r.day : Number.isFinite(r.abs)? Math.floor(r.abs/24)+1 : NaN; if(!Number.isFinite(d)) continue; const o=dm.get(d); if(o){ o.a=Math.min(o.a,r.km); o.b=Math.max(o.b,r.km); } else dm.set(d,{d,a:r.km,b:r.km}); }
+  run.days=[...dm.values()].filter(o=>o.b-o.a>0.05).sort((x,y)=>x.d-y.d);
   return run;
  },
  /* 区間 [a,b] の集計 (走行中の行のつながりで積分) */
@@ -76,7 +93,7 @@ const Ana={
   if(this.built) return; this.built=true;
   const el=document.createElement("div"); el.id="ana"; el.innerHTML=`
   <div class="ana-top"><img src="assets/img/logo.svg" class="logo" width="54" alt=""><span class="ana-ttl">RUN ANALYSIS</span>
-   <span class="lb">走行</span><select id="ana-run"></select>
+   <span class="lb">走行</span><select id="ana-run"></select><button class="btn ana-sm ana-ico" id="ana-edit" title="名前・日付を編集">${ic("edit")}</button><button class="btn ana-sm ana-ico" id="ana-del" title="この走行を削除">${ic("trash")}</button>
    <span class="lb">比較</span><select id="ana-cmp"></select>
    <button class="btn ana-sm" id="ana-demo" title="お試し用のデモ走行を追加">${ic("play")}デモ</button>
    <label class="btn ana-sm" title="CSV を読み込む (複数可)">${ic("upload")}CSV 読み込み<input type="file" id="ana-file" accept=".csv,text/csv" multiple hidden></label>
@@ -86,19 +103,31 @@ const Ana={
    <button class="btn ana-sm" id="ana-all" title="グラフの範囲と区間をリセット">全体</button>
    <button class="btn ana-sm ana-x" onclick="Fade.go(()=>Ana.close())">${ic("x")}閉じる</button></div>
   <div class="ana-body" id="ana-body"><div class="ana-map" id="ana-map"><div class="ana-hint">ドラッグで回転 ・ 右ドラッグ / Shift で移動 ・ ホイール / 2 本指で拡大 ・ クリックで地点</div><div class="ana-compass" id="ana-compass" title="北の向き (クリックで北を上に)" onclick="Ana.map&&Ana.map.north()"><i></i><b>N</b></div><div class="ana-ctl"><button class="btn" title="左に回す" onclick="Ana.map.rot(-1)">${ic("rotate","flipx")}</button><button class="btn" title="右に回す" onclick="Ana.map.rot(1)">${ic("rotate")}</button><button class="btn" title="寝かせる" onclick="Ana.map.tilt(1)">${ic("chd")}</button><button class="btn" title="起こす" onclick="Ana.map.tilt(-1)">${ic("chu")}</button><button class="btn" title="北を上に" onclick="Ana.map.north()">N</button><button class="btn" title="真上から" onclick="Ana.map.top()">真上</button><button class="btn" title="区間に合わせる" onclick="Ana.map.fit()">合わせる</button><button class="btn" title="初期の向き" onclick="Ana.map.reset()">初期</button></div><div class="ana-leg" id="ana-leg"></div><div class="ana-tag" id="ana-tag"></div></div>
-   <div class="ana-pane" id="ana-pane"></div><div class="ana-charts" id="ana-charts"><canvas id="ana-cv"></canvas><canvas id="ana-cv2"></canvas></div>
-   <div class="ana-empty" id="ana-empty">走行ログがありません。レースモードで走るか、CSV を読み込むか、デモを追加してください。</div></div>`;
+   <div class="ana-pane" id="ana-pane"></div><div class="ana-charts" id="ana-charts"><div class="ana-days" id="ana-days"></div><canvas id="ana-cv"></canvas><canvas id="ana-cv2"></canvas><canvas id="ana-nav" title="つかんで動かす・端をつかんで範囲を変える"></canvas></div>
+   <div class="ana-empty" id="ana-empty">走行ログがありません。レースモードで走るか、CSV を読み込むか、デモを追加してください。</div></div>
+  <div class="ana-dlg" id="ana-dlg"><div class="box"><div class="ph">${ic("edit")}走行データの編集</div>
+   <label class="lb">名前<input id="ana-dn" maxlength="60" autocomplete="off"></label><label class="lb">日付<input type="date" id="ana-dd"></label>
+   <div class="row"><button class="btn ana-sm" id="ana-dcancel">キャンセル</button><button class="btn pri ana-sm" id="ana-dsave">保存</button></div></div></div>`;
   document.body.appendChild(el);
   const seg=(id,key,cb)=>document.getElementById(id).addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; this[key]=b.dataset.v; cb&&cb(); this.render(); });
   seg("ana-lay","layout"); seg("ana-mode","mapMode",()=>this.map&&(this.map.dirty=true)); seg("ana-met","metric",()=>this.map&&(this.map.dirty=true));
-  document.getElementById("ana-run").onchange=e=>{ this.cur=+e.target.value; this.sel=null; this.xr=null; this.map&&(this.map.dirty=true); this.render(); };
+  document.getElementById("ana-run").onchange=e=>{ this.cur=+e.target.value; this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); };
   document.getElementById("ana-cmp").onchange=e=>{ this.cmp=+e.target.value; this.render(); };
-  document.getElementById("ana-demo").onclick=()=>{ this.addDemo(); };
-  document.getElementById("ana-all").onclick=()=>{ this.sel=null; this.xr=null; this.map&&(this.map.dirty=true); this.render(); };
-  document.getElementById("ana-file").onchange=async e=>{ for(const f of e.target.files){ try{ this.runs.push(this.parseCSV(await f.text(),f.name)); this.cur=this.runs.length-1; }catch(err){ toast("読み込めません: "+escHtml(f.name)+" ― "+escHtml(err.message),"#ef4444"); } }
+  document.getElementById("ana-demo").onclick=()=>{ try{ localStorage.removeItem("bwsc_ana_nodemo"); }catch(e){} this.emptied=false; this.addDemo(); };
+  document.getElementById("ana-all").onclick=()=>{ this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); };
+  document.getElementById("ana-file").onchange=async e=>{ for(const f of e.target.files){ try{ const run=this.parseCSV(await f.text(),f.name.replace(/\.csv$/i,""),this.ymd(f.lastModified||Date.now())); this.runs.push(run); this.cur=this.runs.length-1; this.save(run); }catch(err){ toast("読み込めません: "+escHtml(f.name)+" ― "+escHtml(err.message),"#ef4444"); } }
    e.target.value=""; this.sel=null; this.xr=null; this.map&&(this.map.dirty=true); this.render(); };
   addEventListener("resize",()=>{ if(this.isOpen()) this.render(); });
-  addEventListener("keydown",e=>{ if(this.isOpen()&&e.key==="Escape"){ e.stopPropagation(); this.close(); } },true);
+  // 画面の回転・表示領域の変化 (スマホ) でも描き直す
+  if(window.ResizeObserver){ const ro=new ResizeObserver(()=>{ if(this.isOpen()&&!this._rz) this._rz=requestAnimationFrame(()=>{ this._rz=0; this.render(); }); }); ro.observe(document.getElementById("ana-body")); }
+  document.getElementById("ana-edit").onclick=()=>this.editRun();
+  document.getElementById("ana-del").onclick=()=>this.deleteRun();
+  document.getElementById("ana-dcancel").onclick=()=>document.getElementById("ana-dlg").classList.remove("on");
+  document.getElementById("ana-dsave").onclick=()=>this.saveEdit();
+  document.getElementById("ana-dn").onkeydown=e=>{ if(e.key==="Enter") this.saveEdit(); };
+  document.getElementById("ana-days").addEventListener("click",e=>{ const b=e.target.closest("button"); if(b) this.zoomTo(b.dataset.d); });
+  this.initNav();
+  addEventListener("keydown",e=>{ if(this.isOpen()&&e.key==="Escape"){ e.stopPropagation(); const d=document.getElementById("ana-dlg"); if(d.classList.contains("on")) d.classList.remove("on"); else this.close(); } },true);
   this.initCharts();
  },
  isOpen(){ const e=document.getElementById("ana"); return !!e&&e.classList.contains("on"); },
@@ -133,25 +162,45 @@ const Ana={
     const c=RP_CS[ci]; if(c&&km>=c.km){ charge(0.5,"CS"); ci++; drv=(drv+1)%2; vPrev=0; }
    }
   } finally{ s.dayOfYear=save.doy; s.km=save.km; s.weather=save.w; s.tiltDeg=save.tilt; }
-  const run=this.prep({name:"デモ走行 (サンプル)",rows,demo:true}); this.runs.push(run); this.cur=this.runs.length-1;
+  const run=this.prep({id:"demo",name:"デモ走行 (サンプル)",date:"",rows,demo:true}); this.runs.push(run); this.cur=this.runs.length-1;
   this.sel=null; this.xr=null; this.map&&(this.map.dirty=true); this.render(); toast("デモ走行を追加しました","#34d399");
  },
- open(){
-  this.build(); const live=this.fromRunLog();
-  this.runs=this.runs.filter(r=>!r.live); if(live){ this.runs.unshift(live); this.cur=0; }
-  if(!this.runs.length) this.addDemo();
+ async open(){
+  this.build(); document.getElementById("ana").classList.add("on"); this.wasPaused=typeof paused!=="undefined"&&paused;
+  await this.loadStored();
+  const live=this.fromRunLog();
+  if(live&&!this.hidden.has(live.id)){ const i=this.runs.findIndex(r=>r.id===live.id);
+   if(i>=0){ const o=this.runs[i]; if(o.stored){ live.name=o.name; live.date=o.date; this.save(live); } this.runs[i]=live; }
+   else { this.runs=this.runs.filter(r=>!(r.live&&!r.stored)); this.runs.unshift(live); this.cur=0; } }
+  let off=false; try{ off=localStorage.getItem("bwsc_ana_nodemo")==="1"; }catch(e){}
+  if(!this.runs.length&&!this.emptied&&!off) this.addDemo();
   if(this.cur>=this.runs.length) this.cur=0;
-  document.getElementById("ana").classList.add("on"); this.wasPaused=typeof paused!=="undefined"&&paused;
   this.map&&(this.map.dirty=true); this.render();
  },
+ /* 名前・日付の編集と削除 */
+ editRun(){ const run=this.run(); if(!run) return; document.getElementById("ana-dn").value=run.name; document.getElementById("ana-dd").value=/^\d{4}-\d{2}-\d{2}$/.test(run.date||"")?run.date:"";
+  document.getElementById("ana-dlg").classList.add("on"); setTimeout(()=>document.getElementById("ana-dn").focus(),30); },
+ saveEdit(){ const run=this.run(); if(!run) return; const n=document.getElementById("ana-dn").value.replace(/\s+/g," ").trim().slice(0,60);
+  if(!n){ toast("名前を入れてください","#f59e0b"); return; }
+  run.name=n; run.date=document.getElementById("ana-dd").value||""; document.getElementById("ana-dlg").classList.remove("on");
+  this.save(run); this.render(); toast("走行データを更新しました","#34d399"); },
+ deleteRun(){ const run=this.run(); if(!run) return;
+  if(!confirm(`「${run.name}」を削除します。元に戻せません。`)) return;
+  if(run.live) this.hidden.add(run.id);
+  if(run.demo) try{ localStorage.setItem("bwsc_ana_nodemo","1"); }catch(e){}
+  this.DB.del(run.id); const i=this.cur; this.runs.splice(i,1);
+  if(this.cmp===i) this.cmp=-1; else if(this.cmp>i) this.cmp--;
+  this.cur=Math.max(0,Math.min(i,this.runs.length-1)); if(!this.runs.length) this.emptied=true;
+  this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); toast("削除しました","#8b9097"); },
  close(){ const e=document.getElementById("ana"); if(e) e.classList.remove("on"); },
  run(){ return this.runs[this.cur]; }, cmpRun(){ return this.cmp>=0&&this.cmp!==this.cur? this.runs[this.cmp] : null; },
  render(){
   const run=this.run(), body=document.getElementById("ana-body");
   body.className="ana-body "+this.layout; document.getElementById("ana-empty").style.display=run?"none":"flex";
   for(const [id,v] of [["ana-lay",this.layout],["ana-mode",this.mapMode],["ana-met",this.metric]]) document.querySelectorAll(`#${id} button`).forEach(b=>b.classList.toggle("on",b.dataset.v===v));
-  const opt=(sel,list,v,none)=>{ sel.innerHTML=(none?`<option value="-1">なし</option>`:"")+list.map((r,i)=>`<option value="${i}">${escHtml(r.name)}</option>`).join(""); sel.value=String(v); };
+  const opt=(sel,list,v,none)=>{ sel.innerHTML=(none?`<option value="-1">比較なし</option>`:"")+list.map((r,i)=>`<option value="${i}">${escHtml(this.label(r))}</option>`).join(""); sel.value=String(v); };
   opt(document.getElementById("ana-run"),this.runs,this.cur,false); opt(document.getElementById("ana-cmp"),this.runs,this.cmp,true);
+  for(const id of ["ana-edit","ana-del"]) document.getElementById(id).disabled=!run;
   if(!run) return;
   if(!this.xr) this.xr=[0,Math.max(10,run.kmMax)];
   this.renderMap(); this.drawCharts(); this.renderPane();
@@ -319,13 +368,15 @@ const Ana={
   cv.addEventListener("pointerup",()=>{ if(drag&&this.sel){ this.map&&(this.map.dirty=true); this.renderMap(); this.renderPane(); this.drawCharts(); } drag=null; });
   cv.addEventListener("dblclick",()=>{ this.sel=null; this.map&&(this.map.dirty=true); this.render(); });
   cv.addEventListener("wheel",e=>{ e.preventDefault(); const run=this.run(); if(!run) return; const k=km(e.offsetX), f=Math.exp(e.deltaY*0.0015), a=this.xr[0], b=this.xr[1];
-   let na=k-(k-a)*f, nb=k+(b-k)*f; if(nb-na<2){ const c=(na+nb)/2; na=c-1; nb=c+1; } this.xr=[Math.max(0,na),Math.min(run.kmMax,nb)]; this.drawCharts(); },{passive:false});
+   let na=k-(k-a)*f, nb=k+(b-k)*f; if(nb-na<2){ const c=(na+nb)/2; na=c-1; nb=c+1; } this.xr=[Math.max(0,na),Math.min(run.kmMax,nb)]; this.zoomDay=null; this.drawCharts(); },{passive:false});
  },
  drawCharts(){
   const run=this.run(), cmp=this.cmpRun(), host=this.layout==="A"? document.getElementById("ana-charts") : document.getElementById("ana-map");
-  const cv=document.getElementById("ana-cv"), cv2=document.getElementById("ana-cv2");
-  if(cv.parentNode!==host){ host.appendChild(cv); host.appendChild(cv2); }
-  const dpr=Math.min(devicePixelRatio,2), W=host.clientWidth, H=host.clientHeight; for(const c of [cv,cv2]){ c.width=W*dpr; c.height=H*dpr; c.style.width=W+"px"; c.style.height=H+"px"; }
+  const cv=document.getElementById("ana-cv"), cv2=document.getElementById("ana-cv2"), days=document.getElementById("ana-days"), nav=document.getElementById("ana-nav");
+  if(cv.parentNode!==host){ host.appendChild(days); host.appendChild(cv); host.appendChild(cv2); host.appendChild(nav); }
+  const TOP=this.TOP, NAV=this.NAV, dpr=Math.min(devicePixelRatio,2), W=host.clientWidth, H=Math.max(60,host.clientHeight-TOP-NAV);
+  for(const c of [cv,cv2]){ c.width=W*dpr; c.height=H*dpr; c.style.width=W+"px"; c.style.height=H+"px"; c.style.top=TOP+"px"; }
+  this.drawDays(run);
   const c=cv.getContext("2d"); c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,W,H);
   const rows=this.ROWS[this.layout], L=60, PW=W-L-20, rh=(H-28)/rows.length, [x0,x1]=this.xr, X=(k)=>L+(k-x0)/(x1-x0)*PW;
   this.cg={L,PW,rh,rows:rows.length,X,H};
@@ -345,8 +396,57 @@ const Ana={
   c.fillStyle="#8b9097"; const span=x1-x0, step=[1,2,5,10,20,50,100,200,500].find(s=>span/s<=10)||500;
   for(let k=Math.ceil(x0/step)*step;k<=x1;k+=step) c.fillText(k+" km",X(k)-12,H-10);
   for(const q of RP_CS) if(q.km>=x0&&q.km<=x1){ c.fillStyle="#f26b1d"; c.fillRect(X(q.km)-3,H-26,6,6); }
-  this.drawCursor();
+  this.drawCursor(); this.drawNav(W,dpr);
  },
+ TOP:30, NAV:46,
+ /* 日付のボタン: 押すとその日の区間だけをグラフに広げる */
+ drawDays(run){ const el=document.getElementById("ana-days"), key=run.id+"|"+this.zoomDay+"|"+run.days.length;
+  if(el._k===key) return; el._k=key;
+  el.innerHTML=`<span class="lb">日付</span><button data-d="all" class="${this.zoomDay==null?"on":""}">全体</button>`+run.days.map(o=>`<button data-d="${o.d}" class="${this.zoomDay===o.d?"on":""}">Day${o.d}</button>`).join(""); },
+ zoomTo(d){ const run=this.run(); if(!run) return;
+  if(d==="all"){ this.xr=[0,Math.max(10,run.kmMax)]; this.zoomDay=null; }
+  else { const o=run.days.find(x=>x.d===+d); if(!o) return; const pad=Math.max(1,(o.b-o.a)*0.02); this.xr=[Math.max(0,o.a-pad),Math.min(run.kmMax,o.b+pad)]; if(this.xr[1]-this.xr[0]<2) this.xr[1]=this.xr[0]+2; this.zoomDay=o.d; }
+  this.drawCharts(); },
+ /* 下のスライダー: 全行程の縮図 (速度) に、グラフに出している範囲の枠。枠をつかんで移動・端をつかんで伸縮・外を押すとそこへ移動 */
+ navX(){ const nav=document.getElementById("ana-nav"), run=this.run(), L=60, PW=Math.max(10,nav.clientWidth-L-20), K=Math.max(10,run?run.kmMax:10); return {L,PW,K,X:k=>L+k/K*PW,km:x=>(x-L)/PW*K}; },
+ drawNav(W,dpr){
+  const nav=document.getElementById("ana-nav"), run=this.run(), NH=this.NAV; if(!run) return;
+  nav.width=W*dpr; nav.height=NH*dpr; nav.style.width=W+"px"; nav.style.height=NH+"px";
+  const c=nav.getContext("2d"); c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,W,NH);
+  const {L,PW,X}=this.navX(), y0=6, h=NH-14;
+  // 縮図 (速度) は走行と幅が変わったときだけ作り直す
+  const key=run.id+"|"+W+"|"+dpr;
+  if(!this._navBg||this._navBg.key!==key){ const b=document.createElement("canvas"); b.width=W*dpr; b.height=NH*dpr; const g=b.getContext("2d"); g.setTransform(dpr,0,0,dpr,0,0);
+   g.fillStyle="#16181b"; g.fillRect(L,y0,PW,h); g.strokeStyle="#5a5f66"; g.lineWidth=1; g.beginPath(); let lx=-1, mn=0, mx=0, st=false;
+   const Y=v=>y0+h-clamp((v-20)/(135-20),0,1)*h;
+   for(const r of run.rows){ if(!Number.isFinite(r.v)) continue; const px=Math.round(X(r.km)); if(px!==lx){ if(lx>=0){ if(!st){ g.moveTo(lx,Y(mn)); st=true; } g.lineTo(lx,Y(mn)); g.lineTo(lx,Y(mx)); } lx=px; mn=mx=r.v; } else { mn=Math.min(mn,r.v); mx=Math.max(mx,r.v); } }
+   g.stroke(); g.font="500 10px 'Chakra Petch',sans-serif"; g.fillStyle="#8b9097";
+   for(const o of run.days){ const x=X(o.a); g.strokeStyle="#2f3338"; g.beginPath(); g.moveTo(x+.5,y0); g.lineTo(x+.5,y0+h); g.stroke(); g.fillText("D"+o.d,x+3,y0+10); }
+   this._navBg={key,cv:b}; }
+  c.drawImage(this._navBg.cv,0,0,W,NH);
+  const a=X(this.xr[0]), b=X(this.xr[1]);
+  c.fillStyle="rgba(0,0,0,.45)"; c.fillRect(L,y0,a-L,h); c.fillRect(b,y0,L+PW-b,h);
+  c.fillStyle="rgba(242,107,29,.12)"; c.fillRect(a,y0,b-a,h); c.strokeStyle="#f26b1d"; c.lineWidth=1.5; c.strokeRect(a+.5,y0+.5,Math.max(1,b-a-1),h-1);
+  c.fillStyle="#f26b1d"; for(const x of [a,b]) c.fillRect(x-3,y0+h/2-9,6,18);
+  c.fillStyle="#8b9097"; c.font="500 10px 'Chakra Petch',sans-serif"; c.fillText("範囲",8,y0+h/2+4);
+ },
+ initNav(){
+  const nav=document.getElementById("ana-nav"); let drag=null, raf=0;
+  const redraw=()=>{ if(!raf) raf=requestAnimationFrame(()=>{ raf=0; this.drawCharts(); }); };
+  nav.addEventListener("pointerdown",e=>{ const run=this.run(); if(!run||!this.xr) return; nav.setPointerCapture(e.pointerId); e.preventDefault();
+   const N=this.navX(), x=e.offsetX, a=N.X(this.xr[0]), b=N.X(this.xr[1]), grab=e.pointerType==="touch"?16:8;
+   if(Math.abs(x-a)<=grab&&Math.abs(x-a)<=Math.abs(x-b)) drag={m:"a"}; else if(Math.abs(x-b)<=grab) drag={m:"b"};
+   else if(x>a&&x<b) drag={m:"pan",off:N.km(x)-this.xr[0]};
+   else { const w=this.xr[1]-this.xr[0]; drag={m:"pan",off:w/2}; this.moveNav(N.km(x),drag); redraw(); }
+   this.zoomDay=null; });
+  nav.addEventListener("pointermove",e=>{ if(!drag) { const N=this.navX(); if(!this.xr) return; const x=e.offsetX, a=N.X(this.xr[0]), b=N.X(this.xr[1]); nav.style.cursor= Math.abs(x-a)<=8||Math.abs(x-b)<=8? "ew-resize" : x>a&&x<b? "grab" : "pointer"; return; }
+   this.moveNav(this.navX().km(e.offsetX),drag); redraw(); });
+  const end=()=>{ drag=null; }; nav.addEventListener("pointerup",end); nav.addEventListener("pointercancel",end);
+ },
+ moveNav(k,drag){ const run=this.run(), K=Math.max(10,run.kmMax), MIN=2; let [a,b]=this.xr;
+  if(drag.m==="a") a=clamp(k,0,b-MIN); else if(drag.m==="b") b=clamp(k,a+MIN,K);
+  else { const w=b-a; a=clamp(k-drag.off,0,K-w); b=a+w; }
+  this.xr=[a,b]; },
  drawCursor(){
   const cv=document.getElementById("ana-cv2"), g=this.cg; if(!g) return; const c=cv.getContext("2d"), dpr=cv.width/cv.clientWidth||1; c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,cv.clientWidth,cv.clientHeight);
   if(this.sel){ c.strokeStyle="#f26b1d"; c.lineWidth=1; for(const k of this.sel){ c.beginPath(); c.moveTo(g.X(k),0); c.lineTo(g.X(k),g.H-28); c.stroke(); } }
