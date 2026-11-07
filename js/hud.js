@@ -203,7 +203,7 @@ return es.km*10 + es.soc*200 + (es.whGen*0.05);
 function showResult(){
 const es=Engine.st;
 running=false;
-Snd.silence();
+Snd.silence(); FFB.update(null);
 show("result-screen",true); { const lb=document.getElementById("log-btn-result"); if(lb) lb.style.display=RunLog.rows.length?"":"none"; if(RunLog.on) RunLog.add(); }
 const title=document.getElementById("result-title");
 const body=document.getElementById("result-body");

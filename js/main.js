@@ -62,7 +62,7 @@ function loop(t){
 if(!running) return;
 requestAnimationFrame(loop);
 let dtR=clamp((t-lastT)/1000,0,0.1); lastT=t;
-if(paused||modalPause){ Snd.silence(); return; }
+if(paused||modalPause){ Snd.silence(); FFB.update(null); return; }
 updateInput(dtR);
 if(P.event){ EventGame.frame(dtR); if(!running||modalPause) return; }
 if(Test.active){ Test.frame(dtR); if(P.event) EventGame.postTest(); Perf.tick(dtR); if(P.event) EventGame.hud(); return; }
@@ -90,6 +90,7 @@ View.update(dtR);
 if(P.event) EventGame.post();
 if(P.mode==="race"&&!es.finished&&!es.trailering) es.km=View.kmOfS(View.s);   // 走行位置(本線への射影)を正とする
 Snd.update(es.v, es.lastAmp/Math.max(motorMaxA(es.powerMode),1), es.fire);
+if(typeof Crew!=="undefined"&&Crew.phase==="outside") FFB.update(null); else FFB.update(FFB.fromRace(es,dtR));   // 振動・反力 (車外を歩いている間は止める)
 updateHUD(); drawWind(); drawG(); MapUI.frame(); RunLog.tick();
 Perf.tick(dtR);
 if(t-lastChartPush>1500){ pushChart(); drawMap(); lastChartPush=t; }
@@ -107,7 +108,7 @@ document.getElementById("game-container").classList.add("hidden");
 document.getElementById("test-hud").classList.add("hidden");
 show("result-screen",false); show("pause-overlay",false); show("stopmenu-overlay",false); show("test-result",false);
 document.getElementById("setup-screen").classList.remove("hidden"); refreshQuali();
-Snd.silence();
+Snd.silence(); FFB.update(null);
 }
 Settings.load();
 if(!/#r=/.test(location.hash)) Fade.intro();
@@ -117,6 +118,8 @@ setEventLevel(EventGame.level); setEventCourse(EventGame.course); setEventPracti
 segFromSelect("time-scale","seg-ts");
 segFromSelect("log-step","seg-log");
 segFromSelect("gfx","seg-gfx");
+segFromSelect("ffb","seg-ffb",o=>o.value==="off"?"振動 OFF":o.textContent);
+FFB.init();
 refreshQuali();
 segFromSelect("chapter","seg-chap",o=>o.value==="0"?"スタート":"CS"+o.value);
 setInterval(pollGamepad,800);

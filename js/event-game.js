@@ -288,7 +288,7 @@ hud(){
 total(){ return this.scores.reduce((a,b)=>a+Math.max(0,b||0),0); },
 /* ---------- 終了と結果 ---------- */
 finish(){
- if(this.done) return; this.done=true; running=false; Snd.silence();
+ if(this.done) return; this.done=true; running=false; Snd.silence(); FFB.update(null);
  const total=this.total();
  if(this.replay){ this.showResult(total,null); return; }
  this.encode().then(code=>{ this.code=code; this.showResult(total,code); });

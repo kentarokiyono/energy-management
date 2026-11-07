@@ -543,6 +543,7 @@ collision(hit){
  if(P.event){ EventGame.onHit(hit); return; }   // イベント: 減点のみ (リタイアしない)
  const now=performance.now(); if(now<(s.hitCd||0)&&hit.level==="light") return;
  const what=COLLIDE_WHAT[hit.kind]||"障害物", kmh=(hit.vn*3.6).toFixed(0);
+ if(typeof FFB!=="undefined") FFB.kick(hit.level==="light"?0.5:1,hit.level==="light"?0.4:0.9,hit.level==="light"?220:450);   // 接触・衝突の衝撃
  if(hit.level==="light"){ s.hitCd=now+2500; Snd.alarm(); toast(`⚠ ${what}に接触 (${kmh} km/h)`,"#f59e0b"); Radio.push(`${what}に軽く接触しました (${kmh} km/h)。車体を確認しながら走行を続けてください。`,"チーフ"); return; }
  if(hit.level==="damage"&&s.stopKind==="repair"&&s.stopTimer>0) return;   // 修理停車中の重ねた判定は数えない
  if(hit.level==="damage"){
