@@ -579,10 +579,19 @@ if(!this.prog&&P.mode==="race"){
 }
 this.lastGenKm=km;
 if(this.prog&&this.prog.length){
- const p=this.prog[0]; p.len-=this.SEG; const k=p.k; if(p.len<=0) this.prog.shift(); if(!this.prog.length) this.prog=null;
+ const p=this.prog[0]; p.len-=this.SEG; const k=p.k; if(p.len<=0) this.prog.shift(); if(!this.prog.length){ this.prog=null; this.geoHold=km+0.6; }   // 曲がったあとしばらくは実際の方位に合わせない (同じ曲がりを二重にしない)
  return {grade:g.grade,curv:k};
 }
-if(osmCurv!==null){ g.curv=0; g.targetCurv=0; g.curvRemain=60; return {grade:g.grade,curv:osmCurv}; }
+if(osmCurv!==null){ g.curv=0; g.targetCurv=0; g.curvRemain=60; this.geoOff=null; return {grade:g.grade,curv:osmCurv}; }
+// 町の外: 画面の道の向きを実際の道の方位 (なめらかにしたもの) に少しずつ合わせる。
+// 圧縮区間 (画面 1 m = 実際の数十 m) では実際の曲がりをそのまま描くと急になりすぎるので、曲がりの強さに上限を付ける
+if(typeof Geo!=="undefined"&&Geo.ok&&P.mode==="race"&&!(P.event&&typeof EventGame!=="undefined"&&EventGame.hilly)){
+ if(this.geoHold!=null&&km<this.geoHold){ g.curv=0; return {grade:g.grade,curv:0}; }
+ const w=zone?0.3:1.5, a=Math.max(0,km-w), b=Math.min(TOTAL_KM,km+w), la=Geo.lat(a), lb=Geo.lat(b), B=Math.atan2((Geo.lon(b)-Geo.lon(a))*Math.cos(la*Math.PI/180),lb-la);
+ if(this.geoOff==null||this.geoHold!=null){ this.geoOff=lastH-B; this.geoHold=null; }
+ const err=Math.atan2(Math.sin(this.geoOff+B-lastH),Math.cos(this.geoOff+B-lastH)), kmax=zone?1/150:1/450;
+ const curv=clamp(err/(zone?40:120),-kmax,kmax); g.curv=curv; return {grade:g.grade,curv};
+}
 // 等倍ゾーン(町中)は直線、それ以外は緩いカーブを自動生成
 g.curvRemain-=this.SEG;
 if(g.curvRemain<=0){
@@ -658,7 +667,7 @@ resetRoad(){
  if(typeof Collide!=="undefined") Collide.clear();
  const es=Engine.st, km=es?es.km:0;
  this.road={pts:[{x:0,z:0,y:0,h:0,g:0,c:0,L:5,m1:0,R:5}],builtS:0,chunks:[]};
- this.branches=[]; this.junctions=[]; this.prog=null; this.doneMan=new Set(); this.lastGenKm=-1; this.osmTown=null;
+ this.branches=[]; this.junctions=[]; this.prog=null; this.doneMan=new Set(); this.lastGenKm=-1; this.osmTown=null; this.geoOff=null; this.geoHold=null;
  this.s=320; this.visOrigin=Route.vis(km)-this.s;
  // 現在地より手前の動作は実行済み扱い
  for(const m of RP_MANEUVERS) if(m.km<this.kmOfS(0)) this.doneMan.add(m);
