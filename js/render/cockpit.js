@@ -1,10 +1,10 @@
 "use strict";
 /* ============ コックピット (和大型モノハル): チームの写真と聞き取りから ============
  ・ハンドル: カーボン板 (左右のグリップにテープ巻き) に、白い 3D プリントのハンドルカバー。上に 16 文字 × 2 行の液晶。
-   カバーの操作: 画面切り替え (SW1)・ログ (SW2)・緑/赤/青のボタン・ホーン・黒ボタン・回生ボリューム・エコ/パワー・ウインカー。
+   カバーの操作 (文字なし): 画面切り替え・ログ・緑/赤/青のボタン・ホーン・黒ボタン・回生ボリューム・エコ/パワー・ウインカー。
    アクセルは右グリップ裏のボリューム (奥へ回すと加速)、回生は左グリップ裏のボリューム。切れ角は左右約 45°。
    軸は銀色、根元にクイックリリース (金色)
- ・スイッチ箱 (左): 緊急停止 (赤のきのこ形)・プリチャージ (緑)・ハザード (小さい赤)、トグル 5 個
+ ・スイッチ箱 (右斜め前の壁): 緊急停止 (赤のきのこ形)・プリチャージ (緑)・ハザード (小さい赤)、トグル 5 個
    (前進/後進・弱電・ZP (ハンドルの液晶)・モタコン・テレメトリ)。上に説明の紙
  ・パーキングブレーキ: 脚を伸ばしたときの太ももの横にある、小さな水道コックのようなレバー
  ・座席: 45° 倒れたカーボンの背板 (クッションなし)。ベルトは 4 点式 (緑)。ブレーキペダル 1 つ、足先は足回りボックスの中
@@ -45,14 +45,11 @@ const Cockpit={
   for(const sd of [-1,1]){ const g=new THREE.Mesh(new THREE.CylinderGeometry(.019,.019,.13,12),tape); g.position.set(sd*(W/2-.016),0,-.008); wheel.add(g); }   // テープ巻きのグリップ
   // 白いハンドルカバー (前面は文字入りのテクスチャ)
   const CW=.19, CH=.125, cy=-.005;
-  const face=this.tex(608,400,(c,w,h)=>{
-   c.fillStyle="#f3f3ee"; c.fillRect(0,0,w,h);
-   c.strokeStyle="#c9a227"; c.lineWidth=7; c.beginPath(); c.ellipse(w*.47,h*.17,64,26,-.25,.3,5.6); c.stroke();          // チームのロゴ (羽)
-   c.fillStyle="#2f63c9"; for(let i=0;i<3;i++){ c.beginPath(); c.moveTo(w*.42+i*6,h*.12+i*13); c.lineTo(w*.53+i*6,h*.10+i*13); c.lineTo(w*.52+i*6,h*.12+i*13+7); c.lineTo(w*.43+i*6,h*.14+i*13+7); c.fill(); }
-   c.fillStyle="#1d7a46"; c.fillRect(w*.39,h*.38,w*.31,h*.07); c.fillStyle="#e8f5ec"; c.font="600 15px 'Chakra Petch',sans-serif"; c.textAlign="center"; c.fillText("Wakayama Univ. SOLAR CAR TEAM",w*.545,h*.425);
-   this.label(c,w*.18,h*.18,"画面切り替え",20); this.label(c,w*.29,h*.31,"ログ",22); this.label(c,w*.85,h*.32,"ホーン",22);
-   this.label(c,w*.42,h*.56,"回生ボリューム",18); this.label(c,w*.62,h*.6,"エコ",18); this.label(c,w*.62,h*.83,"パワー",18); this.label(c,w*.76,h*.6,"ウィンカー",18);
-   c.fillStyle="#222"; c.font="700 15px sans-serif"; c.fillText("0",w*.33,h*.68); c.fillText("MAX",w*.37,h*.86); c.fillText("SW1",w*.15,h*.34); c.fillText("SW2",w*.27,h*.46); });
+  // カバー前面: 文字なし。チームのロゴ (assets/img/logo.svg) と緑のステッカー
+  const face=this.tex(608,400,(c,w,h)=>{ c.fillStyle="#f3f3ee"; c.fillRect(0,0,w,h); c.fillStyle="#1d7a46"; c.fillRect(w*.39,h*.38,w*.31,h*.07); });
+  // SVG に寸法が無いと描けないブラウザがあるので、幅と高さを足してから読み込む
+  fetch("assets/img/logo.svg").then(r=>r.text()).then(t=>{ const url=URL.createObjectURL(new Blob([t.replace("<svg ",'<svg width="695" height="341" ')],{type:"image/svg+xml"})), img=new Image();
+   img.onload=()=>{ const c=face.image.getContext("2d"), lw=210, lh=lw*341/695; c.drawImage(img,608*.5-lw/2,400*.2-lh/2,lw,lh); face.needsUpdate=true; URL.revokeObjectURL(url); }; img.src=url; }).catch(()=>{});
   const cover=new THREE.Mesh(new THREE.BoxGeometry(CW,CH,.03),[white,white,white,white,new THREE.MeshStandardMaterial({map:face,roughness:.6}),white]);
   cover.position.set(0,cy,.006); wheel.add(cover);
   // 液晶のフード (上) と 16 文字 × 2 行の液晶
@@ -79,8 +76,8 @@ const Cockpit={
   const qr=new THREE.Mesh(new THREE.CylinderGeometry(.022,.022,.035,18),gold); qr.rotation.x=Math.PI/2; qr.position.set(0,0,-.04); V.yokePivot.add(qr);
   const col=new THREE.Mesh(new THREE.CylinderGeometry(.011,.011,.45,12),alu); col.rotation.x=Math.PI/2; col.position.set(0,0,-.28); V.yokePivot.add(col);
   cock.add(V.yokePivot);
-  // ---- スイッチ箱 (左の壁, 左肘の前) ----
-  const sb=new THREE.Group(); sb.position.set(-ow+.08,top-.06,ez-.33); sb.rotation.set(-.55,.35,0);
+  // ---- スイッチ箱 (右斜め前の壁) ----
+  const sb=new THREE.Group(); sb.position.set(ow-.07,top-.05,ez-.36); sb.rotation.set(.55,0,.7);   // ドライバーから見て右斜め前の壁
   const paper=this.tex(512,300,(c,w,h)=>{ c.fillStyle="#8d9196"; c.fillRect(0,0,w,h); c.fillStyle="#f6f6f2"; c.fillRect(w*.12,h*.04,w*.76,h*.22);
    c.fillStyle="#333"; c.font="600 15px 'BIZ UDPGothic',sans-serif"; c.textAlign="left"; ["緊急停止 / プリチャージ / ハザード","前後 弱電 ZP モタコン テレメ"].forEach((t,i)=>c.fillText(t,w*.15,h*.12+i*22));
    c.textAlign="center"; c.font="700 18px 'BIZ UDPGothic',sans-serif"; ["前/後","弱電","ZP","モタコン","テレメ"].forEach((t,i)=>{ c.fillStyle="#f6f6f2"; c.fillRect(w*(.13+i*.17)-34,h*.86-16,68,22); c.fillStyle="#111"; c.fillText(t,w*(.13+i*.17),h*.86); }); });

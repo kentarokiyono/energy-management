@@ -29,7 +29,7 @@ reset(){
 EGRESS:[
  {id:"stop",   t:"停車する",                         done:s=>Engine.st.v<0.3},
  {id:"pbrake", t:"パーキングブレーキを掛ける (太ももの横のコック)", done:s=>s.pbrake},
- {id:"motor",  t:"モタコンを切る (左のスイッチ箱)", done:s=>!s.motor},
+ {id:"motor",  t:"モタコンを切る (右斜め前のスイッチ箱)", done:s=>!s.motor},
  {id:"belt",   t:"シートベルトを外す",                done:s=>!s.belt},
  {id:"bands",  t:"キャノピーのゴムひもを外す (両脇)",  done:s=>!s.bandL&&!s.bandR},
  {id:"canopy", t:"キャノピーを開ける",                done:s=>s.canopy},
@@ -198,7 +198,7 @@ ensureBuilt(){
  const hitBox=(id,label,w,h,d,par,x,y,z)=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshBasicMaterial({visible:false})); b.position.set(x,y,z); b.userData.hot={id,label}; this.hots.push(b); par.add(b); return b; };
  // パーキングブレーキ (太ももの横のコック)
  if(C.pbrake){ C.pbrake.g.traverse(m=>{ if(m.isMesh) mark("pbrake","パーキングブレーキ",m); }); hitBox("pbrake","パーキングブレーキ",.1,.06,.06,C.pbrake.g,.02,.02,0); }
- // モタコン (左のスイッチ箱のトグル)
+ // モタコン (右斜め前のスイッチ箱のトグル)
  if(C.sw&&C.sw.motor){ C.sw.motor.traverse(m=>{ if(m.isMesh) mark("motor","モタコン スイッチ",m); }); hitBox("motor","モタコン スイッチ",.03,.04,.04,C.sw.motor,0,.01,0); }
  // 4 点式シートベルト (緑): 胸の前のバックル + 肩 2 本・腰 2 本
  const hp=C.hip||[E[0],E[1]-.5,E[2]-.3];
