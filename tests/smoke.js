@@ -30,6 +30,14 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   check("メニュー表示",s.modes===3&&s.seg===7&&/BUILD/.test(s.build),JSON.stringify(s));
   check("外部への通信なし",p.ext.length===0,p.ext.slice(0,3).join(" "));
   check("メニューでエラーなし",noErr(p).length===0,noErr(p).slice(0,2).join(" | "));
+  // 設定の保存: 変えて再読み込み → 残る / 既定値に戻す → 消える
+  await p.evaluate(()=>{ onSlider("massDriver","75"); selectPanel("perov"); setEventCourse("hv"); document.querySelector('#seg-ts button[data-v="10"]').click(); });
+  await p.reload(); await p.waitForFunction(()=>typeof startGame==="function"); await p.waitForTimeout(400);
+  const kept=await p.evaluate(()=>({d:P.massDriver,pn:P.panel,c:EventGame.course,ts:document.getElementById("time-scale").value,on:document.querySelector('#seg-ts .on').dataset.v,lbl:document.getElementById("settings-state").textContent}));
+  check("設定の保存",kept.d===75&&kept.pn==="perov"&&kept.c==="hv"&&kept.ts==="10"&&kept.on==="10",JSON.stringify(kept));
+  p.once("dialog",d=>d.accept()); await p.click("#settings-reset"); await p.waitForFunction(()=>typeof startGame==="function"); await p.waitForTimeout(400);
+  const back=await p.evaluate(()=>({d:P.massDriver,pn:P.panel,c:EventGame.course,ts:document.getElementById("time-scale").value,stored:localStorage.getItem("bwsc_settings")}));
+  check("設定を既定値に戻す",back.d!==75&&back.pn!=="perov"&&back.ts==="60",JSON.stringify(back));
   await shot(p,"menu"); await p.context().close(); }
  // ---- レース: スタート待機 → 発進 → 走行 ----
  { const p=await newPage(b,base);

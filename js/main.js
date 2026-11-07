@@ -107,8 +107,9 @@ show("result-screen",false); show("pause-overlay",false); show("stopmenu-overlay
 document.getElementById("setup-screen").classList.remove("hidden"); refreshQuali();
 Snd.update(0,0,false);
 }
+Settings.load();
 buildSetupUI();
-refreshUIModeBtns();
+refreshUIModeBtns(); Settings.badge();
 setEventLevel(EventGame.level); setEventCourse(EventGame.course);
 segFromSelect("time-scale","seg-ts");
 refreshQuali();

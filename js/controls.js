@@ -143,7 +143,7 @@ document.getElementById("touch-ui").classList.toggle("hidden",!on);
 document.body.classList.toggle("touch-on",on);
 }
 function setUIMode(m){
-P.uiMode=m;
+P.uiMode=m; if(typeof Settings!=="undefined") Settings.save();
 refreshUIModeBtns();
 if(running) applyTouchMode();
 }
