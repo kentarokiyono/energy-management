@@ -72,9 +72,9 @@ g.innerHTML=PRO_FIELDS.map(([k,label,step])=>
 `<label class="flex justify-between items-center gap-1"><span class="text-cyan-100/60">${label}</span>
 <input type="number" step="${step}" value="${PRO[k]}" data-pro="${k}"
 class="bg-slate-900 border border-cyan-900 rounded px-1 py-0.5 w-20 text-right mono"
-onchange="PRO[this.dataset.pro]=parseFloat(this.value)"></label>`).join("")
+onchange="PRO[this.dataset.pro]=parseFloat(this.value);Settings.save()"></label>`).join("")
 + `<label class="flex items-center gap-2 col-span-2 md:col-span-4 text-amber-300 mt-1">
-<input type="checkbox" ${PRO.noSpeedCap?"checked":""} onchange="PRO.noSpeedCap=this.checked?1:0" style="width:15px;height:15px">
+<input type="checkbox" ${PRO.noSpeedCap?"checked":""} onchange="PRO.noSpeedCap=this.checked?1:0;Settings.save()" style="width:15px;height:15px">
 🚀 最高速リミッター解除(逆起電力・出力一定制限を無視 ― 非現実的な伸び)</label>`;
 }
 function refreshSliderLabel(id){
@@ -84,7 +84,7 @@ el.textContent = s.pct ? (P[id]*100).toFixed(1)+" %" : P[id]+(s.unit?" "+s.unit:
 if(id==="batteryWh"){ const over=P.batteryWh>REG.maxWh; el.textContent+=over?" ⚠ 11 MJ (3056 Wh) 超":""; el.style.color=over?"#fb7185":""; }
 if(id==="arrayArea"){ const over=P.arrayArea>REG.maxArea; el.textContent+=over?" ⚠ 6 m² 超":""; el.style.color=over?"#fb7185":""; }
 }
-function onSlider(id,v){ P[id]=parseFloat(v); refreshSliderLabel(id); refreshDerived(); }
+function onSlider(id,v){ P[id]=parseFloat(v); refreshSliderLabel(id); refreshDerived(); Settings.save(); }
 function refreshDerived(){
 document.getElementById("disp-cda").textContent=(P.Cd*P.frontal).toFixed(3);
 document.getElementById("disp-froll").textContent=(P.Crr*massTotal()*9.81).toFixed(1);
@@ -96,15 +96,16 @@ P.shape=k; const s=BODY_SHAPES[k];
 P.Cd=s.Cd; P.frontal=s.frontal;
 document.getElementById("sl-Cd").value=s.Cd; document.getElementById("sl-frontal").value=s.frontal;
 refreshSliderLabel("Cd"); refreshSliderLabel("frontal"); refreshDerived();
-document.querySelectorAll("[data-shape]").forEach(e=>e.classList.toggle("active",e.dataset.shape===k));
+document.querySelectorAll("[data-shape]").forEach(e=>e.classList.toggle("active",e.dataset.shape===k)); Settings.save();
 }
 function selectPanel(k){
 P.panel=k; P.cellEff=PANEL_TYPES[k].eff;
 document.getElementById("sl-cellEff").value=P.cellEff; refreshSliderLabel("cellEff");
-document.querySelectorAll("[data-panel]").forEach(e=>e.classList.toggle("active",e.dataset.panel===k));
+document.querySelectorAll("[data-panel]").forEach(e=>e.classList.toggle("active",e.dataset.panel===k)); Settings.save();
 }
-function setEventLevel(lv){ EventGame.level=lv; document.getElementById("ev-lv-kid").classList.toggle("on",lv==="kid"); document.getElementById("ev-lv-adult").classList.toggle("on",lv==="adult"); }
-function setEventCourse(c){ EventGame.course=c; document.getElementById("ev-co-aus").classList.toggle("on",c==="aus"); document.getElementById("ev-co-hv").classList.toggle("on",c==="hv"); }
+function setEventLevel(lv){ EventGame.level=lv; document.getElementById("ev-lv-kid").classList.toggle("on",lv==="kid"); document.getElementById("ev-lv-adult").classList.toggle("on",lv==="adult"); Settings.save(); }
+function setEventPractice(on){ EventGame.practice=!!on; document.getElementById("ev-pr-on").classList.toggle("on",!!on); document.getElementById("ev-pr-off").classList.toggle("on",!on); Settings.save(); }
+function setEventCourse(c){ EventGame.course=c; document.getElementById("ev-co-aus").classList.toggle("on",c==="aus"); document.getElementById("ev-co-hv").classList.toggle("on",c==="hv"); Settings.save(); }
 function selectMode(m){
 P.mode=m;
 document.getElementById("mode-race").classList.toggle("active",m==="race");
@@ -122,13 +123,13 @@ fig8:"8の字走行 ― 内円半径6m・コース幅5mの8の字を片側9秒�
 function selectTest(k){
 P.testKind=k; selectMode('test');
 document.getElementById("test-desc").textContent=TEST_DESC[k];
-document.querySelectorAll("[data-test]").forEach(b=>b.classList.toggle("on",b.dataset.test===k));
+document.querySelectorAll("[data-test]").forEach(b=>b.classList.toggle("on",b.dataset.test===k)); Settings.save();
 }
 /* <select> を区切りボタンで操作する (値は select に書き戻すので読み取り側はそのまま) */
 function segFromSelect(selId,boxId,label){
  const sel=document.getElementById(selId), box=document.getElementById(boxId); if(!sel||!box) return;
  box.innerHTML=""; for(const o of sel.options){ const b=document.createElement("button"); b.type="button"; b.textContent=label?label(o):o.textContent; b.title=o.textContent; b.dataset.v=o.value;
-  b.onclick=()=>{ sel.value=o.value; sel.dispatchEvent(new Event("change")); box.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.v===sel.value)); };
+  b.onclick=()=>{ sel.value=o.value; sel.dispatchEvent(new Event("change")); if(selId==="time-scale"||selId==="log-step"||selId==="gfx") Settings.save(); box.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.v===sel.value)); };
   if(o.value===sel.value) b.classList.add("on"); box.appendChild(b); }
 }
 /* 予選ベスト (レースのグリッド) の表示とリセット */
@@ -140,3 +141,50 @@ function refreshQuali(){
  const btn=document.getElementById("quali-reset"); if(btn) btn.disabled=!(b>0), btn.style.opacity=b>0?1:.4;
 }
 function resetQuali(){ if(!confirm("予選のベストラップを消去します。レースのグリッドは P"+Engine.DEFAULT_GRID+" に戻ります。よろしいですか？")) return; try{ localStorage.removeItem(Engine.QUALI_KEY); }catch(e){} refreshQuali(); }
+/* ---- 設定の保存 (この端末のブラウザ): 既定値から変えた項目だけを保存し、起動時に戻す ---- */
+const Settings={
+ KEY:"bwsc_settings", PKEYS:null, def:null,
+ keys(){ return this.PKEYS||(this.PKEYS=["shape","panel","infiniteBattery","crewProc","uiMode","logStepM","gfx",...SLIDERS.map(s=>s.id)]); },
+ snapshot(){ const o={P:{},PRO:{}}; for(const k of this.keys()) o.P[k]=P[k]; for(const [k] of PRO_FIELDS) o.PRO[k]=PRO[k]; o.PRO.noSpeedCap=PRO.noSpeedCap;
+  o.ts=document.getElementById("time-scale").value; o.evCourse=EventGame.course; o.evLevel=EventGame.level; o.evPractice=EventGame.practice; o.testKind=P.testKind; return o; },
+ load(){
+  this.def=this.snapshot();
+  let d=null; try{ d=JSON.parse(localStorage.getItem(this.KEY)||"null"); }catch(e){}
+  if(!d||typeof d!=="object") return;
+  const num=(v)=>typeof v==="number"&&Number.isFinite(v);
+  for(const k of this.keys()) if(d.P&&k in d.P){ const v=d.P[k], t=typeof this.def.P[k]; if(t==="number"?num(v):typeof v===t) P[k]=v; }
+  if(!(P.shape in BODY_SHAPES)) P.shape=this.def.P.shape; if(!(P.panel in PANEL_TYPES)) P.panel=this.def.P.panel; if(P.uiMode!=="pc"&&P.uiMode!=="mobile") P.uiMode=this.def.P.uiMode;
+  for(const k in this.def.PRO) if(d.PRO&&num(d.PRO[k])) PRO[k]=d.PRO[k];
+  const ts=document.getElementById("time-scale"); if(d.ts&&[...ts.options].some(o=>o.value===d.ts)) ts.value=d.ts;
+  if(d.evCourse==="aus"||d.evCourse==="hv") EventGame.course=d.evCourse; if(typeof d.evPractice==="boolean") EventGame.practice=d.evPractice; if(d.evLevel==="kid"||d.evLevel==="adult") EventGame.level=d.evLevel;
+  if(d.testKind in TEST_DESC) P.testKind=d.testKind;
+  { const gs=document.getElementById("gfx"); if(![...gs.options].some(o=>o.value===P.gfx)) P.gfx="auto"; gs.value=P.gfx; }
+  { const ls=document.getElementById("log-step"); if(![...ls.options].some(o=>+o.value===P.logStepM)) P.logStepM=this.def.P.logStepM; ls.value=String(P.logStepM); }
+  document.getElementById("inf-batt").checked=!!P.infiniteBattery; document.getElementById("crew-proc").checked=!!P.crewProc;
+  if(P.testKind!=="circuit"){ document.getElementById("test-desc").textContent=TEST_DESC[P.testKind]; document.querySelectorAll("[data-test]").forEach(b=>b.classList.toggle("on",b.dataset.test===P.testKind)); }
+ },
+ save(){ if(!this.def) return; const c=this.snapshot(), o={P:{},PRO:{}};
+  for(const k in c.P) if(c.P[k]!==this.def.P[k]) o.P[k]=c.P[k];
+  for(const k in c.PRO) if(c.PRO[k]!==this.def.PRO[k]) o.PRO[k]=c.PRO[k];
+  for(const k of ["ts","evCourse","evLevel","evPractice","testKind"]) if(c[k]!==this.def[k]) o[k]=c[k];
+  try{ localStorage.setItem(this.KEY,JSON.stringify(o)); }catch(e){}
+  this.badge(); },
+ changed(){ try{ const d=JSON.parse(localStorage.getItem(this.KEY)||"{}"); return Object.keys(d.P||{}).length+Object.keys(d.PRO||{}).length+["ts","evCourse","evLevel","evPractice","testKind"].filter(k=>k in d).length; }catch(e){ return 0; } },
+ badge(){ const n=this.changed(), el=document.getElementById("settings-state"); if(el) el.textContent= n? `既定値から ${n} 項目を変更 (この端末に保存)` : "既定値"; const b=document.getElementById("settings-reset"); if(b){ b.disabled=!n; b.style.opacity=n?1:.4; } },
+ reset(){ if(!confirm("車両・レース・オプションの設定を既定値に戻します。よろしいですか？")) return; try{ localStorage.removeItem(this.KEY); }catch(e){} location.reload(); },
+};
+/* ---- レース開始時にドライバーの名前を入れる (前回の名前を初期値に) ---- */
+let DRIVER_NAMES=null;
+const DrvDlg={
+ open(){ if(P.mode!=="race"){ startGame(); return; }
+  let last=[]; try{ last=JSON.parse(localStorage.getItem("bwsc_drivers")||"[]"); }catch(e){}
+  document.getElementById("drv-n1").value=last[0]||""; document.getElementById("drv-n2").value=last[1]||"";
+  show("drv-dlg",true); setTimeout(()=>document.getElementById("drv-n1").focus(),50); },
+ close(){ show("drv-dlg",false); },
+ ok(){ const clean=(id,def)=>(document.getElementById(id).value||"").replace(/[<>&"'\\]/g,"").trim().slice(0,20)||def;
+  DRIVER_NAMES=[clean("drv-n1","ドライバーA"),clean("drv-n2","ドライバーB")];
+  try{ localStorage.setItem("bwsc_drivers",JSON.stringify(DRIVER_NAMES)); }catch(e){}
+  this.close(); startGame(); },
+};
+addEventListener("keydown",e=>{ const d=document.getElementById("drv-dlg"); if(!d||d.classList.contains("hidden")) return;
+ if(e.key==="Enter"){ e.preventDefault(); DrvDlg.ok(); } else if(e.key==="Escape"){ e.preventDefault(); DrvDlg.close(); } });

@@ -1,0 +1,11 @@
+{
+  "name": "bwsc-3d-simulator",
+  "private": true,
+  "description": "開発用 (テスト)。サイト本体はビルド不要の静的ファイル",
+  "scripts": {
+    "test": "node tests/smoke.js"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

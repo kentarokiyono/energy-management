@@ -6,7 +6,7 @@ function startGame(){
 Snd.init();
 if(P.mode==="event") EventGame.prepare();   // イベント: 内部はレースモードで動かし、課題を重ねる
 Engine.init();
-if(typeof Crew!=="undefined") Crew.reset();
+if(typeof Crew!=="undefined"){ Crew.reset(); Crew.driverIdx=0; if(DRIVER_NAMES&&P.mode==="race"&&!P.event){ Crew.drivers[0].name=DRIVER_NAMES[0]; Crew.drivers[1].name=DRIVER_NAMES[1]; } }
 Test.active=false;
 if(P.mode==="test"){
 Engine.st.hour=12;
@@ -17,6 +17,7 @@ document.getElementById("event-hud").classList.add("hidden");
 document.getElementById("test-hud").classList.remove("hidden");
 Radio.log.length=0; document.getElementById("radio-log").innerHTML="";
 applyTouchMode(); document.body.classList.add("hide-map"); MapUI.toggle(false);
+RunLog.start();
 Test.start(P.testKind);
 initChart();
 if(P.event) EventGame.begin();   // イベント (ヒドゥンバレー版)
@@ -45,6 +46,7 @@ Radio.log.length=0; document.getElementById("radio-log").innerHTML="";
 Route.build(P.timeScale, P.mode!=="race");   // イベントモードは等倍ゾーンなし
 const chap= P.mode==="race"&&!P.event? parseInt((document.getElementById("chapter")||{}).value||"0") : 0;
 if(chap>0) Engine.applyChapter(chap);   // チャプター: CS の 2 km 手前から
+RunLog.start();
 View.init(); View.buildCar(); View.buildEscorts();
 if(!MapUI.built) MapUI.build(); MapUI.reset(); MapUI.toggle(false);
 initChart(); lastChartPush=0;
@@ -63,7 +65,7 @@ let dtR=clamp((t-lastT)/1000,0,0.1); lastT=t;
 if(paused||modalPause) return;
 updateInput(dtR);
 if(P.event){ EventGame.frame(dtR); if(!running||modalPause) return; }
-if(Test.active){ Test.frame(dtR); Perf.tick(dtR); if(P.event) EventGame.hud(); return; }
+if(Test.active){ Test.frame(dtR); if(P.event) EventGame.postTest(); Perf.tick(dtR); if(P.event) EventGame.hud(); return; }
 if(P.mode==="event"&&Engine.st){
   if(performance.now()-(window._lastAct||0)>MODE_CFG.event.attractIdle*1000){
     Engine.st.throttleSet=0.7;
@@ -88,7 +90,7 @@ View.update(dtR);
 if(P.event) EventGame.post();
 if(P.mode==="race"&&!es.finished&&!es.trailering) es.km=View.kmOfS(View.s);   // 走行位置(本線への射影)を正とする
 Snd.update(es.v, es.lastAmp/Math.max(motorMaxA(es.powerMode),1), es.fire);
-updateHUD(); drawWind(); drawG(); MapUI.frame();
+updateHUD(); drawWind(); drawG(); MapUI.frame(); RunLog.tick();
 Perf.tick(dtR);
 if(t-lastChartPush>1500){ pushChart(); drawMap(); lastChartPush=t; }
 }
@@ -107,10 +109,13 @@ show("result-screen",false); show("pause-overlay",false); show("stopmenu-overlay
 document.getElementById("setup-screen").classList.remove("hidden"); refreshQuali();
 Snd.update(0,0,false);
 }
+Settings.load();
 buildSetupUI();
-refreshUIModeBtns();
-setEventLevel(EventGame.level); setEventCourse(EventGame.course);
+refreshUIModeBtns(); Settings.badge();
+setEventLevel(EventGame.level); setEventCourse(EventGame.course); setEventPractice(EventGame.practice);
 segFromSelect("time-scale","seg-ts");
+segFromSelect("log-step","seg-log");
+segFromSelect("gfx","seg-gfx");
 refreshQuali();
 segFromSelect("chapter","seg-chap",o=>o.value==="0"?"スタート":"CS"+o.value);
 setInterval(pollGamepad,800);
@@ -125,3 +130,8 @@ let _sbT=null;
 _sb.addEventListener("pointerdown",e=>{e.stopPropagation();_sbT=setTimeout(()=>location.reload(),3000);});
 ["pointerup","pointerleave"].forEach(ev=>_sb.addEventListener(ev,()=>clearTimeout(_sbT)));
 document.body.appendChild(_sb);
+/* オフライン動作 (sw.js): https か localhost で開いたときだけ */
+if("serviceWorker" in navigator&&(location.protocol==="https:"||/^(localhost|127\.0\.0\.1)$/.test(location.hostname))){
+ navigator.serviceWorker.register("sw.js").then(()=>navigator.serviceWorker.ready).then(()=>{
+  const b=document.querySelector(".menu .build"); if(b&&!/OFFLINE/.test(b.textContent)) b.textContent+=" ・ OFFLINE READY"; }).catch(()=>{});
+}

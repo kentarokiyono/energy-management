@@ -19,14 +19,14 @@ this.scene=new THREE.Scene();
 this.scene.background=null;
 setupRenderQuality(this.renderer,this.scene);
 this.skyDome=makeSkyDome(); this.skyDome.frustumCulled=false; this.scene.add(this.skyDome);
-this.camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,3000);
+this.camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,GFX.cur().far);
 this.hemiLight=new THREE.HemisphereLight(0xbfe6ff,0x8a5a33,0.9);
 this.scene.add(this.hemiLight);
 this.sunLight=new THREE.DirectionalLight(0xfff3d6,1.2);
 this.scene.add(this.sunLight);
 this.renderer.shadowMap.enabled=true; Perf.reset();
 this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-this.sunLight.castShadow=true;this.sunLight.shadow.mapSize.set(2048,2048);
+{ const sz=GFX.cur().shadow||1024; this.sunLight.castShadow=GFX.cur().shadow>0; this.sunLight.shadow.mapSize.set(sz,sz); if(this.sunLight.shadow.map){ this.sunLight.shadow.map.dispose(); this.sunLight.shadow.map=null; } }
 Object.assign(this.sunLight.shadow.camera,{left:-45,right:45,top:45,bottom:-45,near:800,far:2600});
 this.sunLight.shadow.bias=-0.0006; this.sunLight.shadow.normalBias=0.02;
 this.scene.add(this.sunLight.target);
@@ -763,7 +763,7 @@ const pr=this.project(this.cx,this.cz);
 this.iProj=pr.i; this.s=pr.s; this.lateral=pr.lat;
 this.relHeading=Math.atan2(Math.sin(this.ch-pr.h),Math.cos(this.ch-pr.h));
 es.progRate= vv>0.3? clamp((this.s-sPrev)/(vv*dtR),-1,1) : 1;
-this.ensureRoad(this.s+2400);
+this.ensureRoad(this.s+GFX.cur().ahead);
 const pHere=this.roadPoint(this.s), pHere0=pHere;
 // 分岐道路 (脇道・曲がり損ね)
 const onMain=this.lateral>=-(pHere0.L+0.4)&&this.lateral<=pHere0.R+0.4;

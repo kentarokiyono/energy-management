@@ -6,11 +6,11 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'self' blob: data:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>BWSC 3D Racing Simulator</title>
-<link rel="stylesheet" href="css/fonts.css?v=20261107-m1">
-<link rel="stylesheet" href="css/style.css?v=20261107-m1">
-<link rel="stylesheet" href="css/theme.css?v=20261107-m1">
+<link rel="stylesheet" href="css/fonts.css?v=20261107-w2">
+<link rel="stylesheet" href="css/style.css?v=20261107-w2">
+<link rel="stylesheet" href="css/theme.css?v=20261107-w2">
 <link rel="icon" href="assets/img/logo.svg">
-<link rel="stylesheet" href="css/tailwind.css?v=20261107-m1">
+<link rel="stylesheet" href="css/tailwind.css?v=20261107-w2">
 <script src="js/lib/three.min.js"></script>
 <script src="js/lib/chart.umd.js"></script>
 </head>
@@ -31,6 +31,7 @@
 <div class="opts" onclick="event.stopPropagation();selectMode('event')">
 <div class="seg"><button id="ev-co-aus" type="button" onclick="setEventCourse('aus')">オーストラリア</button><button id="ev-co-hv" type="button" onclick="setEventCourse('hv')">ヒドゥンバレー</button></div>
 <div class="seg"><button id="ev-lv-kid" type="button" onclick="setEventLevel('kid')">こども</button><button id="ev-lv-adult" type="button" onclick="setEventLevel('adult')">おとな</button></div>
+<div class="seg" title="最初に 30 秒ほど操作を練習する"><button id="ev-pr-on" type="button" onclick="setEventPractice(true)">練習あり</button><button id="ev-pr-off" type="button" onclick="setEventPractice(false)">なし</button></div>
 </div></div></div>
 <div id="mode-test" class="mode" onclick="selectMode('test')"><span data-ic="timer"></span>
 <div><h3>予選・車検モード <span class="lb">Hidden Valley</span></h3>
@@ -45,11 +46,12 @@
 </div></div>
 <p id="test-desc">サーキット予選 ― 優秀チームは2分20秒台前半。ベストラップでグリッドが決まる。</p></div></div>
 <div class="grow">
-<button class="btn pri" style="padding:14px 34px;font-size:16px" onclick="startGame()"><span data-ic="play"></span> START</button>
+<button class="btn pri" style="padding:14px 34px;font-size:16px" onclick="DrvDlg.open()"><span data-ic="play"></span> START</button>
 <button class="btn" onclick="openWheelConfig()"><span data-ic="wheel"></span> ハンコン割当</button>
+<button class="btn" onclick="Ana.open()"><span data-ic="chart"></span> 走行の分析</button>
 <span class="lb" id="gamepad-status">未検出</span>
 </div>
-<div class="build">BUILD 20261107-m1</div>
+<div class="build">BUILD 20261107-w2</div>
 </div>
 <div class="r">
 <div class="sec"><h4><span data-ic="car"></span>BODY / SOLAR CELL</h4>
@@ -82,13 +84,19 @@
 </select>
 <div class="opts mt-3"><span class="lb" style="text-transform:none;letter-spacing:.06em;font-size:13px;color:var(--tx2)" id="quali-info"></span>
 <button type="button" class="btn" id="quali-reset" style="padding:5px 12px;font-size:12px" onclick="resetQuali()"><span data-ic="rewind"></span>予選ベストをリセット</button></div>
+<div class="opts mt-3" style="align-items:flex-start;gap:22px"><div><div class="lb mb-2">走行ログの記録間隔</div><div class="seg" id="seg-log"></div></div></div>
+<select id="log-step" class="hidden" onchange="P.logStepM=+this.value"><option value="50" selected>50 m</option><option value="100">100 m</option><option value="1000">1 km</option></select>
 <div class="help mt-2">×1 は実時間、×60 は 1 秒 = 1 分。信号での停止判定は ×1 / ×2 のときのみ有効。</div></div>
 <div class="sec"><h4><span data-ic="settings"></span>OPTIONS</h4>
 <div class="opts">
 <div class="seg"><button id="ui-pc" type="button" onclick="setUIMode('pc')"><span data-ic="monitor"></span> PC</button><button id="ui-mobile" type="button" onclick="setUIMode('mobile')"><span data-ic="phone"></span> モバイル</button></div>
-<label class="chk" title="CS・17 時停車・朝の出発で乗り降りの手順を実践する (F キーでいつでも乗り降り)"><input type="checkbox" id="crew-proc" checked onchange="P.crewProc=this.checked"><i></i>乗降手順を実践</label>
-<label class="chk"><input type="checkbox" id="inf-batt" onchange="P.infiniteBattery=this.checked"><i></i>バッテリー無限</label>
+<div class="seg" id="seg-gfx" title="画質: 自動は PC で高、スマホで標準から始めて、重いと自動で下げる"></div>
+<select id="gfx" class="hidden" onchange="P.gfx=this.value"><option value="auto" selected>画質 自動</option><option value="high">高</option><option value="mid">標準</option><option value="low">低</option></select>
+<label class="chk" title="CS・17 時停車・朝の出発で乗り降りの手順を実践する (F キーでいつでも乗り降り)"><input type="checkbox" id="crew-proc" checked onchange="P.crewProc=this.checked;Settings.save()"><i></i>乗降手順を実践</label>
+<label class="chk"><input type="checkbox" id="inf-batt" onchange="P.infiniteBattery=this.checked;Settings.save()"><i></i>バッテリー無限</label>
 </div></div>
+<div class="opts" style="margin-top:-12px"><span class="lb" style="text-transform:none;letter-spacing:.06em;font-size:12px" id="settings-state"></span>
+<button type="button" class="btn" id="settings-reset" style="padding:5px 12px;font-size:12px" onclick="Settings.reset()"><span data-ic="rewind"></span>設定を既定値に戻す</button></div>
 <div class="sec"><h4><span data-ic="gamepad"></span>CONTROLS</h4>
 <div class="help">
 <kbd>W</kbd> <kbd>↑</kbd> 長押しでスロットル開度アップ (離すと固定) ・ <kbd>S</kbd> <kbd>↓</kbd> 開度ダウン ・ <kbd>Space</kbd> 物理ブレーキ (開度リセット) ・ <kbd>R</kbd> 回生ブレーキ ・ <kbd>A</kbd> <kbd>D</kbd> <kbd>←</kbd> <kbd>→</kbd> ハンドル<br>
@@ -98,6 +106,15 @@
 </div>
 </div>
 </div>
+<div id="drv-dlg" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:rgba(5,5,6,.7)">
+<div class="card2" style="width:min(460px,calc(100vw - 32px))">
+<div class="hd"><span class="lb">Drivers</span><img src="assets/img/logo.svg" class="logo" width="56" alt=""></div>
+<h2>ドライバーの名前</h2>
+<div style="font-size:13px;color:var(--tx2);line-height:1.8">走行ログと分析画面で、ドライバーごとに分けて見るのに使う。空欄なら「ドライバーA / B」。</div>
+<label class="drvf"><span class="lb">1 人目 (スタート時に乗る)</span><input id="drv-n1" maxlength="20" autocomplete="off"></label>
+<label class="drvf"><span class="lb">2 人目 (交代で乗る)</span><input id="drv-n2" maxlength="20" autocomplete="off"></label>
+<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px"><button class="btn" onclick="DrvDlg.close()">キャンセル</button><button class="btn pri" onclick="DrvDlg.ok()"><span data-ic="play"></span> START</button></div>
+</div></div>
 <!-- ============================ ハンコン設定 ============================ -->
 <div id="wheel-config" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:rgba(0,0,0,.75)">
 <div class="panel p-6 w-96">
@@ -184,6 +201,8 @@
 <div class="kv"><span>天候</span><span id="hud-weather">快晴</span></div>
 </div>
 <div class="kv"><span><span data-ic="temp"></span>外気温 / 空気密度</span><span id="hud-temp">33°C</span></div>
+<div class="kv" style="border-top:1px solid var(--ln);padding-top:6px;margin-top:6px"><span><span data-ic="route"></span>戦略 推奨速度</span><span id="hud-plan">―</span></div>
+<div class="kv"><span>ゴール予想</span><span id="hud-plan-eta">―</span></div>
 </div>
 <div id="test-hud" class="absolute top-20 left-1/2 -translate-x-1/2 hidden text-center">
 <div class="panel px-8 py-2">
@@ -292,6 +311,7 @@
 <button class="tbtn" onclick="document.getElementById('ask-panel').classList.toggle('hidden')" title="無線で質問"><span data-ic="radio"></span></button>
 <button class="tbtn" onclick="MapUI.toggle()" title="他チーム"><span data-ic="users"></span></button>
 </div>
+<div id="t-stick" style="pointer-events:auto"><div class="knob"></div><span>歩く</span></div>
 <div id="t-steer" style="pointer-events:auto">
 <button class="tbtn" data-tk="a"><span data-ic="chl"></span></button>
 <button class="tbtn" data-tk="d"><span data-ic="chr"></span></button>
@@ -324,6 +344,8 @@
 <div class="panel px-10 py-8 text-center space-y-3">
 <img src="assets/img/logo.svg" class="logo mx-auto" width="80" alt=""><div class="ttl" style="font-size:24px;letter-spacing:.2em">PAUSE</div>
 <button class="btn pri block w-full" onclick="togglePause()">▶ 再開</button>
+<button class="btn block w-full" onclick="Ana.open()">📈 走行を分析</button>
+<button class="btn block w-full" id="log-btn-pause" onclick="RunLog.download()">📄 走行ログ (CSV) を保存</button>
 <button class="btn block w-full" onclick="openWheelConfig()">🎮 ハンコン割当</button>
 <button class="btn btn-amber block w-full" onclick="quitToMenu()">🏠 メニューへ戻る</button>
 </div>
@@ -335,42 +357,45 @@
 <div class="hd"><span class="lb">Result</span><img src="assets/img/logo.svg" class="logo" width="72" alt=""></div>
 <h2 id="result-title">FINISH!</h2>
 <div id="result-body" class="my-4"></div>
-<div style="display:flex;justify-content:flex-end"><button class="btn pri" onclick="quitToMenu()"><span data-ic="home"></span>メニューへ戻る</button></div>
+<div style="display:flex;justify-content:flex-end;gap:10px"><button class="btn" onclick="Ana.open()"><span data-ic="chart"></span>分析</button><button class="btn" id="log-btn-result" onclick="RunLog.download()">📄 走行ログ (CSV)</button><button class="btn pri" onclick="quitToMenu()"><span data-ic="home"></span>メニューへ戻る</button></div>
 </div>
 </div>
-<script src="js/data/route-2025.js?v=20261107-m1"></script>
-<script src="js/data/route-plan.js?v=20261107-m1"></script>
-<script src="js/data/route-osm.js?v=20261107-m1"></script>
-<script src="js/route.js?v=20261107-m1"></script>
-<script src="js/data/australia.js?v=20261107-m1"></script>
-<script src="js/data.js?v=20261107-m1"></script>
-<script src="js/data/vehicle-private.js?v=20261107-m1" onerror="window.__vehPrivMissing=true"></script>
-<script src="js/vehicle.js?v=20261107-m1"></script>
-<script src="js/physics.js?v=20261107-m1"></script>
-<script src="js/setup-ui.js?v=20261107-m1"></script>
-<script src="js/audio-radio.js?v=20261107-m1"></script>
-<script src="js/engine.js?v=20261107-m1"></script>
-<script src="js/controls.js?v=20261107-m1"></script>
-<script src="js/collide.js?v=20261107-m1"></script>
-<script src="js/render/quality.js?v=20261107-m1"></script>
-<script src="js/render/textures.js?v=20261107-m1"></script>
-<script src="js/render/yata.js?v=20261107-m1"></script>
-<script src="js/render/sky.js?v=20261107-m1"></script>
-<script src="js/render/biome.js?v=20261107-m1"></script>
-<script src="js/render/geobatch.js?v=20261107-m1"></script>
-<script src="js/render/materials.js?v=20261107-m1"></script>
-<script src="js/render/props.js?v=20261107-m1"></script>
-<script src="js/render/scenery.js?v=20261107-m1"></script>
-<script src="js/data/hidden-valley.js?v=20261107-m1"></script>
-<script src="js/render/hiddenvalley.js?v=20261107-m1"></script>
-<script src="js/render/view.js?v=20261107-m1"></script>
-<script src="js/crew.js?v=20261107-m1"></script>
-<script src="js/hud.js?v=20261107-m1"></script>
-<script src="js/test-mode.js?v=20261107-m1"></script>
-<script src="js/lib/qrcode.js?v=20261107-m1"></script>
-<script src="js/event-game.js?v=20261107-m1"></script>
-<script src="js/ui/icons.js?v=20261107-m1"></script>
-<script src="js/ui/map.js?v=20261107-m1"></script>
-<script src="js/main.js?v=20261107-m1"></script>
+<script src="js/data/route-2025.js?v=20261107-w2"></script>
+<script src="js/data/route-plan.js?v=20261107-w2"></script>
+<script src="js/data/route-osm.js?v=20261107-w2"></script>
+<script src="js/route.js?v=20261107-w2"></script>
+<script src="js/data/australia.js?v=20261107-w2"></script>
+<script src="js/data.js?v=20261107-w2"></script>
+<script src="js/data/vehicle-private.js?v=20261107-w2" onerror="window.__vehPrivMissing=true"></script>
+<script src="js/vehicle.js?v=20261107-w2"></script>
+<script src="js/physics.js?v=20261107-w2"></script>
+<script src="js/setup-ui.js?v=20261107-w2"></script>
+<script src="js/audio-radio.js?v=20261107-w2"></script>
+<script src="js/engine.js?v=20261107-w2"></script>
+<script src="js/controls.js?v=20261107-w2"></script>
+<script src="js/collide.js?v=20261107-w2"></script>
+<script src="js/render/quality.js?v=20261107-w2"></script>
+<script src="js/render/textures.js?v=20261107-w2"></script>
+<script src="js/render/yata.js?v=20261107-w2"></script>
+<script src="js/render/sky.js?v=20261107-w2"></script>
+<script src="js/render/biome.js?v=20261107-w2"></script>
+<script src="js/render/geobatch.js?v=20261107-w2"></script>
+<script src="js/render/materials.js?v=20261107-w2"></script>
+<script src="js/render/props.js?v=20261107-w2"></script>
+<script src="js/render/scenery.js?v=20261107-w2"></script>
+<script src="js/data/hidden-valley.js?v=20261107-w2"></script>
+<script src="js/render/hiddenvalley.js?v=20261107-w2"></script>
+<script src="js/render/view.js?v=20261107-w2"></script>
+<script src="js/crew.js?v=20261107-w2"></script>
+<script src="js/strategy.js?v=20261107-w2"></script>
+<script src="js/runlog.js?v=20261107-w2"></script>
+<script src="js/hud.js?v=20261107-w2"></script>
+<script src="js/test-mode.js?v=20261107-w2"></script>
+<script src="js/lib/qrcode.js?v=20261107-w2"></script>
+<script src="js/event-game.js?v=20261107-w2"></script>
+<script src="js/ui/icons.js?v=20261107-w2"></script>
+<script src="js/ui/analysis.js?v=20261107-w2"></script>
+<script src="js/ui/map.js?v=20261107-w2"></script>
+<script src="js/main.js?v=20261107-w2"></script>
 </body>
 </html>

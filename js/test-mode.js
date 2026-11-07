@@ -46,7 +46,7 @@ u.uCover.value=0.18; u.uNight.value=0; u.uDust.value.setHex(0xd9c3a0).convertSRG
 this.scene.fog.color.setHex(0xc4dbea).convertSRGBToLinear(); this.scene.fog.near=400; this.scene.fog.far=2600;
 this.scene.add(new THREE.HemisphereLight(0xbfe0ff,new THREE.Color(0x7a5a3c).convertSRGBToLinear(),0.75));
 const sun=new THREE.DirectionalLight(0xfff1dc,1.2*clamp(Math.sin(sp.alt)*1.4,0.2,1));
-sun.castShadow=true; sun.shadow.mapSize.set(2048,2048); sun.shadow.bias=-0.0006; sun.shadow.normalBias=0.02;
+sun.castShadow=GFX.cur().shadow>0; { const sz=GFX.cur().shadow||1024; sun.shadow.mapSize.set(sz,sz); } sun.shadow.bias=-0.0006; sun.shadow.normalBias=0.02;
 Object.assign(sun.shadow.camera,{left:-40,right:40,top:40,bottom:-40,near:1,far:900});
 this.scene.add(sun); this.scene.add(sun.target); this.sun=sun;
 const m=View.buildCarModelImpl();
