@@ -44,7 +44,8 @@ function check(name,ok,info){ out.push(`${ok?"PASS":"FAIL"}  ${name}${info?"  ("
       window._cl=window._cl||[]; if(es.camp!==window._pc){ window._pc=es.camp; if(window._cl.length<12) window._cl.push((es.camp?"on ":"off ")+"D"+es.day+" "+es.hour.toFixed(2)+" "+es.km.toFixed(0)); }
       window._smp=window._smp||[]; if(es.day===2&&Math.abs(es.hour-12)<0.006&&window._smp.length<1) window._smp.push({km:es.km.toFixed(1),v:kmh.toFixed(1),vt,thr:es.throttleSet.toFixed(2),amp:es.lastAmp.toFixed(1),lim:speedLimitAt(es.km),brk:es.brakePhys,ord:Orders.cur&&Orders.cur.v,soc:es.soc.toFixed(2),bms:es.bmsOn,pm:es.powerMode,maxA:motorMaxA(es.powerMode)});
       if(k==="idle"&&!window._idle) window._idle={km:es.km.toFixed(2),h:es.hour.toFixed(2),thr:es.throttleSet,vt,v:es.v,brk:es.brakePhys,gw:Engine.gridWait()}; }
-    if(Orders.cur&&Orders.cur!==lastOrder){ lastOrder=Orders.cur; orders++; }
+    if(Orders.cur&&Orders.cur!==lastOrder){ lastOrder=Orders.cur; orders++;
+     const o=Orders.cur; let lm=999; for(let k=o.k0;k<o.k1-0.06;k+=0.05) lm=Math.min(lm,speedLimitAt(k)); if(o.v>lm) note(`指示 ${o.v} km/h が制限 ${lm} を超える (${o.k0.toFixed(1)}〜${o.k1.toFixed(1)} km)`); }
     if(es.stopKind==="cp"&&es.stopTimer>0&&es.stopTimer>30*60-DT-1) cs++;
     const abs=(es.day-1)*24+es.hour;
     // 壊れた値・おかしな動き
