@@ -437,7 +437,7 @@ if(!s.dcDone&&dc.km-s.km<2&&dc.km>s.km&&!s.radioCd.dc){ s.radioCd.dc=true;
 s.nextAdvice-=dtS;
 if(s.nextAdvice<=0 && s.v>3){
 s.nextAdvice=1200;
-Radio.push(Strategy.text());
+if(!(typeof Orders!=="undefined"&&Orders.on())) Radio.push(Strategy.text());   // 速度指示を出しているときは、別の推奨速度を流さない
 }
 if(View.upcomingGrade!==0 && !s.radioCd.gradeMsg){
 s.radioCd.gradeMsg=true;
