@@ -30,7 +30,7 @@ const Orders={
  issue(es){
   const dist=Math.min(this.STEP,TOTAL_KM-es.km); if(dist<1) return;
   const plan=typeof Strategy!=="undefined"? Strategy.plan(true) : null;
-  let v=Math.round(plan&&plan.v||70); v=Math.min(v,this.limitAhead(es.km,dist));
+  let v=Math.round(plan? Strategy.speedFor(plan,es.km,dist,es.soc,es.lastSolar||0) : 70); v=Math.min(v,this.limitAhead(es.km,dist));   // 速度配分 (勾配で変わる) をこの 10 km で平均
   const I=this.current(es,v,es.km,dist);
   this.cur={v,I,k0:es.km,k1:es.km+dist,in:0,tot:0,dev:0,iSum:0,react:null,t0:performance.now()};
   Radio.push(`時速 ${v} km・電流 ${I.toFixed(1)} A`,"戦略班",{speak:true}); if(Snd.radioBeep) Snd.radioBeep();
