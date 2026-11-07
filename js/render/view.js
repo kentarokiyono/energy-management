@@ -66,7 +66,7 @@ this.renderer.setSize(innerWidth,innerHeight);
 buildCar(){
 if(this.car) this.scene.remove(this.car);
 const m=this.buildCarModelImpl();
-this.car=m.group; this.carBody=m.body; this.canopyMesh=m.canopy;
+this.car=m.group; this.carBody=m.body; this.canopyMesh=m.canopy; if(typeof Cockpit!=="undefined") Cockpit.attachRearView(this);
 this.scene.add(this.car);
 },
 buildCarModelImpl(){
@@ -86,7 +86,7 @@ f.position.set(x,0.40,z); body.add(f);
 if(P.shape==="wadai"){
 // YATA(61) — 車両諸元 (非公開ファイル) があれば実車の形
 const SB=VEH.active?VEH.spec.body:null;
-const Y=buildYATA(SB);
+const Y=buildYATA(SB); this.cockOpening=Y.opening;
 body.add(Y.group);
 g.userData.canopy=Y.canopy;
 // 車輪 (諸元にある場合): [x, z(車体中心基準, 前方 -), 半径, 幅]
@@ -108,52 +108,7 @@ const carbon=new THREE.MeshStandardMaterial({color:0x9aa0a8,map:View._carbonTex,
 const E0=(VEH.active&&VEH.spec.eye)||[0,.84,-.45];
 const deckY=SB&&SB.profiles? .68 : .62;
 this.cockE0=E0; this.cockDeckY=deckY;   // 乗降手順 (crew.js) の配置基準
-// 計器盤カウル (ハンドルの奥, 前方視界の下端) と両側のコクピット壁
-// コクピット開口の内張り (キャノピーの下の床面・前方のダッシュ面)
-{ const fl=new THREE.Mesh(new THREE.BoxGeometry(.5,.012,1.25),carbon); fl.position.set(E0[0],deckY-.17,E0[2]-.45); cock.add(fl);   // 床 (デッキより下)
-  const dsh=new THREE.Mesh(new THREE.BoxGeometry(.46,.07,.05),carbon); dsh.position.set(E0[0],deckY+.035,E0[2]-.78); cock.add(dsh); }
-// ステアリング (F1 型): 平らな上下辺・両側のグリップ・中央の表示部・シフトランプ・ボタン・ロータリー・パドル
-this.yokePivot=new THREE.Group();
-this.yokePivot.position.set(E0[0],Math.max(E0[1]-.27,deckY+.04),E0[2]-.44); this.yokePivot.rotation.x=.22;
-const wheel=new THREE.Group();
-const rr=(sh,x,y,w,h,r)=>{sh.moveTo(x+r,y);sh.lineTo(x+w-r,y);sh.quadraticCurveTo(x+w,y,x+w,y+r);
-sh.lineTo(x+w,y+h-r);sh.quadraticCurveTo(x+w,y+h,x+w-r,y+h);sh.lineTo(x+r,y+h);
-sh.quadraticCurveTo(x,y+h,x,y+h-r);sh.lineTo(x,y+r);sh.quadraticCurveTo(x,y,x+r,y);};
-// 本体: 上辺が少し広い台形に近い板 (下辺は平ら)
-const bodyS=new THREE.Shape(); bodyS.moveTo(-.105,-.065); bodyS.lineTo(.105,-.065); bodyS.quadraticCurveTo(.125,-.065,.125,-.045);
-bodyS.lineTo(.13,.045); bodyS.quadraticCurveTo(.13,.07,.105,.07); bodyS.lineTo(-.105,.07); bodyS.quadraticCurveTo(-.13,.07,-.13,.045);
-bodyS.lineTo(-.125,-.045); bodyS.quadraticCurveTo(-.125,-.065,-.105,-.065);
-const wb=new THREE.Mesh(new THREE.ExtrudeGeometry(bodyS,{depth:.03,bevelEnabled:true,bevelSize:.004,bevelThickness:.004,bevelSegments:2}),carbon);
-wb.position.z=-.03; wheel.add(wb);
-// グリップ (ゴム): 縦長のカプセルを外へ少し傾ける
-const rub=new THREE.MeshLambertMaterial({color:0x050506});
-for(const sd of [-1,1]){
- const gp=new THREE.Mesh(new THREE.CylinderGeometry(.022,.024,.13,14),rub); gp.position.set(sd*.152,-.005,-.012); gp.rotation.z=-sd*.12; wheel.add(gp);
- for(const yy of [.065,-.075]){ const cap=new THREE.Mesh(new THREE.SphereGeometry(.022,12,8),rub); cap.position.set(sd*(.152+sd*yy*-.12)+0,yy-.005,-.012); wheel.add(cap); }
- // パドル (裏側)
- const pd=new THREE.Mesh(new THREE.BoxGeometry(.05,.06,.004),new THREE.MeshStandardMaterial({color:0x6b7178,roughness:.35,metalness:.6})); pd.position.set(sd*.085,.02,-.045); wheel.add(pd);
-}
-// シフトランプ (上辺): 速度に応じて緑→赤→青
-this.shiftLeds=[];
-for(let i=0;i<10;i++){ const m=new THREE.MeshBasicMaterial({color:0x101010}); const led=new THREE.Mesh(new THREE.CircleGeometry(.0055,10),m);
- led.position.set(-.054+i*.012,.058,.0045); wheel.add(led); this.shiftLeds.push({m,c:i<4?0x22ff55:i<8?0xff2222:0x3388ff}); }
-// ボタン・ロータリースイッチ
-const btn=(x,y,c,r)=>{ const b=new THREE.Mesh(new THREE.CylinderGeometry(r||.0065,r||.0065,.006,14),new THREE.MeshStandardMaterial({color:c,roughness:.4})); b.rotation.x=Math.PI/2; b.position.set(x,y,.004); wheel.add(b); };
-[[-.098,.035,0xd11a1a],[-.098,.008,0xf6c400],[-.098,-.019,0x1f6fd1],[.098,.035,0x22a54a],[.098,.008,0xffffff],[.098,-.019,0xf97316]].forEach(([x,y,c])=>btn(x,y,c));
-for(const x of [-.045,0,.045]){ btn(x,-.045,0x2a2d31,.011); const tick=new THREE.Mesh(new THREE.BoxGeometry(.002,.008,.002),new THREE.MeshBasicMaterial({color:0xffffff})); tick.position.set(x,-.039,.008); wheel.add(tick); }
-this.yokeMesh=wheel;
-this.yokePivot.add(wheel);
-// 表示部 (ライブ計器・ハンドルと一体で回転)
-this.dashCanvas=document.createElement("canvas"); this.dashCanvas.width=512; this.dashCanvas.height=160;
-this.dashTex=new THREE.CanvasTexture(this.dashCanvas);
-const dash=new THREE.Mesh(new THREE.PlaneGeometry(.112,.035),
-new THREE.MeshBasicMaterial({map:this.dashTex,side:THREE.DoubleSide}));
-dash.position.set(0,.02,.0045);
-wheel.add(dash);
-// ステアリングコラム
-const col=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.32,10),new THREE.MeshStandardMaterial({color:0x4a4f55,metalness:.6,roughness:.4}));
-col.rotation.x=Math.PI/2-.22; col.position.set(0,-.03,-.17); this.yokePivot.add(col);
-cock.add(this.yokePivot);
+Cockpit.build(this,cock,E0,deckY,carbon);   // 内装は js/render/cockpit.js
 body.add(cock);
 } else if(P.shape==="catamaran"){
 for(const sx of [-0.72,0.72]){
@@ -347,31 +302,7 @@ this.fireGroup=g; this.scene.add(g);
 startFire(){ this.fireOn=true; this.fireGroup.visible=true; },
 updateDash(es){
 if(!this.dashCanvas||!this.dashTex) return;
-const c=this.dashCanvas.getContext("2d");
-c.fillStyle="#04070b"; c.fillRect(0,0,512,160);
-// ウインカー端ランプ(車体と同じ800ms点滅に同期・ハザードで両側)
-const on=(performance.now()%800)<400;
-const L=es.signal===-1||es.signal===2, R=es.signal===1||es.signal===2;
-c.fillStyle=(L&&on)?"#ffb020":"#241a10";
-c.beginPath(); c.moveTo(54,42); c.lineTo(54,118); c.lineTo(14,80); c.closePath(); c.fill();
-c.fillStyle=(R&&on)?"#ffb020":"#241a10";
-c.beginPath(); c.moveTo(458,42); c.lineTo(458,118); c.lineTo(498,80); c.closePath(); c.fill();
-// 速度
-c.textAlign="right"; c.fillStyle="#22d3ee"; c.font="bold 84px Consolas,monospace";
-c.fillText(String(Math.round(es.v*3.6)),246,112);
-c.textAlign="left"; c.font="bold 24px Consolas,monospace"; c.fillStyle="#6fa3b8";
-c.fillText("km/h",254,112);
-// SOCバー
-const soc=clamp(es.soc,0,1);
-c.fillStyle="#0c1626"; c.fillRect(90,16,332,20);
-c.fillStyle= soc>.4?"#22d3ee": soc>.15?"#fbbf24":"#ef4444";
-c.fillRect(93,19,326*soc,14);
-c.font="20px Consolas,monospace"; c.fillStyle="#6fa3b8";
-c.fillText("SOC "+(soc*100).toFixed(0)+"%",90,60);
-// 出力/発電
-c.fillStyle="#fb923c"; c.fillText("MTR "+Math.round(es.lastMotorW||0)+"W",90,146);
-c.fillStyle="#fbbf24"; c.fillText("SOL "+Math.round(es.lastSolar||0)+"W",266,146);
-this.dashTex.needsUpdate=true;
+Cockpit.drawLCD(this,es); Cockpit.sync(this,es);
 },
 mkLandmark(lm){
 const g=new THREE.Group(), W=this.ROAD_W;
@@ -855,7 +786,6 @@ if(this.canopyMesh){ // ドライバー視点: キャノピーを内側から見
   cm.userData.inMat=[smoke,smoke]; }
  cm.material= inside? cm.userData.inMat : cm.userData.extMat;
  cm.visible=true; }
-if(this.shiftLeds&&this.cam===2){ const f=clamp(es.v*3.6/100,0,1)*10; this.shiftLeds.forEach((L,i)=>L.m.color.setHex(i<f? L.c : 0x101010)); }
 if(typeof Crew!=="undefined"){ Crew.update(dtR); }
 if(typeof Crew!=="undefined"&&Crew.camera(this)){}   // 乗降手順・車外歩行の視点
 else { if(this.cam>=2) this.camera.position.copy(camPos);
@@ -935,6 +865,7 @@ this.speedLines.forEach((pl,i)=>{
     .addScaledVector(rt,(i%2?1:-1)*(3.5+((i*37)%50)/10))
     .addScaledVector(up,((i*29)%40)/10-2);
   pl.material.opacity=sInt*0.28;});
+Cockpit.renderRear(this);
 this.renderer.render(this.scene,this.camera);
 },
 updateEnvironment(es,pHere,alt,hor){
