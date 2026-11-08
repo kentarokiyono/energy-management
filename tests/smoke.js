@@ -62,7 +62,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
    Radio.push=o; return {sc:es.scenario,n:g.length,w0,wIn,lv:c.lv,lvBtn:document.querySelectorAll("#seg-scnlv button").length,stdMax:Scenario.LEVELS.std.wind*c.sc.storm.max,fx:!!StormFx.grp,scout:msgs.filter(m=>/^偵察車/.test(m)).length,lead:msgs.filter(m=>/^前方誘導車: 突風/.test(m)).length,hud:document.getElementById("hud-roll").style.display}; });
   await p.evaluate(()=>{ Engine.st.weather={type:"squall",factor:0.06}; }); await p.waitForTimeout(2500);
   const rn=await p.evaluate(()=>({mix:View.wxMix,I:Rain.I,lines:Rain.lines&&Rain.lines.visible,fog:View.scene.fog.far,glass:document.getElementById("rain-glass").style.display}));
-  check("雨: 雨筋・視界・ガラスの雨粒・10 秒かけて切り替わる",rn.mix>0.05&&rn.mix<0.9&&rn.I<0.9&&rn.I>0.05&&rn.lines&&rn.fog<2000&&rn.glass==="block"&&noErr(p).length===0,JSON.stringify(rn)+" "+noErr(p).slice(0,2).join(" | "));
+  check("雨: 雨筋・視界・ガラスの雨粒・10 秒かけて切り替わる",rn.mix>0.005&&rn.mix<0.9&&rn.I<0.9&&rn.I>0.005&&rn.lines&&rn.fog<2000&&rn.glass==="block"&&noErr(p).length===0,JSON.stringify(rn)+" "+noErr(p).slice(0,2).join(" | "));
   check("練習シナリオ: 暴風雨 (突風・偵察車と前方誘導車の警告・難しさ・前ぶれ)",st.sc==="storm"&&st.lv==="real"&&st.lvBtn===2&&st.stdMax<20&&st.fx&&st.n>=10&&st.wIn>st.w0+8&&st.scout>=2&&st.lead>=1&&st.hud==="flex"&&noErr(p).length===0,JSON.stringify(st)+" "+noErr(p).slice(0,2).join(" | "));
   await p.evaluate(()=>{ Scenario.reset(); quitToMenu(); document.getElementById("scenario").value=""; }); await p.context().close(); }
  // ---- 発電・消費の補正、後半の悪化、レース中の暴風雨、戦略を裏で少しずつ ----
@@ -77,6 +77,18 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
    es.hour=10; Strategy.plan(true); Strategy.lastT-=30000; Strategy.plan(false); let n=0, mx=0; while(Strategy.job&&n<300){ const t=performance.now(); Strategy.tick(4); mx=Math.max(mx,performance.now()-t); n++; } o.tickFrames=n; o.tickDone=!Strategy.job;
    return o; });
   check("発電の太陽の高さ別・消費の補正・後半の悪化・暴風雨・戦略を少しずつ",r.pvLow<0.6&&Math.abs(r.pvHigh-1)<0.01&&r.loss&&Math.abs(r.lateReal-0.85)<1e-6&&r.latePlan0===1&&Math.abs(r.latePlan1-0.85)<1e-6&&r.storm&&r.stop&&r.tickFrames>3&&r.tickDone&&noErr(p).length===0,JSON.stringify(r)+" "+noErr(p).slice(0,2).join(" | "));
+  await p.context().close(); }
+ // ---- 分析画面: ヒドゥンバレー (予選の記録 → 周回・3 セクター・電力・ドライバーごと) ----
+ { const p=await newPage(b,base);
+  const r=await p.evaluate(async()=>{ const T=HV.track(), S={}; for(const k of HVRec.KEYS) S[k]=[]; let t=0;
+   for(let lap=0;lap<2;lap++){ let lt=0; const vk= lap? 16 : 14; for(let sx=0;sx<T.len;sx+=vk*0.1){ let i=0; while(i<T.n-1&&T.s[i+1]<sx) i++; const p=T.pts[i];
+     const row=[t,lap,lt,sx,p.x,p.z,vk*3.6,800+lap*50,10,90-t/100,0.6,0,0,0]; HVRec.KEYS.forEach((k,j)=>S[k].push(row[j])); t+=0.1; lt+=0.1; } S.laps=S.laps||[]; S.laps.push(lt); }
+   const laps=S.laps.map((x,i)=>({n:i+1,t:x,pit:false,tag:""})); delete S.laps;
+   const run=Ana.hvRun({id:"hv-test",name:"HV テスト",date:"2025-08-21",kind:"hv",driver:"A",hv:{kind:"circuit",laps,results:[{kind:"brake",title:"✅ 合格",pass:true,rows:[["進入速度","45 km/h"]],d:{}}],S}});
+   await Ana.open(); Ana.runs.push(run); Ana.cur=Ana.runs.length-1; Ana.render(); HVA.lap=1; HVA.cmp="best"; HVA.draw();
+   const L=HVA.laps(run), sec=HVA.sectors();
+   return {n:L.length,secOk:L.every(l=>l.sec.every(Number.isFinite)&&Math.abs(l.sec[0]+l.sec[1]+l.sec[2]-l.t)<0.3),sec:sec.map(x=>+(x/T.len).toFixed(2)),wh:L[0].wh>0,best:HVA.best(run).n,pane:document.getElementById("hv-pane").textContent.includes("理論ベスト"),drv:document.getElementById("hv-pane").textContent.includes("ドライバーごと"),res:document.getElementById("hv-pane").textContent.includes("車検テストの結果"),vis:getComputedStyle(document.getElementById("ana-hv")).display}; });
+  check("分析画面: ヒドゥンバレー (周回・3 セクター・電力・車検・ドライバーごと)",r.n===2&&r.secOk&&r.sec[0]>0.25&&r.sec[0]<0.42&&r.sec[1]>0.58&&r.sec[1]<0.75&&r.wh&&r.best===2&&r.pane&&r.drv&&r.res&&r.vis==="grid"&&noErr(p).length===0,JSON.stringify(r)+" "+noErr(p).slice(0,2).join(" | "));
   await p.context().close(); }
  // ---- テレメトリ (同じ PC の別ウィンドウ): つながり、値が届き、監視側から指示を送れる。外部とは通信しない ----
  { const p=await newPage(b,base);

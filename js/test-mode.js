@@ -58,6 +58,7 @@ const T=HV.track();
 this.trackPts=T.pts; this.trackN=T.n;
 this.startHeading=Math.atan2(T.fwd[0][0],-T.fwd[0][1]);
 this.retry();
+if(typeof HVRec!=="undefined") HVRec.begin(kind);   // 分析画面用の記録 (自動)
 },
 retry(){
 show("test-result",false);
@@ -195,6 +196,7 @@ document.getElementById("hud-limit").textContent="―";
 this.updateTestHud(); drawG();
 Snd.update(this.v, es.lastAmp/Math.max(motorMaxA(es.powerMode),1), false);
 FFB.update({v:this.v,steer:Input.gamepadOK?Input.gpSteer:Input.steer,offroad:!!this.offTrack,shoulder:false,rough:0.3,cross:0,trainRel:null,brake:es.brakePhys||0,gLat:es.gLat||0,dt:dtR});   // サーキット: 旋回の横 G・コース外
+if(typeof HVRec!=="undefined") HVRec.frame(dtR);
 },
 judge(dtR){
 const k=this.kind;
@@ -216,6 +218,7 @@ this.progress+=diff;
 if(this.progress>=n){
 this.progress-=n;
 this.laps.push(this.t);
+if(typeof HVRec!=="undefined") HVRec.lap(this.t,this.lapPit,this.lapPit?(this.lapStartPit?"OUT LAP":"IN LAP"):"");
 if(this.lapPit){
  // ピットから出た周=OUT LAP / ピットに入った周=IN LAP (どちらも記録対象外)
  const tag=this.lapStartPit?"OUT LAP":"IN LAP";
@@ -326,6 +329,7 @@ const s1=f.sides[n-2], s2=f.sides[n-1], tot=s1+s2;
 const ok=s1<9&&s2<9&&tot<18;
 f.count=(f.count||0)+1;
 if(ok && (!f.best8||tot<f.best8)) f.best8=tot;
+if(typeof HVRec!=="undefined") HVRec.fig8(s1,s2,tot,ok);
 toast(`${which} ${sideT.toFixed(2)}s ― 8の字#${f.count} 計${tot.toFixed(2)}s ${ok?"✅":"❌"}`, ok?"#34d399":"#f59e0b");
 Snd.chime();
 } else {
@@ -356,6 +360,7 @@ collide(x0,z0){
   [["相手",what],["衝突速度",kmh+" km/h"],["", hit.kind==="person"? "人との接触は重大事故です。" : hit.level==="damage"? "車体が破損したため、この試験は失格です。" : "車両大破。この試験は失格です。"]],false);
 },
 finish(title,rows,pass){
+if(!P.event&&typeof HVRec!=="undefined") HVRec.result(title,rows,pass);
 if(P.event){ EventGame.hvResult(title,rows,pass); return; }   // イベント (ヒドゥンバレー版) は採点して次の課題へ
 document.getElementById("test-result-title").textContent=title;
 document.getElementById("test-result-title").style.color=pass?"#5cb85c":"#d23a2e";
