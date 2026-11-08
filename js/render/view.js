@@ -880,7 +880,10 @@ const relAz=az+this.sunOff;
 const sunDist=1400, sy=Math.sin(alt)*sunDist, shD=Math.cos(alt)*sunDist;
 this.sun.position.set(pHere.x+Math.sin(relAz)*shD, Math.max(sy,-80), pHere.z-Math.cos(relAz)*shD);
 this.sunLight.position.copy(this.sun.position);
-this.sunLight.intensity=clamp(Math.sin(alt)*1.45,0.02,1.2)*(es.weather?0.35:1);
+// 天候の切り替わりは約 10 秒 (実時間) かけて移る (空・日差し・雲・明るさ・映り込み・陽炎)
+{ const want=es.weather?1:0; if(this.wxMix==null||this._wxGame!==es) { this.wxMix=want; this._wxGame=es; } this.wxMix+=clamp(want-this.wxMix,-dtR/10,dtR/10); }
+const WX=this.wxMix;
+this.sunLight.intensity=clamp(Math.sin(alt)*1.45,0.02,1.2)*(1-0.65*WX);
 { const warm=clamp(alt/0.45,0,1); this.sunLight.color.setRGB(1.0,0.62+0.33*warm,0.38+0.5*warm); }
 this.sunLight.target.position.copy(this.car.position);
 this.sunLight.position.sub(this.car.position).normalize().multiplyScalar(1400).add(this.car.position);
@@ -890,21 +893,21 @@ const nigTop=new THREE.Color(0x040914),nigHor=new THREE.Color(0x0a1226);
 const t1=clamp(alt/0.18,0,1),t2=clamp((alt-0.18)/0.5,0,1);
 const hor=nigHor.clone().lerp(setHor,t1).lerp(dayHor,t2);
 const top=nigTop.clone().lerp(setTop,t1).lerp(dayTop,t2);
-if(es.weather){hor.lerp(new THREE.Color(0x8a94a0),0.5);top.lerp(new THREE.Color(0x5c6672),0.5);}
+if(WX>0){hor.lerp(new THREE.Color(0x8a94a0),0.5*WX);top.lerp(new THREE.Color(0x5c6672),0.5*WX);}
 if(this.scene.fog)this.scene.fog.color.copy(hor).convertSRGBToLinear();
 if(this.skyDome){
 const u=this.skyDome.material.uniforms;
 u.uTop.value.copy(top);u.uHor.value.copy(hor);
 u.uSunDir.value.copy(this.sun.position).sub(this.car.position).normalize();
-u.uCover.value=es.weather?0.6:0.22;
+u.uCover.value=0.22+0.38*WX;
 if(u.uDust){ const b=biomeAt(es.km); u.uDust.value.setHex(b.urban?0xc9c4b8:0xd9b48c).convertSRGBToLinear().lerp(hor,0.35); }
 u.uNight.value=clamp(1-alt/0.18,0,1);
 u.uTime.value=performance.now()/1000;
 this.skyDome.position.copy(this.camera.position);
 }
-this.hemiLight.intensity=clamp(Math.sin(alt)*0.9,0.12,0.8)*(es.weather?0.6:1);
+this.hemiLight.intensity=clamp(Math.sin(alt)*0.9,0.12,0.8)*(1-0.4*WX);
 // 車体などに映る空 (時刻・天気・土地の色に合わせて作り直す。画質「低」は作らない)
-EnvLight.update(this.renderer,this.scene,top,hor,new THREE.Color(biomeAt(es.km).soil),this.sun.position.clone().sub(this.car.position).normalize(),clamp(Math.sin(alt)*1.3,0,1)*(es.weather?0.2:1),this.sunLight.color);
+EnvLight.update(this.renderer,this.scene,top,hor,new THREE.Color(biomeAt(es.km).soil),this.sun.position.clone().sub(this.car.position).normalize(),clamp(Math.sin(alt)*1.3,0,1)*(1-0.8*WX),this.sunLight.color);
 this.updateEnvironment(es,pHere,alt,hor);
 if(typeof Rain!=="undefined") Rain.update(this,es,dtR);   // 雨 (雨筋・しぶき・濡れた路面・視界・ガラスの雨粒・音・雷)
 this.updateLandmarks(es);
@@ -960,7 +963,7 @@ updateEnvironment(es,pHere,alt,hor){
  // 半球光の地面色=土の照り返し
  this.hemiLight.groundColor.copy(sc).multiplyScalar(1.3);
  // 逃げ水: 晴天・日中・高温ほど強い
- const heat=clamp(((es.Tamb||25)-22)/12,0,1)*clamp((alt-0.35)/0.4,0,1)*(es.weather?0.15:1);
+ const heat=clamp(((es.Tamb||25)-22)/12,0,1)*clamp((alt-0.35)/0.4,0,1)*(1-0.85*(this.wxMix||0));
  const t=performance.now()/1000;
  SceneMats.eachRoad(u=>{ u.uMirage.value=heat*(bio.urban?0.3:1); u.uSkyCol.value.copy(hor).multiplyScalar(1.05); u.uTime.value=t; });
  Horizon.update(this,es);
