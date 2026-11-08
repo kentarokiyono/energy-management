@@ -34,7 +34,7 @@ const HVA={
  hide(){ const el=document.getElementById("ana-hv"); if(el&&el.style.display!=="none"){ el.style.display="none"; const b=document.getElementById("ana-body"); if(b) b.style.display=""; } },
  ensure(){ let el=document.getElementById("ana-hv"); if(el) return el;
   el=document.createElement("div"); el.id="ana-hv"; el.innerHTML=`
-   <div class="hv-l"><div class="hv-card hv-mapc"><canvas id="hv-map"></canvas><div class="hv-leg" id="hv-leg"></div></div>
+   <div class="hv-l"><div class="hv-card hv-mapc" id="hv-mapc"><canvas id="hv-map"></canvas><div class="hv-tags" id="hv-tags"></div><div class="ana-ctl hv-ctl"><button class="btn" title="左に回す" onclick="HVA.m3&&HVA.m3.rot(-1)">${ic("rotate","flipx")}</button><button class="btn" title="右に回す" onclick="HVA.m3&&HVA.m3.rot(1)">${ic("rotate")}</button><button class="btn" title="寝かせる" onclick="HVA.m3&&HVA.m3.tilt(1)">${ic("chd")}</button><button class="btn" title="起こす" onclick="HVA.m3&&HVA.m3.tilt(-1)">${ic("chu")}</button><button class="btn" title="真上から" onclick="HVA.m3&&HVA.m3.top()">真上</button><button class="btn" title="初期の向き" onclick="HVA.m3&&HVA.m3.reset()">初期</button></div><div class="hv-leg" id="hv-leg"></div></div>
     <div class="hv-card"><div class="hv-h">${ic("activity")}<span id="hv-cht">速度 (コース上の距離)</span><span class="dim" id="hv-chl"></span></div><canvas id="hv-spd"></canvas><div id="hv-dtw"><div class="hv-h">${ic("timer")}タイム差 (比べる周に対して。上 = 遅い)</div><canvas id="hv-dt"></canvas></div></div></div>
    <div class="hv-r" id="hv-pane"></div>`;
   document.getElementById("ana-body").after(el);
@@ -79,7 +79,78 @@ const HVA={
  draw(){ const run=this.run; if(!run) return; const L=this.laps(run), sel=L.find(l=>l.n===this.lap)||null, B=this.best(run);
   const cmp= this.cmp==="none"? null : this.cmp==="best"? (B&&sel&&B.n!==sel.n? B : null) : L.find(l=>String(l.n)===String(this.cmp)&&l!==sel)||null;
   this.drawMap(run,sel); this.drawSpeed(run,sel,cmp); this.drawDelta(sel,cmp); },
- drawMap(run,sel){ const cv=document.getElementById("hv-map"); if(!cv) return; const [c,W,H]=this.fit(cv); c.clearRect(0,0,W,H);
+ /* ---------- コース図 (立体・斜めから): ドラッグで回転・右ドラッグ / Shift で移動・ホイール / 2 本指で拡大。高さは 2.5 倍 ---------- */
+ EX:2.5,
+ drawMap(run,sel){
+  const m=this.map3d(); if(!m){ this.drawMap2(run,sel); return; }
+  const circ=run.hv.kind==="circuit", key=run.id+"|"+(sel?sel.n:"-")+"|"+this.cmpN();
+  if(m.key!==key){ m.key=key; m.build(run,sel,this.cmpLap(run,sel)); }
+  m.cursor(sel); m.draw();
+  const sh= sel? sel.v : (!circ? run.hv.S.v : null); if(sh&&sh.length) this.legend(Math.min(...sh),Math.max(...sh)); else document.getElementById("hv-leg").innerHTML="";
+ },
+ cmpN(){ return String(this.cmp); },
+ cmpLap(run,sel){ const L=this.laps(run), B=this.best(run); return this.cmp==="none"? null : this.cmp==="best"? (B&&sel&&B.n!==sel.n? B : null) : L.find(l=>String(l.n)===String(this.cmp)&&l!==sel)||null; },
+ map3d(){
+  if(this.m3) { const host=document.getElementById("hv-mapc"); if(host&&this.m3.r.domElement.parentNode!==host) host.insertBefore(this.m3.r.domElement,host.firstChild); return this.m3; }
+  if(this._m3fail||typeof THREE==="undefined") return null;
+  let r; try{ r=new THREE.WebGLRenderer({antialias:true}); }catch(e){ this._m3fail=true; return null; }
+  r.setPixelRatio(Math.min(devicePixelRatio||1,1.5));
+  const host=document.getElementById("hv-mapc"); document.getElementById("hv-map").style.display="none"; host.insertBefore(r.domElement,host.firstChild); r.domElement.className="hv-gl";
+  const sc=new THREE.Scene(); sc.background=new THREE.Color(0x0d0e10);
+  const grid=new THREE.GridHelper(2000,80,0x1c1f23,0x1c1f23); grid.position.y=-1; sc.add(grid);
+  const cam=new THREE.PerspectiveCamera(40,1,1,6000), view={th:0.6,ph:0.95,d:900,tx:0,tz:0,ty:0}, V0={}, grp=new THREE.Group(); sc.add(grp);
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.9,0.9,1,8),new THREE.MeshBasicMaterial({color:0xffffff})); pole.visible=false; sc.add(pole);
+  const self=this, T=HV.track(), EX=this.EX;
+  const yAt=(sx)=>{ let i=0; while(i<T.n-1&&T.s[i+1]<sx) i++; return T.pts[i].y*EX; };
+  const M={r,sc,cam,view,grp,pole,w:1,h:1,tags:[],
+   clear(){ while(grp.children.length){ const o=grp.children.pop(); o.geometry&&o.geometry.dispose(); o.material&&o.material.dispose(); } this.tags=[]; },
+   build(run,sel,cmp){ this.clear(); const circ=run.hv.kind==="circuit";
+    let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9; const ext=(x,z)=>{ x0=Math.min(x0,x); x1=Math.max(x1,x); z0=Math.min(z0,z); z1=Math.max(z1,z); };
+    if(circ){   // コースの路面 (帯) と縁
+     const pos=[], n=T.n; for(let i=0;i<=n;i++){ const k=i%n, p=T.pts[k], rr=T.right[k], hw=T.hw[k]||6, y=p.y*EX; pos.push(p.x-rr[0]*hw,y,p.z-rr[1]*hw, p.x+rr[0]*hw,y,p.z+rr[1]*hw); ext(p.x,p.z); }
+     const idx=[]; for(let i=0;i<n;i++){ const a=i*2; idx.push(a,a+1,a+2, a+1,a+3,a+2); }
+     const g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx);
+     grp.add(new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0x2a2d32,side:THREE.DoubleSide})));
+     for(const sd of [-1,1]){ const e=[]; for(let i=0;i<=n;i++){ const k=i%n, p=T.pts[k], rr=T.right[k], hw=(T.hw[k]||6)*sd; e.push(new THREE.Vector3(p.x+rr[0]*hw,p.y*EX+0.05,p.z+rr[1]*hw)); }
+      grp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(e),new THREE.LineBasicMaterial({color:0x4a4f56}))); }
+     // S/F とセクターの区切り: 柱とラベル
+     const post=(sx,col,lab)=>{ let i=0; while(i<T.n-1&&T.s[i+1]<sx) i++; const p=T.pts[i], y=p.y*EX, m=new THREE.Mesh(new THREE.CylinderGeometry(1.2,1.2,40,8),new THREE.MeshBasicMaterial({color:col})); m.position.set(p.x,y+20,p.z); grp.add(m); this.tags.push({x:p.x,y:y+44,z:p.z,lab,col}); };
+     post(0,0xe6e6e3,"S/F"); const [s1,s2]=self.sectors(); post(s1,0x22d3ee,"S1 | S2"); post(s2,0x22d3ee,"S2 | S3"); }
+    const show= sel? sel : (!circ? {x:run.hv.S.x,z:run.hv.S.z,v:run.hv.S.v,s:null} : null);
+    if(show){ const lo=Math.min(...show.v), hi=Math.max(...show.v), H=(v)=>2+clamp((v-lo)/Math.max(1,hi-lo),0,1)*28, pos=[], col=[];
+     const gy=(i)=> circ&&show.s? yAt(show.s[i]) : 0;
+     for(let i=1;i<show.x.length;i++){ if(Math.hypot(show.x[i]-show.x[i-1],show.z[i]-show.z[i-1])>15) continue;
+      const ax=show.x[i-1], az=show.z[i-1], bx=show.x[i], bz=show.z[i], ya=gy(i-1)+0.3, yb=gy(i)+0.3, ha=H(show.v[i-1]), hb=H(show.v[i]), ca=self.colRGB(show.v[i-1],lo,hi), cb=self.colRGB(show.v[i],lo,hi);
+      pos.push(ax,ya,az, bx,yb,bz, bx,yb+hb,bz, ax,ya,az, bx,yb+hb,bz, ax,ya+ha,az); for(const c of [ca,cb,cb,ca,cb,ca]) col.push(...c); if(!circ) ext(bx,bz); }
+     const g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); g.setAttribute("color",new THREE.Float32BufferAttribute(col,3));
+     grp.add(new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide,transparent:true,opacity:0.9})));
+     this.H=H; this.gy=gy; this.show=show; }
+    if(cmp){ const pts=cmp.x.map((x,i)=>new THREE.Vector3(x,yAt(cmp.s[i])+0.6,cmp.z[i])); grp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x22d3ee}))); }
+    if(this.bkey!==run.id+run.hv.kind){ this.bkey=run.id+run.hv.kind; const cx=(x0+x1)/2, cz=(z0+z1)/2, sz=Math.max(60,x1-x0,z1-z0);
+     Object.assign(view,{tx:cx,tz:cz,ty:circ? T.pts[0].y*EX : 0,d:sz*0.95,th:0.6,ph:0.85}); Object.assign(V0,view); }
+   },
+   cursor(sel){ const s=self.cur; if(s==null||!sel||!this.show||!this.show.s){ pole.visible=false; return; } let i=0; while(i<sel.s.length-1&&sel.s[i]<s) i++;
+    const h=this.H(sel.v[i])+14, y=this.gy(i); pole.visible=true; pole.scale.y=h; pole.position.set(sel.x[i],y+h/2,sel.z[i]); },
+   resize(){ const p=r.domElement.parentNode; if(!p) return; const w=Math.max(10,p.clientWidth-2), h=360; if(w!==this.w||h!==this.h){ this.w=w; this.h=h; r.setSize(w,h); cam.aspect=w/h; cam.updateProjectionMatrix(); } },
+   draw(){ this.resize(); cam.position.set(view.tx+view.d*Math.sin(view.ph)*Math.sin(view.th),view.ty+view.d*Math.cos(view.ph),view.tz+view.d*Math.sin(view.ph)*Math.cos(view.th)); cam.lookAt(view.tx,view.ty,view.tz);
+    r.render(sc,cam);
+    const el=document.getElementById("hv-tags"); if(el) el.innerHTML=this.tags.map(t=>{ const v=new THREE.Vector3(t.x,t.y,t.z).project(cam); if(v.z>1) return ""; return `<span style="left:${((v.x+1)/2*this.w).toFixed(0)}px;top:${((1-v.y)/2*this.h).toFixed(0)}px;color:#${t.col.toString(16).padStart(6,"0")}">${t.lab}</span>`; }).join(""); },
+   rot(d){ view.th+=d*Math.PI/8; this.draw(); }, tilt(d){ view.ph=clamp(view.ph+d*0.15,0.05,1.45); this.draw(); }, top(){ view.ph=0.05; this.draw(); }, reset(){ Object.assign(view,V0); this.draw(); }};
+  // 操作
+  const el=r.domElement, pts=new Map(); el.style.touchAction="none";
+  el.addEventListener("pointerdown",e=>{ el.setPointerCapture(e.pointerId); pts.set(e.pointerId,{x:e.clientX,y:e.clientY,b:e.button,sh:e.shiftKey}); });
+  el.addEventListener("pointermove",e=>{ const p=pts.get(e.pointerId); if(!p) return; const dx=e.clientX-p.x, dy=e.clientY-p.y;
+   if(pts.size===2){ const [a,b]=[...pts.values()], d0=Math.hypot(a.x-b.x,a.y-b.y); p.x=e.clientX; p.y=e.clientY; const [a2,b2]=[...pts.values()], d1=Math.hypot(a2.x-b2.x,a2.y-b2.y); if(d0>0) view.d=clamp(view.d*d0/d1,60,4000); M.draw(); return; }
+   if(p.b===2||p.sh){ const k=view.d/600; view.tx-=(dx*Math.cos(view.th)+dy*Math.sin(view.th))*k; view.tz-=(-dx*Math.sin(view.th)+dy*Math.cos(view.th))*k; }
+   else { view.th-=dx*0.006; view.ph=clamp(view.ph-dy*0.004,0.05,1.45); }
+   p.x=e.clientX; p.y=e.clientY; M.draw(); });
+  const up=e=>pts.delete(e.pointerId); el.addEventListener("pointerup",up); el.addEventListener("pointercancel",up); el.addEventListener("contextmenu",e=>e.preventDefault());
+  el.addEventListener("wheel",e=>{ e.preventDefault(); view.d=clamp(view.d*Math.exp(e.deltaY*0.001),60,4000); M.draw(); },{passive:false});
+  return this.m3=M;
+ },
+ legend(lo,hi){ document.getElementById("hv-leg").innerHTML=`<span>速度 (帯の高さ・色)</span><i style="background:linear-gradient(90deg,${[0,0.25,0.5,0.75,1].map(t=>this.col(lo+t*(hi-lo),lo,hi)).join(",")})"></i><span>${lo.toFixed(0)}〜${hi.toFixed(0)} km/h</span>`; },
+ colRGB(v,lo,hi){ const t=clamp((v-lo)/Math.max(1,hi-lo),0,1), st=[[0.17,0.42,0.69],[0.22,0.63,0.41],[0.89,0.70,0.12],[0.95,0.42,0.11],[0.82,0.23,0.18]], f=t*4, i=Math.min(3,Math.floor(f)), u=f-i; return [0,1,2].map(k=>st[i][k]+(st[i+1][k]-st[i][k])*u); },
+ drawMap2(run,sel){ const cv=document.getElementById("hv-map"); if(!cv) return; cv.style.display="block"; const [c,W,H]=this.fit(cv); c.clearRect(0,0,W,H);
   const T=HV.track(), circ=run.hv.kind==="circuit";
   let pts= circ? T.pts.map(p=>[p.x,p.z]) : null;
   if(!circ){ const S=run.hv.S; pts=S.x.map((x,i)=>[x,S.z[i]]); if(!pts.length){ c.fillStyle="#8b9097"; c.fillText("記録がありません",12,20); return; } }

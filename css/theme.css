@@ -486,7 +486,9 @@ body.mon-on #setup-screen, body.mon-on #game-container, body.mon-on #fade{ displ
 #ana-hv .hv-l, #ana-hv .hv-r{ display:flex; flex-direction:column; gap:10px; min-width:0; }
 .hv-card{ background:var(--pn); border:1px solid var(--ln); padding:10px 12px; }
 .hv-h{ display:flex; align-items:center; gap:8px; font:600 12px var(--fn); letter-spacing:.05em; color:var(--tx2); margin:2px 0 6px; flex-wrap:wrap; } .hv-h .dim{ margin-left:auto; font-weight:500; letter-spacing:0; }
-.hv-mapc{ position:relative; } #hv-map{ display:block; width:100%; height:360px; }
+.hv-mapc{ position:relative; min-height:360px; } #hv-map{ display:block; width:100%; height:360px; } .hv-gl{ display:block; touch-action:none; cursor:grab; }
+.hv-tags{ position:absolute; inset:10px 12px; pointer-events:none; overflow:hidden; } .hv-tags span{ position:absolute; transform:translate(-50%,-100%); font:700 11px var(--fn); text-shadow:0 1px 3px #000; white-space:nowrap; }
+.hv-ctl{ right:18px; bottom:18px; }
 .hv-leg{ position:absolute; left:14px; bottom:12px; display:flex; gap:6px; align-items:center; font-size:10.5px; color:var(--dim); background:rgba(21,23,26,.85); padding:4px 8px; border:1px solid var(--ln); } .hv-leg i{ width:110px; height:6px; }
 #hv-spd{ display:block; width:100%; height:200px; } #hv-dt{ display:block; width:100%; height:130px; }
 .hv-sel{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px; } .hv-sel label{ display:flex; gap:6px; align-items:center; font-size:12px; color:var(--tx2); } .hv-sel select{ padding:4px 6px; font-size:12px; }
