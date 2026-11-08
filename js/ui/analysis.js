@@ -151,7 +151,7 @@ const Ana={
   document.getElementById("ana-run").onchange=e=>{ this.stopPlay(); this.play.t=null; this.cur=+e.target.value; this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); };
   document.getElementById("ana-cmp").onchange=e=>{ this.cmp=+e.target.value; this.render(); };
   document.getElementById("ana-cat").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b||b.dataset.c===this.cat) return; const c=b.dataset.c; this.stopPlay(); Fade.go(()=>this.setCat(c)); });   // 本戦 / ヒドゥンバレー (フェードで切り替え)
-  document.getElementById("ana-demo").onclick=()=>{ try{ localStorage.removeItem("bwsc_ana_nodemo"); }catch(e){} this.emptied=false; this.addDemo(); };
+  document.getElementById("ana-demo").onclick=()=>{ if(this.cat==="hv"){ try{ localStorage.removeItem("bwsc_ana_nodemo_hv"); }catch(e){} this.addHVDemo(); return; } try{ localStorage.removeItem("bwsc_ana_nodemo"); }catch(e){} this.emptied=false; this.addDemo(); };
   document.getElementById("ana-all").onclick=()=>{ this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); };
   document.getElementById("ana-file").onchange=async e=>{ for(const f of e.target.files){ try{ const buf=await f.arrayBuffer(); let txt; try{ txt=new TextDecoder("utf-8",{fatal:true}).decode(buf); }catch(x){ txt=new TextDecoder("shift_jis").decode(buf); }   // Excel の CSV (Shift_JIS) も読む
      const run=this.parseCSV(txt,f.name.replace(/\.csv$/i,""),this.ymd(f.lastModified||Date.now())); this.runs.push(run); this.cur=this.runs.length-1; this.cat="race"; this.save(run); }catch(err){ toast("読み込めません: "+escHtml(f.name)+" ― "+escHtml(err.message),"#ef4444"); } }
@@ -217,7 +217,9 @@ const Ana={
   if(this.cur>=this.runs.length) this.cur=0;
   // 開いたときの分類: 予選・車検モードから開いたらヒドゥンバレー、それ以外は前回の分類
   let c=null; try{ c=localStorage.getItem("bwsc_ana_cat"); }catch(e){} if(P.mode==="test"&&!P.event) c="hv"; else if(live) c="race";
-  this.cat= c==="hv"? "hv" : "race"; const L=this.inCat(); if(!L.some(([,i])=>i===this.cur)) this.cur= L.length? L[L.length-1][1] : -1;
+  this.cat= c==="hv"? "hv" : "race";
+  if(this.cat==="hv"&&!this.inCat("hv").length){ let off=false; try{ off=localStorage.getItem("bwsc_ana_nodemo_hv")==="1"; }catch(e){} if(!off&&typeof HVA!=="undefined") this.runs.push(HVA.demo()); }
+  const L=this.inCat(); if(!L.some(([,i])=>i===this.cur)) this.cur= L.length? L[L.length-1][1] : -1;
   if(live&&this.cat==="race"){ const i=this.runs.findIndex(r=>r.id===live.id); if(i>=0) this.cur=i; }
   this.map&&(this.map.dirty=true); this.render();
  },
@@ -233,7 +235,7 @@ const Ana={
  deleteRun(){ const run=this.run(); if(!run) return;
   if(!confirm(`「${run.name}」を削除します。元に戻せません。`)) return;
   if(run.live) this.hidden.add(run.id);
-  if(run.demo) try{ localStorage.setItem("bwsc_ana_nodemo","1"); }catch(e){}
+  if(run.demo) try{ localStorage.setItem(run.kind==="hv"?"bwsc_ana_nodemo_hv":"bwsc_ana_nodemo","1"); }catch(e){}
   this.DB.del(run.id); const i=this.cur; this.runs.splice(i,1);
   if(this.cmp===i) this.cmp=-1; else if(this.cmp>i) this.cmp--;
   { const L=this.inCat(); this.cur= L.length? (L.find(([,j])=>j>=i)||L[L.length-1])[1] : -1; } if(!this.runs.length) this.emptied=true;
@@ -275,8 +277,11 @@ const Ana={
  /* データの分類: 本戦 (レースの走行ログ・CSV・デモ) / ヒドゥンバレー (予選・車検モード) */
  catOf(r){ return r&&r.kind==="hv"? "hv" : "race"; },
  inCat(c){ return this.runs.map((r,i)=>[r,i]).filter(([r])=>this.catOf(r)===(c||this.cat)); },
+ /* ヒドゥンバレーのデモ (10 周) */
+ addHVDemo(){ if(typeof HVA==="undefined") return; let i=this.runs.findIndex(r=>r.id==="hv-demo"); if(i<0){ this.runs.push(HVA.demo()); i=this.runs.length-1; } this.cur=i; this.cat="hv"; this.render(); toast("デモ走行 (10 周) を追加しました","#34d399"); },
  setCat(c){ if(c!=="race"&&c!=="hv") return; if(this.runs[this.cur]&&this.catOf(this.runs[this.cur])===this.cat) this.curBy[this.cat]=this.runs[this.cur].id;
   this.cat=c; try{ localStorage.setItem("bwsc_ana_cat",c); }catch(e){}
+  if(c==="hv"&&!this.inCat("hv").length){ let off=false; try{ off=localStorage.getItem("bwsc_ana_nodemo_hv")==="1"; }catch(e){} if(!off&&typeof HVA!=="undefined") this.runs.push(HVA.demo()); }   // 走行が無いときはデモを出す
   const L=this.inCat(c), keep=L.find(([r])=>r.id===this.curBy[c]); this.cur= keep? keep[1] : L.length? L[L.length-1][1] : -1;
   if(this.cmp>=0&&this.catOf(this.runs[this.cmp])!==c) this.cmp=-1;
   this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); },

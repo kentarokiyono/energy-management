@@ -481,7 +481,7 @@ body.mon-on #setup-screen, body.mon-on #game-container, body.mon-on #fade{ displ
 #mon .rl{ max-height:260px; overflow:auto; font-size:12.5px; line-height:1.55; } #mon .rl>div{ padding:4px 0; border-bottom:1px solid var(--ln); } #mon .rl .lb{ margin-right:6px; }
 
 /* 分析画面: ヒドゥンバレー */
-#ana.cat-hv #ana-lay, #ana.cat-hv #ana-mode, #ana.cat-hv #ana-met, #ana.cat-hv #ana-all, #ana.cat-hv #ana-cmp, #ana.cat-hv #ana-demo, #ana.cat-hv label:has(#ana-file), #ana.cat-hv .ana-top .lb:has(+#ana-lay), #ana.cat-hv .ana-top .lb:has(+#ana-mode), #ana.cat-hv .ana-top .lb:has(+#ana-met), #ana.cat-hv .ana-top .lb:has(+#ana-cmp){ display:none; }
+#ana.cat-hv #ana-lay, #ana.cat-hv #ana-mode, #ana.cat-hv #ana-met, #ana.cat-hv #ana-all, #ana.cat-hv #ana-cmp, #ana.cat-hv label:has(#ana-file), #ana.cat-hv .ana-top .lb:has(+#ana-lay), #ana.cat-hv .ana-top .lb:has(+#ana-mode), #ana.cat-hv .ana-top .lb:has(+#ana-met), #ana.cat-hv .ana-top .lb:has(+#ana-cmp){ display:none; }
 .ana-cat{ margin:0 6px 0 2px; } .ana-cat>button{ padding:6px 14px!important; font-weight:700; letter-spacing:.04em; }
 #ana-hv{ display:none; flex:1; min-height:0; grid-template-columns:minmax(0,1.25fr) minmax(320px,1fr); gap:10px; padding:10px; overflow:auto; }
 #ana-hv .hv-l, #ana-hv .hv-r{ display:flex; flex-direction:column; gap:10px; min-width:0; }

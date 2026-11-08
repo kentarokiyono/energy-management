@@ -195,3 +195,30 @@ const HVA={
   c.lineWidth=1.8; c.strokeStyle="#e6e6e3"; c.beginPath(); pts.forEach(([sx,d],i)=>{ const x=L+sx/len*PW, y=8+(1-(d-lo)/(hi-lo))*(H-26); i?c.lineTo(x,y):c.moveTo(x,y); }); c.stroke();
   if(this.cur!=null){ const px=L+this.cur/len*PW; c.strokeStyle="#fff"; c.lineWidth=1; c.beginPath(); c.moveTo(px,8); c.lineTo(px,H-20); c.stroke(); const a=this.timeAt(sel,this.cur), b=this.timeAt(cmp,this.cur); if(Number.isFinite(a-b)){ c.fillStyle=a-b>0?"#ef6a5a":"#34d399"; c.font="600 11px 'Chakra Petch',sans-serif"; c.fillText(`${a-b>0?"+":""}${(a-b).toFixed(2)} 秒`,Math.min(px+6,W-80),24); } } },
 };
+/* ---------- デモ (ヒドゥンバレー Hot Lap 10 周) ----------
+ 速度: カーブの曲がり具合 (横 G 0.55 まで) と、加速 (0.7 m/s²)・減速 (3 m/s²) の限界から。周ごとにコーナーの攻め方が少し変わる (後の周ほど速く、ときどきミス)。
+ 1 周目はスタンディングスタート、10 周目はピットに入る (IN LAP)。電力 = 走行抵抗 (戦略のモデル) + 加速の分 */
+HVA.demo=function(){
+ const T=HV.track(), n=T.n, len=T.len, ds=2, N=Math.ceil(len/ds), m=massTotal(), S={}; for(const k of HVRec.KEYS) S[k]=[];
+ let x=7; const rnd=()=>((x=(x*16807)%2147483647)/2147483647);
+ const at=(sx)=>{ sx=((sx%len)+len)%len; let lo=0,hi=n-1; while(hi-lo>1){ const md=(lo+hi)>>1; if(T.s[md]<=sx) lo=md; else hi=md; } return lo; };
+ const vcap=[]; for(let j=0;j<N;j++){ const i=at(j*ds); let c=0; for(let k=-4;k<=4;k++) c=Math.max(c,Math.abs(T.curv[(i+k+n)%n])); vcap.push(Math.min(80/3.6,Math.sqrt(0.55*9.81/Math.max(c,1e-4)))); }
+ let t=0, soc=100; const laps=[];
+ for(let L=0;L<10;L++){
+  const skill=0.93+0.05*Math.min(1,L/6)+0.01*(rnd()-0.5), miss= L>1&&rnd()<0.35? Math.floor(rnd()*N) : -1;
+  const sf=[0,1,2].map(()=>0.975+0.035*rnd()), [s1,s2]=this.sectors(), sec=(j)=>j*ds<s1? 0 : j*ds<s2? 1 : 2;   // セクターごとの出来 (周によって得意な所が変わる)
+  const vt=vcap.map((v,j)=>v*skill*sf[sec(j)]*(0.97+0.06*rnd())*(miss>=0&&Math.abs(j-miss)<25? 0.8 : 1)*(L===9&&j>N*0.85? 0.6 : 1));
+  const v=vt.slice(); if(L===0) v[0]=0.5;
+  for(let j=1;j<N;j++) v[j]=Math.min(v[j],Math.sqrt(v[j-1]**2+2*0.7*ds));   // 加速の限界
+  for(let j=N-2;j>=0;j--) v[j]=Math.min(v[j],Math.sqrt(v[j+1]**2+2*3.0*ds));   // 減速の限界
+  let lt=0, acc=0;
+  for(let j=0;j<N;j++){ const vv=Math.max(0.5,v[j]), dt=ds/vv, i=at(j*ds), p=T.pts[i], rr=T.right[i], lat=Math.sin(j*0.05+L)*0.8;
+   const a= j<N-1? (v[j+1]**2-vv**2)/(2*ds) : 0, gr=((T.pts[(i+2)%n].y-T.pts[i].y)/Math.max(1,T.s[(i+2)%n]-T.s[i]))||0;
+   const pm=Math.max(0,Strategy.drivePower(vv,gr)-P.auxW+(a>0? m*a*vv/0.9 : 0)), brk= a<-0.4? clamp(-a/3,0,1) : 0, thr= a>0.1? clamp(0.3+a,0,1) : 0.25;
+   soc-=pm*dt/3600/Math.max(500,P.batteryWh)*100;
+   acc+=dt; t+=dt; lt+=dt;
+   if(acc>=0.1){ acc=0; const row=[+t.toFixed(2),L,+lt.toFixed(2),+(j*ds).toFixed(1),+(p.x+rr[0]*lat).toFixed(1),+(p.z+rr[1]*lat).toFixed(1),+(vv*3.6).toFixed(1),Math.round(pm),+(pm/Math.max(60,VOC(soc/100))).toFixed(1),+soc.toFixed(2),+thr.toFixed(2),+brk.toFixed(2),+(vv*vv*Math.abs(T.curv[i])/9.81).toFixed(2),L===9&&j>N*0.85?1:0];
+    HVRec.KEYS.forEach((k,q)=>S[k].push(row[q])); } }
+  laps.push({n:L+1,t:+lt.toFixed(2),pit:L===9,tag:L===9?"IN LAP":"",end:S.t.length}); }
+ const run=Ana.hvRun({id:"hv-demo",name:"デモ Hot Lap 10 周 (サンプル)",date:"",kind:"hv",driver:"デモ 山本",hv:{kind:"circuit",laps,results:[],S}}); run.demo=true; run.stored=false;
+ return run; };
