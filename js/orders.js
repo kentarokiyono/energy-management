@@ -10,8 +10,9 @@
 const Orders={
  TOL:3, STEP:10, cur:null, hist:[], nextKm:0, el:null, last:null,
  on(){ return P.mode==="race"&&!P.event&&P.orders!==false; },
- start(){ this.cur=null; this.hist=[]; this.last=null; this.nextKm=Engine.st?Engine.st.km:0; this.ui(); },
+ start(){ this.cur=null; this.hist=[]; this.last=null; this.limDone=new Set(); this.nextKm=Engine.st?Engine.st.km:0; this.ui(); },
  frame(es,dtR){
+  this.limitNotice(es);
   if(!this.on()||!es||es.finished){ this.ui(); return; }
   const pause= es.camp||es.stopTimer>0||(Engine.gridWait&&Engine.gridWait())||(typeof Crew!=="undefined"&&Crew.busy());
   if(!this.cur){ if(!pause&&es.km>=this.nextKm&&es.v>1) this.issue(es); this.ui(); return; }
@@ -21,6 +22,15 @@ const Orders={
    if(ok&&c.react==null) c.react=(performance.now()-c.t0)/1000; }
   if(es.km>=c.k1) this.close(es);
   this.ui();
+ },
+ /* 制限速度の予告 (前方誘導車の無線): 制限速度が変わる地点の約 1 km 手前で 1 回だけ。速度指示を切っていても出す */
+ limDone:new Set(),
+ limitNotice(es){
+  if(!es||P.mode!=="race"||P.event||es.finished||es.v<1||es.camp||es.stopTimer>0) return;
+  const cur=speedLimitAt(es.km);
+  for(let k=es.km+0.05;k<=es.km+1.0;k+=0.05){ const l=speedLimitAt(k); if(l===cur) continue;
+   const key=Math.round(k*20); if(this.limDone.has(key)||this.limDone.has(key-1)||this.limDone.has(key+1)) return; this.limDone.add(key);
+   Radio.push(`この先 ${(k-es.km).toFixed(1)} km で制限速度 ${l} km/h (現在 ${cur} km/h)`,"前方誘導車"); return; }
  },
  /* 今の制限速度 (300 m 先までで一番低いもの) と、その制限が変わる地点 (k0 から最大 dist 先まで) */
  limitZone(k0,dist){ let lim=200; for(let k=k0;k<=k0+0.3;k+=0.05) lim=Math.min(lim,speedLimitAt(k));
