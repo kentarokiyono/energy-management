@@ -59,11 +59,11 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   const st=await p.evaluate(()=>{ const es=Engine.st, c=Scenario.cur, msgs=[]; const o=Radio.push; Radio.push=(m,w)=>msgs.push(w+": "+m);
    const g=c.gusts, w0=Scenario.stormWind(c,c.abs0).ms, wIn=Scenario.stormWind(c,c.abs0+c.sc.storm.in+(g[0][0]+5)/3600).ms;
    es.v=0; for(let t=c.abs0;t<c.abs0+c.sc.storm.in+0.05;t+=1/3600){ es.day=Math.floor(t/24)+1; es.hour=t-(es.day-1)*24; Scenario.stormRadio(c,es,t); }
-   Radio.push=o; return {sc:es.scenario,n:g.length,w0,wIn,scout:msgs.filter(m=>/^偵察車/.test(m)).length,lead:msgs.filter(m=>/^前方誘導車: 突風/.test(m)).length,hud:document.getElementById("hud-roll").style.display}; });
+   Radio.push=o; return {sc:es.scenario,n:g.length,w0,wIn,lv:c.lv,lvBtn:document.querySelectorAll("#seg-scnlv button").length,stdMax:Scenario.LEVELS.std.wind*c.sc.storm.max,fx:!!StormFx.grp,scout:msgs.filter(m=>/^偵察車/.test(m)).length,lead:msgs.filter(m=>/^前方誘導車: 突風/.test(m)).length,hud:document.getElementById("hud-roll").style.display}; });
   await p.evaluate(()=>{ Engine.st.weather={type:"squall",factor:0.06}; }); await p.waitForTimeout(2500);
   const rn=await p.evaluate(()=>({I:Rain.I,lines:Rain.lines&&Rain.lines.visible,fog:View.scene.fog.far,glass:document.getElementById("rain-glass").style.display}));
   check("雨: 雨筋・視界・ガラスの雨粒",rn.I>0.05&&rn.lines&&rn.fog<2000&&rn.glass==="block"&&noErr(p).length===0,JSON.stringify(rn)+" "+noErr(p).slice(0,2).join(" | "));
-  check("練習シナリオ: 暴風雨 (突風・偵察車と前方誘導車の警告)",st.sc==="storm"&&st.n>=10&&st.wIn>st.w0+8&&st.scout>=2&&st.lead>=1&&st.hud==="flex"&&noErr(p).length===0,JSON.stringify(st)+" "+noErr(p).slice(0,2).join(" | "));
+  check("練習シナリオ: 暴風雨 (突風・偵察車と前方誘導車の警告・難しさ・前ぶれ)",st.sc==="storm"&&st.lv==="real"&&st.lvBtn===2&&st.stdMax<20&&st.fx&&st.n>=10&&st.wIn>st.w0+8&&st.scout>=2&&st.lead>=1&&st.hud==="flex"&&noErr(p).length===0,JSON.stringify(st)+" "+noErr(p).slice(0,2).join(" | "));
   await p.evaluate(()=>{ Scenario.reset(); quitToMenu(); document.getElementById("scenario").value=""; }); await p.context().close(); }
  // ---- テレメトリ (同じ PC の別ウィンドウ): つながり、値が届き、監視側から指示を送れる。外部とは通信しない ----
  { const p=await newPage(b,base);

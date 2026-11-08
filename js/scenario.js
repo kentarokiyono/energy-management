@@ -22,6 +22,9 @@ const Scenario={
    brief:"Day6 14:12、Port Augusta の先 2790 km (ゴールまで 237 km)。2025 年に実際に起きた暴風雨 (突風 約 140 km/h) を想定。偵察車から「西から雷雨のセル。約 27 分後に暴風雨、突風は最大 140 km/h (39 m/s) 近く」。前方誘導車は突風の直前に知らせる。横転せずに 45 km 先まで行く。",
    tip:["いちばん強い突風は雨の降り始め (雷雨の前縁) に来る。雨が来る前に路肩に寄せて止まり、通り過ぎるのを待つのが基本。走ったままだと、ゆっくりでも 20 m/s 前後の突風で倒れることがある","止まってしばらくすると、誘導車と追走車が風上で風よけになり (風が半分)、クルーが車体を押さえる。140 km/h の突風でも、これで耐えられる","横風の力は走っているほど大きい (車の速度と風が合わさる)","突風で流されたとき、ハンドルを大きく切ると遠心力が横風に加わって倒れやすい。当て舵は小さく","画面の「横転」の % (危険度) が 60 % を超えたら、すぐに減速"]}},
  cur:null, id:null,
+ /* 暴風雨の難しさ: 実戦 = 実際の強さ / 標準 = 風は約半分 (30〜40 km/h なら耐えられる)・前方誘導車の予告が早い (実時間で約 6 秒前) */
+ LEVELS:{real:{name:"実戦",wind:1,lead:3},std:{name:"標準",wind:0.45,lead:6}},
+ level(){ const v=(document.getElementById("scn-level")||{}).value; return this.LEVELS[v]? v : "real"; },
  pick(){ const v=(document.getElementById("scenario")||{}).value; return v&&this.LIST[v]? v : null; },
  /* 走り始めの設定 (Engine.init の後): 場所・時刻・電池・天気・他チーム */
  apply(id){
@@ -33,16 +36,17 @@ const Scenario={
   const abs0=(sc.day-1)*24+sc.hour;
   s.weatherPlan=sc.wx.map(w=>({start:abs0+w.in,dur:w.dur,type:w.type,factor:w.factor})); s.fc=null;   // シナリオは予報どおり
   for(const tm of s.teams||[]){ tm.status="run"; tm.km=clamp(sc.km+(Math.random()-0.5)*60+(tm.spd-70)*0.8,0,TOTAL_KM-1); for(const cp of ROUTE) if(cp.cp&&cp.km<tm.km) tm.cs.add(cp.km); }
-  this.id=id; this.cur={sc,abs0,goal:sc.km+sc.dist,minSoc:sc.soc,off:0,hits:0,warned:{},done:false,t0:performance.now(),gusts:sc.storm? this.mkGusts(sc.storm) : null};
+  this.id=id; this.cur={sc,abs0,goal:sc.km+sc.dist,minSoc:sc.soc,off:0,hits:0,warned:{},done:false,t0:performance.now(),gusts:null,lv:this.level()};
+  if(sc.storm){ const L=this.LEVELS[this.cur.lv]; this.cur.st=Object.assign({},sc.storm,{mean:sc.storm.mean*L.wind,max:sc.storm.max*L.wind}); this.cur.gusts=this.mkGusts(this.cur.st); }
   s.tipMax=0;
-  Radio.push(`練習シナリオ「${sc.name}」: ${sc.brief}`,"チーフ");
+  Radio.push(`練習シナリオ「${sc.name}」${sc.storm&&this.cur.lv==="std"?" (標準: 風は実際の約半分)":""}: ${sc.brief}`,"チーフ");
  },
  /* 暴風雨の突風の並び [暴風域に入ってからの秒 (ゲーム内), 最大風速 m/s]。いちばん強いのは雨の降り始め (ガストフロント: 雷雨の前縁の突風) で、
   その後 50〜110 秒ごとに少しずつ弱まりながら続く (毎回同じ並び)。2025 年の映像でも、雨が降り始めた直後の突風で倒れている */
  mkGusts(st){ let x=7, t=75; const rnd=()=>((x=(x*16807)%2147483647)/2147483647), out=[[45,st.max]], T=st.dur*3600;
   while(t<T-30){ const f=Math.exp(-t/(T*0.45)); out.push([t,Math.min(st.max*0.9,st.mean*(1.05+0.3*rnd()+0.75*f))]); t+=50+60*rnd(); } return out; },
  /* 暴風雨の風 [m/s]: 前縁が来るまでは弱い (嵐の前の静けさ。直前 2 分で少し強まる)。中は平均 + 突風 (4 秒で強まり 3 秒続き 5 秒で弱まる)、抜けたら 10 分で収まる */
- stormWind(c,abs){ const st=c.sc.storm, base=c.sc.wind.ms, t=(abs-(c.abs0+st.in))*3600, T=st.dur*3600;
+ stormWind(c,abs){ const st=c.st||c.sc.storm, base=c.sc.wind.ms, t=(abs-(c.abs0+st.in))*3600, T=st.dur*3600;
   if(t<0) return {ms:base+(st.mean*0.5-base)*clamp(1+t/120,0,1),gust:0};
   if(t>T) return {ms:base+(st.mean-base)*clamp(1-(t-T)/600,0,1),gust:0};
   let g=0; for(const [t0,pk] of c.gusts){ const d=t-t0; if(d<-1||d>13) continue; const f= d<4? clamp(d/4,0,1) : d<7? 1 : clamp(1-(d-7)/5,0,1); g=Math.max(g,(pk-st.mean)*f); }
@@ -70,13 +74,13 @@ const Scenario={
  },
  /* 暴風雨の無線: 偵察車 (先の様子と到着までの時間)・前方誘導車 (突風の直前。前を走っているので先に分かる) */
  stormRadio(c,es,abs){
-  const st=c.sc.storm, t=(abs-(c.abs0+st.in))*3600, say=(k,msg,who)=>{ if(c.warned[k]) return; c.warned[k]=true; Radio.push(msg,who,{speak:true}); if(who==="前方誘導車") Snd.alarm(); };
+  const st=c.st||c.sc.storm, t=(abs-(c.abs0+st.in))*3600, say=(k,msg,who)=>{ if(c.warned[k]) return; c.warned[k]=true; Radio.push(msg,who,{speak:true}); if(who==="前方誘導車") Snd.alarm(); };
   const big=c.gusts.reduce((m,g)=>Math.max(m,g[1]),0);
   if(t>=-15*60&&t<-14*60) say("s15",`前方の雷雨セルが近づいています。約 15 分で暴風域。突風は最大 ${big.toFixed(0)} m/s (${(big*3.6).toFixed(0)} km/h) 前後の見込み。`,"偵察車");
   if(t>=-8*60&&t<-7*60) say("s8","あと約 8 分で暴風域。いちばん強い突風は雨の降り始めに来ます。走ったままでは危険です。雨が来る前に路肩に止めてください。","偵察車");
   if(t>=-120&&t<-60) say("s2","前方で雨が降り始めた。まもなく突風が来ます!","前方誘導車");
-  const lead=Math.max(8,3*(P.timeScale||1));   // 実時間で約 3 秒前
-  for(const [t0,pk] of c.gusts) if(pk>=20&&t>=t0-lead&&t<t0) say("g"+t0,`突風来ます!(約 ${pk.toFixed(0)} m/s・${(pk*3.6).toFixed(0)} km/h)${es.v*3.6>20?" 減速!":""}`,"前方誘導車");
+  const lead=Math.max(8,this.LEVELS[c.lv||"real"].lead*(P.timeScale||1));   // 実時間で約 3 秒前 (標準は 6 秒前)
+  for(const [t0,pk] of c.gusts) if(pk>=big*0.55&&t>=t0-lead&&t<t0) say("g"+t0,`突風来ます!(約 ${pk.toFixed(0)} m/s・${(pk*3.6).toFixed(0)} km/h)${es.v*3.6>20?" 減速!":""}`,"前方誘導車");
   if(t>=st.dur*3600&&t<st.dur*3600+60) say("end","暴風域を抜けます。風は弱まっていきます。","偵察車");
  },
  hit(){ if(this.cur) this.cur.hits++; },
@@ -100,7 +104,7 @@ const Scenario={
   rows.push(["接触",`${c.hits} 回`,pH]);
   rows.push(["横転の危険度 (最大)",`${Math.round(tm*100)} %${es.rolledOver?" (横転)":""}`,pR]);
   const el=document.getElementById("scn-result")||(()=>{ const d=document.createElement("div"); d.id="scn-result"; d.className="scn-res"; document.body.appendChild(d); return d; })();
-  el.innerHTML=`<div class="box"><div class="lb">練習シナリオ</div><h3>${escHtml(sc.name)} ${ok?"":"― 失敗"}</h3>
+  el.innerHTML=`<div class="box"><div class="lb">練習シナリオ</div><h3>${escHtml(sc.name)}${sc.storm?` (${this.LEVELS[c.lv||"real"].name})`:""} ${ok?"":"― 失敗"}</h3>
    ${why?`<div class="why">${escHtml(why)}</div>`:""}<div class="score"><b>${score}</b><span>/ 100</span></div>
    <div class="rows">${rows.map(r=>`<span>${r[0]}</span><span>${r[1]}</span><span class="${r[2]?"bad":"good"}">${r[2]?"-"+r[2]:"OK"}</span>`).join("")}</div>
    <div class="lb" style="margin-top:12px">ポイント</div><ul>${sc.tip.map(t=>`<li>${escHtml(t)}</li>`).join("")}</ul>
