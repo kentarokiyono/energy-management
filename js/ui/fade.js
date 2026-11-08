@@ -7,7 +7,7 @@ const Fade={
  el(){
   let e=document.getElementById("fade");
   if(!e){ e=document.createElement("div"); e.id="fade";
-   e.innerHTML=`<div class="fade-in"><img src="assets/img/logo-full.png" alt="Wakayama Univ. SOLAR CAR TEAM" class="fade-logo"><div class="fade-name">BWSC 3D RACING SIMULATOR</div><div class="fade-bar"><i></i></div></div>`;   // 正式なロゴ (元の色のまま。背景は明るい青のグラデーション)
+   e.innerHTML=`<div class="fade-in"><img src="assets/img/logo-full.png" alt="Wakayama Univ. SOLAR CAR TEAM" class="fade-logo"><div class="fade-name">BWSC 3D RACING SIMULATOR</div><div class="fade-bar"><i></i></div></div>`;   // 正式なロゴ (元の色のまま。背景は少し明るい紺のグラデーション)
    document.body.appendChild(e); }
   return e; },
  reduced(){ return typeof matchMedia==="function"&&matchMedia("(prefers-reduced-motion: reduce)").matches; },

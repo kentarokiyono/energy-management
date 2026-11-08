@@ -504,7 +504,7 @@ body.mon-on #setup-screen, body.mon-on #game-container, body.mon-on #fade{ displ
 @media (max-width:900px){ #ana-hv{ grid-template-columns:1fr; } #hv-map{ height:280px; } }
 
 /* ロゴの紺: 文字・線には使わず、面に薄く (ブランドの場所と、大事な欄の地色) */
-#fade{ background:radial-gradient(ellipse 75% 65% at 50% 45%,#f4f7fe 0%,#dde6f8 45%,#a9bce8 100%); }
+#fade{ background:radial-gradient(ellipse 75% 65% at 50% 45%,#22305a 0%,#18203a 50%,#0e1220 100%); }   /* 少し明るい紺 (白は目に悪いので暗いまま) */
 .menu .l{ background:linear-gradient(180deg,rgba(29,63,163,.20),rgba(29,63,163,0) 340px); }
 .ana-top{ background:linear-gradient(90deg,rgba(29,63,163,.30),rgba(29,63,163,.06) 45%,rgba(29,63,163,0) 75%),#111316; }
 #mon header{ background:linear-gradient(90deg,rgba(29,63,163,.30),rgba(29,63,163,0) 70%); padding:6px 10px; }
@@ -512,5 +512,4 @@ body.mon-on #setup-screen, body.mon-on #game-container, body.mon-on #fade{ displ
 .mode.active, .card-select.active{ background:linear-gradient(90deg,var(--brand-a),rgba(29,63,163,.04)),var(--pn2); }
 .card2>.hd, .scn-res .box>.lb{ background:linear-gradient(90deg,rgba(29,63,163,.28),rgba(29,63,163,0)); margin:-2px -4px 6px; padding:6px 8px; }
 #fade .fade-logo{ width:min(560px,84vw); height:auto; }
-#fade .fade-name{ font:600 12px var(--fn); letter-spacing:.32em; color:#3b4f86; }
-#fade .fade-bar{ background:rgba(29,63,163,.18)!important; }
+#fade .fade-name{ font:600 12px var(--fn); letter-spacing:.32em; color:var(--tx2); }
