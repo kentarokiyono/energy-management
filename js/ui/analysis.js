@@ -5,7 +5,7 @@
  ・グラフ: なぞると地図に地点、ドラッグで区間を選ぶ (ダブルクリックで解除)、ホイールで拡大
  ・右の欄: 区間の集計・比較する走行との差・ドライバーごとの特性 */
 const Ana={
- runs:[], cur:0, cmp:-1, layout:"A", metric:"v", mapMode:"band", sel:null, cursor:null, xr:null, built:false, zoomDay:null, hidden:new Set(),
+ runs:[], cur:0, cmp:-1, cat:"race", curBy:{}, layout:"A", metric:"v", mapMode:"band", sel:null, cursor:null, xr:null, built:false, zoomDay:null, hidden:new Set(),
  /* ---------- 保存 (この端末のブラウザ内 IndexedDB): 読み込んだ CSV と、名前・日付を編集した走行 ---------- */
  DB:{
   open(){ if(this.p) return this.p; this.p=new Promise(res=>{ try{ const q=indexedDB.open("bwsc-runs",1); q.onupgradeneeded=()=>q.result.createObjectStore("runs",{keyPath:"id"}); q.onsuccess=()=>res(q.result); q.onerror=()=>res(null); }catch(e){ res(null); } }); return this.p; },
@@ -129,7 +129,7 @@ const Ana={
  build(){
   if(this.built) return; this.built=true;
   const el=document.createElement("div"); el.id="ana"; el.innerHTML=`
-  <div class="ana-top"><img src="assets/img/logo.svg" class="logo" width="54" alt=""><span class="ana-ttl">RUN ANALYSIS</span>
+  <div class="ana-top"><img src="assets/img/logo.svg" class="logo" width="54" alt=""><span class="ana-ttl">RUN ANALYSIS</span><div class="seg ana-cat" id="ana-cat"><button data-c="race">本戦</button><button data-c="hv">ヒドゥンバレー</button></div>
    <span class="lb">走行</span><select id="ana-run"></select><button class="btn ana-sm ana-ico" id="ana-edit" title="名前・日付を編集">${ic("edit")}</button><button class="btn ana-sm ana-ico" id="ana-del" title="この走行を削除">${ic("trash")}</button>
    <span class="lb">比較</span><select id="ana-cmp"></select>
    <button class="btn ana-sm" id="ana-demo" title="お試し用のデモ走行を追加">${ic("play")}デモ</button>
@@ -150,10 +150,11 @@ const Ana={
   seg("ana-lay","layout"); seg("ana-mode","mapMode",()=>this.map&&(this.map.dirty=true)); seg("ana-met","metric",()=>this.map&&(this.map.dirty=true));
   document.getElementById("ana-run").onchange=e=>{ this.stopPlay(); this.play.t=null; this.cur=+e.target.value; this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); };
   document.getElementById("ana-cmp").onchange=e=>{ this.cmp=+e.target.value; this.render(); };
-  document.getElementById("ana-demo").onclick=()=>{ try{ localStorage.removeItem("bwsc_ana_nodemo"); }catch(e){} this.emptied=false; this.addDemo(); };
+  document.getElementById("ana-cat").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b||b.dataset.c===this.cat) return; const c=b.dataset.c; this.stopPlay(); Fade.go(()=>this.setCat(c)); });   // 本戦 / ヒドゥンバレー (フェードで切り替え)
+  document.getElementById("ana-demo").onclick=()=>{ if(this.cat==="hv"){ try{ localStorage.removeItem("bwsc_ana_nodemo_hv"); }catch(e){} this.addHVDemo(); return; } try{ localStorage.removeItem("bwsc_ana_nodemo"); }catch(e){} this.emptied=false; this.addDemo(); };
   document.getElementById("ana-all").onclick=()=>{ this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); };
   document.getElementById("ana-file").onchange=async e=>{ for(const f of e.target.files){ try{ const buf=await f.arrayBuffer(); let txt; try{ txt=new TextDecoder("utf-8",{fatal:true}).decode(buf); }catch(x){ txt=new TextDecoder("shift_jis").decode(buf); }   // Excel の CSV (Shift_JIS) も読む
-     const run=this.parseCSV(txt,f.name.replace(/\.csv$/i,""),this.ymd(f.lastModified||Date.now())); this.runs.push(run); this.cur=this.runs.length-1; this.save(run); }catch(err){ toast("読み込めません: "+escHtml(f.name)+" ― "+escHtml(err.message),"#ef4444"); } }
+     const run=this.parseCSV(txt,f.name.replace(/\.csv$/i,""),this.ymd(f.lastModified||Date.now())); this.runs.push(run); this.cur=this.runs.length-1; this.cat="race"; this.save(run); }catch(err){ toast("読み込めません: "+escHtml(f.name)+" ― "+escHtml(err.message),"#ef4444"); } }
    e.target.value=""; this.sel=null; this.xr=null; this.map&&(this.map.dirty=true); this.render(); };
   addEventListener("resize",()=>{ if(this.isOpen()) this.render(); });
   // 画面の回転・表示領域の変化 (スマホ) でも描き直す
@@ -200,7 +201,7 @@ const Ana={
     const c=RP_CS[ci]; if(c&&km>=c.km){ charge(0.5,"CS"); ci++; drv=(drv+1)%2; vPrev=0; }
    }
   } finally{ s.dayOfYear=save.doy; s.km=save.km; s.weather=save.w; s.tiltDeg=save.tilt; }
-  const run=this.prep({id:"demo",name:"デモ走行 (サンプル)",date:"",rows,demo:true}); this.runs.push(run); this.cur=this.runs.length-1;
+  const run=this.prep({id:"demo",name:"デモ走行 (サンプル)",date:"",rows,demo:true}); this.runs.push(run); this.cur=this.runs.length-1; this.cat="race";
   this.sel=null; this.xr=null; this.map&&(this.map.dirty=true); this.render(); toast("デモ走行を追加しました","#34d399");
  },
  async open(){
@@ -214,6 +215,12 @@ const Ana={
   let off=false; try{ off=localStorage.getItem("bwsc_ana_nodemo")==="1"; }catch(e){}
   if(!this.runs.length&&!this.emptied&&!off) this.addDemo();
   if(this.cur>=this.runs.length) this.cur=0;
+  // 開いたときの分類: 予選・車検モードから開いたらヒドゥンバレー、それ以外は前回の分類
+  let c=null; try{ c=localStorage.getItem("bwsc_ana_cat"); }catch(e){} if(P.mode==="test"&&!P.event) c="hv"; else if(live) c="race";
+  this.cat= c==="hv"? "hv" : "race";
+  if(this.cat==="hv"&&!this.inCat("hv").length){ let off=false; try{ off=localStorage.getItem("bwsc_ana_nodemo_hv")==="1"; }catch(e){} if(!off&&typeof HVA!=="undefined") this.runs.push(HVA.demo()); }
+  const L=this.inCat(); if(!L.some(([,i])=>i===this.cur)) this.cur= L.length? L[L.length-1][1] : -1;
+  if(live&&this.cat==="race"){ const i=this.runs.findIndex(r=>r.id===live.id); if(i>=0) this.cur=i; }
   this.map&&(this.map.dirty=true); this.render();
  },
  /* 名前・日付の編集と削除 */
@@ -228,10 +235,10 @@ const Ana={
  deleteRun(){ const run=this.run(); if(!run) return;
   if(!confirm(`「${run.name}」を削除します。元に戻せません。`)) return;
   if(run.live) this.hidden.add(run.id);
-  if(run.demo) try{ localStorage.setItem("bwsc_ana_nodemo","1"); }catch(e){}
+  if(run.demo) try{ localStorage.setItem(run.kind==="hv"?"bwsc_ana_nodemo_hv":"bwsc_ana_nodemo","1"); }catch(e){}
   this.DB.del(run.id); const i=this.cur; this.runs.splice(i,1);
   if(this.cmp===i) this.cmp=-1; else if(this.cmp>i) this.cmp--;
-  this.cur=Math.max(0,Math.min(i,this.runs.length-1)); if(!this.runs.length) this.emptied=true;
+  { const L=this.inCat(); this.cur= L.length? (L.find(([,j])=>j>=i)||L[L.length-1])[1] : -1; } if(!this.runs.length) this.emptied=true;
   this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); toast("削除しました","#8b9097"); },
  close(){ this.stopPlay(); const e=document.getElementById("ana"); if(e) e.classList.remove("on"); },
  /* ---------- 走りの再生: 走行ログの時刻に沿って、地図の上の印・グラフの縦線・数値を動かす (早送り) ---------- */
@@ -267,13 +274,26 @@ const Ana={
   document.getElementById("ana-pr").innerHTML=`<b>Day${day} ${String(Math.floor(hh)).padStart(2,"0")}:${String(Math.floor(hh%1*60)).padStart(2,"0")}</b> ${k.toFixed(1)} km ・ ${(L(a.v,b.v)||0).toFixed(0)} km/h ・ SOC ${(L(a.soc,b.soc)||0).toFixed(1)} % ・ ${escHtml(b.st||"")}${b.drv&&b.drv!=="―"?" ・ "+escHtml(b.drv):""}`;
   const sl=document.getElementById("ana-ps"); sl.value=String(Math.round((t-R[0].abs)/(R[R.length-1].abs-R[0].abs)*1000));
  },
- run(){ return this.runs[this.cur]; }, cmpRun(){ return this.cmp>=0&&this.cmp!==this.cur? this.runs[this.cmp] : null; },
+ /* データの分類: 本戦 (レースの走行ログ・CSV・デモ) / ヒドゥンバレー (予選・車検モード) */
+ catOf(r){ return r&&r.kind==="hv"? "hv" : "race"; },
+ inCat(c){ return this.runs.map((r,i)=>[r,i]).filter(([r])=>this.catOf(r)===(c||this.cat)); },
+ /* ヒドゥンバレーのデモ (10 周) */
+ addHVDemo(){ if(typeof HVA==="undefined") return; let i=this.runs.findIndex(r=>r.id==="hv-demo"); if(i<0){ this.runs.push(HVA.demo()); i=this.runs.length-1; } this.cur=i; this.cat="hv"; this.render(); toast("デモ走行 (10 周) を追加しました","#34d399"); },
+ setCat(c){ if(c!=="race"&&c!=="hv") return; if(this.runs[this.cur]&&this.catOf(this.runs[this.cur])===this.cat) this.curBy[this.cat]=this.runs[this.cur].id;
+  this.cat=c; try{ localStorage.setItem("bwsc_ana_cat",c); }catch(e){}
+  if(c==="hv"&&!this.inCat("hv").length){ let off=false; try{ off=localStorage.getItem("bwsc_ana_nodemo_hv")==="1"; }catch(e){} if(!off&&typeof HVA!=="undefined") this.runs.push(HVA.demo()); }   // 走行が無いときはデモを出す
+  const L=this.inCat(c), keep=L.find(([r])=>r.id===this.curBy[c]); this.cur= keep? keep[1] : L.length? L[L.length-1][1] : -1;
+  if(this.cmp>=0&&this.catOf(this.runs[this.cmp])!==c) this.cmp=-1;
+  this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); },
+ run(){ const r=this.runs[this.cur]; return r&&this.catOf(r)===this.cat? r : null; }, cmpRun(){ return this.cmp>=0&&this.cmp!==this.cur? this.runs[this.cmp] : null; },
  render(){
   const run=this.run(), body=document.getElementById("ana-body");
   body.className="ana-body "+this.layout; document.getElementById("ana-empty").style.display=run?"none":"flex";
   for(const [id,v] of [["ana-lay",this.layout],["ana-mode",this.mapMode],["ana-met",this.metric]]) document.querySelectorAll(`#${id} button`).forEach(b=>b.classList.toggle("on",b.dataset.v===v));
-  const opt=(sel,list,v,none)=>{ sel.innerHTML=(none?`<option value="-1">比較なし</option>`:"")+list.map((r,i)=>`<option value="${i}">${escHtml(this.label(r))}</option>`).join(""); sel.value=String(v); };
-  opt(document.getElementById("ana-run"),this.runs,this.cur,false); opt(document.getElementById("ana-cmp"),this.runs,this.cmp,true);
+  const L=this.inCat(), opt=(sel,v,none)=>{ sel.innerHTML=(none?`<option value="-1">比較なし</option>`:"")+(L.length||none? L.map(([r,i])=>`<option value="${i}">${escHtml(this.label(r))}</option>`).join("") : `<option value="-1">―</option>`); sel.value=String(v); };
+  opt(document.getElementById("ana-run"),run?this.cur:-1,false); opt(document.getElementById("ana-cmp"),this.cmp,true);
+  document.querySelectorAll("#ana-cat button").forEach(b=>b.classList.toggle("on",b.dataset.c===this.cat)); document.getElementById("ana").classList.toggle("cat-hv",this.cat==="hv");
+  document.getElementById("ana-empty").textContent= this.cat==="hv"? "ヒドゥンバレーの走行がありません。予選・車検モードで走ると、自動で記録されます。" : "本戦の走行ログがありません。レースモードで走るか、CSV を読み込むか、デモを追加してください。";
   for(const id of ["ana-edit","ana-del"]) document.getElementById(id).disabled=!run;
   this.playUI();
   const hv=!!run&&run.kind==="hv"; document.getElementById("ana").classList.toggle("hvm",hv);
@@ -496,7 +516,7 @@ const Ana={
    const pts=[]; for(let i=0;i<ring.length;i+=2) pts.push(new THREE.Vector3(X(ring[i]),0.05,Z(ring[i+1]))); sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x4a4f56}))); }
   const grid=new THREE.GridHelper(800,40,0x1f2226,0x1f2226); grid.position.y=-0.05; sc.add(grid);
   const P=[]; for(let k=0;k<=Math.ceil(TOTAL_KM);k++){ const q=profileAt(Math.min(k,TOTAL_KM)); P.push([X(q.lon),Z(q.lat)]); }
-  for(const c of RP_CS){ const q=profileAt(c.km), m=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.4,1.4),new THREE.MeshBasicMaterial({color:0xf26b1d})); m.position.set(X(q.lon),0.7,Z(q.lat)); sc.add(m); }
+  for(const c of RP_CS){ const q=profileAt(c.km), m=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.4,1.4),new THREE.MeshBasicMaterial({color:0xf5b51c})); m.position.set(X(q.lon),0.7,Z(q.lat)); sc.add(m); }
   const grp=new THREE.Group(); sc.add(grp);
   const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,1,8),new THREE.MeshBasicMaterial({color:0xffffff})); pole.visible=false; sc.add(pole);
   const cam=new THREE.PerspectiveCamera(38,1,1,4000), view={th:0.42,ph:0.98,d:330,tx:X(134.6),tz:Z(-24.6)};
@@ -577,8 +597,8 @@ const Ana={
  rowAt(run,k){ const R=run.rows; let lo=0,hi=R.length-1; while(lo<hi){ const m=(lo+hi)>>1; if(R[m].km<k) lo=m+1; else hi=m; } return R[lo]; },
  /* ---------- 距離軸のグラフ ---------- */
  ROWS:{
-  A:[{n:"速度 km/h",lo:20,hi:135,s:[{k:"lim",c:"#3a3e44",dash:1},{k:"v",c:"#f26b1d",w:1.4}]},{n:"SOC %",lo:0,hi:100,s:[{k:"soc",c:"#e6e6e3",w:1.5}]},{n:"収支 W",lo:-1000,hi:1000,s:[{k:"net",c:"#5cb85c"}],zero:1}],
-  B:[{n:"標高 m",lo:0,hi:800,s:[{k:"el",c:"#5cb85c"}]},{n:"速度 km/h",lo:20,hi:135,s:[{k:"lim",c:"#3a3e44",dash:1},{k:"v",c:"#f26b1d",w:1.4}]},{n:"SOC %",lo:0,hi:100,s:[{k:"soc",c:"#e6e6e3",w:1.5}]},
+  A:[{n:"速度 km/h",lo:20,hi:135,s:[{k:"lim",c:"#3a3e44",dash:1},{k:"v",c:"#f5b51c",w:1.4}]},{n:"SOC %",lo:0,hi:100,s:[{k:"soc",c:"#e6e6e3",w:1.5}]},{n:"収支 W",lo:-1000,hi:1000,s:[{k:"net",c:"#5cb85c"}],zero:1}],
+  B:[{n:"標高 m",lo:0,hi:800,s:[{k:"el",c:"#5cb85c"}]},{n:"速度 km/h",lo:20,hi:135,s:[{k:"lim",c:"#3a3e44",dash:1},{k:"v",c:"#f5b51c",w:1.4}]},{n:"SOC %",lo:0,hi:100,s:[{k:"soc",c:"#e6e6e3",w:1.5}]},
    {n:"電力 W (発電 / モーター)",lo:0,hi:2000,s:[{k:"ps",c:"#e2b21f"},{k:"pm",c:"#d23a2e"}]},{n:"日射 W/m²",lo:0,hi:1100,s:[{k:"ghi",c:"#c9ccd0"}]}]},
  initCharts(){
   const cv=document.getElementById("ana-cv2"); let drag=null;
@@ -603,7 +623,7 @@ const Ana={
   const rows=this.ROWS[this.layout], L=60, PW=W-L-20, rh=(H-28)/rows.length, [x0,x1]=this.xr, X=(k)=>L+(k-x0)/(x1-x0)*PW;
   this.cg={L,PW,rh,rows:rows.length,X,H};
   c.font="500 11px 'Chakra Petch','BIZ UDPGothic',sans-serif";
-  if(this.sel){ c.fillStyle="rgba(242,107,29,.12)"; c.fillRect(X(this.sel[0]),0,X(this.sel[1])-X(this.sel[0]),H-28); }
+  if(this.sel){ c.fillStyle="rgba(245,181,28,.12)"; c.fillRect(X(this.sel[0]),0,X(this.sel[1])-X(this.sel[0]),H-28); }
   rows.forEach((row,ri)=>{ const y0=ri*rh, Y=(v)=>y0+rh-6-(v-row.lo)/(row.hi-row.lo)*(rh-18);
    c.fillStyle="#8b9097"; c.fillText(row.n,8,y0+14); c.strokeStyle="#1f2226"; c.beginPath(); c.moveTo(L,y0+rh-0.5); c.lineTo(W-20,y0+rh-0.5); c.stroke();
    if(row.zero){ c.strokeStyle="#2a2d32"; c.beginPath(); c.moveTo(L,Y(0)); c.lineTo(W-20,Y(0)); c.stroke(); }
@@ -618,7 +638,7 @@ const Ana={
    c.save(); c.beginPath(); c.rect(L,y0,PW,rh); c.restore(); });
   c.fillStyle="#8b9097"; const span=x1-x0, step=[1,2,5,10,20,50,100,200,500].find(s=>span/s<=10)||500;
   for(let k=Math.ceil(x0/step)*step;k<=x1;k+=step) c.fillText(k+" km",X(k)-12,H-10);
-  for(const q of RP_CS) if(q.km>=x0&&q.km<=x1){ c.fillStyle="#f26b1d"; c.fillRect(X(q.km)-3,H-26,6,6); }
+  for(const q of RP_CS) if(q.km>=x0&&q.km<=x1){ c.fillStyle="#f5b51c"; c.fillRect(X(q.km)-3,H-26,6,6); }
   this.drawCursor(); this.drawNav(W,dpr);
  },
  TOP:30, NAV:46,
@@ -649,8 +669,8 @@ const Ana={
   c.drawImage(this._navBg.cv,0,0,W,NH);
   const a=X(this.xr[0]), b=X(this.xr[1]);
   c.fillStyle="rgba(0,0,0,.45)"; c.fillRect(L,y0,a-L,h); c.fillRect(b,y0,L+PW-b,h);
-  c.fillStyle="rgba(242,107,29,.12)"; c.fillRect(a,y0,b-a,h); c.strokeStyle="#f26b1d"; c.lineWidth=1.5; c.strokeRect(a+.5,y0+.5,Math.max(1,b-a-1),h-1);
-  c.fillStyle="#f26b1d"; for(const x of [a,b]) c.fillRect(x-3,y0+h/2-9,6,18);
+  c.fillStyle="rgba(245,181,28,.12)"; c.fillRect(a,y0,b-a,h); c.strokeStyle="#f5b51c"; c.lineWidth=1.5; c.strokeRect(a+.5,y0+.5,Math.max(1,b-a-1),h-1);
+  c.fillStyle="#f5b51c"; for(const x of [a,b]) c.fillRect(x-3,y0+h/2-9,6,18);
   c.fillStyle="#8b9097"; c.font="500 10px 'Chakra Petch',sans-serif"; c.fillText("範囲",8,y0+h/2+4);
  },
  initNav(){
@@ -672,12 +692,12 @@ const Ana={
   this.xr=[a,b]; },
  drawCursor(){
   const cv=document.getElementById("ana-cv2"), g=this.cg; if(!g) return; const c=cv.getContext("2d"), dpr=cv.width/cv.clientWidth||1; c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,cv.clientWidth,cv.clientHeight);
-  if(this.sel){ c.strokeStyle="#f26b1d"; c.lineWidth=1; for(const k of this.sel){ c.beginPath(); c.moveTo(g.X(k),0); c.lineTo(g.X(k),g.H-28); c.stroke(); } }
+  if(this.sel){ c.strokeStyle="#f5b51c"; c.lineWidth=1; for(const k of this.sel){ c.beginPath(); c.moveTo(g.X(k),0); c.lineTo(g.X(k),g.H-28); c.stroke(); } }
   const k=this.cursor, run=this.run(); if(k==null||!run) return; const x=g.X(k); if(x<g.L||x>g.L+g.PW) return;
   c.strokeStyle="#fff"; c.beginPath(); c.moveTo(x,0); c.lineTo(x,g.H-28); c.stroke();
   const r=this.rowAt(run,k); if(!r) return;
   const txt=`${r.km.toFixed(1)} km ・ ${r.v.toFixed(0)} km/h ・ SOC ${r.soc.toFixed(1)} % ・ ${r.net>0?"+":""}${(r.net||0).toFixed(0)} W ・ ${r.drv}`;
   c.font="700 11px 'Chakra Petch','BIZ UDPGothic',sans-serif"; const w=c.measureText(txt).width+12, bx=Math.min(x+8,g.L+g.PW-w);
-  c.fillStyle="rgba(21,23,26,.92)"; c.fillRect(bx,4,w,20); c.strokeStyle="#f26b1d"; c.strokeRect(bx+0.5,4.5,w-1,19); c.fillStyle="#e6e6e3"; c.fillText(txt,bx+6,18);
+  c.fillStyle="rgba(21,23,26,.92)"; c.fillRect(bx,4,w,20); c.strokeStyle="#f5b51c"; c.strokeRect(bx+0.5,4.5,w-1,19); c.fillStyle="#e6e6e3"; c.fillText(txt,bx+6,18);
  },
 };
