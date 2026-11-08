@@ -55,7 +55,7 @@ for(let i=0;i<12;i++){
 }
 this.aiPool=[]; this.aiMeshes=new Map();   // 表示枠 10 台。車の形はチームごとに作って使い回す
 for(let i=0;i<10;i++) this.aiPool.push({mesh:null,team:null});
-this.roadTrains.length=0; this.rollT=0;
+this.roadTrains.length=0; this.rollT=0; if(typeof Rain!=="undefined") Rain.reset();
 this.lmMap.clear(); this.redSignalKm=null; this.inPit=false; this.pitBlend=0; this.fireOn=false;
 this.resetRoad();
 addEventListener("resize",()=>{
@@ -906,6 +906,7 @@ this.hemiLight.intensity=clamp(Math.sin(alt)*0.9,0.12,0.8)*(es.weather?0.6:1);
 // 車体などに映る空 (時刻・天気・土地の色に合わせて作り直す。画質「低」は作らない)
 EnvLight.update(this.renderer,this.scene,top,hor,new THREE.Color(biomeAt(es.km).soil),this.sun.position.clone().sub(this.car.position).normalize(),clamp(Math.sin(alt)*1.3,0,1)*(es.weather?0.2:1),this.sunLight.color);
 this.updateEnvironment(es,pHere,alt,hor);
+if(typeof Rain!=="undefined") Rain.update(this,es,dtR);   // 雨 (雨筋・しぶき・濡れた路面・視界・ガラスの雨粒・音・雷)
 this.updateLandmarks(es);
 this.updateRoadTrains(es,dtR);
 // 前方誘導車: 通常は150m前。信号で先に抜けて赤で分断されたら、その場でハザードを点けて停車し待機

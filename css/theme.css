@@ -227,6 +227,7 @@ body.touch-on #hud-limit-wrap{ top:8px; }
  #ask-panel{ z-index:31; }
 }
 #three-canvas{ touch-action:none; }
+#rain-glass{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; display:none; z-index:1; }
 body.touch-on #crew-ui{ right:auto!important; left:8px; top:150px!important; max-width:300px!important; font-size:11px!important; line-height:1.55!important; padding:8px 12px!important; }
 #game-container, #game-container *{ touch-action:none; }
 #map-ov .tb, #map-ov .tb *{ touch-action:pan-y; }
