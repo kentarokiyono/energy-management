@@ -1,7 +1,8 @@
 "use strict";
 /* ============ 戦略班の無線指示と採点 ============
- レース中、10 km ごとに戦略班が「時速 X km・電流 Y A」だけを伝える。
-  X = 電池が持つ最も速い巡航速度 (戦略の先読み。天気予報・日射・CS・夜の充電を含む)。この先 10 km で一番長く続く制限速度を超えない
+ レース中、10 km ごと と 制限速度 (法定速度) が変わる地点で、戦略班が「時速 X km・電流 Y A」だけを伝える。
+  X = 電池が持つ最も速い巡航速度 (戦略の先読み。天気予報・日射・CS・夜の充電を含む)。今いる所 (と 300 m 先まで) の制限速度を超えない。
+   指示の区間は、制限速度が変わる地点で区切る (変わったらすぐに次の指示)
   Y = その速度を保つのに必要な指令電流 (この先 10 km の平均勾配と、今の向かい風で計算)
  指示の区間のあいだ、速度が ±3 km/h に入っていた時間の割合・平均のずれ・実際の平均電流で採点する。
  区間が終わるたびに、速度パネルの上の表示の 2 行目に評価 (A / B / C) を出す (無線では伝えない)。平均はレースの結果画面にも出す。
@@ -9,8 +10,9 @@
 const Orders={
  TOL:3, STEP:10, cur:null, hist:[], nextKm:0, el:null, last:null,
  on(){ return P.mode==="race"&&!P.event&&P.orders!==false; },
- start(){ this.cur=null; this.hist=[]; this.last=null; this.nextKm=Engine.st?Engine.st.km:0; this.ui(); },
+ start(){ this.cur=null; this.hist=[]; this.last=null; this.limDone=new Set(); this.nextKm=Engine.st?Engine.st.km:0; this.ui(); },
  frame(es,dtR){
+  this.limitNotice(es);
   if(!this.on()||!es||es.finished){ this.ui(); return; }
   const pause= es.camp||es.stopTimer>0||(Engine.gridWait&&Engine.gridWait())||(typeof Crew!=="undefined"&&Crew.busy());
   if(!this.cur){ if(!pause&&es.km>=this.nextKm&&es.v>1) this.issue(es); this.ui(); return; }
@@ -21,8 +23,19 @@ const Orders={
   if(es.km>=c.k1) this.close(es);
   this.ui();
  },
- /* この先 10 km で一番長く続く制限速度 */
- limitAhead(k0,dist){ const m=new Map(); for(let k=k0;k<k0+dist;k+=0.1){ const l=speedLimitAt(k); m.set(l,(m.get(l)||0)+1); } let best=130,n=-1; for(const [l,c] of m) if(c>n){ n=c; best=l; } return best; },
+ /* 制限速度の予告 (前方誘導車の無線): 制限速度が変わる地点の約 1 km 手前で 1 回だけ。速度指示を切っていても出す */
+ limDone:new Set(),
+ limitNotice(es){
+  if(!es||P.mode!=="race"||P.event||es.finished||es.v<1||es.camp||es.stopTimer>0) return;
+  const cur=speedLimitAt(es.km);
+  for(let k=es.km+0.05;k<=es.km+1.0;k+=0.05){ const l=speedLimitAt(k); if(l===cur) continue;
+   const key=Math.round(k*20); if(this.limDone.has(key)||this.limDone.has(key-1)||this.limDone.has(key+1)) return; this.limDone.add(key);
+   Radio.push(`この先 ${(k-es.km).toFixed(1)} km で制限速度 ${l} km/h (現在 ${cur} km/h)`,"前方誘導車"); return; }
+ },
+ /* 今の制限速度 (300 m 先までで一番低いもの) と、その制限が変わる地点 (k0 から最大 dist 先まで) */
+ limitZone(k0,dist){ let lim=200; for(let k=k0;k<=k0+0.3;k+=0.05) lim=Math.min(lim,speedLimitAt(k));
+  const l0=speedLimitAt(k0+0.3); let end=k0+dist; for(let k=k0+0.35;k<k0+dist;k+=0.05) if(speedLimitAt(k)!==l0){ end=k; break; }
+  return {lim,end:Math.max(end,k0+0.5)}; },
  /* 速度 v [km/h] を保つ指令電流 [A]: 必要な電力 (転がり・空気 (向かい風込み)・勾配・損失。補機は除く) ÷ 電池電圧 */
  current(es,v,k0,dist){
   const vms=v/3.6, gr=(profileAt(Math.min(TOTAL_KM,k0+dist)).elev-profileAt(k0).elev)/(dist*1000), head=Number.isFinite(es.lastHead)? es.lastHead : 0;
@@ -30,9 +43,10 @@ const Orders={
   W*=clamp(Number.isFinite(P.ordersK)?P.ordersK:1,0.5,2);   // 走行ログとの合わせ込みの補正 (分析画面の「電流の指示に使う」)
   const Vb=es.lastVterm>0? es.lastVterm : VOC(es.soc); return clamp(Math.max(0,W)/(Vb*0.99),0,motorMaxA(es.powerMode)); },
  issue(es){
-  const dist=Math.min(this.STEP,TOTAL_KM-es.km); if(dist<1) return;
+  const dmax=Math.min(this.STEP,TOTAL_KM-es.km); if(dmax<0.5) return;
+  const Z=this.limitZone(es.km,dmax), dist=Z.end-es.km;   // 制限速度が変わる地点で区切る
   const plan=typeof Strategy!=="undefined"? Strategy.plan(true) : null;
-  let v=Math.round(plan? Strategy.speedFor(plan,es.km,dist,es.soc,es.lastSolar||0) : 70); v=Math.min(v,this.limitAhead(es.km,dist));   // 速度配分 (勾配で変わる) をこの 10 km で平均
+  let v=Math.round(plan? Strategy.speedFor(plan,es.km,dist,es.soc,es.lastSolar||0) : 70); v=Math.min(v,Z.lim);   // 速度配分 (勾配で変わる) を区間で平均し、制限速度を超えない
   const I=this.current(es,v,es.km,dist);
   this.cur={v,I,k0:es.km,k1:es.km+dist,in:0,tot:0,dev:0,iSum:0,react:null,t0:performance.now()};
   Radio.push(`時速 ${v} km・電流 ${I.toFixed(1)} A`,"戦略班",{speak:true}); if(Snd.radioBeep) Snd.radioBeep();

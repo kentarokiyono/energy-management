@@ -43,6 +43,9 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   const rs=await p.evaluate(()=>({on:document.getElementById("scn-result").classList.contains("on"),last:Scenario.last}));
   check("練習シナリオ: 開始と採点",Math.abs(sc.km-760)<0.5&&sc.day===2&&sc.ts===12&&sc.wx===1&&!sc.real&&rs.on&&rs.last&&rs.last.score>=0,JSON.stringify({sc,rs}));
   check("無線の速度指示",od.cur&&od.ui==="flex",JSON.stringify(od));
+  const ln=await p.evaluate(()=>{ const es=Engine.st, keep={km:es.km,st:es.stopTimer,camp:es.camp}, msgs=[]; const o=Radio.push; Radio.push=(m,w)=>{ if(w==="前方誘導車"&&/制限速度/.test(m)) msgs.push(m); };
+   es.stopTimer=0; es.camp=false; es.v=20; Orders.limDone=new Set(); for(let k=300;k<316;k+=0.02){ es.km=k; Orders.limitNotice(es); } Radio.push=o; Object.assign(es,{km:keep.km,stopTimer:keep.st,camp:keep.camp}); return msgs; });
+  check("制限速度の予告",ln.length>=3&&ln.every(m=>/この先 [0-9.]+ km で制限速度 \d+ km\/h \(現在 \d+ km\/h\)/.test(m)),ln.slice(0,3).join(" / "));
   check("練習シナリオ: エラーなし",noErr(p).length===0,noErr(p).slice(0,2).join(" | "));
   await p.evaluate(()=>{ Scenario.closeRes(); quitToMenu(); document.getElementById("scenario").value=""; }); await p.context().close(); }
  // ---- メニュー ----
