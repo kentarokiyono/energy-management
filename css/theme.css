@@ -511,5 +511,3 @@ body.mon-on #setup-screen, body.mon-on #game-container, body.mon-on #fade{ displ
 #hud-top .lg{ background:linear-gradient(135deg,rgba(29,63,163,.38),rgba(29,63,163,.10)); }
 .mode.active, .card-select.active{ background:linear-gradient(90deg,var(--brand-a),rgba(29,63,163,.04)),var(--pn2); }
 .card2>.hd, .scn-res .box>.lb{ background:linear-gradient(90deg,rgba(29,63,163,.28),rgba(29,63,163,0)); margin:-2px -4px 6px; padding:6px 8px; }
-#fade .fade-logo{ width:min(560px,84vw); height:auto; }
-#fade .fade-name{ font:600 12px var(--fn); letter-spacing:.32em; color:var(--tx2); }
