@@ -44,6 +44,8 @@ const Ana={
    if(q){ if(c==='"'){ if(text[i+1]==='"'){ f+='"'; i++; } else q=false; } else f+=c; }
    else if(c==='"') q=true; else if(c===","){ row.push(f); f=""; } else if(c==="\n"){ row.push(f.replace(/\r$/,"")); lines.push(row); row=[]; f=""; } else f+=c; }
   if(f||row.length){ row.push(f); lines.push(row); }
+  const li=lines.findIndex(l=>l.some(c=>/^Speed\[km\/?h\]$/i.test(c.trim())));
+  if(li>=0&&!(lines[0]||[]).some(c=>this.COLMAP[c.trim()])) return this.fromLogger(lines,li,name,date);   // 車載の計測器の CSV
   const head=lines.shift()||[], idx={}; head.forEach((c,i)=>{ const k=this.COLMAP[c.trim()]; if(k) idx[k]=i; });
   if(idx.km==null||idx.v==null) throw new Error("km と 速度 の列がありません");
   const TXT={st:1,drv:1,wx:1,memo:1};
@@ -51,6 +53,30 @@ const Ana={
    o.abs= Number.isFinite(o.eh)? o.eh+8 : NaN; return o; }).filter(o=>Number.isFinite(o.km));
   if(!rows.length) throw new Error("データ行がありません");
   return this.prep({id:this.newId("csv"),name,date:date||"",rows});
+ },
+ /* 車載の計測器の CSV (一定間隔: 速度・発電・電池の電力・電圧)。距離は速度を積み上げ、時刻は夕方の長い停車を 17:00 として合わせ (なければ 8:30 発)、日付がレース期間ならその日の実際の天気を補い、勾配・標高はルートから補う。
+  モーター側の電力 = 発電 + 電池 (電池は放電を + とする) */
+ fromLogger(lines,li,name,date){
+  const head=lines[li].map(c=>c.trim()), col=(re)=>head.findIndex(c=>re.test(c));
+  const iV=col(/^Speed\[/i), iS=col(/^Solar_Watt\[/i), iB=col(/^Battery_Watt\[/i), iU=col(/^Main_Volt\[/i), iA=col(/^Battery\[A\]/i);
+  if(iV<0||iS<0||iB<0) throw new Error("速度・発電・電池の電力の列がありません");
+  let dt=5; for(const l of lines.slice(0,li)){ const m=l.join(" ").match(/(\d+(?:\.\d+)?)\s*秒間隔/); if(m) dt=+m[1]; }
+  const H0=8.5, rows=[]; let km=0, t=0, pv=0;
+  let no=0; for(const l of lines.slice(li+1)){ const n=+(l[0]||"").trim(); if(!/^\d+$/.test((l[0]||"").trim())||(no&&n!==no+1)) { if(no) break; continue; } no=n;   // 通し番号が途切れたら終わり (下の集計行は読まない)
+   const v=+l[iV], ps=+l[iS], pb=+l[iB]; if(![v,ps,pb].every(Number.isFinite)) continue;
+   km=Math.min(TOTAL_KM,km+(v+pv)/2*dt/3600); pv=v; t+=dt;
+   const e0=profileAt(Math.max(0,km-0.25)).elev, e1=profileAt(Math.min(TOTAL_KM,km+0.25)).elev, d=Math.min(TOTAL_KM,km+0.25)-Math.max(0,km-0.25);
+   rows.push({t:t/3600,day:1,km,v,ps,pm:ps+pb,net:-pb,soc:NaN,el:profileAt(km).elev,gr:d>0?(e1-e0)/(d*1000)*100:0,st:v>0.5?"走行":"停車",vt:iU>=0?+l[iU]:NaN,ia:iA>=0?+l[iA]:NaN}); }
+  if(rows.length<10) throw new Error("データ行がありません");
+  // 時刻: 夕方の長い停車 (40 分以上) の始まりを 17:00 とする。見つからなければ 8:30 発
+  let h0=H0, st=null; for(const r of rows){ if(r.v<1){ if(st==null) st=r.t; } else { if(st!=null&&r.t-st>=40/60){ const c=17-st; if(c>=7&&c<=10.5) h0=c; } st=null; } }
+  if(st!=null&&rows[rows.length-1].t-st>=40/60){ const c=17-st; if(c>=7&&c<=10.5) h0=c; }
+  // 日付 (見出しの日付) がレース期間なら、その日の実際の天気 (日射・気温・風) を補う → 発電の効率・向かい風込みの推定に使える
+  let day=1, doy=null; for(const l of lines.slice(0,li)){ const m=l.join(" ").match(/(20\d\d)[\/-](\d{1,2})[\/-](\d{1,2})/); if(m){ const d=new Date(+m[1],+m[2]-1,+m[3]); date=this.ymd(d); const j=Math.round((d-new Date(+m[1],0,0))/864e5); if(j-PRO.dayOfYear>=0&&j-PRO.dayOfYear<7){ doy=j; day=j-PRO.dayOfYear+1; } break; } }
+  for(const r of rows){ r.day=day; r.abs=(day-1)*24+h0+r.t; r.eh=r.abs-8; const hr=h0+r.t;
+   if(doy!=null&&typeof RealWx!=="undefined"&&RealWx.ok){ const q=profileAt(r.km), g=RealWx.at("ghi",q.lat,q.lon,doy,hr), t=RealWx.at("t",q.lat,q.lon,doy,hr), w=RealWx.wind(q.lat,q.lon,doy,hr);
+    if(g!=null) r.ghi=g; if(t!=null) r.ta=t; if(w) r.head=-w.ws*Math.cos(w.toward-q.bearing); } }
+  return this.prep({id:this.newId("log"),name,date:date||"",rows,logger:true});
  },
  prep(run){
   const R=run.rows;
@@ -115,7 +141,8 @@ const Ana={
   document.getElementById("ana-cmp").onchange=e=>{ this.cmp=+e.target.value; this.render(); };
   document.getElementById("ana-demo").onclick=()=>{ try{ localStorage.removeItem("bwsc_ana_nodemo"); }catch(e){} this.emptied=false; this.addDemo(); };
   document.getElementById("ana-all").onclick=()=>{ this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); };
-  document.getElementById("ana-file").onchange=async e=>{ for(const f of e.target.files){ try{ const run=this.parseCSV(await f.text(),f.name.replace(/\.csv$/i,""),this.ymd(f.lastModified||Date.now())); this.runs.push(run); this.cur=this.runs.length-1; this.save(run); }catch(err){ toast("読み込めません: "+escHtml(f.name)+" ― "+escHtml(err.message),"#ef4444"); } }
+  document.getElementById("ana-file").onchange=async e=>{ for(const f of e.target.files){ try{ const buf=await f.arrayBuffer(); let txt; try{ txt=new TextDecoder("utf-8",{fatal:true}).decode(buf); }catch(x){ txt=new TextDecoder("shift_jis").decode(buf); }   // Excel の CSV (Shift_JIS) も読む
+     const run=this.parseCSV(txt,f.name.replace(/\.csv$/i,""),this.ymd(f.lastModified||Date.now())); this.runs.push(run); this.cur=this.runs.length-1; this.save(run); }catch(err){ toast("読み込めません: "+escHtml(f.name)+" ― "+escHtml(err.message),"#ef4444"); } }
    e.target.value=""; this.sel=null; this.xr=null; this.map&&(this.map.dirty=true); this.render(); };
   addEventListener("resize",()=>{ if(this.isOpen()) this.render(); });
   // 画面の回転・表示領域の変化 (スマホ) でも描き直す
@@ -339,24 +366,30 @@ const Ana={
  calib(run){
   if(run._cal) return run._cal;
   const R=run.rows, m=massTotal(), g=9.81, eta=this.ETA, X=[], Y=[];
-  for(let i=1;i<R.length-1;i++){ const p=R[i-1], r=R[i], q=R[i+1];
-   if(r.st!=="走行"||!Number.isFinite(r.pm)||!Number.isFinite(r.v)||r.v<25||r.pm<=0) continue;
-   if((r.brk||0)>1||(r.rgn||0)>1) continue;
-   const dtA=(q.abs-p.abs)*3600; let acc=0; if(Number.isFinite(dtA)&&dtA>0&&Number.isFinite(q.v)&&Number.isFinite(p.v)) acc=((q.v-p.v)/3.6)/dtA;
-   if(Math.abs(acc)>0.06) continue;
-   const v=r.v/3.6, va=Math.max(0,v+(Number.isFinite(r.head)?r.head:0)), gr=Number.isFinite(r.gr)? r.gr/100 : 0;
-   const rho=Number.isFinite(r.ta)? 1.225*288.15/(273.15+r.ta) : 1.17;
-   const y=r.pm-(m*g*gr*v+m*acc*v)/eta;
-   X.push([v,va*va*v*rho/1.17,1]); Y.push(y); }
-  if(X.length<30) return run._cal={err:"一定速度で走っている行が足りません (速度・モーター電力の列が必要)"};
+  /* 3 km (最長 5 分) ごとの平均に当てはめる。瞬間の値は加速・計測の揺れが大きいので使わない。運動エネルギーの増減と勾配の分は差し引く */
+  let c=null; const flush=()=>{ if(c&&c.n>=3&&c.d>=0.3&&c.vMin>=15){ const T=(c.t1-c.t0)*3600, v=c.v/c.n;
+    if(T>0&&v>=25/3.6&&c.pm>0){ const ke=0.5*m*(c.vb*c.vb-c.va*c.va)/T, y=c.pm/c.n-(m*g*c.gv/c.n+ke)/eta; X.push([v,c.a3/c.n,1]); Y.push(y); } } c=null; };
+  for(let i=1;i<R.length;i++){ const p=R[i-1], r=R[i];
+   const ok=r.st==="走行"&&p.st==="走行"&&Number.isFinite(r.pm)&&Number.isFinite(r.v)&&Number.isFinite(r.abs)&&!((r.brk||0)>1||(r.rgn||0)>1);
+   if(!ok){ flush(); continue; }
+   const v=r.v/3.6, va=Math.max(0,v+(Number.isFinite(r.head)?r.head:0)), gr=Number.isFinite(r.gr)? r.gr/100 : 0, rho=Number.isFinite(r.ta)? 1.225*288.15/(273.15+r.ta) : 1.17;
+   if(!c) c={n:0,v:0,a3:0,gv:0,pm:0,d:0,t0:p.abs,va:p.v/3.6,vMin:99,k0:p.km};
+   c.n++; c.v+=v; c.a3+=va*va*v*rho/1.17; c.gv+=gr*v; c.pm+=r.pm; c.t1=r.abs; c.vb=v; c.d=r.km-c.k0; c.vMin=Math.min(c.vMin,r.v);
+   if(c.d>=3||(c.t1-c.t0)*60>=5) flush(); }
+  flush();
+  if(X.length<20) return run._cal={err:"走っている区間が足りません (速度・モーター電力の列が必要)"};
   // 正規方程式 (3×3) を解く
   const A=[[0,0,0],[0,0,0],[0,0,0]], B=[0,0,0];
   for(let i=0;i<X.length;i++) for(let j=0;j<3;j++){ B[j]+=X[i][j]*Y[i]; for(let k=0;k<3;k++) A[j][k]+=X[i][j]*X[i][k]; }
   const sol=(M,b)=>{ const a=M.map((r,i)=>[...r,b[i]]); for(let c=0;c<3;c++){ let p=c; for(let r=c+1;r<3;r++) if(Math.abs(a[r][c])>Math.abs(a[p][c])) p=r; [a[c],a[p]]=[a[p],a[c]]; if(Math.abs(a[c][c])<1e-12) return null;
     for(let r=0;r<3;r++) if(r!==c){ const f=a[r][c]/a[c][c]; for(let k=c;k<4;k++) a[r][k]-=f*a[c][k]; } } return a.map((r,i)=>r[3]/r[i]); };
-  const k=sol(A,B); if(!k) return run._cal={err:"推定できませんでした (速度の幅が狭すぎる)"};
+  let k=sol(A,B), fixed=false;
+  if(!k||!(k[0]>0&&k[1]>0)){   // 速度の幅が狭いと転がりと空気を分けられない → 転がり抵抗は今の設定に固定して、空気抵抗と一定の消費だけ推定
+   const c0=P.Crr*m*g/eta, A2=[[0,0],[0,0]], B2=[0,0]; for(let i=0;i<X.length;i++){ const y=Y[i]-c0*X[i][0], x=[X[i][1],1]; for(let j=0;j<2;j++){ B2[j]+=x[j]*y; for(let l=0;l<2;l++) A2[j][l]+=x[j]*x[l]; } }
+   const det=A2[0][0]*A2[1][1]-A2[0][1]*A2[1][0]; if(Math.abs(det)<1e-9) return run._cal={err:"推定できませんでした (速度の幅が狭すぎる)"};
+   k=[c0,(B2[0]*A2[1][1]-A2[0][1]*B2[1])/det,(A2[0][0]*B2[1]-A2[1][0]*B2[0])/det]; fixed=true; }
   const mean=Y.reduce((s,y)=>s+y,0)/Y.length; let ssr=0, sst=0; for(let i=0;i<X.length;i++){ const f=k[0]*X[i][0]+k[1]*X[i][1]+k[2]; ssr+=(Y[i]-f)**2; sst+=(Y[i]-mean)**2; }
-  const out={n:X.length,r2:sst>0?1-ssr/sst:NaN,Crr:k[0]*eta/(m*g),CdA:k[1]*eta*2/1.17,aux:k[2]};
+  const out={n:X.length,r2:sst>0?1-ssr/sst:NaN,Crr:k[0]*eta/(m*g),CdA:k[1]*eta*2/1.17,aux:k[2],fixed};
   // 発電の実効効率 (平らなパネル)
   let sP=0,sG=0; for(const r of R) if(Number.isFinite(r.ps)&&Number.isFinite(r.ghi)&&r.ghi>300&&r.st==="走行"){ sP+=r.ps; sG+=r.ghi*P.arrayArea; }
   out.effPV= sG>0? sP/sG : NaN; out.effModel=P.cellEff*P.mpptEff*0.92*PRO.solarScale;
@@ -371,24 +404,28 @@ const Ana={
   let h=`<div class="ph" style="margin-top:12px">${ic("sliders")}車両モデルの合わせ込み</div>`;
   if(!C) return h+`<div class="ana-note" style="margin-top:0">走行ログの速度・モーター電力・発電・日射から、転がり抵抗・空気抵抗 (CdA)・一定の消費・発電の効率を推定し、今の設定と比べます。実戦のログ (同じ列名の CSV) で使えます。</div><button class="btn ana-sm" onclick="Ana.runCalib()">${ic("play")}推定する</button>`;
   if(C.err) return h+`<div class="ana-note">${escHtml(C.err)}</div>`;
-  const cur={Crr:P.Crr,CdA:P.Cd*P.frontal,aux:P.auxW}, pct=(a,b)=>Number.isFinite(a)&&b? `${a>b?"+":""}${((a/b-1)*100).toFixed(0)} %` : "―";
+  const cur={Crr:P.Crr,CdA:P.Cd*P.frontal,aux:P.auxW+PRO.ctrlW}, pct=(a,b)=>Number.isFinite(a)&&b? `${a>b?"+":""}${((a/b-1)*100).toFixed(0)} %` : "―";
   h+=`<div class="ana-rvt" style="grid-template-columns:1.4fr 1fr 1fr 0.8fr"><span class="lb">項目</span><span class="lb">ログから</span><span class="lb">今の設定</span><span class="lb">差</span>
-   <span>転がり抵抗 Crr</span><span>${f(C.Crr,4)}</span><span>${f(cur.Crr,4)}</span><span>${pct(C.Crr,cur.Crr)}</span>
+   <span>転がり抵抗 Crr</span><span>${C.fixed?"(固定)":f(C.Crr,4)}</span><span>${f(cur.Crr,4)}</span><span>${pct(C.Crr,cur.Crr)}</span>
    <span>空気抵抗 CdA m²</span><span>${f(C.CdA,3)}</span><span>${f(cur.CdA,3)}</span><span>${pct(C.CdA,cur.CdA)}</span>
-   <span>一定の消費 W</span><span>${f(C.aux,0)}</span><span>${f(cur.aux,0)}</span><span>${pct(C.aux,cur.aux)}</span>
+   <span title="補機 + 制御装置などの、速度によらない消費">一定の消費 W</span><span>${f(C.aux,0)}</span><span>${f(cur.aux,0)}</span><span>${pct(C.aux,cur.aux)}</span>
    <span>発電の実効効率</span><span>${f(C.effPV*100,1)} %</span><span>${f(C.effModel*100,1)} %</span><span>${pct(C.effPV,C.effModel)}</span>
    <span>走行の消費 kWh</span><span>${f(C.eAct/1000,2)}</span><span>${f(C.eModel/1000,2)}</span><span>${pct(C.eAct,C.eModel)}</span></div>
-   <div class="ana-note">使った行 ${C.n}・当てはまり R² ${f(C.r2,2)}${C.r2<0.6?" (低い: 速度の幅が狭い・風や加速の影響が大きい)":""}。「今の設定」の消費 = この走行と同じ速度・勾配で今の設定のモデルを走らせた値。CdA は空気抵抗係数 × 前面投影面積、Crr は η=${this.ETA} と置いた推定。発電は温度・角度の影響を含んだ実効値。</div>
-   <div class="ana-rr" style="margin-top:6px"><button class="btn ana-sm" onclick="Ana.applyCalib()" ${C.r2>=0.5?"":"disabled"}>${ic("check")}推定値を設定に反映</button>
+   <div class="ana-note">使った区間 (3 km / 5 分ごとの平均) ${C.n}・${C.fixed?"速度の幅が狭いので転がり抵抗は今の設定に固定・":""}当てはまり R² ${f(C.r2,2)}${C.r2<0.6?" (低い: 速度の幅が狭い・風や加速の影響が大きい)":""}。「今の設定」の消費 = この走行と同じ速度・勾配で今の設定のモデルを走らせた値。CdA は空気抵抗係数 × 前面投影面積、Crr は η=${this.ETA} と置いた推定。発電は温度・角度の影響を含んだ実効値。</div>
+   <div class="ana-rr" style="margin-top:6px"><button class="btn ana-sm" onclick="Ana.applyCalib()" ${C.r2>=0.5?"":"disabled"} title="${C.r2>=0.5?"":"当てはまりが低い (R² 0.5 未満) ので反映できません"}">${ic("check")}推定値を設定に反映</button>
+   ${Number.isFinite(C.effPV)&&C.effPV>0.05&&C.effPV<0.4? `<button class="btn ana-sm" onclick="Ana.applyPV()" title="セル効率だけを、ログの発電に合うように変える">${ic("sun")}発電の効率だけ反映</button>` : ""}
    ${(()=>{ const k=C.eAct/C.eModel; return Number.isFinite(k)&&k>0.6&&k<1.6? `<button class="btn ana-sm" onclick="Ana.useOrdersK(${k.toFixed(3)})" title="車両の設定は変えず、無線の電流の指示だけを ×${k.toFixed(2)} する">${ic("zap")}電流の指示に使う (×${k.toFixed(2)})</button>` : ""; })()}</div>
    <div class="ana-note">電流の指示の補正: ${Math.abs((P.ordersK||1)-1)<0.001? "なし" : `×${(+P.ordersK).toFixed(2)} <a href="#" onclick="Ana.useOrdersK(1);return false" style="color:var(--acc)">外す</a>`}。「推定値を設定に反映」をした後は、補正は外してください (二重にかかります)。</div>`;
   return h;
  },
  runCalib(){ const run=this.run(); if(!run) return; try{ this.calib(run); }catch(e){ run._cal={err:"推定できませんでした: "+e.message}; } this.renderPane(); },
+ applyPV(){ const C=this.run()&&this.run()._cal; if(!C||!Number.isFinite(C.effPV)) return; const e=C.effPV/(P.mpptEff*0.92*PRO.solarScale), sl=SLIDERS.find(x=>x.id==="cellEff");
+  if(!sl||!confirm(`セル効率を ${(P.cellEff*100).toFixed(1)} % → ${(clamp(e,sl.min,sl.max)*100).toFixed(1)} % にします (この端末に保存)`)) return;
+  P.cellEff=clamp(e,sl.min,sl.max); const el=document.getElementById("sl-cellEff"); if(el) el.value=P.cellEff; refreshSliderLabel("cellEff"); refreshDerived(); Settings.save(); this.run()._cal=null; Strategy.last=null; toast("発電の効率を反映しました","#34d399"); this.renderPane(); },
  applyCalib(){ const C=this.run()&&this.run()._cal; if(!C||C.err) return;
-  if(!confirm(`推定値を車両の設定に反映します (この端末に保存)。\nCrr ${C.Crr.toFixed(4)}・Cd ${(C.CdA/P.frontal).toFixed(3)} (CdA ${C.CdA.toFixed(3)} ÷ 前面投影 ${P.frontal})・一定の消費 ${C.aux.toFixed(0)} W${Number.isFinite(C.effPV)?`・セル効率 ${(C.effPV/(P.mpptEff*0.92*PRO.solarScale)*100).toFixed(1)} %`:""}`)) return;
+  if(!confirm(`推定値を車両の設定に反映します (この端末に保存)。\nCrr ${C.Crr.toFixed(4)}・Cd ${(C.CdA/P.frontal).toFixed(3)} (CdA ${C.CdA.toFixed(3)} ÷ 前面投影 ${P.frontal})・補機 ${(C.aux-PRO.ctrlW).toFixed(0)} W${Number.isFinite(C.effPV)?`・セル効率 ${(C.effPV/(P.mpptEff*0.92*PRO.solarScale)*100).toFixed(1)} %`:""}`)) return;
   const set=(id,v)=>{ const s=SLIDERS.find(x=>x.id===id); if(!s||!Number.isFinite(v)) return; P[id]=clamp(v,s.min,s.max); const el=document.getElementById("sl-"+id); if(el) el.value=P[id]; refreshSliderLabel(id); };
-  set("Crr",C.Crr); set("Cd",C.CdA/P.frontal); set("auxW",C.aux); if(Number.isFinite(C.effPV)) set("cellEff",C.effPV/(P.mpptEff*0.92*PRO.solarScale));
+  set("Crr",C.Crr); set("Cd",C.CdA/P.frontal); set("auxW",C.aux-PRO.ctrlW); if(Number.isFinite(C.effPV)) set("cellEff",C.effPV/(P.mpptEff*0.92*PRO.solarScale));
   refreshDerived(); Settings.save(); this.run()._cal=null; Strategy.last=null; toast("車両の設定に反映しました","#34d399"); this.renderPane(); },
  useOrdersK(k){ P.ordersK=clamp(+k||1,0.5,2); Settings.save(); toast(Math.abs(P.ordersK-1)<0.001? "電流の指示の補正を外しました" : `電流の指示を ×${P.ordersK.toFixed(2)} で出します`,"#34d399"); this.renderPane(); },
  runReview(){ const run=this.run(); if(!run) return; toast("計算中…","#22d3ee"); setTimeout(()=>{ try{ this.review(run); }catch(e){ run._rev={err:"計算できませんでした: "+e.message}; } this.renderPane(); this.drawCharts(); },30); },
