@@ -48,6 +48,16 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   check("制限速度の予告",ln.length>=3&&ln.every(m=>/この先 [0-9.]+ km で制限速度 \d+ km\/h \(現在 \d+ km\/h\)/.test(m)),ln.slice(0,3).join(" / "));
   check("練習シナリオ: エラーなし",noErr(p).length===0,noErr(p).slice(0,2).join(" | "));
   await p.evaluate(()=>{ Scenario.closeRes(); quitToMenu(); document.getElementById("scenario").value=""; }); await p.context().close(); }
+ // ---- テレメトリ (同じ PC の別ウィンドウ): つながり、値が届き、監視側から指示を送れる。外部とは通信しない ----
+ { const p=await newPage(b,base);
+  await p.evaluate(()=>{ window.pushChart=()=>{}; P.mode="race"; P.crewProc=false; startGame(); running=false; Engine.st.gridStartH=0; Engine.st.hour=10; Engine.st.v=20; setInterval(()=>Tele.frame(Engine.st),300); });
+  const [mp]=await Promise.all([p.context().waitForEvent("page"),p.evaluate(()=>Tele.startLocal())]);
+  await mp.waitForFunction(()=>typeof Monitor!=="undefined"&&Monitor.snap,null,{timeout:60000}).catch(()=>{});
+  await mp.evaluate(()=>{ Monitor.send({t:"mode",mode:"manual"}); Monitor.send({t:"order",v:64,I:6.8}); }); await p.waitForTimeout(800);
+  const t=await p.evaluate(()=>({conns:Tele.conns.length,mode:Orders.mode,cur:Orders.cur&&[Orders.cur.v,Orders.cur.I]}));
+  const m=await mp.evaluate(()=>({snap:!!Monitor.snap,state:document.getElementById("mon-state").textContent}));
+  check("テレメトリ (同じ PC)",t.conns===1&&t.mode==="manual"&&t.cur&&t.cur[0]===64&&m.snap&&p.ext.length===0,JSON.stringify({t,m,ext:p.ext.slice(0,2)}));
+  await p.context().close(); }
  // ---- メニュー ----
  { const p=await newPage(b,base);
   const s=await p.evaluate(()=>({build:document.querySelector(".build").textContent, modes:document.querySelectorAll(".mode").length, seg:document.querySelectorAll("#seg-ts button").length, quali:document.getElementById("quali-info").textContent}));
@@ -70,7 +80,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   const g=await p.evaluate(()=>({grid:Engine.st.grid,wait:Engine.gridWait(),teams:Engine.st.teams.length,v:Engine.st.v}));
   check("レース: グリッド待機",g.grid>=1&&g.wait===true&&g.teams===25&&g.v===0,JSON.stringify(g));
   await p.evaluate(()=>{ Engine.st.gridStartH=8; Engine.st.throttleSet=0.7; });
-  await p.waitForTimeout(6000);
+  await p.waitForFunction(()=>Engine.st.km>0&&Engine.st.v*3.6>0.5,null,{timeout:20000}).catch(()=>{}); await p.waitForTimeout(1000);   // ソフトウェア描画は遅いので、走り出すまで待つ
   const r=await p.evaluate(()=>({km:Engine.st.km,v:Engine.st.v*3.6,soc:Engine.st.soc,speed:document.getElementById("hud-speed").textContent,nan:/NaN|undefined/.test(document.getElementById("game-container").innerText)}));
   check("レース: 発進して走る",r.km>0&&r.v>0.5&&r.soc>0.5&&!r.nan,JSON.stringify(r));
   await p.evaluate(()=>MapUI.toggle(true)); await p.waitForTimeout(700);

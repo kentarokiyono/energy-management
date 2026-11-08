@@ -12,8 +12,9 @@ const Monitor={
  wanted(){ return new URLSearchParams(location.search).has("tm"); },
  async boot(){
   const id=new URLSearchParams(location.search).get("tm"), key=(location.hash.match(/k=([a-z0-9]+)/)||[])[1]||"";
-  if(!/^bwsc-[a-z0-9]{6,20}$/.test(id||"")){ document.body.innerHTML="<p style='padding:24px;color:#fff'>リンクが正しくありません</p>"; return; }
+  if(!/^(bwsc|local)-[a-z0-9]{6,20}$/.test(id||"")){ document.body.innerHTML="<p style='padding:24px;color:#fff'>リンクが正しくありません</p>"; return; }
   this.id=id; this.key=key; this.build();
+  if(id.startsWith("local-")){ this.local(); addEventListener("resize",()=>this.drawAll()); return; }   // 同じ PC の別ウィンドウ
   try{ await TeleNet.load(); }catch(e){ this.state("通信の部品を読み込めませんでした"); return; }
   this.connect();
   addEventListener("resize",()=>this.drawAll());
@@ -27,8 +28,17 @@ const Monitor={
    c.on("close",()=>{ this.state("切れました。つなぎ直します…"); this.again(); }); };
   if(this.peer.open) go(); else this.peer.once("open",go);
  },
+ /* 同じ PC: BroadcastChannel。つながる (init が届く) まで 2 秒ごとに hello を送る */
+ local(){
+  const cid=TeleNet.rid(8), ch=new BroadcastChannel("bwsc-tm-"+this.id); this.ch=ch; this.cid=cid; this.state("つないでいます… (この PC)");
+  ch.onmessage=(e)=>{ const d=e.data; if(!d||d.to!==cid) return; if(d.m&&d.m.t==="init"){ this.linked=true; this.state("つながりました (この PC)"); } this.recv(d.m); };
+  const hello=()=>{ if(this.linked) return; ch.postMessage({from:cid,m:{t:"hello",k:this.key}}); setTimeout(hello,2000); }; hello();
+  setInterval(()=>{ if(this.linked) ch.postMessage({from:cid,m:{t:"ping"}}); },5000);   // 生きていることを知らせる
+  addEventListener("beforeunload",()=>{ try{ ch.postMessage({from:cid,m:{t:"bye"}}); }catch(e){} });
+ },
  again(){ clearTimeout(this._rt); this._rt=setTimeout(()=>this.connect(),Math.min(15000,2000*(++this.retry))); },
- send(m){ try{ if(this.conn&&this.conn.open) this.conn.send(m); else toast("ドライバー側とつながっていません","#f59e0b"); }catch(e){} },
+ send(m){ try{ if(this.ch){ if(this.linked) this.ch.postMessage({from:this.cid,m}); else toast("ドライバー側とつながっていません","#f59e0b"); return; }
+  if(this.conn&&this.conn.open) this.conn.send(m); else toast("ドライバー側とつながっていません","#f59e0b"); }catch(e){} },
  recv(d){
   if(!d||typeof d!=="object") return;
   if(d.t==="init"){ this.drivers=d.drivers||[]; this.pts=Array.isArray(d.pts)? d.pts.slice() : []; this.modeUI(d.mode); this.drawAll(); }

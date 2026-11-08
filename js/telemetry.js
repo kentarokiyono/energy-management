@@ -1,7 +1,8 @@
 "use strict";
 /* ============ リアルタイム テレメトリ ============
  走っている PC (ドライバー側) から、別の端末 (スマホ・タブレット・別の PC) の「Realtime Run Analysis」へ、走行データを送る。
- つなぎ方: ドライバー側の「テレメトリ」で QR を出す → 監視側で読み取ると監視画面が開いて、自動でつながる。
+ つなぎ方: 別の端末 = ドライバー側の「テレメトリ」で QR を出す → 監視側で読み取ると監視画面が開いて、自動でつながる。
+  同じ PC の別の画面 = 「この PC の別ウィンドウで開く」。ブラウザの中だけでやり取りする (BroadcastChannel。外部とは通信しない)。
  通信: WebRTC で端末どうしを直接つなぐ。つなぐときの相手探しだけ PeerJS の無料サーバー (0.peerjs.com) を使う。
   走行データはそのサーバーを通らない。QR に入れた合言葉 (#k=) が合わない相手からのデータは受け付けない。
  ドライバー → 監視: 1 秒ごとの値 (位置・速度・電池・電力・指示)、30 秒ごとの予報と戦略、無線の文、つないだときにそれまでの軌跡。
@@ -24,12 +25,32 @@ const Tele={
   try{ await TeleNet.load(); }catch(e){ this.status("読み込めませんでした"); return; }
   this.id="bwsc-"+TeleNet.rid(10); this.key=TeleNet.rid(6);
   const p=new Peer(this.id,TeleNet.opts()); this.peer=p;
-  p.on("open",()=>{ this.on=true; this.panel(); this.status("監視端末を待っています"); });
+  p.on("open",()=>{ this.on=true; this.panel(); this.status("監視を待っています"); });
   p.on("connection",(c)=>this.accept(c));
   p.on("error",(e)=>{ this.status("通信エラー: "+String(e&&e.type||e).slice(0,40)); });
   p.on("disconnected",()=>{ this.status("相手探しのサーバーから切れました (つながっている監視は続きます)"); try{ p.reconnect(); }catch(e){} });
  },
- stop(){ for(const c of this.conns) try{ c.close(); }catch(e){} this.conns=[]; if(this.peer) try{ this.peer.destroy(); }catch(e){} this.peer=null; this.on=false; this.status("停止中"); this.panel(); if(typeof Orders!=="undefined") Orders.mode="auto"; },
+ /* 同じ PC の別ウィンドウ: BroadcastChannel で監視画面とやり取りする */
+ lid:null, lkey:null, ch:null, lconns:new Map(),
+ startLocal(){
+  if(!this.ch){
+   if(typeof BroadcastChannel==="undefined"){ toast("このブラウザは別ウィンドウでのやり取りに対応していません","#f59e0b"); return; }
+   this.lid="local-"+TeleNet.rid(10); this.lkey=TeleNet.rid(6); this.ch=new BroadcastChannel("bwsc-tm-"+this.lid);
+   this.ch.onmessage=(e)=>{ const d=e.data; if(!d||typeof d.from!=="string") return; const m=d.m; let c=this.lconns.get(d.from);
+    if(!c){ const ch=this.ch, to=d.from; c={local:true,open:true,ok:false,send:(x)=>ch.postMessage({to,m:x}),close(){ this.open=false; }}; this.lconns.set(d.from,c); }
+    c.seen=performance.now();
+    if(m&&m.t==="ping") return;
+    if(m&&m.t==="bye"){ c.open=false; this.lconns.delete(d.from); this.conns=this.conns.filter(x=>x!==c); this.status(this.conns.length?`監視 ${this.conns.length} 台とつながっています`:"監視を待っています"); return; }
+    if(!c.ok){ if(m&&m.t==="hello"&&m.k===this.lkey){ c.ok=true; this.conns.push(c); this.send(c,this.init()); this.t30=-1e9; this.status(`監視 ${this.conns.length} 台とつながっています`); Radio.push("テレメトリの監視画面 (この PC) がつながりました","チーフ"); } return; }
+    this.recv(m); };
+   this.on=true; this.status("監視画面を開いています");
+  }
+  const u=`${location.origin}${location.pathname}?tm=${this.lid}#k=${this.lkey}`;
+  const w=window.open(u,"bwsc-monitor","popup,width=1100,height=900");
+  if(!w) toast("ポップアップが止められました。ブラウザの設定で許可してください","#f59e0b");
+ },
+ stop(){ for(const c of this.conns) try{ c.close(); }catch(e){} this.conns=[]; if(this.peer) try{ this.peer.destroy(); }catch(e){} this.peer=null; this.on=false;
+  if(this.ch){ try{ this.ch.close(); }catch(e){} this.ch=null; this.lid=null; this.lconns.clear(); } this.status("停止中"); this.panel(); if(typeof Orders!=="undefined") Orders.mode="auto"; },
  url(){ return `${location.origin}${location.pathname}?tm=${this.id}${new URLSearchParams(location.search).get("ps")?"&ps="+new URLSearchParams(location.search).get("ps"):""}#k=${this.key}`; },
  accept(c){
   c.ok=false;
@@ -52,6 +73,8 @@ const Tele={
  /* 毎フレーム (main の loop): 1 秒ごとに値、30 秒ごとに予報と戦略 */
  frame(es){
   if(!this.conns.length||!es) return; const now=performance.now();
+  if(this.ch&&this.conns.some(c=>c.local&&now-(c.seen||now)>15000)){ for(const [k,c] of this.lconns) if(c.local&&now-(c.seen||now)>15000){ c.open=false; this.lconns.delete(k); }   // 閉じた監視ウィンドウ (15 秒応答なし)
+   this.conns=this.conns.filter(c=>!c.local||c.open); this.status(this.conns.length?`監視 ${this.conns.length} 台とつながっています`:"監視を待っています"); if(!this.conns.length) return; }
   if(now-this.t1>=1000){ this.t1=now; this.all(this.snap(es)); }
   if(now-this.t30>=30000){ this.t30=now; try{ this.all(this.forecast(es)); }catch(e){} }
  },
@@ -82,8 +105,8 @@ const Tele={
  /* 画面 (メニュー / 一時停止 / 走行中の小さな表示) */
  status(m){ this.msg=m; const el=document.getElementById("tm-status"); if(el) el.textContent=m; const hb=document.getElementById("hud-tm"); if(hb){ hb.style.display=this.on?"":"none"; hb.classList.toggle("live",this.conns.length>0); hb.title=m; } },
  panel(){ show("tm-dlg",true); const box=document.getElementById("tm-qr"), u=document.getElementById("tm-url");
-  document.getElementById("tm-start").style.display=this.peer?"none":""; document.getElementById("tm-stop").style.display=this.peer?"":"none";
-  if(!this.peer||!this.on){ box.innerHTML=""; u.textContent=""; this.status(this.msg||"停止中"); return; }
+  document.getElementById("tm-start").style.display=this.peer?"none":""; document.getElementById("tm-stop").style.display=(this.peer||this.ch)?"":"none"; document.getElementById("tm-copy").style.display=(this.peer&&this.peer.open)?"":"none";
+  if(!this.peer||!this.peer.open){ box.innerHTML=""; u.textContent=""; this.status(this.msg||"停止中"); return; }
   const url=this.url(); u.textContent=url;
   if(typeof qrcode!=="undefined") try{ const q=qrcode(0,"M"); q.addData(url,"Byte"); q.make(); const n=q.getModuleCount(); box.innerHTML=q.createImgTag(Math.max(2,Math.floor(240/n)),8); }catch(e){ box.textContent=url; }
   this.status(this.msg); },
