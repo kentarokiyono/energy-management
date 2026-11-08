@@ -1,6 +1,6 @@
 "use strict";
 /* ============ 雨 ============
- スコール・暴風雨のとき (Engine.st.weather.type === "squall")。強さ I (0〜1) は日射の落ち方から決め、数秒かけて変わる (降り始め・上がり)。
+ スコール・暴風雨のとき (Engine.st.weather.type === "squall")。強さ I (0〜1) は日射の落ち方から決め、約 10 秒 (実時間) かけて変わる (降り始め・上がり)。
  ・雨筋: カメラのまわりの箱の中を、落下 + 風 − 車の速度 (相対速度) で流れる線。速いほど斜めで長い
  ・水しぶき: 足もとの地面に小さな輪が広がっては消える
  ・路面: 濡れて暗くなり、浅い角度で空が映る (水たまりはまだら)。雨が上がっても少しずつ乾く
@@ -47,7 +47,7 @@ const Rain={
   if(!view.scene||!view.camera) return;
   if(!this.lines||this.gfx!==GFX.key()) this.build(view.scene);
   const tgt= P.mode==="race"&&!P.event? this.target(es) : (es&&es.weather&&es.weather.type==="squall"? 0.7 : 0);
-  this.I+= (tgt-this.I)*clamp(dtR*(tgt>this.I?0.45:0.25),0,1); if(this.I<0.003&&tgt===0) this.I=0;
+  this.I+=clamp(tgt-this.I,-dtR/10,dtR/10);   // 降り始め・上がりは約 10 秒 (実時間) かけて
   const I=this.I, ts=Math.max(1,P.timeScale||1);
   // 路面: 濡れるのは早く、乾くのはゆっくり (ゲーム内の時間で)
   this.wet=clamp(this.wet+(I>0.05? dtR*ts/90*I : -dtR*ts/1500),0,1);
