@@ -125,7 +125,7 @@ carGroup.userData.winkR.forEach(m=>m.color.setHex(R&&on?0xffb020:0x4a3005));
 if(es.signal!==0){
 if(on!==_winkPhase){ _winkPhase=on; Snd.relay(on); }   // ウインカーのリレー (カチ・コチ)
 } else _winkPhase=null;
-const lc=(L&&on)?"#f26b1d":"#33373d", rc=(R&&on)?"#f26b1d":"#33373d";
+const lc=(L&&on)?"#f5b51c":"#33373d", rc=(R&&on)?"#f5b51c":"#33373d";
 const wl=document.getElementById("wl"), wr=document.getElementById("wr");
 if(wl){ wl.style.color=lc; wr.style.color=rc; }
 const wl2=document.getElementById("wl2"), wr2=document.getElementById("wr2");
@@ -212,10 +212,10 @@ function escHtml(t){ return String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&
 /* 旧配色 (ネオン) の色指定をテーマ色へ */
 function themeColor(c){ c=String(c||"").toLowerCase();
  if(/#(34d399|10b981|22c55e|4ade80|6ee7b7)/.test(c)) return "#5cb85c";
- if(/#(f59e0b|fbbf24|fcd34d|eab308|facc15)/.test(c)) return "#e2b21f";
+ if(/#(f59e0b|fbbf24|fcd34d|eab308|facc15)/.test(c)) return "#f0812a";
  if(/#(ef4444|f87171|dc2626|fb7185|b91c1c)/.test(c)) return "#d23a2e";
- if(/#(fb923c|f97316|ea580c)/.test(c)) return "#f26b1d";
- return "#f26b1d"; }
+ if(/#(fb923c|f97316|ea580c)/.test(c)) return "#f5b51c";
+ return "#f5b51c"; }
 /* 詳細パネル (TAB) の表示切替。状態はブラウザに保存 */
 function toggleDetail(on){ const off=on==null?!document.body.classList.contains("detail-off"):!on; document.body.classList.toggle("detail-off",off); try{ localStorage.setItem("bwsc_detailOff",off?"1":"0"); }catch(e){} }
 try{ if(localStorage.getItem("bwsc_detailOff")==="1") document.body.classList.add("detail-off"); }catch(e){}

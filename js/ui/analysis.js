@@ -516,7 +516,7 @@ const Ana={
    const pts=[]; for(let i=0;i<ring.length;i+=2) pts.push(new THREE.Vector3(X(ring[i]),0.05,Z(ring[i+1]))); sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x4a4f56}))); }
   const grid=new THREE.GridHelper(800,40,0x1f2226,0x1f2226); grid.position.y=-0.05; sc.add(grid);
   const P=[]; for(let k=0;k<=Math.ceil(TOTAL_KM);k++){ const q=profileAt(Math.min(k,TOTAL_KM)); P.push([X(q.lon),Z(q.lat)]); }
-  for(const c of RP_CS){ const q=profileAt(c.km), m=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.4,1.4),new THREE.MeshBasicMaterial({color:0xf26b1d})); m.position.set(X(q.lon),0.7,Z(q.lat)); sc.add(m); }
+  for(const c of RP_CS){ const q=profileAt(c.km), m=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.4,1.4),new THREE.MeshBasicMaterial({color:0xf5b51c})); m.position.set(X(q.lon),0.7,Z(q.lat)); sc.add(m); }
   const grp=new THREE.Group(); sc.add(grp);
   const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,1,8),new THREE.MeshBasicMaterial({color:0xffffff})); pole.visible=false; sc.add(pole);
   const cam=new THREE.PerspectiveCamera(38,1,1,4000), view={th:0.42,ph:0.98,d:330,tx:X(134.6),tz:Z(-24.6)};
@@ -597,8 +597,8 @@ const Ana={
  rowAt(run,k){ const R=run.rows; let lo=0,hi=R.length-1; while(lo<hi){ const m=(lo+hi)>>1; if(R[m].km<k) lo=m+1; else hi=m; } return R[lo]; },
  /* ---------- 距離軸のグラフ ---------- */
  ROWS:{
-  A:[{n:"速度 km/h",lo:20,hi:135,s:[{k:"lim",c:"#3a3e44",dash:1},{k:"v",c:"#f26b1d",w:1.4}]},{n:"SOC %",lo:0,hi:100,s:[{k:"soc",c:"#e6e6e3",w:1.5}]},{n:"収支 W",lo:-1000,hi:1000,s:[{k:"net",c:"#5cb85c"}],zero:1}],
-  B:[{n:"標高 m",lo:0,hi:800,s:[{k:"el",c:"#5cb85c"}]},{n:"速度 km/h",lo:20,hi:135,s:[{k:"lim",c:"#3a3e44",dash:1},{k:"v",c:"#f26b1d",w:1.4}]},{n:"SOC %",lo:0,hi:100,s:[{k:"soc",c:"#e6e6e3",w:1.5}]},
+  A:[{n:"速度 km/h",lo:20,hi:135,s:[{k:"lim",c:"#3a3e44",dash:1},{k:"v",c:"#f5b51c",w:1.4}]},{n:"SOC %",lo:0,hi:100,s:[{k:"soc",c:"#e6e6e3",w:1.5}]},{n:"収支 W",lo:-1000,hi:1000,s:[{k:"net",c:"#5cb85c"}],zero:1}],
+  B:[{n:"標高 m",lo:0,hi:800,s:[{k:"el",c:"#5cb85c"}]},{n:"速度 km/h",lo:20,hi:135,s:[{k:"lim",c:"#3a3e44",dash:1},{k:"v",c:"#f5b51c",w:1.4}]},{n:"SOC %",lo:0,hi:100,s:[{k:"soc",c:"#e6e6e3",w:1.5}]},
    {n:"電力 W (発電 / モーター)",lo:0,hi:2000,s:[{k:"ps",c:"#e2b21f"},{k:"pm",c:"#d23a2e"}]},{n:"日射 W/m²",lo:0,hi:1100,s:[{k:"ghi",c:"#c9ccd0"}]}]},
  initCharts(){
   const cv=document.getElementById("ana-cv2"); let drag=null;
@@ -623,7 +623,7 @@ const Ana={
   const rows=this.ROWS[this.layout], L=60, PW=W-L-20, rh=(H-28)/rows.length, [x0,x1]=this.xr, X=(k)=>L+(k-x0)/(x1-x0)*PW;
   this.cg={L,PW,rh,rows:rows.length,X,H};
   c.font="500 11px 'Chakra Petch','BIZ UDPGothic',sans-serif";
-  if(this.sel){ c.fillStyle="rgba(242,107,29,.12)"; c.fillRect(X(this.sel[0]),0,X(this.sel[1])-X(this.sel[0]),H-28); }
+  if(this.sel){ c.fillStyle="rgba(245,181,28,.12)"; c.fillRect(X(this.sel[0]),0,X(this.sel[1])-X(this.sel[0]),H-28); }
   rows.forEach((row,ri)=>{ const y0=ri*rh, Y=(v)=>y0+rh-6-(v-row.lo)/(row.hi-row.lo)*(rh-18);
    c.fillStyle="#8b9097"; c.fillText(row.n,8,y0+14); c.strokeStyle="#1f2226"; c.beginPath(); c.moveTo(L,y0+rh-0.5); c.lineTo(W-20,y0+rh-0.5); c.stroke();
    if(row.zero){ c.strokeStyle="#2a2d32"; c.beginPath(); c.moveTo(L,Y(0)); c.lineTo(W-20,Y(0)); c.stroke(); }
@@ -638,7 +638,7 @@ const Ana={
    c.save(); c.beginPath(); c.rect(L,y0,PW,rh); c.restore(); });
   c.fillStyle="#8b9097"; const span=x1-x0, step=[1,2,5,10,20,50,100,200,500].find(s=>span/s<=10)||500;
   for(let k=Math.ceil(x0/step)*step;k<=x1;k+=step) c.fillText(k+" km",X(k)-12,H-10);
-  for(const q of RP_CS) if(q.km>=x0&&q.km<=x1){ c.fillStyle="#f26b1d"; c.fillRect(X(q.km)-3,H-26,6,6); }
+  for(const q of RP_CS) if(q.km>=x0&&q.km<=x1){ c.fillStyle="#f5b51c"; c.fillRect(X(q.km)-3,H-26,6,6); }
   this.drawCursor(); this.drawNav(W,dpr);
  },
  TOP:30, NAV:46,
@@ -669,8 +669,8 @@ const Ana={
   c.drawImage(this._navBg.cv,0,0,W,NH);
   const a=X(this.xr[0]), b=X(this.xr[1]);
   c.fillStyle="rgba(0,0,0,.45)"; c.fillRect(L,y0,a-L,h); c.fillRect(b,y0,L+PW-b,h);
-  c.fillStyle="rgba(242,107,29,.12)"; c.fillRect(a,y0,b-a,h); c.strokeStyle="#f26b1d"; c.lineWidth=1.5; c.strokeRect(a+.5,y0+.5,Math.max(1,b-a-1),h-1);
-  c.fillStyle="#f26b1d"; for(const x of [a,b]) c.fillRect(x-3,y0+h/2-9,6,18);
+  c.fillStyle="rgba(245,181,28,.12)"; c.fillRect(a,y0,b-a,h); c.strokeStyle="#f5b51c"; c.lineWidth=1.5; c.strokeRect(a+.5,y0+.5,Math.max(1,b-a-1),h-1);
+  c.fillStyle="#f5b51c"; for(const x of [a,b]) c.fillRect(x-3,y0+h/2-9,6,18);
   c.fillStyle="#8b9097"; c.font="500 10px 'Chakra Petch',sans-serif"; c.fillText("範囲",8,y0+h/2+4);
  },
  initNav(){
@@ -692,12 +692,12 @@ const Ana={
   this.xr=[a,b]; },
  drawCursor(){
   const cv=document.getElementById("ana-cv2"), g=this.cg; if(!g) return; const c=cv.getContext("2d"), dpr=cv.width/cv.clientWidth||1; c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,cv.clientWidth,cv.clientHeight);
-  if(this.sel){ c.strokeStyle="#f26b1d"; c.lineWidth=1; for(const k of this.sel){ c.beginPath(); c.moveTo(g.X(k),0); c.lineTo(g.X(k),g.H-28); c.stroke(); } }
+  if(this.sel){ c.strokeStyle="#f5b51c"; c.lineWidth=1; for(const k of this.sel){ c.beginPath(); c.moveTo(g.X(k),0); c.lineTo(g.X(k),g.H-28); c.stroke(); } }
   const k=this.cursor, run=this.run(); if(k==null||!run) return; const x=g.X(k); if(x<g.L||x>g.L+g.PW) return;
   c.strokeStyle="#fff"; c.beginPath(); c.moveTo(x,0); c.lineTo(x,g.H-28); c.stroke();
   const r=this.rowAt(run,k); if(!r) return;
   const txt=`${r.km.toFixed(1)} km ・ ${r.v.toFixed(0)} km/h ・ SOC ${r.soc.toFixed(1)} % ・ ${r.net>0?"+":""}${(r.net||0).toFixed(0)} W ・ ${r.drv}`;
   c.font="700 11px 'Chakra Petch','BIZ UDPGothic',sans-serif"; const w=c.measureText(txt).width+12, bx=Math.min(x+8,g.L+g.PW-w);
-  c.fillStyle="rgba(21,23,26,.92)"; c.fillRect(bx,4,w,20); c.strokeStyle="#f26b1d"; c.strokeRect(bx+0.5,4.5,w-1,19); c.fillStyle="#e6e6e3"; c.fillText(txt,bx+6,18);
+  c.fillStyle="rgba(21,23,26,.92)"; c.fillRect(bx,4,w,20); c.strokeStyle="#f5b51c"; c.strokeRect(bx+0.5,4.5,w-1,19); c.fillStyle="#e6e6e3"; c.fillText(txt,bx+6,18);
  },
 };

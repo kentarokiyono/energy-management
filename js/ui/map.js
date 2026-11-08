@@ -17,14 +17,14 @@ const MapUI={
   if(typeof AUS_RINGS!=="undefined") for(const r of AUS_RINGS){ let d=""; for(let i=0;i<r.length;i+=2){ const [x,y]=this.proj(v,r[i],r[i+1]); d+=(i?"L":"M")+this.f(x)+","+this.f(y); } s.push(`<path d="${d}Z" fill="#1c1f23" stroke="#4a4f56" stroke-width="1"/>`); }
   const all=this.pts.map(p=>this.proj(v,p[0],p[1]).map(this.f).join(",")).join(" ");
   s.push(`<polyline points="${all}" fill="none" stroke="#6b7077" stroke-width="${big?1.8:1.6}" stroke-dasharray="3 3"/>`);
-  s.push(`<polyline class="m-done" points="" fill="none" stroke="#f26b1d" stroke-width="${big?3:2.4}" stroke-linejoin="round"/>`);
+  s.push(`<polyline class="m-done" points="" fill="none" stroke="#f5b51c" stroke-width="${big?3:2.4}" stroke-linejoin="round"/>`);
   for(const c of (typeof RP_CS!=="undefined"?RP_CS:[])){ const q=profileAt(c.km), [x,y]=this.proj(v,q.lon,q.lat), r=big?4.5:3.5;
-   s.push(`<rect class="m-cs" data-km="${c.km}" x="${this.f(x-r)}" y="${this.f(y-r)}" width="${2*r}" height="${2*r}" fill="#15171a" stroke="#f26b1d" stroke-width="1.2"/>`);
+   s.push(`<rect class="m-cs" data-km="${c.km}" x="${this.f(x-r)}" y="${this.f(y-r)}" width="${2*r}" height="${2*r}" fill="#15171a" stroke="#f5b51c" stroke-width="1.2"/>`);
    s.push(`<text x="${this.f(x+r+3.5)}" y="${this.f(y+3.2)}" class="t">${big?"CS"+c.n+" "+c.name:c.n}</text>`); }
   const towns= big? [["Darwin",0,"start"],["Adelaide",TOTAL_KM,"end"]] : [["Darwin",0,"start"],["Alice Springs",1496,"end"],["Port Augusta",2720,"end"],["Adelaide",TOTAL_KM,"end"]];
   for(const [n,km,a] of towns){ const q=profileAt(km), [x,y]=this.proj(v,q.lon,q.lat); s.push(`<text x="${this.f(a==="end"?x-8:x-4)}" y="${this.f(a==="start"?y-9:y+14)}" class="tn" text-anchor="${a}">${n}</text>`); }
   s.push(`<g class="m-teams"></g>`);
-  s.push(`<g class="m-me"><circle r="${big?8:7}" fill="none" stroke="#f26b1d" stroke-width="1.5"/><circle r="3.2" fill="#fff"/></g>`);
+  s.push(`<g class="m-me"><circle r="${big?8:7}" fill="none" stroke="#f5b51c" stroke-width="1.5"/><circle r="3.2" fill="#fff"/></g>`);
   return `<svg viewBox="0 0 ${W} ${this.f(H)}" class="mapsvg" xmlns="http://www.w3.org/2000/svg">${s.join("")}</svg>`;
  },
  build(){
@@ -49,7 +49,7 @@ const MapUI={
     const d=root.querySelector(".m-done"); if(d) d.setAttribute("points",root._pre+" "+this.f(x)+","+this.f(y)); root._dk=km;
    }
    if(es.passedCP&&(es.passedCP.size!==this.passedN||root._pn!==es.passedCP.size)){ root._pn=es.passedCP.size;
-    root.querySelectorAll(".m-cs").forEach(r=>{ const k=+r.dataset.km, done=[...es.passedCP].some(p=>Math.abs(p-k)<3)||km>k+0.5; r.setAttribute("fill",done?"#f26b1d":"#15171a"); }); }
+    root.querySelectorAll(".m-cs").forEach(r=>{ const k=+r.dataset.km, done=[...es.passedCP].some(p=>Math.abs(p-k)<3)||km>k+0.5; r.setAttribute("fill",done?"#f5b51c":"#15171a"); }); }
   }
   if(Math.abs(km-this.lastKm)>0.05) this.lastKm=km;
   this.passedN=es.passedCP?es.passedCP.size:0;

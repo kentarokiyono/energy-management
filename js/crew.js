@@ -334,7 +334,7 @@ pick(){
 showUI(){
  if(!this.ui){
   const root=document.createElement("div"); root.id="crew-ui";
-  root.id="crew-ui"; root.addEventListener("click",e=>{ const a=e.target.closest&&e.target.closest("[data-aim]"); if(a) Crew.aim(a.dataset.aim); }); root.style.cssText="position:fixed;right:16px;top:100px;z-index:40;max-width:340px;font-size:13px;line-height:1.7;color:#e6e6e3;background:rgba(21,23,26,.92);border:1px solid #2a2d32;border-top:2px solid #f26b1d;padding:12px 16px;pointer-events:none";
+  root.id="crew-ui"; root.addEventListener("click",e=>{ const a=e.target.closest&&e.target.closest("[data-aim]"); if(a) Crew.aim(a.dataset.aim); }); root.style.cssText="position:fixed;right:16px;top:100px;z-index:40;max-width:340px;font-size:13px;line-height:1.7;color:#e6e6e3;background:rgba(21,23,26,.92);border:1px solid #2a2d32;border-top:2px solid #f5b51c;padding:12px 16px;pointer-events:none";
   const cross=document.createElement("div"); cross.style.cssText="position:fixed;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border:2px solid rgba(255,255,255,.8);border-radius:50%;z-index:40;pointer-events:none";
   const prompt=document.createElement("div"); prompt.style.cssText="position:fixed;left:50%;top:56%;transform:translateX(-50%);z-index:40;color:#fff;font:bold 14px sans-serif;text-shadow:0 0 4px #000;pointer-events:none";
   document.body.appendChild(root); document.body.appendChild(cross); document.body.appendChild(prompt);

@@ -13,9 +13,9 @@ for(const r of [R/2,R]){ ctx.beginPath(); ctx.arc(C,C,r,0,7); ctx.stroke(); }
 ctx.beginPath(); ctx.moveTo(C-R,C); ctx.lineTo(C+R,C); ctx.moveTo(C,C-R); ctx.lineTo(C,C+R); ctx.stroke();
 const gx=clamp(es.gLat||0,-1,1)*R, gy=clamp(-(es.gLong||0),-1,1)*R;
 GTRAIL.push([gx,gy]); if(GTRAIL.length>45) GTRAIL.shift();
-ctx.strokeStyle="rgba(242,107,29,.35)"; ctx.beginPath();
+ctx.strokeStyle="rgba(245,181,28,.35)"; ctx.beginPath();
 GTRAIL.forEach((pt,i)=>{ i?ctx.lineTo(C+pt[0],C+pt[1]):ctx.moveTo(C+pt[0],C+pt[1]); }); ctx.stroke();
-ctx.fillStyle="#f26b1d"; ctx.beginPath(); ctx.arc(C+gx,C+gy,3.5,0,7); ctx.fill();
+ctx.fillStyle="#f5b51c"; ctx.beginPath(); ctx.arc(C+gx,C+gy,3.5,0,7); ctx.fill();
 ctx.fillStyle="#8b9097"; ctx.font="500 9px 'Chakra Petch',sans-serif";
 ctx.fillText("1G",C+R-13,C-3);
 ctx.fillText(((es.gLat||0)).toFixed(2)+"G",3,80);
@@ -39,16 +39,16 @@ chart=new Chart(document.getElementById("history-chart"),{
 type:"line",
 data:{labels:[],datasets:[
 {label:"SOC %",data:[],borderColor:"#e6e6e3",yAxisID:"y",pointRadius:0,borderWidth:2},
-{label:"発電 W",data:[],borderColor:"#e2b21f",yAxisID:"y1",pointRadius:0,borderWidth:1.5},
-{label:"速度 km/h",data:[],borderColor:"#f26b1d",yAxisID:"y",pointRadius:0,borderWidth:1.5},
-{label:"モーター電流 A",data:[],borderColor:"#f26b1d",yAxisID:"y",pointRadius:0,borderWidth:1.5,hidden:true},
+{label:"発電 W",data:[],borderColor:"#5ab0ff",yAxisID:"y1",pointRadius:0,borderWidth:1.5},
+{label:"速度 km/h",data:[],borderColor:"#f5b51c",yAxisID:"y",pointRadius:0,borderWidth:1.5},
+{label:"モーター電流 A",data:[],borderColor:"#f5b51c",yAxisID:"y",pointRadius:0,borderWidth:1.5,hidden:true},
 {label:"消費 W",data:[],borderColor:"#d23a2e",yAxisID:"y1",pointRadius:0,borderWidth:1.5,hidden:true},
 ]},
 options:{responsive:true,maintainAspectRatio:false,animation:false,
 scales:{
 x:{ticks:{color:"#8b9097",maxTicksLimit:6},grid:{color:"#1f2226"}},
 y:{min:0,max:140,ticks:{color:"#8b9097"},grid:{color:"#1f2226"}},
-y1:{position:"right",min:0,ticks:{color:"#e2b21f"},grid:{display:false}},
+y1:{position:"right",min:0,ticks:{color:"#5ab0ff"},grid:{display:false}},
 },
 plugins:{legend:{labels:{color:"#c9ccd0",boxWidth:12,font:{size:11,family:"'Chakra Petch','BIZ UDPGothic',sans-serif"}}}},
 }
@@ -101,7 +101,7 @@ if(next&&P.mode==="race"){
 const closeAbs=csCloseAbs(next.km);
 const rem=closeAbs-((es.day-1)*24+es.hour);
 ccEl.textContent=`Close ${fmtAbsH(closeAbs)} ― 残り ${fmtDur(rem)}`;
-ccEl.style.color= rem<0?"#d23a2e": rem<1?"#e2b21f":"#8b9097";
+ccEl.style.color= rem<0?"#d23a2e": rem<1?"#f0812a":"#8b9097";
 if(rem<0&&!es.radioCd["closed"+next.km]){ es.radioCd["closed"+next.km]=true;
 Radio.push(`${next.name} のクローズ時刻を超過しました。公式記録外走行となります。`); }
 } else ccEl.textContent="";
@@ -109,7 +109,7 @@ if(Engine.gridWait&&Engine.gridWait()){ const sec=Math.max(0,(es.gridStartH-es.h
  ccEl.textContent=`発進待ち P${es.grid} ― ${String(Math.floor(hm)).padStart(2,"0")}:${String(Math.round(hm%1*60)).padStart(2,"0")} まで ${Math.floor(sec/60)}:${String(Math.floor(sec%60)).padStart(2,"0")}`; ccEl.style.color="#e2b21f"; }
 document.getElementById("hud-limit").textContent=speedLimitAt(es.km);
 document.getElementById("hud-speed").textContent=Math.round(es.v*3.6);
-{ const g=document.getElementById("hud-gear"); if(g){ g.textContent=es.gear==="R"?"R":"D"; g.style.color=es.gear==="R"?"#d23a2e":"#f26b1d"; } }
+{ const g=document.getElementById("hud-gear"); if(g){ g.textContent=es.gear==="R"?"R":"D"; g.style.color=es.gear==="R"?"#d23a2e":"#f5b51c"; } }
 const tsp=document.getElementById("touch-speed");
 if(tsp&&!document.getElementById("touch-ui").classList.contains("hidden")){
 tsp.textContent=Math.round(es.v*3.6);
@@ -119,7 +119,7 @@ const socP=es.soc*100;
 document.getElementById("hud-socpct").textContent=socP.toFixed(1);
 const sb=document.getElementById("hud-socbar");
 sb.style.width=socP+"%";
-sb.style.background= socP>40?"#f26b1d": socP>15?"#e2b21f":"#d23a2e";
+sb.style.background= socP>40?"#f5b51c": socP>15?"#f0812a":"#d23a2e";
 document.getElementById("hud-wh").textContent= P.infiniteBattery?"∞ Wh":(es.soc*P.batteryWh).toFixed(0)+" Wh";
 setT("hud-bms", es.disconnected?"🔌 結線 OFF": (es.bmsOn&&es.soc<=0.05)?"⚠ BMS 出力制限":"");
 document.getElementById("hud-volt").textContent=(es.lastVterm!=null?es.lastVterm:VOC(es.soc)).toFixed(1)+" V";
@@ -128,7 +128,7 @@ setT(bb,es.bmsOn?"🛡 BMS ON":"⚠ BMS OFF");
 bb.style.borderColor=es.bmsOn?"":"#d23a2e";
 const pb=document.getElementById("power-btn");
 setT(pb,es.powerMode?"⚡ POWER (P)":"🍃 ECO (P)");
-pb.style.borderColor=es.powerMode?"#f26b1d":"";
+pb.style.borderColor=es.powerMode?"#f5b51c":"";
 document.getElementById("hud-avg").textContent=(es.drivingHours>0.02?(es.km/es.drivingHours).toFixed(1):"―")+" km/h";
 const telem=!(es.fault&&es.fault.type==="telemetry");
 const dash="― ―";
@@ -143,7 +143,7 @@ net.style.color=es.lastNet>0?"#d23a2e":"#5cb85c";
 document.getElementById("hud-tcell").textContent=telem?es.lastTcell.toFixed(0)+"°C":dash;
 const tb=document.getElementById("hud-tbat");
 tb.textContent=telem&&es.Tbat!=null?es.Tbat.toFixed(1)+"°C":dash;
-tb.style.color=es.Tbat>55?"#d23a2e":es.Tbat>45?"#e2b21f":"";
+tb.style.color=es.Tbat>55?"#d23a2e":es.Tbat>45?"#f0812a":"";
 document.getElementById("hud-wind").innerHTML=`${es.windSpeed.toFixed(1)} m/s`;
 const prof=profileAt(es.km);
 document.getElementById("hud-elev").textContent=prof.elev.toFixed(0)+" m";

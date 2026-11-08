@@ -193,11 +193,11 @@ const Monitor={
   c.font="500 10px 'Chakra Petch',sans-serif"; c.textAlign="right";
   for(const v of [20,40,60,80,100,120]){ const y=Yv(v); c.strokeStyle="#1a1d21"; c.beginPath(); c.moveTo(L,y); c.lineTo(W-10,y); c.stroke(); c.fillStyle="#8b9097"; c.fillText(v,L-5,y+3.5); }
   for(const v of [0,25,50,75,100]){ const y=Ys(v); c.strokeStyle="#1a1d21"; c.beginPath(); c.moveTo(L,y); c.lineTo(W-10,y); c.stroke(); c.fillStyle="#8b9097"; c.fillText(v,L-5,y+3.5); }
-  c.textAlign="left"; c.fillStyle="#f26b1d"; c.fillText("速度 km/h",L+4,12); c.fillStyle="#e6e6e3"; c.fillText("電池 %",L+4,h2+16);
+  c.textAlign="left"; c.fillStyle="#f5b51c"; c.fillText("速度 km/h",L+4,12); c.fillStyle="#e6e6e3"; c.fillText("電池 %",L+4,h2+16);
   c.strokeStyle="#3a3e44"; c.beginPath(); c.moveTo(L,4); c.lineTo(L,H-20); c.moveTo(L,h2+4); c.lineTo(W-10,h2+4); c.stroke();
   const line=(arr,fx,fy,col,dash)=>{ c.strokeStyle=col; c.lineWidth=1.6; c.setLineDash(dash?[4,3]:[]); c.beginPath(); let st=false; for(const p of arr){ const x=fx(p); if(x<a||x>b) continue; const y=fy(p); st?c.lineTo(X(x),y):c.moveTo(X(x),y); st=true; } c.stroke(); c.setLineDash([]); };
   const T=this.fc&&this.fc.trace; if(T){ line(T.filter(t=>t[0]>=k),t=>t[0],t=>Yv(t[2]||0),"#22d3ee",true); line(T.filter(t=>t[0]>=k),t=>t[0],t=>Ys(t[1]),"#22d3ee",true); }
-  line(this.pts,p=>p[0],p=>Yv(p[2]),"#f26b1d"); line(this.pts,p=>p[0],p=>Ys(p[3]),"#e6e6e3");
+  line(this.pts,p=>p[0],p=>Yv(p[2]),"#f5b51c"); line(this.pts,p=>p[0],p=>Ys(p[3]),"#e6e6e3");
   c.strokeStyle="#fff"; c.beginPath(); c.moveTo(X(k),4); c.lineTo(X(k),H-20); c.stroke();
   c.fillStyle="#8b9097"; const step=[10,20,50].find(st=>(b-a)/st<=8)||50; for(let x=Math.ceil(a/step)*step;x<=b;x+=step) if(X(x)-14>=L+2) c.fillText(x+" km",X(x)-14,H-6);
  },

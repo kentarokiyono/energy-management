@@ -1,6 +1,6 @@
 /* ===== テーマ: モータースポーツのテレメトリ風 (武骨・シンプル) ===== */
 :root{ --bg:#0d0e10; --pn:rgba(21,23,26,.92); --pns:#15171a; --pn2:#141619; --ln:#2a2d32; --ln2:#3a3e44; --tx:#e6e6e3; --tx2:#c9ccd0; --dim:#8b9097;
- --acc:#f26b1d; --warn:#e2b21f; --bad:#d23a2e; --ok:#5cb85c;
+ --acc:#f5b51c; --warn:#f0812a; --bad:#d23a2e; --ok:#5cb85c;
  --fj:'BIZ UDPGothic','Hiragino Sans','Yu Gothic UI',sans-serif; --fn:'Chakra Petch','BIZ UDPGothic',sans-serif;
  --neon:var(--tx); --amber:var(--warn); }
 html,body{ background:var(--bg); color:var(--tx); font-family:var(--fj); line-height:1.7; }
@@ -187,7 +187,7 @@ body.hide-map #hud-map, body.hide-map #hud-limit-wrap{ display:none; }
 
 /* タッチ操作 */
 .tbtn{ background:rgba(21,23,26,.75); border:1px solid var(--ln2); color:var(--tx); border-radius:0; font-family:var(--fn); }
-.tbtn:active{ background:rgba(242,107,29,.35); }
+.tbtn:active{ background:rgba(245,181,28,.35); }
 .tbtn .ic{ width:18px; height:18px; }
 body.touch-on #hud-radio{ width:280px; }
 body.touch-on #hud-batt, body.touch-on #hud-netp{ display:none; }
@@ -232,7 +232,7 @@ body.touch-on #crew-ui{ right:auto!important; left:8px; top:150px!important; max
 #game-container, #game-container *{ touch-action:none; }
 #map-ov .tb, #map-ov .tb *{ touch-action:pan-y; }
 body.touch-on #crew-ui{ pointer-events:auto!important; }
-body.touch-on #crew-ui .crew-aim{ cursor:pointer; text-decoration:underline; text-decoration-color:#f26b1d; text-underline-offset:3px; }
+body.touch-on #crew-ui .crew-aim{ cursor:pointer; text-decoration:underline; text-decoration-color:var(--acc); text-underline-offset:3px; }
 
 /* ===== 走行の分析画面 ===== */
 #ana{ position:fixed; inset:0; z-index:100; background:var(--bg); display:none; flex-direction:column; }
@@ -356,7 +356,7 @@ body.touch-on #crew-ui .crew-aim{ cursor:pointer; text-decoration:underline; tex
 .nickpad span.on{ background:var(--acc); border-color:var(--acc); color:#111; }
 .nickpad span.del{ min-width:46px; }
 #t-stick{ position:absolute; left:16px; bottom:16px; width:140px; height:140px; border-radius:50%; border:1px solid var(--ln2); background:rgba(21,23,26,.6); display:none; touch-action:none; }
-#t-stick .knob{ position:absolute; left:50%; top:50%; width:52px; height:52px; margin:-26px 0 0 -26px; border-radius:50%; background:rgba(242,107,29,.85); border:1px solid var(--acc); }
+#t-stick .knob{ position:absolute; left:50%; top:50%; width:52px; height:52px; margin:-26px 0 0 -26px; border-radius:50%; background:rgba(245,181,28,.85); border:1px solid var(--acc); }
 #t-stick span{ position:absolute; left:0; right:0; top:-22px; text-align:center; font:700 11px var(--fn); color:var(--dim); letter-spacing:.12em; }
 body.touch-on.walking #t-stick{ display:block; }
 body.touch-on.walking #t-steer, body.touch-on.walking #t-ped, body.touch-on.walking #t-spd{ display:none; }

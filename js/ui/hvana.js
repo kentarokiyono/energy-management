@@ -164,7 +164,7 @@ const HVA={
   const show= sel? sel : (!circ? {x:run.hv.S.x,z:run.hv.S.z,v:run.hv.S.v} : null); if(!show) return;
   const lo=Math.min(...show.v), hi=Math.max(...show.v); c.lineWidth=3.2; c.lineCap="round";
   for(let i=1;i<show.x.length;i++){ if(Math.hypot(show.x[i]-show.x[i-1],show.z[i]-show.z[i-1])>15) continue; const [a,b]=P(show.x[i-1],show.z[i-1]), [a2,b2]=P(show.x[i],show.z[i]); c.strokeStyle=this.col(show.v[i],lo,hi); c.beginPath(); c.moveTo(a,b); c.lineTo(a2,b2); c.stroke(); }
-  if(this.cur!=null&&sel){ let i=0; while(i<sel.s.length-1&&sel.s[i]<this.cur) i++; const [a,b]=P(sel.x[i],sel.z[i]); c.fillStyle="#fff"; c.strokeStyle="#f26b1d"; c.lineWidth=3; c.beginPath(); c.arc(a,b,6,0,7); c.fill(); c.stroke(); }
+  if(this.cur!=null&&sel){ let i=0; while(i<sel.s.length-1&&sel.s[i]<this.cur) i++; const [a,b]=P(sel.x[i],sel.z[i]); c.fillStyle="#fff"; c.strokeStyle="#f5b51c"; c.lineWidth=3; c.beginPath(); c.arc(a,b,6,0,7); c.fill(); c.stroke(); }
   document.getElementById("hv-leg").innerHTML=`<span>速度</span><i style="background:linear-gradient(90deg,${[0,0.25,0.5,0.75,1].map(t=>this.col(lo+t*(hi-lo),lo,hi)).join(",")})"></i><span>${lo.toFixed(0)}〜${hi.toFixed(0)} km/h</span>`; },
  axes(c,W,H,len,ylo,yhi,unit,L){ const PW=W-L-10; c.font="500 10px 'Chakra Petch',sans-serif"; c.textAlign="right";
   const step=[5,10,20,25,50,100].find(x=>(yhi-ylo)/x<=6)||100; for(let y=Math.ceil(ylo/step)*step;y<=yhi;y+=step){ const py=8+(1-(y-ylo)/(yhi-ylo))*(H-26); c.strokeStyle="#1a1d21"; c.beginPath(); c.moveTo(L,py); c.lineTo(W-10,py); c.stroke(); c.fillStyle="#8b9097"; c.fillText(y,L-5,py+3.5); }
@@ -178,13 +178,13 @@ const HVA={
    c.font="500 10px 'Chakra Petch',sans-serif"; const PW=W-L-10; c.fillStyle="#8b9097"; c.fillText("km/h",L+4,16);
    c.textAlign="right"; for(let y=0;y<=hi;y+=hi>60?20:10){ const py=8+(1-y/hi)*(H-26); c.strokeStyle="#1a1d21"; c.beginPath(); c.moveTo(L,py); c.lineTo(W-10,py); c.stroke(); c.fillText(y,L-5,py+3.5); } c.textAlign="left";
    const tstep=[5,10,20,30,60,120,300].find(x=>len/x<=8)||600; for(let x=0;x<=len;x+=tstep) c.fillText(x+" 秒",L+x/Math.max(1,len)*PW-10,H-6);
-   c.strokeStyle="#f26b1d"; c.lineWidth=1.6; c.beginPath(); for(let i=0;i<n;i++){ const x=L+(S.t[i]-t0)/Math.max(1,len)*PW, y=8+(1-ys[i]/hi)*(H-26); i&&S.t[i]-S.t[i-1]<1? c.lineTo(x,y) : c.moveTo(x,y); } c.stroke();
+   c.strokeStyle="#f5b51c"; c.lineWidth=1.6; c.beginPath(); for(let i=0;i<n;i++){ const x=L+(S.t[i]-t0)/Math.max(1,len)*PW, y=8+(1-ys[i]/hi)*(H-26); i&&S.t[i]-S.t[i-1]<1? c.lineTo(x,y) : c.moveTo(x,y); } c.stroke();
    document.getElementById("hv-chl").textContent=""; this.xs=null; return; }
   const len=HV.track().len, all=[sel,cmp].filter(Boolean); if(!all.length) return; const hi=Math.ceil(Math.max(...all.map(l=>l.vmax))/10)*10+5, lo=Math.max(0,Math.floor(Math.min(...all.map(l=>l.vmin))/10)*10-5);
   const PW=this.axes(c,W,H,len,lo,hi,"km/h",L); this.xs={L,W:PW,len};
   const line=(l,col,w)=>{ c.strokeStyle=col; c.lineWidth=w; c.beginPath(); for(let i=0;i<l.s.length;i++){ const x=L+l.s[i]/len*PW, y=8+(1-(l.v[i]-lo)/(hi-lo))*(H-26); i&&l.s[i]>=l.s[i-1]? c.lineTo(x,y) : c.moveTo(x,y); } c.stroke(); };
-  if(cmp) line(cmp,"rgba(34,211,238,.85)",1.4); if(sel) line(sel,"#f26b1d",1.8);
-  document.getElementById("hv-chl").innerHTML=` <span style="color:#f26b1d">━ LAP ${sel?sel.n:"―"}</span>${cmp?` <span style="color:#22d3ee">━ LAP ${cmp.n}${this.cmp==="best"?" (ベスト)":""}</span>`:""}`;
+  if(cmp) line(cmp,"rgba(34,211,238,.85)",1.4); if(sel) line(sel,"#f5b51c",1.8);
+  document.getElementById("hv-chl").innerHTML=` <span style="color:#f5b51c">━ LAP ${sel?sel.n:"―"}</span>${cmp?` <span style="color:#22d3ee">━ LAP ${cmp.n}${this.cmp==="best"?" (ベスト)":""}</span>`:""}`;
   if(this.cur!=null&&sel){ const px=L+this.cur/len*PW; c.strokeStyle="#fff"; c.beginPath(); c.moveTo(px,8); c.lineTo(px,H-20); c.stroke(); let i=0; while(i<sel.s.length-1&&sel.s[i]<this.cur) i++;
    c.fillStyle="#e6e6e3"; c.font="600 11px 'Chakra Petch',sans-serif"; c.fillText(`${(this.cur/1000).toFixed(2)} km  ${sel.v[i].toFixed(0)} km/h  ${(sel.thr[i]*100).toFixed(0)} % / ブレーキ ${(sel.brk[i]*100).toFixed(0)} %`,Math.min(px+6,W-260),24); } },
  drawDelta(sel,cmp){ const cv=document.getElementById("hv-dt"); if(!cv) return; const [c,W,H]=this.fit(cv); c.clearRect(0,0,W,H); const L=40;
