@@ -21,8 +21,9 @@ const Orders={
  frame(es,dtR){
   this.limitNotice(es);
   if(!this.on()||!es||es.finished){ this.ui(); return; }
-  const pause= es.camp||es.stopTimer>0||(Engine.gridWait&&Engine.gridWait())||(typeof Crew!=="undefined"&&Crew.busy());
+  const pause= es.camp||es.stopTimer>0||(Engine.gridWait&&Engine.gridWait())||(typeof Crew!=="undefined"&&Crew.busy())||(typeof Storm!=="undefined"&&Storm.active(es));   // 暴風雨の間は止める
   if(this.mode==="voice"){ this.cur=null; this.ui(); return; }   // 声で伝える: アプリは指示も採点もしない
+  if(this.cur&&typeof Storm!=="undefined"&&Storm.active(es)){ this.cur=null; this.nextKm=es.km; Radio.push("暴風雨の間は速度指示を止めます。安全な所で停車して待ってください。","戦略班",{speak:true}); }
   if(!this.cur){ if(this.mode==="auto"&&!pause&&es.km>=this.nextKm&&es.v>1) this.issue(es); this.ui(); return; }
   const c=this.cur, kmh=es.v*3.6, lim=speedLimitAt(es.km);
   const dk=Math.max(0,es.km-(c.lastKm==null?es.km:c.lastKm)); c.lastKm=es.km;
@@ -53,7 +54,7 @@ const Orders={
  issue(es){
   const dmax=Math.min(this.STEP,TOTAL_KM-es.km); if(dmax<0.5) return;
   const Z=this.limitZone(es.km,dmax), dist=Z.end-es.km;   // 制限速度が変わる地点で区切る
-  const plan=typeof Strategy!=="undefined"? Strategy.plan(true) : null;
+  const plan=typeof Strategy!=="undefined"? Strategy.plan(false) : null;   // 裏で作り直している最新の戦略 (同期で作り直すと画面が止まる)
   let v=Math.round(plan? Strategy.speedFor(plan,es.km,dist,es.soc,es.lastSolar||0) : 70); v=Math.min(v,Z.lim);   // 速度配分 (勾配で変わる) を区間で平均し、制限速度を超えない
   const I=this.current(es,v,es.km,dist);
   this.cur={v,I,k0:es.km,k1:es.km+dist,in:0,tot:0,dev:0,iSum:0,react:null,t0:performance.now()};

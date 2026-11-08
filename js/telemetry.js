@@ -92,7 +92,8 @@ const Tele={
  ahead(es){ const cur=speedLimitAt(es.km); let lim=null; for(let k=es.km+0.1;k<=Math.min(TOTAL_KM,es.km+20);k+=0.1){ const l=speedLimitAt(k); if(l!==cur){ lim={km:+(k-es.km).toFixed(1),v:l}; break; } }
   const cs=RP_CS.find(c=>!es.passedCP.has(c.km)&&c.km>es.km), nm=typeof Route!=="undefined"&&Route.nextManeuver? Route.nextManeuver(es.km) : null;
   const act={L:"左折",R:"右折",veerL:"左へ",veerR:"右へ",rab:"ラウンドアバウト",keepL:"左車線キープ",keepR:"右車線キープ",keepS:"直進維持",uturn:"転回"};
-  return {lim,cs:cs?{n:cs.n,name:cs.name,d:+(cs.km-es.km).toFixed(1)}:null,man:nm&&nm.name&&!nm.name.startsWith("(")&&nm.km-es.km<30?{d:+(nm.km-es.km).toFixed(2),act:act[nm.turn]||"",name:nm.name}:null,fin:+(TOTAL_KM-es.km).toFixed(1)}; },
+  const sa=typeof Storm!=="undefined"&&Storm.approach(es);
+  return {storm:sa?{min:Math.round(sa.tMin)}:null,lim,cs:cs?{n:cs.n,name:cs.name,d:+(cs.km-es.km).toFixed(1)}:null,man:nm&&nm.name&&!nm.name.startsWith("(")&&nm.km-es.km<30?{d:+(nm.km-es.km).toFixed(2),act:act[nm.turn]||"",name:nm.name}:null,fin:+(TOTAL_KM-es.km).toFixed(1)}; },
  /* 予報 (ドライバー側の「予報」を使う。実際の天気そのものは送らない): この先 9 時間の 1 時間ごと */
  forecast(es){
   const p=Strategy.plan(false), abs0=(es.day-1)*24+es.hour, out=[];

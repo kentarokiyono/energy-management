@@ -186,6 +186,7 @@ const StormFx={
  next(es,view){ if(!es) return null; const abs=(es.day-1)*24+es.hour, h=view.ch, fx=Math.sin(h), fz=-Math.cos(h), rx=Math.cos(h), rz=Math.sin(h);
   const c=typeof Scenario!=="undefined"&&Scenario.cur&&es.scenario&&Scenario.cur.sc.storm? Scenario.cur : null;
   if(c){ const st=c.st||c.sc.storm, sgn=(c.sc.wind&&c.sc.wind.rel)||1; return {tMin:(c.abs0+st.in-abs)*60,dur:st.dur*60,dx:rx*0.6*sgn+fx*0.8,dz:rz*0.6*sgn+fz*0.8}; }   // 右前から
+  const sa=typeof Storm!=="undefined"&&Storm.approach(es); if(sa) return {tMin:sa.tMin,dur:sa.dur,dx:fx*sa.f+rx*sa.r,dz:fz*sa.f+rz*sa.r};   // レース中の暴風雨 (風上から)
   const plan=es.weatherPlan||[], w=plan.find(x=>x.type==="squall"&&abs<x.start+x.dur&&x.start-abs<0.7); if(!w) return null;
   const head=es.lastHead||0, crossR=-(es.lastCross||0), ax=fx*(-head)+rx*crossR, az=fz*(-head)+rz*crossR, m=Math.hypot(ax,az);
   return {tMin:(w.start-abs)*60,dur:w.dur*60,dx:m>1? -ax/m : fx,dz:m>1? -az/m : fz}; },

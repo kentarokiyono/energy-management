@@ -32,6 +32,19 @@ const VEH=(()=>{
  if(S.label) BODY_SHAPES.wadai.desc=S.label;
  return v;
 })();
+/* 自分の車の発電の補正: 太陽の高さ別の効率 (平置き: パネルの曲面・影・浅い角度の反射など、モデルに無い損失) と、傾けたときの倍率。
+ 優先: 分析画面の合わせ込み (設定 pvAltS・pvTiltK) → 諸元 (vehicle-private.js の solar.altLoss・tiltK・effK) → 補正なし。
+ 表は太陽の高さ 0°, 10°, … 80° の 9 点 (高い所を 1 として相対)。他チームの車には使わない */
+const PVLoss={
+ _s:null, _v:null,
+ curve(){ const s=P.pvAltS||""; if(s!==this._s){ this._s=s; let a=null; try{ a=JSON.parse(s); }catch(e){} this._v= Array.isArray(a)&&a.length===9&&a.every(x=>Number.isFinite(x)&&x>0&&x<=1.5)? a : null; }
+  if(this._v) return this._v; const S=VEH.active&&VEH.spec.solar; return S&&Array.isArray(S.altLoss)&&S.altLoss.length===9? S.altLoss : null; },
+ k(alt,tilted){ const S=(VEH.active&&VEH.spec.solar)||{}, eff= this.curve()&&!P.pvAltS? (S.effK||1) : 1;
+  if(tilted){ const t= Number.isFinite(P.pvTiltK)&&P.pvTiltK!==1? P.pvTiltK : (S.tiltK||1); return t*eff; }
+  const c=this.curve(); if(!c) return eff; const d=clamp((alt||0)*180/Math.PI/10,0,8), i=Math.min(7,Math.floor(d)); return (c[i]+(c[i+1]-c[i])*(d-i))*eff; },
+};
+/* 走行の消費の補正 (モデルに無い損失: 駆動系・タイヤ・配線など)。優先: 分析画面の合わせ込み (設定 lossK) → 諸元 (lossK) → 1 */
+const LossK={ k(){ if(Number.isFinite(P.lossK)&&P.lossK!==1) return clamp(P.lossK,0.7,1.5); const v=VEH.active&&VEH.spec.lossK; return Number.isFinite(v)? clamp(v,0.7,1.5) : 1; } };
 /* 横転の計算に使う一般的な値 (諸元が無いとき・諸元に無い項目)。実車の値ではない */
 const ROLL_DEF={ssf:1.2, hold:1500, chassis:{cgHeight:0.42, cgTread:1.0, wheels:4}, aero:{sideArea:2.5, Cy:1.0, CyBeta:1.0, ClCross:0.3, cpK:1.25}};
 /* 走行の挙動 (諸元があるときだけ使う) */

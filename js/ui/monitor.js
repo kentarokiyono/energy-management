@@ -51,11 +51,25 @@ const Monitor={
  recv(d){
   if(!d||typeof d!=="object") return;
   if(d.t==="init"){ this.drivers=d.drivers||[]; this.pts=Array.isArray(d.pts)? d.pts.slice() : []; this.modeUI(d.mode); this.drawAll(); }
-  else if(d.t==="snap"){ this.snap=d; const L=this.pts[this.pts.length-1]; if(!L||d.km-L[0]>=0.2) this.pts.push([d.km,d.abs,d.v,d.soc]); this.modeUI(d.mode); this.top(); this.order(); this.drawMap(); this.drawChart(); }
+  else if(d.t==="snap"){ this.record(d); this.snap=d; const L=this.pts[this.pts.length-1]; if(!L||d.km-L[0]>=0.2) this.pts.push([d.km,d.abs,d.v,d.soc]); this.modeUI(d.mode); this.top(); this.order(); this.drawMap(); this.drawChart(); }
   else if(d.t==="fc"){ this.fc=d; this.forecast(); this.drawChart(); }
-  else if(d.t==="radio"){ this.radio.unshift(d); this.radio.length=Math.min(this.radio.length,40); this.radioUI(); }
+  else if(d.t==="radio"){ const L=this.rec[this.rec.length-1]; if(L) L.memo=(L.memo?L.memo+" / ":"")+`${d.who||""}: ${d.msg}`; this.radio.unshift(d); this.radio.length=Math.min(this.radio.length,40); this.radioUI(); }
   else if(d.t==="mode") this.modeUI(d.mode);
  },
+ /* ---------- 記録 (CSV で保存 → 分析画面でそのまま読める列名) ----------
+  受けた値を、50 m 進むか 10 秒たつか状態が変わるごとに 1 行。無線の文はメモの列に */
+ rec:[],
+ record(d){ const L=this.rec[this.rec.length-1], st=d.camp?"夜営":d.stop?"停車":d.st||"";
+  if(L&&Math.abs(d.km-L.km)<0.05&&d.abs-L.abs<10/3600&&L.st===st) return;
+  this.rec.push({abs:d.abs,day:d.day,km:d.km,st,v:d.v,lim:d.lim,soc:d.soc,ps:d.ps,pm:d.pm,net:d.net,amp:d.amp,head:d.head,drv:d.drv||"",wx:d.wx==="squall"?"スコール":d.wx?"曇天":"快晴",tip:d.tip,memo:""});
+  const b=document.getElementById("mon-recn"); if(b) b.textContent=`${this.rec.length} 行`; },
+ saveCSV(){ if(!this.rec.length){ toast("まだ記録がありません","#f59e0b"); return; }
+  const H=["日","経過h","km","状態","速度km/h","制限km/h","SOC%","発電W","モーターW","収支W","電池電流A","向かい風m/s","横転の危険度%","ドライバー","天候","メモ"];
+  const q=(x)=>{ const t=String(x??""); return /[",\n]/.test(t)? `"${t.replace(/"/g,'""')}"` : t; }, f=(x,dg)=>Number.isFinite(x)? (+x).toFixed(dg) : "";
+  const rows=this.rec.map(r=>[r.day,f(r.abs-8,4),f(r.km,3),r.st,f(r.v,1),f(r.lim,0),f(r.soc,2),f(r.ps,0),f(r.pm,0),f(r.net,0),f(r.amp,2),f(r.head,1),f((r.tip||0)*100,0),r.drv,r.wx,r.memo].map(q).join(","));
+  const blob=new Blob(["\ufeff"+H.join(",")+"\n"+rows.join("\n")],{type:"text/csv"}), a=document.createElement("a"), d=new Date();
+  a.href=URL.createObjectURL(blob); a.download=`telemetry_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}_${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}.csv`;
+  document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000); toast(`保存しました (${this.rec.length} 行)`,"#34d399"); },
  /* ---------- 画面 ---------- */
  build(){
   document.body.classList.add("mon-on");
@@ -70,7 +84,7 @@ const Monitor={
    <div class="ana-map" id="mon-map"><div class="ana-compass" id="ana-compass" title="北の向き (クリックで北を上に)" onclick="Monitor.map&&Monitor.map.north()"><i></i><b>N</b></div><div class="ana-ctl"><button class="btn" title="左に回す" onclick="Monitor.map&&Monitor.map.rot(-1)">${ic("rotate","flipx")}</button><button class="btn" title="右に回す" onclick="Monitor.map&&Monitor.map.rot(1)">${ic("rotate")}</button><button class="btn" title="寝かせる" onclick="Monitor.map&&Monitor.map.tilt(1)">${ic("chd")}</button><button class="btn" title="起こす" onclick="Monitor.map&&Monitor.map.tilt(-1)">${ic("chu")}</button><button class="btn" title="北を上に" onclick="Monitor.map&&Monitor.map.north()">N</button><button class="btn" title="真上から" onclick="Monitor.map&&Monitor.map.top()">真上</button></div><div class="ana-leg" id="ana-leg"></div></div></section>
   <section class="card" id="mon-chartc"><div class="ch">${ic("activity")}速度と電池 (この先の見込みは点線)</div><canvas id="mon-chart"></canvas></section>
   <section class="card" id="mon-fcc"><div class="ch">${ic("sun")}この先の天気 (予報)<span class="dim" id="mon-sun"></span></div><div class="fc" id="mon-fc"><div class="dim">予報を待っています…</div></div><div id="mon-plan" class="plan"></div></section>
-  <section class="card"><div class="ch">${ic("radio")}無線</div><div id="mon-radio" class="rl"><div class="dim">まだありません</div></div></section>`;
+  <section class="card"><div class="ch">${ic("radio")}無線<span class="dim" id="mon-recn" style="margin-left:auto">0 行</span><button class="btn" style="padding:3px 9px;font-size:11.5px" onclick="Monitor.saveCSV()" title="受けた走行データと無線を CSV で保存 (分析画面でそのまま読める)">${ic("download")}記録を保存</button></div><div id="mon-radio" class="rl"><div class="dim">まだありません</div></div></section>`;
   document.body.appendChild(el);
   document.getElementById("mon-mode").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; this.send({t:"mode",mode:b.dataset.m}); this.modeUI(b.dataset.m); });
   document.getElementById("mon-mv").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; this.view=b.dataset.v; this.dirty=true; document.querySelectorAll("#mon-mv button").forEach(x=>x.classList.toggle("on",x===b)); this.aim(); this.drawMap(); });
@@ -97,6 +111,7 @@ const Monitor={
   el.innerHTML=row("制限速度",A.lim? `${A.lim.km} km 先で ${A.lim.v} km/h <i>(いま ${f(s.lim,0)})</i>` : `${f(s.lim,0)} km/h (20 km 先まで同じ)`)
    +row("次の右左折",A.man? `${A.man.d<1? Math.round(A.man.d*1000)+" m" : A.man.d.toFixed(1)+" km"} 先 ${escHtml(A.man.act)} ― ${escHtml(A.man.name)}` : "30 km 先までなし")
    +row("次の CS",A.cs? `CS${A.cs.n} ${escHtml(A.cs.name)} まで ${f(A.cs.d,1)} km` : "なし")+row("ゴールまで",`${f(A.fin,1)} km`)
+   +(A.storm? row("暴風雨",A.storm.min>0? `前縁まで あと約 ${A.storm.min} 分` : "暴風域の中",(A.storm.min<15)?"bad":"") : "")
    +row("横風・横転",`${f(Math.abs(s.cross||0),1)} m/s ・ 危険度 ${f((s.tip||0)*100,0)} %${s.shield?" (風よけ中)":""}`,(s.tip||0)>=0.6?"bad":"")+row("この先の天気",h); },
  state(m){ const e=document.getElementById("mon-state"); if(e) e.textContent=m; },
  top(){

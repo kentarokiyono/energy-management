@@ -15,10 +15,10 @@ const Ana={
   del(id){ return this.tx("readwrite",st=>st.delete(id)); } },
  ymd(t){ const d=new Date(t); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; },
  newId(k){ return k+"-"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); },
- save(run){ run.stored=true; return this.DB.put({id:run.id,name:run.name,date:run.date||"",demo:!!run.demo,live:!!run.live,rows:run.rows,ts:Date.now()}).then(ok=>{ if(!ok) toast("この端末に保存できませんでした (ブラウザの設定を確認)","#f59e0b"); return ok; }); },
+ save(run){ run.stored=true; return this.DB.put({id:run.id,name:run.name,date:run.date||"",demo:!!run.demo,live:!!run.live,socEst:!!run.socEst,rows:run.rows,ts:Date.now()}).then(ok=>{ if(!ok) toast("この端末に保存できませんでした (ブラウザの設定を確認)","#f59e0b"); return ok; }); },
  async loadStored(){ if(this.loaded) return; this.loaded=true;
   for(const o of await this.DB.all()){ if(!o||!o.id||!Array.isArray(o.rows)||this.runs.some(r=>r.id===o.id)) continue;
-   try{ const run=this.prep({id:String(o.id),name:String(o.name||"走行"),date:String(o.date||""),demo:!!o.demo,live:false,wasLive:!!o.live,rows:o.rows}); run.stored=true; this.runs.push(run); }catch(e){} } },
+   try{ const run=this.prep({id:String(o.id),name:String(o.name||"走行"),date:String(o.date||""),demo:!!o.demo,live:false,wasLive:!!o.live,socEst:!!o.socEst,rows:o.rows}); run.stored=true; this.runs.push(run); }catch(e){} } },
  label(r){ return r.name+(r.date?` ・ ${r.date}`:""); },
  COLMAP:{"日":"day","経過h":"eh","km":"km","状態":"st","速度km/h":"v","制限km/h":"lim","SOC%":"soc","発電W":"ps","モーターW":"pm","収支W":"net",
   "日射W/m²":"ghi","気温°C":"ta","セル温度°C":"tc","風速m/s":"wind","向かい風m/s":"head","勾配%":"gr","標高m":"el","スロットル%":"thr",
@@ -75,8 +75,15 @@ const Ana={
   let day=1, doy=null; for(const l of lines.slice(0,li)){ const m=l.join(" ").match(/(20\d\d)[\/-](\d{1,2})[\/-](\d{1,2})/); if(m){ const d=new Date(+m[1],+m[2]-1,+m[3]); date=this.ymd(d); const j=Math.round((d-new Date(+m[1],0,0))/864e5); if(j-PRO.dayOfYear>=0&&j-PRO.dayOfYear<7){ doy=j; day=j-PRO.dayOfYear+1; } break; } }
   for(const r of rows){ r.day=day; r.abs=(day-1)*24+h0+r.t; r.eh=r.abs-8; const hr=h0+r.t;
    if(doy!=null&&typeof RealWx!=="undefined"&&RealWx.ok){ const q=profileAt(r.km), g=RealWx.at("ghi",q.lat,q.lon,doy,hr), t=RealWx.at("t",q.lat,q.lon,doy,hr), w=RealWx.wind(q.lat,q.lon,doy,hr);
-    if(g!=null) r.ghi=g; if(t!=null) r.ta=t; if(w) r.head=-w.ws*Math.cos(w.toward-q.bearing); } }
-  return this.prep({id:this.newId("log"),name,date:date||"",rows,logger:true});
+    if(g!=null) r.ghi=g; if(t!=null) r.ta=t; if(w) r.head=-w.ws*Math.cos(w.toward-q.bearing);
+    const dn=RealWx.at("dni",q.lat,q.lon,doy,hr), dh=RealWx.at("dhi",q.lat,q.lon,doy,hr); if(dn!=null&&dh!=null){ r.dni=dn; r.dhi=dh; r.alt=Phys.sunPos(q.lat,q.lon,doy,hr).alt; } } }
+  // 電池の残量 (SOC): 電圧と電流から開放電圧 (= 電圧 + 電流 × 内部抵抗) を出し、5 分の平均でならして、電池モデルの電圧カーブから逆に引く
+  let socEst=false;
+  if(iU>=0&&iA>=0&&rows.every(r=>Number.isFinite(r.vt))){ const R=Phys.rInt(25,0.5), oc=rows.map(r=>r.vt+(Number.isFinite(r.ia)?r.ia:0)*R), n=Math.max(1,Math.round(150/dt));
+   const inv=(V)=>{ const f=(V-PRO.vEmpty)/(PRO.vFull-PRO.vEmpty); if(f<=0) return 0; if(f>=1) return 1; for(let i=1;i<OCV_TBL.length;i++){ const [s1,f1]=OCV_TBL[i]; if(f<=f1){ const [s0,f0]=OCV_TBL[i-1]; return s0+(s1-s0)*(f-f0)/(f1-f0); } } return 1; };
+   let sum=0; const pre=[0]; for(const v of oc){ sum+=v; pre.push(sum); }
+   rows.forEach((r,i)=>{ const a=Math.max(0,i-n), b=Math.min(rows.length,i+n+1); r.soc=inv((pre[b]-pre[a])/(b-a))*100; }); socEst=true; }
+  return this.prep({id:this.newId("log"),name,date:date||"",rows,logger:true,socEst});
  },
  prep(run){
   const R=run.rows;
@@ -393,10 +400,20 @@ const Ana={
   // 発電の実効効率 (平らなパネル)
   let sP=0,sG=0; for(const r of R) if(Number.isFinite(r.ps)&&Number.isFinite(r.ghi)&&r.ghi>300&&r.st==="走行"){ sP+=r.ps; sG+=r.ghi*P.arrayArea; }
   out.effPV= sG>0? sP/sG : NaN; out.effModel=P.cellEff*P.mpptEff*0.92*PRO.solarScale;
+  // 発電 (太陽の高さ別): 実際 ÷ モデル (今の設定・補正込み)。平置きで走っている行。10° ごと
+  { const B=[]; for(const r of R){ if(r.st!=="走行"||!Number.isFinite(r.ps)||!Number.isFinite(r.dni)||!Number.isFinite(r.alt)||r.alt<=0.03) continue; const cz=Math.sin(r.alt), G=r.dni*cz*Phys.iam(cz)+r.dhi*0.95;
+    const pm=P.arrayArea*P.cellEff*P.mpptEff*0.92*PRO.solarScale*G*PVLoss.k(r.alt,false); if(pm<20) continue; const b=Math.min(8,Math.floor(r.alt*180/Math.PI/10)), o=B[b]||(B[b]={a:0,m:0,n:0}); o.a+=r.ps; o.m+=pm; o.n++; }
+   const ok=B.map((o,i)=>o&&o.n>=60? [i*10+5,o.a/o.m,o.n] : null).filter(Boolean);
+   if(ok.length>=3){ const ref=ok[ok.length-1], at=(deg)=>{ if(deg<=ok[0][0]) return ok[0][1]; if(deg>=ref[0]) return ref[1]; for(let j=1;j<ok.length;j++) if(deg<=ok[j][0]){ const a=ok[j-1], b=ok[j], u=(deg-a[0])/(b[0]-a[0]); return a[1]+(b[1]-a[1])*u; } return ref[1]; };
+    const cur=PVLoss.curve()||[1,1,1,1,1,1,1,1,1];
+    out.pv={bins:ok.map(x=>[x[0],x[1]]),ref:ref[1],curve:cur.map((c,i)=>+clamp(c*at(i*10)/ref[1],0.2,1.2).toFixed(3))}; } }
   // 今の設定で同じ速度の並びを走った場合の消費と、実際の消費
   let eA=0,eM=0; for(let i=1;i<R.length;i++){ const p=R[i-1], r=R[i], d=r.abs-p.abs; if(!(d>0)||d>0.5||p.st!=="走行"||r.st!=="走行"||!Number.isFinite(r.pm)) continue;
    eA+=r.pm*d; eM+=Math.max(0,Strategy.drivePower(r.v/3.6,Number.isFinite(r.gr)?r.gr/100:0))*d; }
   out.eAct=eA; out.eModel=eM;
+  // 電池の容量 (推定): 電池から出入りした電力量 ÷ 残量の変化 (残量を電圧から推定した計測器のログ。変化が 15 % 以上のとき)
+  if(run.socEst){ let eB=0; for(let i=1;i<R.length;i++){ const d=(R[i].abs-R[i-1].abs); if(d>0&&d<0.1&&Number.isFinite(R[i].pm)&&Number.isFinite(R[i].ps)) eB+=(R[i].pm-R[i].ps)*d; }
+   const dS=(R[0].soc-R[R.length-1].soc)/100; if(Math.abs(dS)>=0.15) out.capWh=eB/dS; }
   return run._cal=out;
  },
  calibUI(run){
@@ -410,15 +427,23 @@ const Ana={
    <span>空気抵抗 CdA m²</span><span>${f(C.CdA,3)}</span><span>${f(cur.CdA,3)}</span><span>${pct(C.CdA,cur.CdA)}</span>
    <span title="補機 + 制御装置などの、速度によらない消費">一定の消費 W</span><span>${f(C.aux,0)}</span><span>${f(cur.aux,0)}</span><span>${pct(C.aux,cur.aux)}</span>
    <span>発電の実効効率</span><span>${f(C.effPV*100,1)} %</span><span>${f(C.effModel*100,1)} %</span><span>${pct(C.effPV,C.effModel)}</span>
+   ${Number.isFinite(C.capWh)&&C.capWh>0? `<span title="電池から出入りした電力量 ÷ 残量の変化 (残量は電圧から推定)">電池の容量 Wh</span><span>${f(C.capWh,0)}</span><span>${f(P.batteryWh,0)}</span><span>${pct(C.capWh,P.batteryWh)}</span>` : ""}
    <span>走行の消費 kWh</span><span>${f(C.eAct/1000,2)}</span><span>${f(C.eModel/1000,2)}</span><span>${pct(C.eAct,C.eModel)}</span></div>
+   ${C.pv? `<div class="ana-note">発電 (実際 ÷ モデル、太陽の高さ別): ${C.pv.bins.map(b=>`${b[0]-5}〜${b[0]+5}°: ${(b[1]*100).toFixed(0)} %`).join("・")}。低い太陽で落ちるのは、パネルの曲面・影・浅い角度の反射など。</div>` : ""}
    <div class="ana-note">使った区間 (3 km / 5 分ごとの平均) ${C.n}・${C.fixed?"速度の幅が狭いので転がり抵抗は今の設定に固定・":""}当てはまり R² ${f(C.r2,2)}${C.r2<0.6?" (低い: 速度の幅が狭い・風や加速の影響が大きい)":""}。「今の設定」の消費 = この走行と同じ速度・勾配で今の設定のモデルを走らせた値。CdA は空気抵抗係数 × 前面投影面積、Crr は η=${this.ETA} と置いた推定。発電は温度・角度の影響を含んだ実効値。</div>
    <div class="ana-rr" style="margin-top:6px"><button class="btn ana-sm" onclick="Ana.applyCalib()" ${C.r2>=0.5?"":"disabled"} title="${C.r2>=0.5?"":"当てはまりが低い (R² 0.5 未満) ので反映できません"}">${ic("check")}推定値を設定に反映</button>
    ${Number.isFinite(C.effPV)&&C.effPV>0.05&&C.effPV<0.4? `<button class="btn ana-sm" onclick="Ana.applyPV()" title="セル効率だけを、ログの発電に合うように変える">${ic("sun")}発電の効率だけ反映</button>` : ""}
+   ${C.pv? `<button class="btn ana-sm" onclick="Ana.applyPVAlt()" title="太陽の高さ別の効率と、セル効率を、ログの発電に合うように変える">${ic("sun")}発電を太陽の高さ別に反映</button>` : ""}
+   ${(()=>{ const k=C.eAct/C.eModel; return Number.isFinite(k)&&k>0.7&&k<1.5&&Math.abs(k-1)>0.01? `<button class="btn ana-sm" onclick="Ana.useLossK(${k.toFixed(3)})" title="走行の消費のモデルを ×${k.toFixed(2)} する (戦略の速度・電池の減り・電流の指示のすべてに効く)">${ic("zap")}消費をモデルに反映 (×${k.toFixed(2)})</button>` : ""; })()}
    ${(()=>{ const k=C.eAct/C.eModel; return Number.isFinite(k)&&k>0.6&&k<1.6? `<button class="btn ana-sm" onclick="Ana.useOrdersK(${k.toFixed(3)})" title="車両の設定は変えず、無線の電流の指示だけを ×${k.toFixed(2)} する">${ic("zap")}電流の指示に使う (×${k.toFixed(2)})</button>` : ""; })()}</div>
+   <div class="ana-note">走行の消費の補正: ${Math.abs(LossK.k()-1)<0.001? "なし" : `×${LossK.k().toFixed(2)}${Math.abs((P.lossK||1)-1)>0.001? ` <a href="#" onclick="P.lossK=1;Settings.save();Ana.run()._cal=null;Strategy.last=null;Ana.renderPane();return false" style="color:var(--acc)">外す</a>` : " (車両の諸元)"}`}。発電の太陽の高さ別の補正: ${PVLoss.curve()? (P.pvAltS? `あり <a href="#" onclick="P.pvAltS='';Settings.save();Ana.run()._cal=null;Strategy.last=null;Ana.renderPane();return false" style="color:var(--acc)">外す</a>` : "あり (車両の諸元)") : "なし"}。</div>
    <div class="ana-note">電流の指示の補正: ${Math.abs((P.ordersK||1)-1)<0.001? "なし" : `×${(+P.ordersK).toFixed(2)} <a href="#" onclick="Ana.useOrdersK(1);return false" style="color:var(--acc)">外す</a>`}。「推定値を設定に反映」をした後は、補正は外してください (二重にかかります)。</div>`;
   return h;
  },
  runCalib(){ const run=this.run(); if(!run) return; try{ this.calib(run); }catch(e){ run._cal={err:"推定できませんでした: "+e.message}; } this.renderPane(); },
+ applyPVAlt(){ const C=this.run()&&this.run()._cal; if(!C||!C.pv) return; const sl=SLIDERS.find(x=>x.id==="cellEff"), e=clamp(P.cellEff*C.pv.ref,sl.min,sl.max);
+  if(!confirm(`発電を太陽の高さ別に合わせます (この端末に保存)。\nセル効率 ${(P.cellEff*100).toFixed(1)} % → ${(e*100).toFixed(1)} %\n太陽の高さ別 (0°〜80°): ${C.pv.curve.map(x=>(x*100).toFixed(0)).join(" / ")} %`)) return;
+  P.cellEff=e; P.pvAltS=JSON.stringify(C.pv.curve); const el=document.getElementById("sl-cellEff"); if(el) el.value=P.cellEff; refreshSliderLabel("cellEff"); refreshDerived(); Settings.save(); this.run()._cal=null; Strategy.last=null; toast("発電を太陽の高さ別に反映しました","#34d399"); this.renderPane(); },
  applyPV(){ const C=this.run()&&this.run()._cal; if(!C||!Number.isFinite(C.effPV)) return; const e=C.effPV/(P.mpptEff*0.92*PRO.solarScale), sl=SLIDERS.find(x=>x.id==="cellEff");
   if(!sl||!confirm(`セル効率を ${(P.cellEff*100).toFixed(1)} % → ${(clamp(e,sl.min,sl.max)*100).toFixed(1)} % にします (この端末に保存)`)) return;
   P.cellEff=clamp(e,sl.min,sl.max); const el=document.getElementById("sl-cellEff"); if(el) el.value=P.cellEff; refreshSliderLabel("cellEff"); refreshDerived(); Settings.save(); this.run()._cal=null; Strategy.last=null; toast("発電の効率を反映しました","#34d399"); this.renderPane(); },
@@ -427,6 +452,8 @@ const Ana={
   const set=(id,v)=>{ const s=SLIDERS.find(x=>x.id===id); if(!s||!Number.isFinite(v)) return; P[id]=clamp(v,s.min,s.max); const el=document.getElementById("sl-"+id); if(el) el.value=P[id]; refreshSliderLabel(id); };
   set("Crr",C.Crr); set("Cd",C.CdA/P.frontal); set("auxW",C.aux-PRO.ctrlW); if(Number.isFinite(C.effPV)) set("cellEff",C.effPV/(P.mpptEff*0.92*PRO.solarScale));
   refreshDerived(); Settings.save(); this.run()._cal=null; Strategy.last=null; toast("車両の設定に反映しました","#34d399"); this.renderPane(); },
+ useLossK(k){ P.lossK=+clamp((Number.isFinite(P.lossK)?P.lossK:1)*k,0.7,1.5).toFixed(3); if(Math.abs((P.ordersK||1)-1)>0.001) P.ordersK=1; Settings.save(); this.run()._cal=null; Strategy.last=null;
+  toast(`走行の消費のモデルを ×${P.lossK.toFixed(2)} にしました (電流の指示の補正は外しました)`,"#34d399"); this.renderPane(); },
  useOrdersK(k){ P.ordersK=clamp(+k||1,0.5,2); Settings.save(); toast(Math.abs(P.ordersK-1)<0.001? "電流の指示の補正を外しました" : `電流の指示を ×${P.ordersK.toFixed(2)} で出します`,"#34d399"); this.renderPane(); },
  runReview(){ const run=this.run(); if(!run) return; toast("計算中…","#22d3ee"); setTimeout(()=>{ try{ this.review(run); }catch(e){ run._rev={err:"計算できませんでした: "+e.message}; } this.renderPane(); this.drawCharts(); },30); },
  /* ---------- 立体地図 ---------- */
