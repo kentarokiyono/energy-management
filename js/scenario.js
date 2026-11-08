@@ -20,7 +20,7 @@ const Scenario={
   storm:{name:"暴風雨 (Port Pirie 付近)",km:2790,day:6,hour:14.2,soc:0.32,ts:4,dist:45,refV:35,minSoc:0.05,
    wx:[{in:0.45,dur:0.55,type:"squall",factor:0.06}],wind:{ms:6,rel:1,gust:0.6,pulse:0},storm:{in:0.45,dur:0.55,mean:17,max:39},
    brief:"Day6 14:12、Port Augusta の先 2790 km (ゴールまで 237 km)。2025 年に実際に起きた暴風雨 (突風 約 140 km/h) を想定。偵察車から「西から雷雨のセル。約 27 分後に暴風雨、突風は最大 140 km/h (39 m/s) 近く」。前方誘導車は突風の直前に知らせる。横転せずに 45 km 先まで行く。",
-   tip:["暴風域に入る前に路肩に寄せて止まり、通り過ぎるのを待つのが基本。走ったままだと、ゆっくりでも 20 m/s 前後の突風で倒れることがある","止まってしばらくすると、誘導車と追走車が風上で風よけになり (風が半分)、クルーが車体を押さえる。140 km/h の突風でも、これで耐えられる","横風の力は走っているほど大きい (車の速度と風が合わさる)","突風で流されたとき、ハンドルを大きく切ると遠心力が横風に加わって倒れやすい。当て舵は小さく","画面の「横転」の % (危険度) が 60 % を超えたら、すぐに減速"]}},
+   tip:["いちばん強い突風は雨の降り始め (雷雨の前縁) に来る。雨が来る前に路肩に寄せて止まり、通り過ぎるのを待つのが基本。走ったままだと、ゆっくりでも 20 m/s 前後の突風で倒れることがある","止まってしばらくすると、誘導車と追走車が風上で風よけになり (風が半分)、クルーが車体を押さえる。140 km/h の突風でも、これで耐えられる","横風の力は走っているほど大きい (車の速度と風が合わさる)","突風で流されたとき、ハンドルを大きく切ると遠心力が横風に加わって倒れやすい。当て舵は小さく","画面の「横転」の % (危険度) が 60 % を超えたら、すぐに減速"]}},
  cur:null, id:null,
  pick(){ const v=(document.getElementById("scenario")||{}).value; return v&&this.LIST[v]? v : null; },
  /* 走り始めの設定 (Engine.init の後): 場所・時刻・電池・天気・他チーム */
@@ -37,17 +37,16 @@ const Scenario={
   s.tipMax=0;
   Radio.push(`練習シナリオ「${sc.name}」: ${sc.brief}`,"チーフ");
  },
- /* 暴風雨の突風の並び [暴風域に入ってからの秒 (ゲーム内), 最大風速 m/s]。50〜110 秒ごと、真ん中ほど強い (毎回同じ並び) */
- mkGusts(st){ let x=7, t=20; const rnd=()=>((x=(x*16807)%2147483647)/2147483647), out=[], T=st.dur*3600;
-  while(t<T-30){ const mid=1-Math.abs(t/T-0.5)*2; out.push([t,Math.min(st.max*0.92,st.mean*(1.2+0.3*rnd()+0.5*mid))]); t+=50+60*rnd(); }
-  let k=0; for(let i=1;i<out.length;i++) if(Math.abs(out[i][0]/T-0.5)<Math.abs(out[k][0]/T-0.5)) k=i; if(out.length) out[k][1]=st.max;   // 真ん中で最大 (ダウンバースト)
-  return out; },
- /* 暴風雨の風 [m/s]: 入る 10 分前から強まり、中は平均 + 突風 (4 秒で強まり 3 秒続き 5 秒で弱まる)、抜けたら 10 分で収まる */
+ /* 暴風雨の突風の並び [暴風域に入ってからの秒 (ゲーム内), 最大風速 m/s]。いちばん強いのは雨の降り始め (ガストフロント: 雷雨の前縁の突風) で、
+  その後 50〜110 秒ごとに少しずつ弱まりながら続く (毎回同じ並び)。2025 年の映像でも、雨が降り始めた直後の突風で倒れている */
+ mkGusts(st){ let x=7, t=75; const rnd=()=>((x=(x*16807)%2147483647)/2147483647), out=[[45,st.max]], T=st.dur*3600;
+  while(t<T-30){ const f=Math.exp(-t/(T*0.45)); out.push([t,Math.min(st.max*0.9,st.mean*(1.05+0.3*rnd()+0.75*f))]); t+=50+60*rnd(); } return out; },
+ /* 暴風雨の風 [m/s]: 前縁が来るまでは弱い (嵐の前の静けさ。直前 2 分で少し強まる)。中は平均 + 突風 (4 秒で強まり 3 秒続き 5 秒で弱まる)、抜けたら 10 分で収まる */
  stormWind(c,abs){ const st=c.sc.storm, base=c.sc.wind.ms, t=(abs-(c.abs0+st.in))*3600, T=st.dur*3600;
-  if(t<0) return {ms:base+(st.mean-base)*clamp(1+t/600,0,1),gust:0};
+  if(t<0) return {ms:base+(st.mean*0.5-base)*clamp(1+t/120,0,1),gust:0};
   if(t>T) return {ms:base+(st.mean-base)*clamp(1-(t-T)/600,0,1),gust:0};
   let g=0; for(const [t0,pk] of c.gusts){ const d=t-t0; if(d<-1||d>13) continue; const f= d<4? clamp(d/4,0,1) : d<7? 1 : clamp(1-(d-7)/5,0,1); g=Math.max(g,(pk-st.mean)*f); }
-  return {ms:st.mean+g,gust:g}; },
+  return {ms:st.mean*Math.min(1,0.5+t/30)+g,gust:g}; },
  /* 横風の上書き (Engine.step から): 道の向きに対して横から。突風は強めの揺らぎ + 一定間隔の強い一吹き */
  wind(s,prof){
   const c=this.cur; if(!c||!s.scenario||!c.sc.wind) return null; const w=c.sc.wind, now=performance.now()/1000;
@@ -74,8 +73,8 @@ const Scenario={
   const st=c.sc.storm, t=(abs-(c.abs0+st.in))*3600, say=(k,msg,who)=>{ if(c.warned[k]) return; c.warned[k]=true; Radio.push(msg,who,{speak:true}); if(who==="前方誘導車") Snd.alarm(); };
   const big=c.gusts.reduce((m,g)=>Math.max(m,g[1]),0);
   if(t>=-15*60&&t<-14*60) say("s15",`前方の雷雨セルが近づいています。約 15 分で暴風域。突風は最大 ${big.toFixed(0)} m/s (${(big*3.6).toFixed(0)} km/h) 前後の見込み。`,"偵察車");
-  if(t>=-8*60&&t<-7*60) say("s8","あと約 8 分で暴風域。突風は 20 m/s を超えます。走ったままでは危険です。路肩に止められる場所を探して、暴風域に入る前に止まってください。","偵察車");
-  if(t>=-120&&t<-60) say("s2","前方で雨と強い風。まもなく暴風域に入ります。","前方誘導車");
+  if(t>=-8*60&&t<-7*60) say("s8","あと約 8 分で暴風域。いちばん強い突風は雨の降り始めに来ます。走ったままでは危険です。雨が来る前に路肩に止めてください。","偵察車");
+  if(t>=-120&&t<-60) say("s2","前方で雨が降り始めた。まもなく突風が来ます!","前方誘導車");
   const lead=Math.max(8,3*(P.timeScale||1));   // 実時間で約 3 秒前
   for(const [t0,pk] of c.gusts) if(pk>=20&&t>=t0-lead&&t<t0) say("g"+t0,`突風来ます!(約 ${pk.toFixed(0)} m/s・${(pk*3.6).toFixed(0)} km/h)${es.v*3.6>20?" 減速!":""}`,"前方誘導車");
   if(t>=st.dur*3600&&t<st.dur*3600+60) say("end","暴風域を抜けます。風は弱まっていきます。","偵察車");

@@ -795,7 +795,10 @@ if(this.car.userData.wheels) for(const w of this.car.userData.wheels){   // 車�
 this.car.rotation.x=-Math.atan(pHere.g)*0.8+clamp(-es.gLong*0.025,-0.045,0.045);
 this.car.rotation.order="YXZ";
 { const want= es.rolledOver? 1.75*(es.tipDir||1) : clamp((es.tipRatio||0)*0.06,0,0.08)*(es.tipDir||1);   // 横転: 風下へ倒れる
-  this.carRoll=lerp(this.carRoll||0,want,clamp(dtR*(es.rolledOver?2.2:6),0,1)); this.car.rotation.z=-this.carRoll; if(es.rolledOver) this.car.position.y+=Math.sin(Math.abs(this.carRoll))*0.5; }
+  this.carRoll=lerp(this.carRoll||0,want,clamp(dtR*(es.rolledOver?2.2:6),0,1)); this.car.rotation.z=-this.carRoll; if(es.rolledOver) this.car.position.y+=Math.sin(Math.abs(this.carRoll))*0.5;
+  // 横転したら風下へ転がりながら滑り、路肩で止まる (2025 年の映像のように)
+  if(es.rolledOver){ const p0=this.roadPoint(this.s), edge=(es.tipDir||1)>0? p0.R+1.2 : -(p0.L+1.2), dl=edge-this.lateral; this.rollSlide=(this.rollSlide||0)+dtR;
+   if(this.rollSlide<3&&Math.abs(dl)>0.05){ const st=clamp(dl,-3*dtR,3*dtR); this.lateral+=st; this.cx+=Math.cos(this.ch)*st; this.cz+=Math.sin(this.ch)*st; this.car.rotation.y+=(es.tipDir||1)*0.25*Math.min(1,this.rollSlide); } } else this.rollSlide=0; }
 let wantTilt=(es.camp||es.stopTimer>0||StopMenu.mode==="charge")&&!es.disconnected;
 if(typeof Crew!=="undefined"&&Crew.busy()&&Crew.phase!=="outside") wantTilt=false;   // ドライバーが乗っている間は傾けない
 const targetRoll=wantTilt? -es.tiltDeg*Math.PI/180*0.85 : 0;
