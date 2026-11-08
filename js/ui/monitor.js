@@ -3,7 +3,7 @@
  URL に ?tm=<相手の ID>#k=<合言葉> が付いているとき、ゲームの代わりにこの画面を開いてドライバー側につなぐ。
  ・上: 速度・電池・収支・距離・制限速度 (1 秒ごと)
  ・指示: 出し方 (自動 / 入力して送る / 声で伝える) の切り替え、いまの指示と評価、推奨 (ワンタップで入力欄へ)
- ・地図: ルートの上に走った軌跡を速度の色で描き足す (全体 / 周辺)
+ ・地図: 分析画面と同じ立体地図。走った所に帯 (高さ・色 = 速度 または 電池) を描き足す (全体 / 周辺で追従)
  ・グラフ: 距離に対する速度と電池。戦略の見込み (点線) と比べる
  ・予報: この先 9 時間の 1 時間ごと (日射・雲・気温・向かい風/横風・その時刻にいる地点)。日の出・日の入り。戦略のまとめ
  ・無線: ドライバー側の無線の文 */
@@ -55,13 +55,15 @@ const Monitor={
   <header><img src="assets/img/logo.svg" class="logo" width="46" alt=""><div><div class="ttl">REALTIME RUN ANALYSIS</div><div class="sub" id="mon-state">準備中</div></div><div class="clk" id="mon-clk">―</div></header>
   <section class="kpis" id="mon-kpi"></section>
   <section class="card" id="mon-ord"><div class="ch">${ic("radio")}速度指示<div class="seg" id="mon-mode"><button data-m="auto">自動</button><button data-m="manual">入力して送る</button><button data-m="voice">声で伝える</button></div></div><div id="mon-ordb"></div></section>
-  <section class="card"><div class="ch">${ic("map")}地図<div class="seg" id="mon-mv"><button data-v="all" class="on">全体</button><button data-v="near">周辺</button></div></div><canvas id="mon-map"></canvas><div class="leg"><span>速度</span><i class="bar"></i><span>40</span><span>110 km/h</span></div></section>
+  <section class="card"><div class="ch">${ic("map")}地図<div class="seg" id="mon-met"><button data-v="v" class="on">速度</button><button data-v="soc">電池</button></div><div class="seg" id="mon-mv" style="margin-left:0"><button data-v="all" class="on">全体</button><button data-v="near">周辺 (追従)</button></div></div>
+   <div class="ana-map" id="mon-map"><div class="ana-compass" id="ana-compass" title="北の向き (クリックで北を上に)" onclick="Monitor.map&&Monitor.map.north()"><i></i><b>N</b></div><div class="ana-ctl"><button class="btn" title="左に回す" onclick="Monitor.map&&Monitor.map.rot(-1)">${ic("rotate","flipx")}</button><button class="btn" title="右に回す" onclick="Monitor.map&&Monitor.map.rot(1)">${ic("rotate")}</button><button class="btn" title="寝かせる" onclick="Monitor.map&&Monitor.map.tilt(1)">${ic("chd")}</button><button class="btn" title="起こす" onclick="Monitor.map&&Monitor.map.tilt(-1)">${ic("chu")}</button><button class="btn" title="北を上に" onclick="Monitor.map&&Monitor.map.north()">N</button><button class="btn" title="真上から" onclick="Monitor.map&&Monitor.map.top()">真上</button></div><div class="ana-leg" id="ana-leg"></div></div></section>
   <section class="card"><div class="ch">${ic("activity")}速度と電池 (この先の見込みは点線)</div><canvas id="mon-chart"></canvas></section>
   <section class="card"><div class="ch">${ic("sun")}この先の天気 (予報)<span class="dim" id="mon-sun"></span></div><div class="fc" id="mon-fc"><div class="dim">予報を待っています…</div></div><div id="mon-plan" class="plan"></div></section>
   <section class="card"><div class="ch">${ic("radio")}無線</div><div id="mon-radio" class="rl"><div class="dim">まだありません</div></div></section>`;
   document.body.appendChild(el);
   document.getElementById("mon-mode").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; this.send({t:"mode",mode:b.dataset.m}); this.modeUI(b.dataset.m); });
-  document.getElementById("mon-mv").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; this.view=b.dataset.v; document.querySelectorAll("#mon-mv button").forEach(x=>x.classList.toggle("on",x===b)); this.drawMap(); });
+  document.getElementById("mon-mv").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; this.view=b.dataset.v; this.dirty=true; document.querySelectorAll("#mon-mv button").forEach(x=>x.classList.toggle("on",x===b)); this.aim(); this.drawMap(); });
+  document.getElementById("mon-met").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; document.querySelectorAll("#mon-met button").forEach(x=>x.classList.toggle("on",x===b)); if(this.ctx){ this.ctx.metric=b.dataset.v; this.dirty=true; } this.drawMap(); });
   this.top(); this.order();
  },
  state(m){ const e=document.getElementById("mon-state"); if(e) e.textContent=m; },
@@ -99,34 +101,52 @@ const Monitor={
   document.getElementById("mon-sun").textContent=` 日の出 ${hh(F.sunrise)}・日の入り ${hh(F.sunset)}`;
   const p=F.plan; document.getElementById("mon-plan").innerHTML= p? `<span>推奨 (平地) <b>${p.v}</b> km/h</span><span>ゴール見込み <b>${p.fin?fmtAbsH(p.fin):"―"}</b></span>${p.cs&&p.socCS!=null?`<span>CS${p.cs.n} ${escHtml(p.cs.name)} 到着 SOC <b>${(p.socCS*100).toFixed(0)}</b> %</span>`:""}<span>いちばん減る所 <b>${f(p.minKm,0)}</b> km で <b>${f(p.minSoc*100,0)}</b> %</span>${p.ok?"":`<span class="bad">このままでは電池が足りない見込み</span>`}` : "";
  },
- /* ---------- 地図 ---------- */
+ /* ---------- 地図: 分析画面 (Run Analysis) の立体地図をそのまま使う。帯の高さ・色 = 速度 / 電池、白い棒 = いまの地点 ---------- */
  fit(cv){ const r=cv.getBoundingClientRect(), dpr=Math.min(devicePixelRatio||1,2); cv.width=Math.max(10,r.width*dpr); cv.height=Math.max(10,r.height*dpr); const c=cv.getContext("2d"); c.setTransform(dpr,0,0,dpr,0,0); return [c,r.width,r.height]; },
- route(){ if(this._route) return this._route; const out=[]; for(let k=0;k<=TOTAL_KM;k+=3){ const q=profileAt(Math.min(k,TOTAL_KM)); out.push([q.lon,q.lat,k]); } return this._route=out; },
- col(v){ const t=clamp((v-40)/70,0,1), st=[[44,107,176],[56,161,105],[227,178,31],[242,107,29],[209,59,46]], f=t*4, i=Math.min(3,Math.floor(f)), u=f-i; return `rgb(${[0,1,2].map(k=>Math.round(st[i][k]+(st[i+1][k]-st[i][k])*u)).join(",")})`; },
+ /* 走った軌跡を 1 km ごとにまとめる (速度は走っている間だけの平均) */
+ bins(){ const n=Math.ceil(TOTAL_KM)+1, acc=new Array(n);
+  const add=(km,v,soc)=>{ const i=clamp(Math.floor(km),0,n-1), a=acc[i]||(acc[i]={v:0,nv:0,soc:0,n:0}); if(v>1){ a.v+=v; a.nv++; } a.soc+=soc; a.n++; };
+  const P=this.pts; for(let j=0;j<P.length;j++){ const [km,,v,soc]=P[j]; add(km,v,soc);
+   const q=P[j+1]; if(q&&q[0]-km>1&&q[0]-km<=8) for(let k=Math.floor(km)+1;k<q[0];k++){ const u=(k+0.5-km)/(q[0]-km); add(k+0.5,v+(q[2]-v)*u,soc+(q[3]-soc)*u); } }   // 1 秒ごとの間に進んだ所 (早送り) を補う
+  return acc.map((a,i)=>a? {km:i+0.5,v:a.nv? a.v/a.nv : NaN,soc:a.soc/a.n,el:profileAt(Math.min(TOTAL_KM,i+0.5)).elev} : undefined); },
+ initMap(){
+  if(this.map||this._mapFail||typeof Ana==="undefined"||typeof THREE==="undefined") return this.map;
+  const M=this, ctx=Object.create(Ana);   // 分析画面の地図の部品 (色・凡例・指標) を借りる
+  Object.assign(ctx,{metric:"v",mapMode:"band",sel:null,cursor:null,lock:true,map:null,run:()=>M.run3,setCursor(){},placeTag(){},mapPick(){},drawCharts(){},drawCursor(){}});
+  try{ this.map=ctx.makeMap(); }catch(e){ this._mapFail=true; const h=document.getElementById("mon-map"); if(h) h.insertAdjacentHTML("afterbegin","<div class='dim' style='padding:12px'>この端末では立体地図を表示できません</div>"); return null; }
+  ctx.map=this.map; this.ctx=ctx; this.dirty=true;
+  this.map.sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(this.map.P.map(([x,z])=>new THREE.Vector3(x,0.06,z))),new THREE.LineBasicMaterial({color:0x6a7078})));   // これから走るルート
+  const host=document.getElementById("mon-map"); host.insertBefore(this.map.r.domElement,host.firstChild);
+  const D0=this.map.draw, mm=this.map; mm.draw=function(){ D0.call(mm); if(M.view==="near"&&mm.pole.visible){ mm.pole.scale.y*=0.3; mm.pole.position.y*=0.3; mm.r.render(mm.sc,mm.cam); } };   // いまの地点の棒も低く (回したときも)
+  const H0=this.map.H; this.map.H=(b)=>H0.call(this.map,b)*(this.view==="near"?0.25:1);   // 周辺は寄っているので帯を低く
+  return this.map; },
+ /* 周辺: いまの地点に寄せて追いかける。全体: ルート全体が入る向き */
+ aim(){ const m=this.map, s=this.snap; if(!m) return;
+  if(this.view==="near"&&s){ const i=clamp(Math.round(s.km),0,m.P.length-1); m.view.tx=m.P[i][0]; m.view.tz=m.P[i][1]; if(!this._near){ m.view.d=60; this._near=true; } }
+  else if(this.view!=="near"&&this._near!==false){ this._near=false; this.ctx.sel=null; const keep=this.run3; this.run3={bins:[],kmMax:TOTAL_KM,drivers:[]}; m.fit(); this.run3=keep; } },
  drawMap(){
-  const cv=document.getElementById("mon-map"); if(!cv) return; const [c,W,H]=this.fit(cv); c.clearRect(0,0,W,H);
-  const R=this.route(), s=this.snap, C=Math.cos(25*Math.PI/180);
-  let x0,x1,y0,y1; if(this.view==="near"&&s){ const d=0.45; x0=s.lon*C-d; x1=s.lon*C+d; y0=-s.lat-d; y1=-s.lat+d; }
-  else { x0=Infinity; x1=-Infinity; y0=Infinity; y1=-Infinity; for(const [lo,la] of R){ x0=Math.min(x0,lo*C); x1=Math.max(x1,lo*C); y0=Math.min(y0,-la); y1=Math.max(y1,-la); } }
-  const sc=Math.min((W-24)/(x1-x0),(H-24)/(y1-y0)), ox=(W-(x1-x0)*sc)/2, oy=(H-(y1-y0)*sc)/2, P=(lo,la)=>[ox+(lo*C-x0)*sc, oy+(-la-y0)*sc];
-  c.lineWidth=3; c.strokeStyle="#2a2d32"; c.beginPath(); R.forEach(([lo,la],i)=>{ const [x,y]=P(lo,la); i?c.lineTo(x,y):c.moveTo(x,y); }); c.stroke();
-  c.fillStyle="#f26b1d"; for(const q of RP_CS){ const p=profileAt(q.km), [x,y]=P(p.lon,p.lat); c.fillRect(x-3,y-3,6,6); }
-  c.lineWidth=this.view==="near"?5:3.5; for(let i=1;i<this.pts.length;i++){ const a=this.pts[i-1], b=this.pts[i]; if(b[0]-a[0]>5) continue; const pa=profileAt(a[0]), pb=profileAt(b[0]), [ax,ay]=P(pa.lon,pa.lat), [bx,by]=P(pb.lon,pb.lat);
-   c.strokeStyle=this.col(b[2]); c.beginPath(); c.moveTo(ax,ay); c.lineTo(bx,by); c.stroke(); }
-  if(s){ const [x,y]=P(s.lon,s.lat); c.fillStyle="#fff"; c.strokeStyle="#f26b1d"; c.lineWidth=3; c.beginPath(); c.arc(x,y,6,0,7); c.fill(); c.stroke(); }
+  const m=this.initMap(); if(!m) return;
+  this.run3={bins:this.bins(),kmMax:TOTAL_KM,drivers:[]};
+  const nb=this.pts.length; if(nb!==this._nb){ this._nb=nb; this.dirty=true; }
+  if(this.dirty){ m.rebuild(); this.dirty=false; this.ctx.legend(); }
+  this.ctx.cursor= this.snap? this.snap.km : null;
+  this.aim(); m.resize(); m.draw();
  },
  /* ---------- グラフ: 速度と電池 (今の地点の前後) ---------- */
  drawChart(){
   const cv=document.getElementById("mon-chart"); if(!cv) return; const [c,W,H]=this.fit(cv); c.clearRect(0,0,W,H);
   const s=this.snap, k=s?s.km:0, a=Math.max(0,k-80), b=Math.min(TOTAL_KM,k+80), L=40, PW=W-L-10, X=(x)=>L+(x-a)/(b-a)*PW, h2=(H-22)/2;
   const Yv=(v)=>4+h2-clamp((v-20)/(130-20),0,1)*(h2-8), Ys=(v)=>4+h2*2-clamp(v/100,0,1)*(h2-8)+2;
-  c.font="500 10px 'Chakra Petch',sans-serif"; c.fillStyle="#8b9097"; c.fillText("km/h",4,14); c.fillText("SOC %",4,h2+16);
-  c.strokeStyle="#1f2226"; c.beginPath(); c.moveTo(L,h2+4); c.lineTo(W-10,h2+4); c.stroke();
+  c.font="500 10px 'Chakra Petch',sans-serif"; c.textAlign="right";
+  for(const v of [20,40,60,80,100,120]){ const y=Yv(v); c.strokeStyle="#1a1d21"; c.beginPath(); c.moveTo(L,y); c.lineTo(W-10,y); c.stroke(); c.fillStyle="#8b9097"; c.fillText(v,L-5,y+3.5); }
+  for(const v of [0,25,50,75,100]){ const y=Ys(v); c.strokeStyle="#1a1d21"; c.beginPath(); c.moveTo(L,y); c.lineTo(W-10,y); c.stroke(); c.fillStyle="#8b9097"; c.fillText(v,L-5,y+3.5); }
+  c.textAlign="left"; c.fillStyle="#f26b1d"; c.fillText("速度 km/h",L+4,12); c.fillStyle="#e6e6e3"; c.fillText("電池 %",L+4,h2+16);
+  c.strokeStyle="#3a3e44"; c.beginPath(); c.moveTo(L,4); c.lineTo(L,H-20); c.moveTo(L,h2+4); c.lineTo(W-10,h2+4); c.stroke();
   const line=(arr,fx,fy,col,dash)=>{ c.strokeStyle=col; c.lineWidth=1.6; c.setLineDash(dash?[4,3]:[]); c.beginPath(); let st=false; for(const p of arr){ const x=fx(p); if(x<a||x>b) continue; const y=fy(p); st?c.lineTo(X(x),y):c.moveTo(X(x),y); st=true; } c.stroke(); c.setLineDash([]); };
   const T=this.fc&&this.fc.trace; if(T){ line(T.filter(t=>t[0]>=k),t=>t[0],t=>Yv(t[2]||0),"#22d3ee",true); line(T.filter(t=>t[0]>=k),t=>t[0],t=>Ys(t[1]),"#22d3ee",true); }
   line(this.pts,p=>p[0],p=>Yv(p[2]),"#f26b1d"); line(this.pts,p=>p[0],p=>Ys(p[3]),"#e6e6e3");
   c.strokeStyle="#fff"; c.beginPath(); c.moveTo(X(k),4); c.lineTo(X(k),H-20); c.stroke();
-  c.fillStyle="#8b9097"; const step=[10,20,50].find(st=>(b-a)/st<=8)||50; for(let x=Math.ceil(a/step)*step;x<=b;x+=step) c.fillText(x+" km",X(x)-14,H-6);
+  c.fillStyle="#8b9097"; const step=[10,20,50].find(st=>(b-a)/st<=8)||50; for(let x=Math.ceil(a/step)*step;x<=b;x+=step) if(X(x)-14>=L+2) c.fillText(x+" km",X(x)-14,H-6);
  },
  drawAll(){ this.drawMap(); this.drawChart(); },
 };

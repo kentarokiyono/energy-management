@@ -447,7 +447,7 @@ body.mon-on #setup-screen, body.mon-on #game-container, body.mon-on #fade{ displ
 #mon .ch{ display:flex; align-items:center; gap:8px; font:600 12px var(--fn); letter-spacing:.06em; color:var(--tx2); margin-bottom:8px; flex-wrap:wrap; }
 #mon .ch .seg{ margin-left:auto; } #mon .ch .seg>button{ padding:4px 10px; font-size:12px; }
 #mon canvas{ display:block; width:100%; }
-#mon-map{ height:300px; } #mon-chart{ height:220px; }
+#mon-map{ height:380px; background:#0d0e10; } #mon .ana-leg{ min-width:150px; } #mon-chart{ height:220px; }
 #mon .leg{ display:flex; gap:8px; align-items:center; font-size:10.5px; color:var(--dim); margin-top:4px; }
 #mon .leg .bar{ width:120px; height:6px; background:linear-gradient(90deg,#2c6bb0,#38a169,#e3b21f,#f26b1d,#d13b2e); }
 #mon .ord{ display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; }
