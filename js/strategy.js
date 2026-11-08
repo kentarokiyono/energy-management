@@ -7,11 +7,11 @@
 const Strategy={
  FLOOR:0.05, SEG:2, last:null, lastT:-1e9,
  /* 電池の下限 (残しておく量): 天気予報のずれが大きいほど多めに残す (予報より悪い天気になっても尽きないように) */
- floor(){ const s=Engine.st; return (s&&s.scenario)||!(s&&s.fc)? this.FLOOR : ({off:0.05,low:0.08,mid:0.12,high:0.18})[P.fcErr]||this.FLOOR; },
+ floor(){ const s=Engine.st; return (s&&s.scenario)||!(s&&s.fc)? this.FLOOR : ({off:0.05,low:0.08,mid:0.12,high:0.18,late:0.12})[P.fcErr]||this.FLOOR; },
  drivePower(vms,grade){   // [W] 巡航に必要な電力 (下りは回生 6 割)
   const m=massTotal(), F=Phys.crr(vms)*m*9.81+0.5*1.17*P.Cd*P.frontal*vms*vms+m*9.81*grade;
   if(F<=0) return F*vms*0.6*(P.regenStrength>0?1:0)+P.auxW;
-  return F*vms+motorIronW(vms)+(F/PRO.kt)**2*PRO.rWinding+PRO.ctrlW+0.01*F*vms+P.auxW;
+  return (F*vms+motorIronW(vms)+(F/PRO.kt)**2*PRO.rWinding+PRO.ctrlW+0.01*F*vms)*LossK.k()+P.auxW;   // 消費の補正 (走行ログとの合わせ込み)
  },
  /* 速度 v [km/h] で今から走り切ったときの経過 → {ok, minSoc, minKm, finishAbs, socNextCS, kmToday, lateCS} */
  /* o (任意): {abs, km, soc} から始める (走行の答え合わせ用)。o.trace があれば 2 km ごとの [km, 時刻, SOC, 速度] を残す */
@@ -24,7 +24,7 @@ const Strategy={
   if(tr) tr.push([km,abs,soc,0]);
   const G=(tilted)=>{ const day=Math.floor(abs/24)+1, h=abs-(day-1)*24, pr=profileAt(km);
    s.dayOfYear=PRO.dayOfYear+day-1; s.km=km; s.weather= RealWx.on()? null : ((s.fc&&s.fc.plan)||s.weatherPlan||[]).find(w=>abs>=w.start&&abs<w.start+w.dur)||null;   // 予報で見積もる
-   return pv(Engine.solarCalc(pr.lat,h,tilted,pr.lon,pr.elev).G); };
+   const r=Engine.solarCalc(pr.lat,h,tilted,pr.lon,pr.elev); return pv(r.G*PVLoss.k(r.alt,tilted)); };
   const charge=(hours)=>{ for(let t=0;t<hours;t+=0.25){ const d=Math.min(0.25,hours-t); soc=Math.min(1,soc+G(true)*d/Wh); abs+=d; } };
   const startDay=Math.floor(abs/24), FL=this.floor(); this.fcOn=true;
   let psNow=null; const Ps0=()=>(psNow=G(false));   // 今の発電 (満タンの判定と、その区間の計算で 1 回だけ求める)
@@ -98,6 +98,8 @@ const Strategy={
   if(nx&&r.socNextCS!=null) m+=`CS${nx.n} ${nx.name} 到着時 SOC 約 ${(r.socNextCS*100).toFixed(0)} %。`;
   m+=`最も減るのは ${r.minKm.toFixed(0)} km 付近で約 ${(r.minSoc*100).toFixed(0)} %。今日は ${r.kmToday.toFixed(0)} km 付近まで。`;
   if(r.lateCS) m+=`⚠ CS${r.lateCS.n} のクローズに間に合わない見込み。`;
+  if(r.finishAbs>5*24+17) m+=`⚠ Day6 17:00 までにゴールできない見込み (土曜は Port Augusta より南を走れない)。`;
+  if(P.planLate) m+=`(後半 Day4〜6 の日射を 15 % 低く見込んでいます)`;
   return m;
  },
 };

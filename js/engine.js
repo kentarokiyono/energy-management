@@ -32,7 +32,12 @@ this.st.fc=this.genForecast(this.st.weatherPlan);
 /* 天気予報 (戦略と偵察車の予報が使う): 実際の天気から、選んだ大きさだけずらす。
  気候値の天気: 雲・スコールの時刻・長さ・強さをずらし、予報だけにある雲 (来ない)・予報にない雲 (実際に来る) を混ぜる。
  実際の天気 (2025 年のデータ): 日ごとに時刻をずらし、日射を何割か多め/少なめに見積もる */
-FC_LEVEL:{off:null,low:{t:0.25,d:0.15,p:0},mid:{t:0.5,d:0.3,p:0.3},high:{t:1,d:0.5,p:0.55}},
+FC_LEVEL:{off:null,low:{t:0.25,d:0.15,p:0},mid:{t:0.5,d:0.3,p:0.3},high:{t:1,d:0.5,p:0.55},late:{t:0.5,d:0.3,p:0.3}},
+/* 「2025 後半の悪化」: 予報のずれ (中) に加えて、実際の日射が Day4〜6 だけ 15 % 低い (予報は知らない)。2025 年は D4〜6 の日射がかなり落ちた
+ 「後半の悪化を見込む」(戦略): 戦略の先読みだけ Day4〜6 の日射を 15 % 低く見積もる → 前半から控えめに走り、後半に電池を残す */
+LATE_DROP:0.85,
+lateK(){ const s=this.st; if(!s||P.mode!=="race"||P.event||s.scenario) return 1; const d=s.dayOfYear-PRO.dayOfYear+1; if(d<4||d>6) return 1;
+ const plan=typeof Strategy!=="undefined"&&Strategy.fcOn; return plan? (P.planLate? this.LATE_DROP : 1) : (P.fcErr==="late"? this.LATE_DROP : 1); },
 genForecast(plan){
  const L=this.FC_LEVEL[P.fcErr||"mid"]; if(!L) return null;
  const g=()=>Phys.gauss(), fc=[];
@@ -67,7 +72,7 @@ chapterState(targetKm){
  const doy0=s.dayOfYear, km0=s.km;
  let day=1, h=8.0, km=0, soc=clamp(PRO.startSoc,0,1), stopH=0, next=0, dc=false;
  const cs=RP_CS.filter(c=>c.km<targetKm), dck=RP_RULES.driverChange.km;
- const sol=(tilted)=>{ s.dayOfYear=doy0+day-1; s.km=km; const pr=profileAt(km); return pv(this.solarCalc(pr.lat,h,tilted,pr.lon,pr.elev).G); };
+ const sol=(tilted)=>{ s.dayOfYear=doy0+day-1; s.km=km; const pr=profileAt(km), r=this.solarCalc(pr.lat,h,tilted,pr.lon,pr.elev); return pv(r.G*PVLoss.k(r.alt,tilted)); };
  for(let guard=0;guard<20000&&km<targetKm;guard++){
   if(h>=17){ // 夜: 日没まで傾けて充電、翌朝 6〜8 時も充電
    const pr=profileAt(km), sunset=this.sunsetHour(pr.lat,pr.lon);
@@ -211,7 +216,7 @@ G=dni*cosInc*Phys.iam(cosInc)+dhi*(1+Math.cos(tiltR))/2*0.95+PRO.albedo*ghi*(1-M
 } else {
 G=dni*cz*Phys.iam(cz)+dhi*0.95;
 }
-return {G:Math.max(0,G),alt,az,ghi,dni};
+const lk=this.lateK(); return {G:Math.max(0,G)*lk,alt,az,ghi:ghi*lk,dni:dni*lk};
 },
 chargingAllowed(){
 const s=this.st;
@@ -305,7 +310,7 @@ if(s.Tbat==null) s.Tbat=Tamb;
 const rho=Phys.airDensity(prof.elev,Tamb); s.lastRho=rho;
 const gamma=PANEL_TYPES[P.panel].gamma;
 const tempLoss=clamp(1-gamma*Math.max(0,Tcell-25),0.6,1);
-let Psolar=P.arrayArea*P.cellEff*tempLoss*P.mpptEff*sol.G*PRO.solarScale;
+let Psolar=P.arrayArea*P.cellEff*tempLoss*P.mpptEff*sol.G*PVLoss.k(sol.alt,tilted)*PRO.solarScale;   // 自分の車の発電の補正 (太陽の高さ別・傾け)
 if(s.fault&&s.fault.type==="solar") Psolar*=0.3;
 if(s.disconnected) Psolar=0;
 s.lastGeff=sol.G; s.lastTcell=Tcell; s.lastSolar=Psolar; s.sunAlt=sol.alt; s.sunAz=sol.az; s.Tamb=Tamb;
@@ -354,8 +359,8 @@ const kT= dtS>0? dtR/dtS : 1;
 let fM=1, fR=1;                                     // 定常分の割合
 if(Fnet>0&&Ftrac>0) fM=clamp(1-Fnet/Ftrac,0,1);     // 加速中: 駆動力のうち加速に使った分
 if(Fnet<0&&Fr>0) fR=clamp(1-(-Fnet)/Fr,0,1);        // 減速中: 回生のうち運動エネルギーを回収した分
-const PmotorNow=mm.Pelec-Pregen;
-Pmotor = mm.Pelec*(fM+(1-fM)*kT) - Pregen*(fR+(1-fR)*kT); s.lastRegenW=Pregen;
+const LK=LossK.k(), PmotorNow=mm.Pelec*LK-Pregen;   // 消費の補正 (走行ログとの合わせ込み)
+Pmotor = mm.Pelec*LK*(fM+(1-fM)*kT) - Pregen*(fR+(1-fR)*kT); s.lastRegenW=Pregen;
 s.lastMotorNow=PmotorNow;
 const dKm=s.v*dtS/1000*(s.progRate==null?1:s.progRate);   // 本線上の前進分のみ (脇道/逆走では進まない)
 const prev=s.km;
@@ -605,8 +610,8 @@ const st2=this.raceStartHour();
 const prof=profileAt(s.km);
 let wh=0;
 const sunset=this.sunsetHour(prof.lat);
-for(let h=17;h<sunset;h+=0.25){ const g=this.solarCalc(prof.lat,h,true); wh+=P.arrayArea*P.cellEff*0.92*P.mpptEff*g.G*0.25*PRO.solarScale; }
-for(let h=6.25;h<st2;h+=0.25){ const g=this.solarCalc(prof.lat,h,true); wh+=P.arrayArea*P.cellEff*0.92*P.mpptEff*g.G*0.25*PRO.solarScale; }
+for(let h=17;h<sunset;h+=0.25){ const g=this.solarCalc(prof.lat,h,true); wh+=P.arrayArea*P.cellEff*0.92*P.mpptEff*g.G*PVLoss.k(g.alt,true)*0.25*PRO.solarScale; }
+for(let h=6.25;h<st2;h+=0.25){ const g=this.solarCalc(prof.lat,h,true); wh+=P.arrayArea*P.cellEff*0.92*P.mpptEff*g.G*PVLoss.k(g.alt,true)*0.25*PRO.solarScale; }
 s.soc=clamp(s.soc+wh*0.5/P.batteryWh,0,1);
 s.whGen+=wh*0.5;
 if(s.hour>=17){ s.day++; s.dayOfYear++; }
