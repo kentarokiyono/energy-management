@@ -92,6 +92,10 @@ const Glass={
   // 新しい粒: 雨が強いほど多い。速く走ると風圧で上・横へ流れる
   for(let n=I*dtR*70*(1+v/25);n>0;n--) if(n>=1||Math.random()<n){ if(this.drops.length<260) this.drops.push({x:Math.random()*W,y:Math.random()*H,r:1.2+Math.random()*3.2*I,vy:0,life:0}); }
   c.clearRect(0,0,W,H);
+  // 情報パネルの所には描かない (パネルは半透明なので、下に描くと透けてパネルに雨粒がついて見える)
+  const now=performance.now(); if(!this.rects||now-this.rt>500){ this.rt=now; const k=W/innerWidth; this.rects=[];
+   for(const el of document.querySelectorAll(".pn, #bottom-hud, #hud-roll, #hud-order")){ if(!el.offsetParent&&getComputedStyle(el).position!=="fixed") continue; const r=el.getBoundingClientRect(); if(r.width>4&&r.height>4&&getComputedStyle(el).display!=="none") this.rects.push([r.left*k,r.top*k,r.width*k,r.height*k]); } }
+  c.save(); c.beginPath(); c.rect(0,0,W,H); for(const [x,y,w,h] of this.rects) c.rect(x-2,y-2,w+4,h+4); c.clip("evenodd");
   if(flash>0){ c.fillStyle=`rgba(235,240,255,${(flash*0.35).toFixed(3)})`; c.fillRect(0,0,W,H); }
   for(let i=this.drops.length-1;i>=0;i--){ const d=this.drops[i]; d.life+=dtR; d.r+=dtR*0.25*I;
    const big=d.r>3.4; d.vy= big? Math.min(220,d.vy+dtR*260) : d.vy*0.9; d.y+= (big? d.vy : 0)*dtR - (v>12? (v-12)*1.2*dtR : 0); d.x+=side*dtR*(big?6:2);
@@ -102,5 +106,6 @@ const Glass={
    c.lineWidth=1; c.strokeStyle=`rgba(30,36,44,${(a*0.45).toFixed(3)})`; c.stroke();
    c.beginPath(); c.arc(d.x-d.r*0.3,d.y-d.r*0.35,d.r*0.35,0,6.283); c.fillStyle=`rgba(255,255,255,${(a*0.6).toFixed(3)})`; c.fill();
    if(big&&d.vy>40){ c.strokeStyle=`rgba(200,210,222,${(a*0.25).toFixed(3)})`; c.lineWidth=d.r*0.8; c.beginPath(); c.moveTo(d.x,d.y-d.r); c.lineTo(d.x,d.y-d.r-Math.min(60,d.vy*0.25)); c.stroke(); } }
+  c.restore();
  },
 };
