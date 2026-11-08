@@ -576,6 +576,17 @@ collision(hit){
  Radio.push(s.crashReason+"。レースを続けられません。","チーフ");
  setTimeout(()=>showResult(),1800);
 },
+/* 横転 (View の横転の危険度から): 車両は大破してリタイア。練習シナリオは失敗で採点 */
+rollover(R,v){
+ const s=this.st; if(!s||s.crashed||s.fire) return;
+ const c=Math.abs(s.lastCross||0), why=R.wind>R.turn*1.5? "横風・突風" : R.turn>R.wind*1.5? "急なハンドル操作" : "横風とハンドル操作";
+ s.crashed=true; s.rolledOver=true; s.v=0; s.throttleSet=0;
+ s.crashReason=`横転 (${why}・横風 ${c.toFixed(0)} m/s・${(v*3.6).toFixed(0)} km/h)`;
+ Snd.bang(); Snd.alarm(); if(typeof FFB!=="undefined") FFB.kick(1,0.9,600); toast("💥 横転 ― リタイア","#ef4444");
+ Radio.push(s.crashReason+"。車両が損傷し、レースを続けられません。","チーフ");
+ if(typeof Scenario!=="undefined"&&Scenario.cur&&s.scenario){ setTimeout(()=>Scenario.finish(s,false,s.crashReason),1800); return; }
+ setTimeout(()=>showResult(),2200);
+},
 ignite(reason){
 const s=this.st;
 if(s.fire) return;

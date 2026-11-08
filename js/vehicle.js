@@ -32,6 +32,8 @@ const VEH=(()=>{
  if(S.label) BODY_SHAPES.wadai.desc=S.label;
  return v;
 })();
+/* 横転の計算に使う一般的な値 (諸元が無いとき・諸元に無い項目)。実車の値ではない */
+const ROLL_DEF={ssf:1.2, chassis:{cgHeight:0.42, cgTread:1.0, wheels:4}, aero:{sideArea:2.5, Cy:1.0, CyBeta:1.0, ClCross:0.3, cpK:1.25}};
 /* 走行の挙動 (諸元があるときだけ使う) */
 const VehDyn={
  /* 操舵: 前輪舵角 δ (最大舵角とタイヤのグリップで制限) → ヨーレート = v·tanδ / ホイールベース */
@@ -45,6 +47,22 @@ const VehDyn={
   const A=VEH.spec.aero||{};
   return 0.5*rho*(A.Cy||1.0)*(A.sideArea||2.5)*crossR*Math.abs(crossR)/m;
  },
+ /* 横転の危険度 (1 で片側の車輪が浮く = 横転)。転倒させるモーメント ÷ 踏ん張るモーメント
+  ・横風の横力: 車の速度と合わせた相対風で計算 (走っているほど大きい → 減速・停車が効く)。力のかかる高さ = 重心より上
+  ・浮き上がり: パネル (上面) を横切る風の揚力。重さを減らし、風上側がより浮く
+  ・旋回: ハンドル操作 (車線変更・当て舵を含む) の横加速度。重心の高さにかかる
+  ・加減速: 前後の荷重移動で、横方向に踏ん張れる幅が狭くなる
+  諸元 (vehicle-private.js) があればその値。無いときは一般的な値 */
+ roll(es,crossR,v,shield){
+  const C=Object.assign({},ROLL_DEF.chassis,VEH.spec.chassis||{}), A=Object.assign({},ROLL_DEF.aero,VEH.spec.aero||{});
+  const g=9.81, m=massTotal(), rho=es.lastRho||1.17, h=C.cgHeight, half= C.cgTread? C.cgTread/2 : (C.ssf||ROLL_DEF.ssf)*h;
+  const c=Math.abs(crossR), vr=Math.hypot(v,c), W=carDims()[1];
+  const Fy=Math.sign(crossR)*0.5*rho*A.sideArea*(c*vr*A.Cy+A.CyBeta*c*Math.max(0,v));   // 右 +
+  const L=0.5*rho*A.ClCross*(A.topArea||P.arrayArea)*c*c;
+  const Mw=(Fy*h*A.cpK+Math.sign(crossR)*L*W/4)*(shield?0.3:1);   // 横風: 横力 + 風上側の浮き上がり (停車して風よけ・クルーが押さえると 3 割)
+  const Mc=-m*(es.gLat||0)*g*h;   // 旋回の遠心力 (右 +)
+  const R=Math.max(1,m*g-L*(shield?0.3:1))*half*clamp(1-(C.wheels===3?0.6:0.25)*Math.abs(es.gLong||0),0.4,1);
+  const M=Mw+Mc; return {risk:Math.abs(M)/R,dir:Math.sign(M)||1,wind:Math.abs(Mw)/R,turn:Math.abs(Mc)/R,lift:L}; },
  /* 静的な転倒余裕 SSF = トレッド / (2·重心高) から求める横加速度の限界 [m/s²] */
  tipAccel(){ const C=VEH.spec.chassis; return (C.ssf||(C.cgTread/(2*C.cgHeight)))*9.81; },
 };
