@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'self' blob: data:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://0.peerjs.com wss://0.peerjs.com; media-src 'self' blob: data:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>BWSC 3D Racing Simulator</title>
-<link rel="stylesheet" href="css/fonts.css?v=20261108-w3">
-<link rel="stylesheet" href="css/style.css?v=20261108-w3">
-<link rel="stylesheet" href="css/theme.css?v=20261108-w3">
+<link rel="stylesheet" href="css/fonts.css?v=20261108-m3">
+<link rel="stylesheet" href="css/style.css?v=20261108-m3">
+<link rel="stylesheet" href="css/theme.css?v=20261108-m3">
 <link rel="icon" href="assets/img/logo.svg">
-<link rel="stylesheet" href="css/tailwind.css?v=20261108-w3">
+<link rel="stylesheet" href="css/tailwind.css?v=20261108-m3">
 <script src="js/lib/three.min.js"></script>
 <script src="js/lib/three-post.js"></script>
 <script src="js/lib/chart.umd.js"></script>
@@ -52,9 +52,10 @@
 <button class="btn" onclick="openWheelConfig()"><span data-ic="wheel"></span> ハンコン割当</button>
 <button class="btn" onclick="Fade.go(()=>Ana.open())"><span data-ic="chart"></span> 走行の分析</button>
 <button class="btn" onclick="DrvRec.open()"><span data-ic="users"></span> ドライバー成績</button>
+<button class="btn" onclick="Tele.panel()"><span data-ic="satellite"></span> テレメトリ</button>
 <span class="lb" id="gamepad-status">未検出</span>
 </div>
-<div class="build">BUILD 20261108-w3</div>
+<div class="build">BUILD 20261108-m3</div>
 </div>
 <div class="r">
 <div class="sec"><h4><span data-ic="car"></span>BODY / SOLAR CELL</h4>
@@ -188,6 +189,19 @@
 </div>
 </div>
 <div id="hud-order" class="pn" style="display:none"></div>
+<div id="hud-tm" style="display:none" title="テレメトリ">TM</div>
+<div id="tm-dlg" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:rgba(0,0,0,.7)"><div class="panel p-6" style="width:min(420px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto">
+<div class="font-bold mb-1">テレメトリ (Realtime Run Analysis)</div>
+<div class="text-sm font-bold mt-1">この PC の別の画面で見る</div>
+<div class="text-xs mb-2" style="color:var(--tx2)">別ウィンドウで監視画面を開きます (2 台目のモニターへ移せます)。外部とは通信しません。</div>
+<div class="flex gap-2 mb-3"><button class="btn pri text-xs" onclick="Tele.startLocal()">この PC の別ウィンドウで開く</button></div>
+<div class="text-sm font-bold" style="border-top:1px solid var(--ln);padding-top:10px">別の端末 (スマホなど) で見る</div>
+<div class="text-xs mb-3" style="color:var(--tx2)">「QR を出す」を押し、監視する端末のカメラで読むと、監視画面が開いてつながります。走行データは端末どうしで直接やり取りし、つなぐときの相手探しだけ外部のサーバー (PeerJS) を使います。</div>
+<div id="tm-qr" class="flex justify-center" style="background:#fff;min-height:0"></div>
+<div id="tm-url" class="mono text-xs mt-2" style="word-break:break-all;color:var(--tx2)"></div>
+<div class="text-sm mt-2" id="tm-status">停止中</div>
+<div class="flex justify-end gap-2 mt-4"><button class="btn text-xs" id="tm-copy" onclick="Tele.copy()">リンクをコピー</button><button class="btn text-xs" id="tm-stop" onclick="Tele.stop()" style="display:none">止める</button><button class="btn pri text-xs" id="tm-start" onclick="Tele.start()">QR を出す</button><button class="btn text-xs" onclick="show('tm-dlg',false)">閉じる</button></div>
+</div></div>
 <div id="fps-meter" style="display:none"></div>
 <div id="bottom-hud" class="pn">
 <div class="spdrow"><span id="wl"><span data-ic="chl"></span></span><span id="hud-speed" class="num">0</span>
@@ -370,6 +384,7 @@
 <button class="btn block w-full" onclick="Fade.go(()=>Ana.open())">📈 走行を分析</button>
 <button class="btn block w-full" id="log-btn-pause" onclick="RunLog.download()">📄 走行ログ (CSV) を保存</button>
 <button class="btn block w-full" onclick="openWheelConfig()">🎮 ハンコン割当</button>
+<button class="btn block w-full" onclick="Tele.panel()">📡 テレメトリ (監視端末とつなぐ)</button>
 <button class="btn block w-full" id="save-btn" onclick="Save.saveAndQuit()">💾 保存してメニューへ</button>
 <button class="btn btn-amber block w-full" onclick="Fade.go(quitToMenu)">🏠 メニューへ戻る</button>
 </div>
@@ -384,55 +399,57 @@
 <div style="display:flex;justify-content:flex-end;gap:10px"><button class="btn" onclick="Fade.go(()=>Ana.open())"><span data-ic="chart"></span>分析</button><button class="btn" id="log-btn-result" onclick="RunLog.download()">📄 走行ログ (CSV)</button><button class="btn pri" onclick="Fade.go(quitToMenu)"><span data-ic="home"></span>メニューへ戻る</button></div>
 </div>
 </div>
-<script src="js/data/route-2025.js?v=20261108-w3"></script>
-<script src="js/data/route-plan.js?v=20261108-w3"></script>
-<script src="js/data/route-osm.js?v=20261108-w3"></script>
-<script src="js/data/route-geo.js?v=20261108-w3"></script>
-<script src="js/data/weather-2025.js?v=20261108-w3"></script>
-<script src="js/route.js?v=20261108-w3"></script>
-<script src="js/data/australia.js?v=20261108-w3"></script>
-<script src="js/geo.js?v=20261108-w3"></script>
-<script src="js/data.js?v=20261108-w3"></script>
+<script src="js/data/route-2025.js?v=20261108-m3"></script>
+<script src="js/data/route-plan.js?v=20261108-m3"></script>
+<script src="js/data/route-osm.js?v=20261108-m3"></script>
+<script src="js/data/route-geo.js?v=20261108-m3"></script>
+<script src="js/data/weather-2025.js?v=20261108-m3"></script>
+<script src="js/route.js?v=20261108-m3"></script>
+<script src="js/data/australia.js?v=20261108-m3"></script>
+<script src="js/geo.js?v=20261108-m3"></script>
+<script src="js/data.js?v=20261108-m3"></script>
 <!-- 実車諸元 (手元だけのファイル): 書き換えがすぐ反映されるよう毎回キャッシュを使わずに読む -->
 <script>document.write('<script src="js/data/vehicle-private.js?t='+Date.now()+'" onerror="window.__vehPrivMissing=true"><\/script>');</script>
-<script src="js/vehicle.js?v=20261108-w3"></script>
-<script src="js/physics.js?v=20261108-w3"></script>
-<script src="js/setup-ui.js?v=20261108-w3"></script>
-<script src="js/audio.js?v=20261108-w3"></script>
-<script src="js/audio-radio.js?v=20261108-w3"></script>
-<script src="js/engine.js?v=20261108-w3"></script>
-<script src="js/controls.js?v=20261108-w3"></script>
-<script src="js/ffb.js?v=20261108-w3"></script>
-<script src="js/scenario.js?v=20261108-w3"></script>
-<script src="js/orders.js?v=20261108-w3"></script>
-<script src="js/save.js?v=20261108-w3"></script>
-<script src="js/drvrec.js?v=20261108-w3"></script>
-<script src="js/collide.js?v=20261108-w3"></script>
-<script src="js/render/quality.js?v=20261108-w3"></script>
-<script src="js/render/post.js?v=20261108-w3"></script>
-<script src="js/render/textures.js?v=20261108-w3"></script>
-<script src="js/render/yata.js?v=20261108-w3"></script>
-<script src="js/render/sky.js?v=20261108-w3"></script>
-<script src="js/render/biome.js?v=20261108-w3"></script>
-<script src="js/render/geobatch.js?v=20261108-w3"></script>
-<script src="js/render/materials.js?v=20261108-w3"></script>
-<script src="js/render/props.js?v=20261108-w3"></script>
-<script src="js/render/scenery.js?v=20261108-w3"></script>
-<script src="js/data/hidden-valley.js?v=20261108-w3"></script>
-<script src="js/render/hiddenvalley.js?v=20261108-w3"></script>
-<script src="js/render/cockpit.js?v=20261108-w3"></script>
-<script src="js/render/view.js?v=20261108-w3"></script>
-<script src="js/crew.js?v=20261108-w3"></script>
-<script src="js/strategy.js?v=20261108-w3"></script>
-<script src="js/runlog.js?v=20261108-w3"></script>
-<script src="js/hud.js?v=20261108-w3"></script>
-<script src="js/test-mode.js?v=20261108-w3"></script>
-<script src="js/lib/qrcode.js?v=20261108-w3"></script>
-<script src="js/event-game.js?v=20261108-w3"></script>
-<script src="js/ui/fade.js?v=20261108-w3"></script>
-<script src="js/ui/icons.js?v=20261108-w3"></script>
-<script src="js/ui/analysis.js?v=20261108-w3"></script>
-<script src="js/ui/map.js?v=20261108-w3"></script>
-<script src="js/main.js?v=20261108-w3"></script>
+<script src="js/vehicle.js?v=20261108-m3"></script>
+<script src="js/physics.js?v=20261108-m3"></script>
+<script src="js/setup-ui.js?v=20261108-m3"></script>
+<script src="js/audio.js?v=20261108-m3"></script>
+<script src="js/audio-radio.js?v=20261108-m3"></script>
+<script src="js/engine.js?v=20261108-m3"></script>
+<script src="js/controls.js?v=20261108-m3"></script>
+<script src="js/ffb.js?v=20261108-m3"></script>
+<script src="js/scenario.js?v=20261108-m3"></script>
+<script src="js/orders.js?v=20261108-m3"></script>
+<script src="js/save.js?v=20261108-m3"></script>
+<script src="js/drvrec.js?v=20261108-m3"></script>
+<script src="js/telemetry.js?v=20261108-m3"></script>
+<script src="js/ui/monitor.js?v=20261108-m3"></script>
+<script src="js/collide.js?v=20261108-m3"></script>
+<script src="js/render/quality.js?v=20261108-m3"></script>
+<script src="js/render/post.js?v=20261108-m3"></script>
+<script src="js/render/textures.js?v=20261108-m3"></script>
+<script src="js/render/yata.js?v=20261108-m3"></script>
+<script src="js/render/sky.js?v=20261108-m3"></script>
+<script src="js/render/biome.js?v=20261108-m3"></script>
+<script src="js/render/geobatch.js?v=20261108-m3"></script>
+<script src="js/render/materials.js?v=20261108-m3"></script>
+<script src="js/render/props.js?v=20261108-m3"></script>
+<script src="js/render/scenery.js?v=20261108-m3"></script>
+<script src="js/data/hidden-valley.js?v=20261108-m3"></script>
+<script src="js/render/hiddenvalley.js?v=20261108-m3"></script>
+<script src="js/render/cockpit.js?v=20261108-m3"></script>
+<script src="js/render/view.js?v=20261108-m3"></script>
+<script src="js/crew.js?v=20261108-m3"></script>
+<script src="js/strategy.js?v=20261108-m3"></script>
+<script src="js/runlog.js?v=20261108-m3"></script>
+<script src="js/hud.js?v=20261108-m3"></script>
+<script src="js/test-mode.js?v=20261108-m3"></script>
+<script src="js/lib/qrcode.js?v=20261108-m3"></script>
+<script src="js/event-game.js?v=20261108-m3"></script>
+<script src="js/ui/fade.js?v=20261108-m3"></script>
+<script src="js/ui/icons.js?v=20261108-m3"></script>
+<script src="js/ui/analysis.js?v=20261108-m3"></script>
+<script src="js/ui/map.js?v=20261108-m3"></script>
+<script src="js/main.js?v=20261108-m3"></script>
 </body>
 </html>

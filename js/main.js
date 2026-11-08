@@ -95,7 +95,7 @@ if(eventElapsed>=EVENT_DURATION&&!es.finished){ es.finished=true; showResult(); 
 }
 View.update(dtR);
 if(P.event) EventGame.post();
-Scenario.frame(es,dtR); Orders.frame(es,dtR);
+Scenario.frame(es,dtR); Orders.frame(es,dtR); Tele.frame(es);
 if(P.mode==="race"&&!es.finished&&!es.trailering) es.km=View.kmOfS(View.s);   // 走行位置(本線への射影)を正とする
 Snd.update(es.v, es.lastAmp/Math.max(motorMaxA(es.powerMode),1), es.fire);
 if(typeof Crew!=="undefined"&&Crew.phase==="outside") FFB.update(null); else FFB.update(FFB.fromRace(es,dtR));   // 振動・反力 (車外を歩いている間は止める)
@@ -120,7 +120,8 @@ document.getElementById("setup-screen").classList.remove("hidden"); refreshQuali
 Snd.silence(); FFB.update(null); Speech.stop();
 }
 Settings.load();
-if(!/#r=/.test(location.hash)) Fade.intro();
+if(Monitor.wanted()) Monitor.boot();   // テレメトリの監視画面 (QR から開いたとき)
+else if(!/#r=/.test(location.hash)) Fade.intro();
 buildSetupUI();
 refreshUIModeBtns(); Settings.badge();
 setEventLevel(EventGame.level); setEventCourse(EventGame.course); setEventPractice(EventGame.practice);

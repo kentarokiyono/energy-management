@@ -3,6 +3,7 @@ const Radio={
 log:[], popTimer:null,
 push(msg, who="戦略班", opt){
 if(opt&&opt.speak||P.tts==="all") Speech.say(msg);
+if(typeof Tele!=="undefined") Tele.radio(msg,who);   // テレメトリの監視端末へも
 Snd.radioBeep(); if(typeof RunLog!=="undefined") RunLog.note(`[${who}] ${msg}`);
 const t=Engine.st? `${String(Math.floor(Engine.st.hour)).padStart(2,"0")}:${String(Math.floor(Engine.st.hour%1*60)).padStart(2,"0")}` : "";
 const warn=/⚠|🚨|超過|警告|危険|失格|ペナルティ|故障|事故/.test(msg);
