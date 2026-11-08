@@ -55,7 +55,7 @@ for(let i=0;i<12;i++){
 }
 this.aiPool=[]; this.aiMeshes=new Map();   // 表示枠 10 台。車の形はチームごとに作って使い回す
 for(let i=0;i<10;i++) this.aiPool.push({mesh:null,team:null});
-this.roadTrains.length=0; this.rollT=0;
+this.roadTrains.length=0; this.rollT=0; if(typeof Rain!=="undefined") Rain.reset();
 this.lmMap.clear(); this.redSignalKm=null; this.inPit=false; this.pitBlend=0; this.fireOn=false;
 this.resetRoad();
 addEventListener("resize",()=>{
@@ -729,16 +729,29 @@ if(vv>0.3){
 } else es.gLat=0;
 const cx0=this.cx, cz0=this.cz;   // 当たり判定の掃引用
 this.cx+=Math.sin(this.ch)*vv*gearDir()*dtR; this.cz-=Math.cos(this.ch)*vv*gearDir()*dtR;
-// 横風 (諸元があるとき): 横方向に押される。タイヤの横すべりで遅れて効く。旋回と合わせて転倒余裕を監視
+// 横風 (諸元があるとき): 横方向に押される。タイヤの横すべりで遅れて効く
 if(VEH.active&&VEH.spec.chassis&&P.mode==="race"){
  const aY= vv>1? VehDyn.sideAccel(-(es.lastCross||0),es.lastRho||1.17,massTotal()) : 0;
  this.vyWind=lerp(this.vyWind||0,aY*0.35,clamp(dtR*3,0,1));
  this.cx+=Math.cos(this.ch)*this.vyWind*dtR; this.cz+=Math.sin(this.ch)*this.vyWind*dtR;
- const aLat=Math.abs((es.gLat||0)*9.81+aY);
- es.tipRatio=aLat/VehDyn.tipAccel();
- if(es.tipRatio>0.8&&!(this.tipWarnT>0)){ this.tipWarnT=8; Snd.alarm(); Radio.push(`⚠ 横転の危険!横加速度 ${(aLat/9.81).toFixed(2)} G (転倒限界の ${(es.tipRatio*100).toFixed(0)} %)。減速してください。`,"チーフ"); }
+}
+// 横転の危険度 (レース): 横風・浮き上がり・旋回・加減速。0.6 で後方追走車が警告、0.85 で警報、1 を 0.25 秒超えると横転
+if(P.mode==="race"&&!P.event&&!es.crashed&&!es.camp){
+ this.stillT= vv<0.5&&!(es.gear==="R")? (this.stillT||0)+dtR : 0;   // 停車して約 8 秒: 誘導車・追走車が風上で風よけ、クルーが車体を押さえる
+ const shield=this.stillT>8; if(shield&&!this._shieldMsg&&Math.abs(es.lastCross||0)>10){ this._shieldMsg=true; Radio.push("停車確認。誘導車と追走車を風上側に寄せて風よけにします。クルーは降りて車体を押さえて。","後方追走車",{speak:true}); }
+ if(!shield) this._shieldMsg=false; es.shielded=shield;
+ const R=VehDyn.roll(es,-(es.lastCross||0),vv,shield); es.tipRatio=R.risk; es.tipDir=R.dir; es.tipWind=R.wind; es.tipTurn=R.turn;
+ es.tipMax=Math.max(es.tipMax||0,R.risk);
  if(this.tipWarnT>0) this.tipWarnT-=dtR;
+ if(R.risk>=0.6&&!(this.tipWarnT>0)){ this.tipWarnT= R.risk>=0.85? 4 : 8; if(R.risk>=0.85) Snd.alarm();
+  Radio.push(R.risk>=0.85? `⚠ 片輪が浮いています!すぐに減速、ハンドルはゆっくり (危険度 ${(R.risk*100).toFixed(0)} %)` : `車体が風であおられています。減速してください (横転の危険度 ${(R.risk*100).toFixed(0)} %)`,"後方追走車",{speak:true}); }
+ this.tipOver= R.risk>=1? (this.tipOver||0)+dtR : 0;
+ if(this.tipOver>=0.25) Engine.rollover(R,vv);
 } else es.tipRatio=0;
+{ const el=this._rollEl||(this._rollEl=document.getElementById("hud-roll")), r=es.tipRatio||0, show=r>=0.25||(es.scenario==="storm"&&!es.crashed);   // 画面: 横転の危険度
+  if(el){ if(show!==this._rollShow){ this._rollShow=show; el.style.display=show?"flex":"none"; }
+   const k=Math.round(r*100); if(show&&k!==this._rollK){ this._rollK=k; el.classList.toggle("hi",r>=0.6); el.querySelector("b").textContent=Math.min(999,k); el.querySelector(".bar>i").style.width=Math.min(100,k)+"%";
+    el.querySelector(".w").textContent=`横風 ${Math.abs(es.lastCross||0).toFixed(0)} m/s${es.shielded?"・風よけ":""}`; } } }
 // 当たり判定 (レースモード): 沿道の固定物・壁・他の車両・人
 if(P.mode==="race"&&typeof Collide!=="undefined"&&Collide.enabled&&!es.fire&&!(typeof Crew!=="undefined"&&Crew.busy()&&Crew.phase==="outside")){
  const st={x:this.cx,z:this.cz,h:this.ch,v:es.v*gearDir()}, [L,W]=carDims();
@@ -780,6 +793,12 @@ if(this.car.userData.wheels) for(const w of this.car.userData.wheels){   // 車�
  w.spin=((w.spin||0)+vv*dtR/w.r)%(Math.PI*2); w.g.rotation.order="YXZ";
  w.g.rotation.y= w.front? -Input.steer*0.45 : 0; w.g.rotation.x=-w.spin; }
 this.car.rotation.x=-Math.atan(pHere.g)*0.8+clamp(-es.gLong*0.025,-0.045,0.045);
+this.car.rotation.order="YXZ";
+{ const want= es.rolledOver? 1.75*(es.tipDir||1) : clamp((es.tipRatio||0)*0.06,0,0.08)*(es.tipDir||1);   // 横転: 風下へ倒れる
+  this.carRoll=lerp(this.carRoll||0,want,clamp(dtR*(es.rolledOver?2.2:6),0,1)); this.car.rotation.z=-this.carRoll; if(es.rolledOver) this.car.position.y+=Math.sin(Math.abs(this.carRoll))*0.5;
+  // 横転したら風下へ転がりながら滑り、路肩で止まる (2025 年の映像のように)
+  if(es.rolledOver){ const p0=this.roadPoint(this.s), edge=(es.tipDir||1)>0? p0.R+1.2 : -(p0.L+1.2), dl=edge-this.lateral; this.rollSlide=(this.rollSlide||0)+dtR;
+   if(this.rollSlide<3&&Math.abs(dl)>0.05){ const st=clamp(dl,-3*dtR,3*dtR); this.lateral+=st; this.cx+=Math.cos(this.ch)*st; this.cz+=Math.sin(this.ch)*st; this.car.rotation.y+=(es.tipDir||1)*0.25*Math.min(1,this.rollSlide); } } else this.rollSlide=0; }
 let wantTilt=(es.camp||es.stopTimer>0||StopMenu.mode==="charge")&&!es.disconnected;
 if(typeof Crew!=="undefined"&&Crew.busy()&&Crew.phase!=="outside") wantTilt=false;   // ドライバーが乗っている間は傾けない
 const targetRoll=wantTilt? -es.tiltDeg*Math.PI/180*0.85 : 0;
@@ -887,6 +906,7 @@ this.hemiLight.intensity=clamp(Math.sin(alt)*0.9,0.12,0.8)*(es.weather?0.6:1);
 // 車体などに映る空 (時刻・天気・土地の色に合わせて作り直す。画質「低」は作らない)
 EnvLight.update(this.renderer,this.scene,top,hor,new THREE.Color(biomeAt(es.km).soil),this.sun.position.clone().sub(this.car.position).normalize(),clamp(Math.sin(alt)*1.3,0,1)*(es.weather?0.2:1),this.sunLight.color);
 this.updateEnvironment(es,pHere,alt,hor);
+if(typeof Rain!=="undefined") Rain.update(this,es,dtR);   // 雨 (雨筋・しぶき・濡れた路面・視界・ガラスの雨粒・音・雷)
 this.updateLandmarks(es);
 this.updateRoadTrains(es,dtR);
 // 前方誘導車: 通常は150m前。信号で先に抜けて赤で分断されたら、その場でハザードを点けて停車し待機

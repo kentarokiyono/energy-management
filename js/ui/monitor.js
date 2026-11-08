@@ -6,14 +6,23 @@
  ・地図: 分析画面と同じ立体地図。走った所に帯 (高さ・色 = 速度 または 電池) を描き足す (全体 / 周辺で追従)
  ・グラフ: 距離に対する速度と電池。戦略の見込み (点線) と比べる
  ・予報: この先 9 時間の 1 時間ごと (日射・雲・気温・向かい風/横風・その時刻にいる地点)。日の出・日の入り。戦略のまとめ
- ・無線: ドライバー側の無線の文 */
+ ・無線: ドライバー側の無線の文
+ 役割 (上で切り替え。URL の &role= が初期値):
+  戦略 = すべて / 前方誘導車 = この先 (制限速度・CS・右左折・天気)・横風と横転の危険度・地図 (周辺) / 後方追走車 = 車両の状態・横転の危険度・速度指示
+  どの役割も、警告 (ボタン・自由入力) をドライバーの無線へ送れる (読み上げ。急ぎの警告は警報音) */
 const Monitor={
- peer:null, conn:null, pts:[], snap:null, fc:null, radio:[], drivers:[], view:"all", retry:0,
+ peer:null, conn:null, pts:[], snap:null, fc:null, radio:[], drivers:[], view:"all", retry:0, role:"base",
+ ROLES:{base:"戦略",lead:"前方誘導車",chase:"後方追走車"},
+ /* 役割ごとの警告 [文, 急ぎ] */
+ WARN:{lead:[["突風来ます!減速して",1],["前方で停車が必要。減速して",1],["ロードトレイン接近。左に寄って減速",1],["前方に動物・障害物。注意",1],["この先 制限速度が下がります",0],["路肩に寄せて停車して",1]],
+  chase:[["減速して",1],["車体が風で流されています。ハンドルはゆっくり",1],["制限速度を超えています",0],["後ろから追い越し車両",0],["路肩に寄せて停車して",1],["異音あり。安全な所で停車して",1]],
+  base:[["少し速度を上げて",0],["少し速度を落として",0],["天候が悪化します。早めに減速",0],["次の CS で充電時間を長めに取ります",0]]},
  wanted(){ return new URLSearchParams(location.search).has("tm"); },
  async boot(){
   const id=new URLSearchParams(location.search).get("tm"), key=(location.hash.match(/k=([a-z0-9]+)/)||[])[1]||"";
   if(!/^(bwsc|local)-[a-z0-9]{6,20}$/.test(id||"")){ document.body.innerHTML="<p style='padding:24px;color:#fff'>リンクが正しくありません</p>"; return; }
-  this.id=id; this.key=key; this.build();
+  this.id=id; this.key=key; const r=new URLSearchParams(location.search).get("role"); if(this.ROLES[r]) this.role=r; if(this.role!=="base") this.view="near";
+  this.build();
   if(id.startsWith("local-")){ this.local(); addEventListener("resize",()=>this.drawAll()); return; }   // 同じ PC の別ウィンドウ
   try{ await TeleNet.load(); }catch(e){ this.state("通信の部品を読み込めませんでした"); return; }
   this.connect();
@@ -52,24 +61,52 @@ const Monitor={
   document.body.classList.add("mon-on");
   for(const e of [document.documentElement,document.body]) Object.assign(e.style,{overflow:"auto",height:"auto",position:"static",touchAction:"auto"});   // ゲーム用のスクロール禁止を外す
   const el=document.createElement("div"); el.id="mon"; el.innerHTML=`
-  <header><img src="assets/img/logo.svg" class="logo" width="46" alt=""><div><div class="ttl">REALTIME RUN ANALYSIS</div><div class="sub" id="mon-state">準備中</div></div><div class="clk" id="mon-clk">―</div></header>
+  <header><img src="assets/img/logo.svg" class="logo" width="46" alt=""><div><div class="ttl">REALTIME RUN ANALYSIS</div><div class="sub" id="mon-state">準備中</div></div><div class="seg" id="mon-role">${Object.entries(this.ROLES).map(([k,v])=>`<button data-r="${k}">${v}</button>`).join("")}</div><div class="clk" id="mon-clk">―</div></header>
   <section class="kpis" id="mon-kpi"></section>
+  <section class="card" id="mon-ahead"><div class="ch">${ic("flag")}この先</div><div id="mon-aheadb" class="ahead"><div class="dim">待っています…</div></div></section>
+  <section class="card" id="mon-warn"><div class="ch">${ic("radio")}ドライバーへ警告 <span class="dim" id="mon-warnas"></span></div><div class="wb" id="mon-wb"></div><div class="wt"><input id="mon-wt" maxlength="120" placeholder="自由に入力 (読み上げます)"><label class="chk" title="警報音を鳴らす"><input type="checkbox" id="mon-wu"><i></i>急ぎ</label><button class="btn pri" onclick="Monitor.warnText()">送る</button></div></section>
   <section class="card" id="mon-ord"><div class="ch">${ic("radio")}速度指示<div class="seg" id="mon-mode"><button data-m="auto">自動</button><button data-m="manual">入力して送る</button><button data-m="voice">声で伝える</button></div></div><div id="mon-ordb"></div></section>
-  <section class="card"><div class="ch">${ic("map")}地図<div class="seg" id="mon-met"><button data-v="v" class="on">速度</button><button data-v="soc">電池</button></div><div class="seg" id="mon-mv" style="margin-left:0"><button data-v="all" class="on">全体</button><button data-v="near">周辺 (追従)</button></div></div>
+  <section class="card" id="mon-mapc"><div class="ch">${ic("map")}地図<div class="seg" id="mon-met"><button data-v="v" class="on">速度</button><button data-v="soc">電池</button></div><div class="seg" id="mon-mv" style="margin-left:0"><button data-v="all">全体</button><button data-v="near">周辺 (追従)</button></div></div>
    <div class="ana-map" id="mon-map"><div class="ana-compass" id="ana-compass" title="北の向き (クリックで北を上に)" onclick="Monitor.map&&Monitor.map.north()"><i></i><b>N</b></div><div class="ana-ctl"><button class="btn" title="左に回す" onclick="Monitor.map&&Monitor.map.rot(-1)">${ic("rotate","flipx")}</button><button class="btn" title="右に回す" onclick="Monitor.map&&Monitor.map.rot(1)">${ic("rotate")}</button><button class="btn" title="寝かせる" onclick="Monitor.map&&Monitor.map.tilt(1)">${ic("chd")}</button><button class="btn" title="起こす" onclick="Monitor.map&&Monitor.map.tilt(-1)">${ic("chu")}</button><button class="btn" title="北を上に" onclick="Monitor.map&&Monitor.map.north()">N</button><button class="btn" title="真上から" onclick="Monitor.map&&Monitor.map.top()">真上</button></div><div class="ana-leg" id="ana-leg"></div></div></section>
-  <section class="card"><div class="ch">${ic("activity")}速度と電池 (この先の見込みは点線)</div><canvas id="mon-chart"></canvas></section>
-  <section class="card"><div class="ch">${ic("sun")}この先の天気 (予報)<span class="dim" id="mon-sun"></span></div><div class="fc" id="mon-fc"><div class="dim">予報を待っています…</div></div><div id="mon-plan" class="plan"></div></section>
+  <section class="card" id="mon-chartc"><div class="ch">${ic("activity")}速度と電池 (この先の見込みは点線)</div><canvas id="mon-chart"></canvas></section>
+  <section class="card" id="mon-fcc"><div class="ch">${ic("sun")}この先の天気 (予報)<span class="dim" id="mon-sun"></span></div><div class="fc" id="mon-fc"><div class="dim">予報を待っています…</div></div><div id="mon-plan" class="plan"></div></section>
   <section class="card"><div class="ch">${ic("radio")}無線</div><div id="mon-radio" class="rl"><div class="dim">まだありません</div></div></section>`;
   document.body.appendChild(el);
   document.getElementById("mon-mode").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; this.send({t:"mode",mode:b.dataset.m}); this.modeUI(b.dataset.m); });
   document.getElementById("mon-mv").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; this.view=b.dataset.v; this.dirty=true; document.querySelectorAll("#mon-mv button").forEach(x=>x.classList.toggle("on",x===b)); this.aim(); this.drawMap(); });
   document.getElementById("mon-met").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; document.querySelectorAll("#mon-met button").forEach(x=>x.classList.toggle("on",x===b)); if(this.ctx){ this.ctx.metric=b.dataset.v; this.dirty=true; } this.drawMap(); });
-  this.top(); this.order();
+  document.getElementById("mon-role").addEventListener("click",e=>{ const b=e.target.closest("button"); if(b) this.setRole(b.dataset.r); });
+  document.getElementById("mon-wb").addEventListener("click",e=>{ const b=e.target.closest("button"); if(b) this.warn(b.dataset.m,+b.dataset.u); });
+  document.getElementById("mon-wt").addEventListener("keydown",e=>{ if(e.key==="Enter") this.warnText(); });
+  this.setRole(this.role,true);
  },
+ /* 役割の切り替え: 見せる欄・KPI・警告のボタン・地図の向き */
+ setRole(r,first){ if(!this.ROLES[r]) return; this.role=r; const el=document.getElementById("mon"); el.className="r-"+r;
+  document.querySelectorAll("#mon-role button").forEach(b=>b.classList.toggle("on",b.dataset.r===r));
+  document.getElementById("mon-warnas").textContent=`(${this.ROLES[r]==="戦略"?"戦略班":this.ROLES[r]} として)`;
+  document.getElementById("mon-wb").innerHTML=this.WARN[r].map(([m,u])=>`<button class="btn ${u?"u":""}" data-m="${escHtml(m)}" data-u="${u}">${escHtml(m)}</button>`).join("");
+  if(!first){ this.view= r==="base"? "all" : "near"; this._near=undefined; try{ history.replaceState(null,"",location.pathname+location.search.replace(/([?&])role=[a-z]+/,"$1role="+r).replace(/^(?!.*role=)(.*)$/,"$1&role="+r)+location.hash); }catch(e){} }
+  document.querySelectorAll("#mon-mv button").forEach(x=>x.classList.toggle("on",x.dataset.v===this.view));
+  this.top(); this.order(); this.aheadUI(); setTimeout(()=>this.drawAll(),0); },
+ warn(msg,u){ if(!msg) return; this.send({t:"warn",role:this.role,msg,u:u?1:0}); toast(`送りました: ${escHtml(msg)}`,"#34d399"); },
+ warnText(){ const i=document.getElementById("mon-wt"), m=(i.value||"").trim(); if(!m) return; this.warn(m,document.getElementById("mon-wu").checked); i.value=""; },
+ /* この先 (前方誘導車) */
+ aheadUI(){ const el=document.getElementById("mon-aheadb"), s=this.snap; if(!el||!s||!s.ahead) return; const A=s.ahead, f=(x,d)=>Number.isFinite(x)?x.toFixed(d):"―";
+  const row=(k,v,cls)=>`<div class="${cls||""}"><span>${k}</span><b>${v}</b></div>`;
+  const h=this.fc&&this.fc.hours? this.fc.hours.slice(0,3).map(x=>`${String(x.hr).padStart(2,"0")}時 ${x.night?"夜":x.rain?"雨":x.cc>70?"曇":x.cc>35?"薄曇":"晴"} ${f(x.ghi,0)} W/m²・横風 ${f(Math.abs(x.cross),1)} m/s`).join("<br>") : "予報を待っています";
+  el.innerHTML=row("制限速度",A.lim? `${A.lim.km} km 先で ${A.lim.v} km/h <i>(いま ${f(s.lim,0)})</i>` : `${f(s.lim,0)} km/h (20 km 先まで同じ)`)
+   +row("次の右左折",A.man? `${A.man.d<1? Math.round(A.man.d*1000)+" m" : A.man.d.toFixed(1)+" km"} 先 ${escHtml(A.man.act)} ― ${escHtml(A.man.name)}` : "30 km 先までなし")
+   +row("次の CS",A.cs? `CS${A.cs.n} ${escHtml(A.cs.name)} まで ${f(A.cs.d,1)} km` : "なし")+row("ゴールまで",`${f(A.fin,1)} km`)
+   +row("横風・横転",`${f(Math.abs(s.cross||0),1)} m/s ・ 危険度 ${f((s.tip||0)*100,0)} %${s.shield?" (風よけ中)":""}`,(s.tip||0)>=0.6?"bad":"")+row("この先の天気",h); },
  state(m){ const e=document.getElementById("mon-state"); if(e) e.textContent=m; },
  top(){
   const s=this.snap, f=(x,d)=>Number.isFinite(x)?x.toFixed(d):"―", kpi=(k,v,u,cls)=>`<div class="k ${cls||""}"><span>${k}</span><b>${v}</b><i>${u}</i></div>`;
   document.getElementById("mon-clk").textContent= s? `Day${s.day} ${String(Math.floor(s.hour)).padStart(2,"0")}:${String(Math.floor(s.hour%1*60)).padStart(2,"0")}` : "―";
+  const tip=s? (s.tip||0)*100 : NaN, tipK=kpi("横転の危険度",s?f(tip,0):"―","%"+(s&&s.shield?" 風よけ":""),tip>=60?"bad":tip>=30?"warn":"");
+  if(this.role==="lead"){ document.getElementById("mon-kpi").innerHTML=kpi("速度",s?f(s.v,0):"―","km/h",s&&s.v>s.lim+2?"bad":"")+kpi("制限",s?f(s.lim,0):"―","km/h")+kpi("横風",s?f(Math.abs(s.cross||0),1):"―","m/s",s&&Math.abs(s.cross||0)>10?"bad":"")+tipK+kpi("距離",s?f(s.km,1):"―","km")+kpi("ドライバー",s?escHtml(s.drv||"―"):"―","");
+   this.aheadUI(); return; }
+  if(this.role==="chase"){ document.getElementById("mon-kpi").innerHTML=kpi("速度",s?f(s.v,0):"―","km/h",s&&s.v>s.lim+2?"bad":"")+kpi("電池",s?f(s.soc,1):"―","%",s&&s.soc<15?"bad":"")+kpi("電流",s?f(s.amp,1):"―","A")+tipK+kpi("横風",s?f(Math.abs(s.cross||0),1):"―","m/s",s&&Math.abs(s.cross||0)>10?"bad":"")+kpi("制限",s?f(s.lim,0):"―","km/h")
+   +(s? `<div class="state">${escHtml(s.camp?"夜営・充電中":s.stop?"停車中 ("+s.stop+")":s.st||"")} ・ 発電 ${f(s.ps,0)} W・モーター ${f(s.pm,0)} W・収支 ${(s.net>0?"+":"")+f(s.net,0)} W・ドライバー ${escHtml(s.drv||"―")}</div>` : ""); return; }
   document.getElementById("mon-kpi").innerHTML= kpi("速度",s?f(s.v,0):"―","km/h",s&&s.v>s.lim+2?"bad":"")+kpi("電池",s?f(s.soc,1):"―","%",s&&s.soc<15?"bad":"")+kpi("収支",s?(s.net>0?"+":"")+f(s.net,0):"―","W",s&&s.net>0?"good":"")
    +kpi("距離",s?f(s.km,1):"―","km")+kpi("制限",s?f(s.lim,0):"―","km/h")+kpi("ドライバー",s?escHtml(s.drv||"―"):"―","",s&&s.stop?"dim":"")
    +(s? `<div class="state">${escHtml(s.camp?"夜営・充電中":s.stop?"停車中 ("+s.stop+")":s.st||"")}${s.wx?" ・ "+(s.wx==="squall"?"スコール":"曇り"):""} ・ 発電 ${f(s.ps,0)} W・モーター ${f(s.pm,0)} W・電流 ${f(s.amp,1)} A</div>` : "");

@@ -38,6 +38,9 @@ const Snd={
    this.whistle=this.band(this.noise(),1700,14,0); this.whistle.out.connect(this.master);
    // ---- 火災 ----
    this.fire=this.band(this.noise(),900,0.4,0); this.fire.out.connect(this.master);
+   // ---- 雨 (粒の音・路面のザー) ----
+   this.rainHi=this.band(this.noise(),5200,0.35,0); this.rainHi.out.connect(this.master);
+   this.rainLo=this.band(this.noise(true),850,0.45,0); this.rainLo.out.connect(this.master);
    this.trucks=new Map(); this.lastKm=null; this.started=true;
   }catch(e){ console.warn("audio init failed",e); }
  },
@@ -131,6 +134,11 @@ const Snd={
   this.env(o,0.35*k,0.003,0.16,this.master); o.start(); o.stop(t+0.25); this.burst(300,1,0.05,0.12*k,this.master); },
  bang(){ if(!this.started) return; this.thump(1.6); this.burst(1200,0.6,0.45,0.5,this.master); for(let i=0;i<5;i++) setTimeout(()=>this.burst(2500+Math.random()*2500,6,0.05,0.12,this.master),80+i*70+Math.random()*40); },
  rattle(){ for(let i=0;i<9;i++) setTimeout(()=>{ this.burst(2400+Math.random()*900,5,0.035,0.2,this.master); this.thump(0.35); },i*55); },   // キャトルグリッドの鉄の格子
+ /* 雷鳴: 低い音の長い轟き (近いほど大きく鋭い) */
+ thunder(k=1){ if(!this.started) return; const c=this.ctx, t=c.currentTime, src=c.createBufferSource(); src.buffer=this.thBuf||(this.thBuf=this.noiseBuf(5));
+  const lp=c.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=140+260*clamp(k,0,1); const g=c.createGain(); g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(0.25+0.6*clamp(k,0,1),t+0.06+0.3*(1-clamp(k,0,1))); g.gain.exponentialRampToValueAtTime(0.0001,t+4.2);
+  src.connect(lp); lp.connect(g); g.connect(this.master); src.start(t); src.stop(t+4.5); },
  horn(){ if(!this.started) return; const c=this.ctx, t=c.currentTime, bp=c.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value=600; bp.Q.value=0.8;
   const pan=c.createStereoPanner?c.createStereoPanner():c.createGain(); if(pan.pan) pan.pan.value=0.6; bp.connect(pan); pan.connect(this.master);
   for(const f of [185,233,277]){ const o=c.createOscillator(); o.type="sawtooth"; o.frequency.value=f; const g=c.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.09,t+0.06); g.gain.setValueAtTime(0.09,t+1.1); g.gain.exponentialRampToValueAtTime(0.0001,t+1.4);

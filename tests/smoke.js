@@ -48,12 +48,32 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   check("制限速度の予告",ln.length>=3&&ln.every(m=>/この先 [0-9.]+ km で制限速度 \d+ km\/h \(現在 \d+ km\/h\)/.test(m)),ln.slice(0,3).join(" / "));
   check("練習シナリオ: エラーなし",noErr(p).length===0,noErr(p).slice(0,2).join(" | "));
   await p.evaluate(()=>{ Scenario.closeRes(); quitToMenu(); document.getElementById("scenario").value=""; }); await p.context().close(); }
+ // ---- 横転の危険度と練習シナリオ (暴風雨) ----
+ { const p=await newPage(b,base);
+  const rr=await p.evaluate(()=>{ const es={lastRho:1.17,gLat:0,gLong:0}, R=(c,v,sh)=>VehDyn.roll(es,c,v/3.6,sh).risk;
+   const a=R(10,60), b=R(20,60), c=R(20,0), d=R(20,0,true); es.gLat=0.3; const t=R(0,60); es.gLong=0.4; const t2=R(0,60); es.gLat=0; es.gLong=0;
+   return {windUp:b>a, speedUp:b>c, shield:d<c*0.6, turn:t>0.05, brake:t2>t}; });
+  check("横転の危険度: 風・速度・旋回・加減速で増え、風よけで下がる",Object.values(rr).every(Boolean),JSON.stringify(rr));
+  await p.click('#seg-scn button[data-v="storm"]');
+  await p.evaluate(()=>{ P.mode="race"; P.crewProc=false; P.tts="off"; startGame(); }); await p.waitForTimeout(1500);
+  const st=await p.evaluate(()=>{ const es=Engine.st, c=Scenario.cur, msgs=[]; const o=Radio.push; Radio.push=(m,w)=>msgs.push(w+": "+m);
+   const g=c.gusts, w0=Scenario.stormWind(c,c.abs0).ms, wIn=Scenario.stormWind(c,c.abs0+c.sc.storm.in+(g[0][0]+5)/3600).ms;
+   es.v=0; for(let t=c.abs0;t<c.abs0+c.sc.storm.in+0.05;t+=1/3600){ es.day=Math.floor(t/24)+1; es.hour=t-(es.day-1)*24; Scenario.stormRadio(c,es,t); }
+   Radio.push=o; return {sc:es.scenario,n:g.length,w0,wIn,scout:msgs.filter(m=>/^偵察車/.test(m)).length,lead:msgs.filter(m=>/^前方誘導車: 突風/.test(m)).length,hud:document.getElementById("hud-roll").style.display}; });
+  await p.evaluate(()=>{ Engine.st.weather={type:"squall",factor:0.06}; }); await p.waitForTimeout(2500);
+  const rn=await p.evaluate(()=>({I:Rain.I,lines:Rain.lines&&Rain.lines.visible,fog:View.scene.fog.far,glass:document.getElementById("rain-glass").style.display}));
+  check("雨: 雨筋・視界・ガラスの雨粒",rn.I>0.05&&rn.lines&&rn.fog<2000&&rn.glass==="block"&&noErr(p).length===0,JSON.stringify(rn)+" "+noErr(p).slice(0,2).join(" | "));
+  check("練習シナリオ: 暴風雨 (突風・偵察車と前方誘導車の警告)",st.sc==="storm"&&st.n>=10&&st.wIn>st.w0+8&&st.scout>=2&&st.lead>=1&&st.hud==="flex"&&noErr(p).length===0,JSON.stringify(st)+" "+noErr(p).slice(0,2).join(" | "));
+  await p.evaluate(()=>{ Scenario.reset(); quitToMenu(); document.getElementById("scenario").value=""; }); await p.context().close(); }
  // ---- テレメトリ (同じ PC の別ウィンドウ): つながり、値が届き、監視側から指示を送れる。外部とは通信しない ----
  { const p=await newPage(b,base);
   await p.evaluate(()=>{ window.pushChart=()=>{}; P.mode="race"; P.crewProc=false; startGame(); running=false; Engine.st.gridStartH=0; Engine.st.hour=10; Engine.st.v=20; setInterval(()=>Tele.frame(Engine.st),300); });
   const [mp]=await Promise.all([p.context().waitForEvent("page"),p.evaluate(()=>Tele.startLocal())]);
   await mp.waitForFunction(()=>typeof Monitor!=="undefined"&&Monitor.snap,null,{timeout:60000}).catch(()=>{});
-  await mp.evaluate(()=>{ Monitor.send({t:"mode",mode:"manual"}); Monitor.send({t:"order",v:64,I:6.8}); }); await p.waitForTimeout(800);
+  await mp.evaluate(()=>{ Monitor.send({t:"mode",mode:"manual"}); Monitor.send({t:"order",v:64,I:6.8}); Monitor.setRole("lead"); Monitor.warn("突風来ます!減速して",1); }); await p.waitForTimeout(800);
+  const wn=await p.evaluate(()=>Radio.log.some(x=>/前方誘導車/.test(x)&&/突風来ます/.test(x)));
+  const rl=await mp.evaluate(()=>({cls:document.getElementById("mon").className,ahead:getComputedStyle(document.getElementById("mon-ahead")).display,ord:getComputedStyle(document.getElementById("mon-ord")).display}));
+  check("テレメトリ: 前方誘導車の画面と警告",wn&&rl.cls==="r-lead"&&rl.ahead!=="none"&&rl.ord==="none",JSON.stringify({wn,rl}));
   const t=await p.evaluate(()=>({conns:Tele.conns.length,mode:Orders.mode,cur:Orders.cur&&[Orders.cur.v,Orders.cur.I]}));
   const m=await mp.evaluate(()=>({snap:!!Monitor.snap,state:document.getElementById("mon-state").textContent}));
   check("テレメトリ (同じ PC)",t.conns===1&&t.mode==="manual"&&t.cur&&t.cur[0]===64&&m.snap&&p.ext.length===0,JSON.stringify({t,m,ext:p.ext.slice(0,2)}));

@@ -264,11 +264,11 @@ const pbr=typeof GFX!=="undefined"&&GFX.key()!=="low", D=pbr? roadDetail(kind) :
 const mat= pbr? new THREE.MeshStandardMaterial({map:roadTex(kind),vertexColors:true,normalMap:D.normal,normalScale:new THREE.Vector2(0.35,0.35),roughnessMap:D.rough,roughness:1,metalness:0,envMapIntensity:0.5})
  : new THREE.MeshLambertMaterial({map:roadTex(kind),vertexColors:true});
 mat.userData.gfx=pbr?"pbr":"low";
-mat.userData.uniforms={uMirage:{value:0},uSkyCol:{value:new THREE.Color(0.7,0.8,0.9)},uTime:{value:0}};
+mat.userData.uniforms={uMirage:{value:0},uSkyCol:{value:new THREE.Color(0.7,0.8,0.9)},uTime:{value:0},uWet:{value:0}};
 mat.onBeforeCompile=(sh)=>{
  Object.assign(sh.uniforms,mat.userData.uniforms);
  sh.vertexShader="varying vec3 vWPos;\n"+sh.vertexShader.replace("#include <begin_vertex>","#include <begin_vertex>\nvWPos=(modelMatrix*vec4(transformed,1.0)).xyz;");
- sh.fragmentShader="uniform float uMirage;uniform vec3 uSkyCol;uniform float uTime;varying vec3 vWPos;\n"+GLSL_NOISE+sh.fragmentShader
+ sh.fragmentShader="uniform float uMirage;uniform vec3 uSkyCol;uniform float uTime;uniform float uWet;varying vec3 vWPos;\n"+GLSL_NOISE+sh.fragmentShader
   .replace("#include <fog_fragment>",`#include <fog_fragment>
 {
  float d=length(vWPos.xz-cameraPosition.xz);
@@ -278,6 +278,14 @@ mat.onBeforeCompile=(sh)=>{
  float m=graz*smoothstep(90.,260.,d)*(1.0-smoothstep(900.,1400.,d))*patchy*uMirage;
  float sh=0.5+0.5*sin(vWPos.x*0.21+vWPos.z*0.17+uTime*3.1);
  gl_FragColor.rgb=mix(gl_FragColor.rgb,uSkyCol,clamp(m*(0.6+0.3*sh),0.0,0.85));
+ if(uWet>0.001){   // 濡れた路面: 暗くなり、浅い角度で空が映る。水たまりはまだら
+  float pud=smoothstep(0.5,0.78,gVn(vWPos.xz*0.09))*smoothstep(0.2,0.9,uWet);
+  float fres=pow(1.0-clamp(hgt/d*6.0,0.0,1.0),3.0), near=1.0-smoothstep(160.0,700.0,d);
+  vec3 base=gl_FragColor.rgb*(1.0-0.38*uWet-0.15*pud);
+  float k=clamp((0.12+0.6*fres)*uWet*(0.55+0.45*pud)+pud*0.25,0.0,0.75)*near;
+  float rip=0.85+0.15*sin(vWPos.x*3.1+uTime*9.0)*sin(vWPos.z*2.7-uTime*7.0);
+  gl_FragColor.rgb=mix(base,uSkyCol*0.8*rip,k);
+ }
 }`);
 };
 return mat;
