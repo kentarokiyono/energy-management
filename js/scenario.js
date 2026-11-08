@@ -41,16 +41,9 @@ const Scenario={
   s.tipMax=0;
   Radio.push(`練習シナリオ「${sc.name}」${sc.storm&&this.cur.lv==="std"?" (標準: 風は実際の約半分)":""}: ${sc.brief}`,"チーフ");
  },
- /* 暴風雨の突風の並び [暴風域に入ってからの秒 (ゲーム内), 最大風速 m/s]。いちばん強いのは雨の降り始め (ガストフロント: 雷雨の前縁の突風) で、
-  その後 50〜110 秒ごとに少しずつ弱まりながら続く (毎回同じ並び)。2025 年の映像でも、雨が降り始めた直後の突風で倒れている */
- mkGusts(st){ let x=7, t=75; const rnd=()=>((x=(x*16807)%2147483647)/2147483647), out=[[45,st.max]], T=st.dur*3600;
-  while(t<T-30){ const f=Math.exp(-t/(T*0.45)); out.push([t,Math.min(st.max*0.9,st.mean*(1.05+0.3*rnd()+0.75*f))]); t+=50+60*rnd(); } return out; },
- /* 暴風雨の風 [m/s]: 前縁が来るまでは弱い (嵐の前の静けさ。直前 2 分で少し強まる)。中は平均 + 突風 (4 秒で強まり 3 秒続き 5 秒で弱まる)、抜けたら 10 分で収まる */
- stormWind(c,abs){ const st=c.st||c.sc.storm, base=c.sc.wind.ms, t=(abs-(c.abs0+st.in))*3600, T=st.dur*3600;
-  if(t<0) return {ms:base+(st.mean*0.5-base)*clamp(1+t/120,0,1),gust:0};
-  if(t>T) return {ms:base+(st.mean-base)*clamp(1-(t-T)/600,0,1),gust:0};
-  let g=0; for(const [t0,pk] of c.gusts){ const d=t-t0; if(d<-1||d>13) continue; const f= d<4? clamp(d/4,0,1) : d<7? 1 : clamp(1-(d-7)/5,0,1); g=Math.max(g,(pk-st.mean)*f); }
-  return {ms:st.mean*Math.min(1,0.5+t/30)+g,gust:g}; },
+ /* 暴風雨の突風の並びと風速は、レース中の暴風雨と共通 (js/storm.js)。いちばん強いのは雨の降り始め (前縁) */
+ mkGusts(st){ return Storm.gusts(st); },
+ stormWind(c,abs){ const st=c.st||c.sc.storm; return Storm.speed(st,c.gusts,(abs-(c.abs0+st.in))*3600,c.sc.wind.ms); },
  /* 横風の上書き (Engine.step から): 道の向きに対して横から。突風は強めの揺らぎ + 一定間隔の強い一吹き */
  wind(s,prof){
   const c=this.cur; if(!c||!s.scenario||!c.sc.wind) return null; const w=c.sc.wind, now=performance.now()/1000;

@@ -239,6 +239,7 @@ s.windDirWorld=wc.toward+s.wDirDev;
 const rw=RealWx.on()&&RealWx.wind(prof.lat,prof.lon,s.dayOfYear,s.hour);
 if(rw){ const w=rw; s.windSpeed=Math.max(0,w.ws*(1+0.5*s.wGust)*0.6); s.windDirWorld=w.toward+s.wDirDev*0.3; }
 const sw=typeof Scenario!=="undefined"&&Scenario.wind(s,prof); if(sw){ s.windSpeed=sw.ms; s.windDirWorld=sw.to; }   // 練習シナリオの横風
+const stw=typeof Storm!=="undefined"&&Storm.wind(s); if(stw){ s.windSpeed=stw.ms; s.windDirWorld=stw.to; }   // レース中の暴風雨
 }
 s.hour+=dtS/3600;
 if(s.boostT>0)s.boostT-=dtR; if(s.boostCd>0)s.boostCd-=dtR;
@@ -249,7 +250,8 @@ s.v=Math.max(0,s.v-4*dtR);
 if(s.fireSec>6){ showResult(); }
 return;
 }
-if(RealWx.on()){
+if(s.weather&&s.weather.storm){}   // 暴風雨の間は Storm が天気を決める
+else if(RealWx.on()){
  const pr=profileAt(s.km), cc=RealWx.at("cc",pr.lat,pr.lon,s.dayOfYear,s.hour)||0, typ= cc>=85?"cloud":null;
  if(typ&&!s.weather){ s.weather={type:"cloud",factor:1,real:true}; Radio.push(`雲が厚くなってきました (雲量 ${cc.toFixed(0)} %)。発電量低下に注意`,"偵察車"); }
  else if(!typ&&s.weather&&cc<70){ s.weather=null; Radio.push("雲が切れてきました。日射戻ります。","偵察車"); }
@@ -261,6 +263,7 @@ s.weather={type:ev.type,factor:ev.factor};
 Radio.push(ev.type==="squall"?"⚠ スコールに入ります!日射が大きく低下":"曇天域に入ります。発電量低下に注意","偵察車");
 } else if(!ev&&s.weather){ s.weather=null; Radio.push("天候回復。日射戻ります。","偵察車"); }
 }
+if(typeof Storm!=="undefined") Storm.frame(s);   // レース中の暴風雨 (天気・無線)
 if(P.mode==="race") this.updateTeams(dtS);
 const startH=this.raceStartHour();
 const isRaceHours = s.hour>=startH && s.hour<17;

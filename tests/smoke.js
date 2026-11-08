@@ -65,6 +65,19 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   check("雨: 雨筋・視界・ガラスの雨粒・10 秒かけて切り替わる",rn.mix>0.05&&rn.mix<0.9&&rn.I<0.9&&rn.I>0.05&&rn.lines&&rn.fog<2000&&rn.glass==="block"&&noErr(p).length===0,JSON.stringify(rn)+" "+noErr(p).slice(0,2).join(" | "));
   check("練習シナリオ: 暴風雨 (突風・偵察車と前方誘導車の警告・難しさ・前ぶれ)",st.sc==="storm"&&st.lv==="real"&&st.lvBtn===2&&st.stdMax<20&&st.fx&&st.n>=10&&st.wIn>st.w0+8&&st.scout>=2&&st.lead>=1&&st.hud==="flex"&&noErr(p).length===0,JSON.stringify(st)+" "+noErr(p).slice(0,2).join(" | "));
   await p.evaluate(()=>{ Scenario.reset(); quitToMenu(); document.getElementById("scenario").value=""; }); await p.context().close(); }
+ // ---- 発電・消費の補正、後半の悪化、レース中の暴風雨、戦略を裏で少しずつ ----
+ { const p=await newPage(b,base);
+  const r=await p.evaluate(()=>{ window.pushChart=()=>{}; P.mode="race"; P.crewProc=false; P.realWeather=true; P.raceStorm=true; startGame(); running=false; const es=Engine.st, o={};
+   const keep={a:P.pvAltS,l:P.lossK,f:P.fcErr,pl:P.planLate};
+   P.pvAltS=JSON.stringify([0.5,0.5,0.6,0.7,0.8,0.9,1,1,1]); o.pvLow=PVLoss.k(10*Math.PI/180,false); o.pvHigh=PVLoss.k(70*Math.PI/180,false);
+   P.lossK=1.1; const d0=Strategy.drivePower(20,0); P.lossK=1.3; o.loss=Strategy.drivePower(20,0)-P.auxW>(d0-P.auxW)*1.15;
+   es.dayOfYear=PRO.dayOfYear+4; P.fcErr="late"; P.planLate=false; o.lateReal=Engine.lateK(); Strategy.fcOn=true; o.latePlan0=Engine.lateK(); P.planLate=true; o.latePlan1=Engine.lateK(); Strategy.fcOn=false;
+   P.pvAltS=keep.a; P.lossK=keep.l; P.fcErr=keep.f; P.planLate=keep.pl; es.dayOfYear=PRO.dayOfYear;
+   o.storm=es.stormPlan&&es.stormPlan.length===1&&es.stormPlan[0].max>30; o.stop=Storm.stopUntil(es,es.stormPlan[0].start+0.1)>es.stormPlan[0].start+es.stormPlan[0].dur;
+   es.hour=10; Strategy.plan(true); Strategy.lastT-=30000; Strategy.plan(false); let n=0, mx=0; while(Strategy.job&&n<300){ const t=performance.now(); Strategy.tick(4); mx=Math.max(mx,performance.now()-t); n++; } o.tickFrames=n; o.tickDone=!Strategy.job;
+   return o; });
+  check("発電の太陽の高さ別・消費の補正・後半の悪化・暴風雨・戦略を少しずつ",r.pvLow<0.6&&Math.abs(r.pvHigh-1)<0.01&&r.loss&&Math.abs(r.lateReal-0.85)<1e-6&&r.latePlan0===1&&Math.abs(r.latePlan1-0.85)<1e-6&&r.storm&&r.stop&&r.tickFrames>3&&r.tickDone&&noErr(p).length===0,JSON.stringify(r)+" "+noErr(p).slice(0,2).join(" | "));
+  await p.context().close(); }
  // ---- テレメトリ (同じ PC の別ウィンドウ): つながり、値が届き、監視側から指示を送れる。外部とは通信しない ----
  { const p=await newPage(b,base);
   await p.evaluate(()=>{ window.pushChart=()=>{}; P.mode="race"; P.crewProc=false; startGame(); running=false; Engine.st.gridStartH=0; Engine.st.hour=10; Engine.st.v=20; setInterval(()=>Tele.frame(Engine.st),300); });
@@ -73,6 +86,8 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   await mp.evaluate(()=>{ Monitor.send({t:"mode",mode:"manual"}); Monitor.send({t:"order",v:64,I:6.8}); Monitor.setRole("lead"); Monitor.warn("突風来ます!減速して",1); }); await p.waitForTimeout(800);
   const wn=await p.evaluate(()=>Radio.log.some(x=>/前方誘導車/.test(x)&&/突風来ます/.test(x)));
   const rl=await mp.evaluate(()=>({cls:document.getElementById("mon").className,ahead:getComputedStyle(document.getElementById("mon-ahead")).display,ord:getComputedStyle(document.getElementById("mon-ord")).display}));
+  const recN=await mp.evaluate(()=>Monitor.rec.length);
+  check("テレメトリ: 記録 (CSV で保存できる)",recN>0,`${recN} 行`);
   check("テレメトリ: 前方誘導車の画面と警告",wn&&rl.cls==="r-lead"&&rl.ahead!=="none"&&rl.ord==="none",JSON.stringify({wn,rl}));
   const t=await p.evaluate(()=>({conns:Tele.conns.length,mode:Orders.mode,cur:Orders.cur&&[Orders.cur.v,Orders.cur.I]}));
   const m=await mp.evaluate(()=>({snap:!!Monitor.snap,state:document.getElementById("mon-state").textContent}));

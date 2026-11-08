@@ -38,6 +38,7 @@ const Strategy={
      if(h>=17&&h<sunset) charge(sunset-h);
      const morning=(h>=8? (day+1)*24 : day*24);
      abs=Math.max(abs,morning+6.25); charge(8-6.25); continue; }
+    const su=typeof Storm!=="undefined"&&Storm.stopUntil(s,abs); if(su){ abs=su; continue; }   // 暴風雨: 止まって待つ (発電はほぼ無い)
     const seg=Math.min(this.SEG,TOTAL_KM-km), grade=(profileAt(km+seg).elev-profileAt(km).elev)/(seg*1000);
     // 速度配分のとき: 電池がほぼ満タン (発電を貯めきれない) なら、余る分を速度に回す
     const vk=Math.min(typeof v==="function"? (soc>=0.97&&(this._ps=Ps0())>this.drivePower(v(grade)/3.6,grade)? v.full(grade) : v(grade)) : v,speedLimitAt(km+seg/2)), vms=vk/3.6;
@@ -72,14 +73,16 @@ const Strategy={
   f.full=(g)=>{ let v=f(g); for(let x=v;x<=vmax;x+=2){ v=x; if(this.drivePower(x/3.6,g)>this._ps) break; } return v; };
   return f; },
  /* 電池が持つ最も速い速度配分: μ を 2 分探索 (対数)。v = 平地での速度 (表示用) */
- bestProfile(o){
+ bestProfile(o){ const g=this.bestProfileGen(o); let r; while(!(r=g.next()).done){} return r.value; },
+ /* 同じ計算を 1 回の走らせ (simulate) ごとに区切る (裏で少しずつ進めるため) */
+ *bestProfileGen(o){
   let lo=Math.log(1e-6), hi=Math.log(0.05), best=null;
-  const fast=this.profile(Math.exp(lo)), rf=this.simulate(fast,o);
+  const fast=this.profile(Math.exp(lo)), rf=this.simulate(fast,o); yield;
   if(rf.ok) return {v:fast(0),f:fast,ok:true,r:rf};
-  const slow=this.profile(Math.exp(hi)), rs=this.simulate(slow,o);
+  const slow=this.profile(Math.exp(hi)), rs=this.simulate(slow,o); yield;
   if(!rs.ok){ const c=this.best(o); return Object.assign(c,{f:null}); }   // どの配分でも足りない: 一定の低速
   best={f:slow,r:rs};
-  for(let i=0;i<14;i++){ const mid=(lo+hi)/2, f=this.profile(Math.exp(mid)), r=this.simulate(f,o); if(r.ok){ hi=mid; best={f,r}; } else lo=mid; }
+  for(let i=0;i<14;i++){ const mid=(lo+hi)/2, f=this.profile(Math.exp(mid)), r=this.simulate(f,o); if(r.ok){ hi=mid; best={f,r}; } else lo=mid; yield; }
   return {v:best.f(0),f:best.f,ok:true,r:best.r};
  },
  /* km 区間 [k0, k0+dist] の推奨速度 (配分の速度を距離で平均。制限速度で切る) */
@@ -87,10 +90,19 @@ const Strategy={
   for(let k=k0;k<k0+dist-1e-6;k+=this.SEG){ const d=Math.min(this.SEG,k0+dist-k), g=(profileAt(k+d).elev-profileAt(k).elev)/(d*1000);
    const v0=p.f(g), v=Math.min(full&&ps>this.drivePower(v0/3.6,g)? p.f.full(g) : v0,speedLimitAt(k+d/2)); t+=d/v; }
   return dist/Math.max(t,1e-6); },
+ /* 戦略 (20 秒ごとに作り直す)。古くなったら前の結果を返しつつ、裏で少しずつ作り直す (tick)。
+  画面が止まらないように、1 フレームで使う時間は約 4 ms まで。10 秒たっても終わらないとき (描画していないテストなど) はその場で仕上げる */
+ job:null,
  plan(force){
-  const now=performance.now(); if(!force&&this.last&&now-this.lastT<20000) return this.last;
-  this.last=this.bestProfile(); this.lastT=now; return this.last;
+  const now=performance.now();
+  if(!force&&this.last){ if(now-this.lastT<20000) return this.last;
+   if(!this.job) this.job={g:this.bestProfileGen(),t0:now}; else if(now-this.job.t0>10000) this.tick(1e9);
+   return this.last; }
+  this.job=null; this.last=this.bestProfile(); this.lastT=now; return this.last;
  },
+ tick(budget=4){ const j=this.job; if(!j) return; const t=performance.now();
+  try{ while(performance.now()-t<budget){ const r=j.g.next(); if(r.done){ if(this.job===j){ this.last=r.value; this.lastT=performance.now(); this.job=null; } return; } } }
+  catch(e){ this.job=null; } },
  text(){
   const p=this.plan(true), r=p.r, s=Engine.st, nx=RP_CS.find(c=>!s.passedCP.has(c.km)&&c.km>s.km-0.2);
   if(!p.ok) return `⚠ 時速 ${p.v} km でも ${r.minKm.toFixed(0)} km 付近で電池が尽きる見込み。充電停車を検討してください。`;
