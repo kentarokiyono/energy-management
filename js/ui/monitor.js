@@ -114,7 +114,7 @@ const Monitor={
   const M=this, ctx=Object.create(Ana);   // 分析画面の地図の部品 (色・凡例・指標) を借りる
   Object.assign(ctx,{metric:"v",mapMode:"band",sel:null,cursor:null,lock:true,map:null,run:()=>M.run3,setCursor(){},placeTag(){},mapPick(){},drawCharts(){},drawCursor(){}});
   try{ this.map=ctx.makeMap(); }catch(e){ this._mapFail=true; const h=document.getElementById("mon-map"); if(h) h.insertAdjacentHTML("afterbegin","<div class='dim' style='padding:12px'>この端末では立体地図を表示できません</div>"); return null; }
-  ctx.map=this.map; this.ctx=ctx; this.dirty=true;
+  ctx.map=this.map; this.ctx=ctx; this.dirty=true; this.map.r.setPixelRatio(Math.min(devicePixelRatio||1,1.5));
   this.map.sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(this.map.P.map(([x,z])=>new THREE.Vector3(x,0.06,z))),new THREE.LineBasicMaterial({color:0x6a7078})));   // これから走るルート
   const host=document.getElementById("mon-map"); host.insertBefore(this.map.r.domElement,host.firstChild);
   const D0=this.map.draw, mm=this.map; mm.draw=function(){ D0.call(mm); if(M.view==="near"&&mm.pole.visible){ mm.pole.scale.y*=0.3; mm.pole.position.y*=0.3; mm.r.render(mm.sc,mm.cam); } };   // いまの地点の棒も低く (回したときも)
@@ -127,8 +127,9 @@ const Monitor={
  drawMap(){
   const m=this.initMap(); if(!m) return;
   this.run3={bins:this.bins(),kmMax:TOTAL_KM,drivers:[]};
-  const nb=this.pts.length; if(nb!==this._nb){ this._nb=nb; this.dirty=true; }
-  if(this.dirty){ m.rebuild(); this.dirty=false; this.ctx.legend(); }
+  const nb=this.run3.bins.reduce((n,b)=>n+(b?1:0),0), now=performance.now();   // 帯の作り直しは、走った km が増えたときに 3 秒に 1 回まで
+  if(nb!==this._nb&&now-(this._rb||0)>3000){ this._nb=nb; this.dirty=true; }
+  if(this.dirty){ m.rebuild(); this.dirty=false; this._rb=now; this.ctx.legend(); }
   this.ctx.cursor= this.snap? this.snap.km : null;
   this.aim(); m.resize(); m.draw();
  },

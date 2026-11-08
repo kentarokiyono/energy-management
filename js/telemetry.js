@@ -46,8 +46,8 @@ const Tele={
    this.on=true; this.status("監視画面を開いています");
   }
   const u=`${location.origin}${location.pathname}?tm=${this.lid}#k=${this.lkey}`;
-  const w=window.open(u,"bwsc-monitor","popup,width=1100,height=900");
-  if(!w) toast("ポップアップが止められました。ブラウザの設定で許可してください","#f59e0b");
+  window.open(u,"bwsc-monitor","popup,width=1100,height=900,noopener");   // noopener: 監視ウィンドウを別のプロセスで動かす (ゲームと同じ処理の流れに乗せない)
+  clearTimeout(this._lt); this._lt=setTimeout(()=>{ if(this.ch&&!this.conns.some(c=>c.local)) toast("監視画面が開かない場合は、ブラウザでポップアップを許可してください","#f59e0b"); },8000);
  },
  stop(){ for(const c of this.conns) try{ c.close(); }catch(e){} this.conns=[]; if(this.peer) try{ this.peer.destroy(); }catch(e){} this.peer=null; this.on=false;
   if(this.ch){ try{ this.ch.close(); }catch(e){} this.ch=null; this.lid=null; this.lconns.clear(); } this.status("停止中"); this.panel(); if(typeof Orders!=="undefined") Orders.mode="auto"; },
