@@ -33,7 +33,7 @@ const VEH=(()=>{
  return v;
 })();
 /* 横転の計算に使う一般的な値 (諸元が無いとき・諸元に無い項目)。実車の値ではない */
-const ROLL_DEF={ssf:1.2, chassis:{cgHeight:0.42, cgTread:1.0, wheels:4}, aero:{sideArea:2.5, Cy:1.0, CyBeta:1.0, ClCross:0.3, cpK:1.25}};
+const ROLL_DEF={ssf:1.2, hold:1500, chassis:{cgHeight:0.42, cgTread:1.0, wheels:4}, aero:{sideArea:2.5, Cy:1.0, CyBeta:1.0, ClCross:0.3, cpK:1.25}};
 /* 走行の挙動 (諸元があるときだけ使う) */
 const VehDyn={
  /* 操舵: 前輪舵角 δ (最大舵角とタイヤのグリップで制限) → ヨーレート = v·tanδ / ホイールベース */
@@ -56,12 +56,12 @@ const VehDyn={
  roll(es,crossR,v,shield){
   const C=Object.assign({},ROLL_DEF.chassis,VEH.spec.chassis||{}), A=Object.assign({},ROLL_DEF.aero,VEH.spec.aero||{});
   const g=9.81, m=massTotal(), rho=es.lastRho||1.17, h=C.cgHeight, half= C.cgTread? C.cgTread/2 : (C.ssf||ROLL_DEF.ssf)*h;
-  const c=Math.abs(crossR), vr=Math.hypot(v,c), W=carDims()[1];
+  const c=Math.abs(crossR)*(shield?0.5:1), vr=Math.hypot(v,c), W=carDims()[1], hold=shield? ROLL_DEF.hold : 0;   // 風よけ: 誘導車・追走車が風上で風を弱める (風速半分)。クルーが押さえる力 [N]
   const Fy=Math.sign(crossR)*0.5*rho*A.sideArea*(c*vr*A.Cy+A.CyBeta*c*Math.max(0,v));   // 右 +
   const L=0.5*rho*A.ClCross*(A.topArea||P.arrayArea)*c*c;
-  const Mw=(Fy*h*A.cpK+Math.sign(crossR)*L*W/4)*(shield?0.3:1);   // 横風: 横力 + 風上側の浮き上がり (停車して風よけ・クルーが押さえると 3 割)
+  const Mw=Fy*h*A.cpK+Math.sign(crossR)*L*W/4;   // 横風: 横力 + 風上側の浮き上がり
   const Mc=-m*(es.gLat||0)*g*h;   // 旋回の遠心力 (右 +)
-  const R=Math.max(1,m*g-L*(shield?0.3:1))*half*clamp(1-(C.wheels===3?0.6:0.25)*Math.abs(es.gLong||0),0.4,1);
+  const R=Math.max(1,m*g+hold-L)*half*clamp(1-(C.wheels===3?0.6:0.25)*Math.abs(es.gLong||0),0.4,1);
   const M=Mw+Mc; return {risk:Math.abs(M)/R,dir:Math.sign(M)||1,wind:Math.abs(Mw)/R,turn:Math.abs(Mc)/R,lift:L}; },
  /* 静的な転倒余裕 SSF = トレッド / (2·重心高) から求める横加速度の限界 [m/s²] */
  tipAccel(){ const C=VEH.spec.chassis; return (C.ssf||(C.cgTread/(2*C.cgHeight)))*9.81; },

@@ -738,7 +738,7 @@ if(VEH.active&&VEH.spec.chassis&&P.mode==="race"){
 // 横転の危険度 (レース): 横風・浮き上がり・旋回・加減速。0.6 で後方追走車が警告、0.85 で警報、1 を 0.25 秒超えると横転
 if(P.mode==="race"&&!P.event&&!es.crashed&&!es.camp){
  this.stillT= vv<0.5&&!(es.gear==="R")? (this.stillT||0)+dtR : 0;   // 停車して約 8 秒: 誘導車・追走車が風上で風よけ、クルーが車体を押さえる
- const shield=this.stillT>8; if(shield&&!this._shieldMsg&&Math.abs(es.lastCross||0)>10){ this._shieldMsg=true; Radio.push("停車確認。誘導車と追走車を風上側に寄せて風よけにします。クルーは車体を押さえて。","後方追走車",{speak:true}); }
+ const shield=this.stillT>8; if(shield&&!this._shieldMsg&&Math.abs(es.lastCross||0)>10){ this._shieldMsg=true; Radio.push("停車確認。誘導車と追走車を風上側に寄せて風よけにします。クルーは降りて車体を押さえて。","後方追走車",{speak:true}); }
  if(!shield) this._shieldMsg=false; es.shielded=shield;
  const R=VehDyn.roll(es,-(es.lastCross||0),vv,shield); es.tipRatio=R.risk; es.tipDir=R.dir; es.tipWind=R.wind; es.tipTurn=R.turn;
  es.tipMax=Math.max(es.tipMax||0,R.risk);
