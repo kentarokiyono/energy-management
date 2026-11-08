@@ -113,6 +113,7 @@ if(!paused) lastT=performance.now();
 function quitToMenu(){
 if(running&&Engine.st&&!Test.active) DrvRec.record();   // ドライバー成績 (途中でやめた走行も)
 if(typeof EventGame!=="undefined") EventGame.end();
+if(typeof HVRec!=="undefined") HVRec.flush();   // ヒドゥンバレーの記録を保存
 running=false; paused=false; Test.active=false;
 document.getElementById("game-container").classList.add("hidden");
 document.getElementById("test-hud").classList.add("hidden");

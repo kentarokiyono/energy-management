@@ -15,9 +15,13 @@ const Ana={
   del(id){ return this.tx("readwrite",st=>st.delete(id)); } },
  ymd(t){ const d=new Date(t); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; },
  newId(k){ return k+"-"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); },
- save(run){ run.stored=true; return this.DB.put({id:run.id,name:run.name,date:run.date||"",demo:!!run.demo,live:!!run.live,socEst:!!run.socEst,rows:run.rows,ts:Date.now()}).then(ok=>{ if(!ok) toast("この端末に保存できませんでした (ブラウザの設定を確認)","#f59e0b"); return ok; }); },
+ /* ヒドゥンバレー (予選・車検モード) の走行: 行のデータは無く、記録 (hv) を持つ */
+ hvRun(o){ return {id:String(o.id),name:String(o.name||"ヒドゥンバレー"),date:String(o.date||""),kind:"hv",driver:String(o.driver||""),hv:o.hv,rows:[],bins:[],drivers:[],days:[],kmMax:0,stored:true}; },
+ save(run){ run.stored=true; if(run.kind==="hv") return this.DB.put({id:run.id,name:run.name,date:run.date||"",kind:"hv",driver:run.driver||"",hv:run.hv,rows:[],ts:Date.now()});
+  return this.DB.put({id:run.id,name:run.name,date:run.date||"",demo:!!run.demo,live:!!run.live,socEst:!!run.socEst,rows:run.rows,ts:Date.now()}).then(ok=>{ if(!ok) toast("この端末に保存できませんでした (ブラウザの設定を確認)","#f59e0b"); return ok; }); },
  async loadStored(){ if(this.loaded) return; this.loaded=true;
   for(const o of await this.DB.all()){ if(!o||!o.id||!Array.isArray(o.rows)||this.runs.some(r=>r.id===o.id)) continue;
+   if(o.kind==="hv"){ if(o.hv&&o.hv.S) this.runs.push(this.hvRun(o)); continue; }
    try{ const run=this.prep({id:String(o.id),name:String(o.name||"走行"),date:String(o.date||""),demo:!!o.demo,live:false,wasLive:!!o.live,socEst:!!o.socEst,rows:o.rows}); run.stored=true; this.runs.push(run); }catch(e){} } },
  label(r){ return r.name+(r.date?` ・ ${r.date}`:""); },
  COLMAP:{"日":"day","経過h":"eh","km":"km","状態":"st","速度km/h":"v","制限km/h":"lim","SOC%":"soc","発電W":"ps","モーターW":"pm","収支W":"net",
@@ -139,7 +143,7 @@ const Ana={
    <div class="ana-pane" id="ana-pane"></div><div class="ana-charts" id="ana-charts"><div class="ana-days" id="ana-days"></div><canvas id="ana-cv"></canvas><canvas id="ana-cv2"></canvas><canvas id="ana-nav" title="つかんで動かす・端をつかんで範囲を変える"></canvas></div>
    <div class="ana-empty" id="ana-empty">走行ログがありません。レースモードで走るか、CSV を読み込むか、デモを追加してください。</div></div>
   <div class="ana-dlg" id="ana-dlg"><div class="box"><div class="ph">${ic("edit")}走行データの編集</div>
-   <label class="lb">名前<input id="ana-dn" maxlength="60" autocomplete="off"></label><label class="lb">日付<input type="date" id="ana-dd"></label>
+   <label class="lb">名前<input id="ana-dn" maxlength="60" autocomplete="off"></label><label class="lb">日付<input type="date" id="ana-dd"></label><label class="lb" id="ana-ddrv-l">ドライバー<input id="ana-ddrv" maxlength="30" autocomplete="off" list="ana-drvl"><datalist id="ana-drvl"></datalist></label>
    <div class="row"><button class="btn ana-sm" id="ana-dcancel">キャンセル</button><button class="btn pri ana-sm" id="ana-dsave">保存</button></div></div></div>`;
   document.body.appendChild(el);
   const seg=(id,key,cb)=>document.getElementById(id).addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; this[key]=b.dataset.v; cb&&cb(); this.render(); });
@@ -202,6 +206,7 @@ const Ana={
  async open(){
   this.build(); document.getElementById("ana").classList.add("on"); this.wasPaused=typeof paused!=="undefined"&&paused;
   await this.loadStored();
+  if(typeof HVRec!=="undefined"&&HVRec.cur) HVRec.save();   // 走っている途中のヒドゥンバレーの記録も出す
   const live=this.fromRunLog();
   if(live&&!this.hidden.has(live.id)){ const i=this.runs.findIndex(r=>r.id===live.id);
    if(i>=0){ const o=this.runs[i]; if(o.stored){ live.name=o.name; live.date=o.date; this.save(live); } this.runs[i]=live; }
@@ -212,11 +217,13 @@ const Ana={
   this.map&&(this.map.dirty=true); this.render();
  },
  /* 名前・日付の編集と削除 */
- editRun(){ const run=this.run(); if(!run) return; document.getElementById("ana-dn").value=run.name; document.getElementById("ana-dd").value=/^\d{4}-\d{2}-\d{2}$/.test(run.date||"")?run.date:"";
+ editRun(){ const run=this.run(); if(!run) return; document.getElementById("ana-dn").value=run.name;
+  const hv=run.kind==="hv"; document.getElementById("ana-ddrv-l").style.display=hv?"":"none"; document.getElementById("ana-ddrv").value=run.driver||"";
+  document.getElementById("ana-drvl").innerHTML=[...new Set(this.runs.filter(r=>r.kind==="hv"&&r.driver).map(r=>r.driver))].map(d=>`<option value="${escHtml(d)}">`).join(""); document.getElementById("ana-dd").value=/^\d{4}-\d{2}-\d{2}$/.test(run.date||"")?run.date:"";
   document.getElementById("ana-dlg").classList.add("on"); setTimeout(()=>document.getElementById("ana-dn").focus(),30); },
  saveEdit(){ const run=this.run(); if(!run) return; const n=document.getElementById("ana-dn").value.replace(/\s+/g," ").trim().slice(0,60);
   if(!n){ toast("名前を入れてください","#f59e0b"); return; }
-  run.name=n; run.date=document.getElementById("ana-dd").value||""; document.getElementById("ana-dlg").classList.remove("on");
+  run.name=n; run.date=document.getElementById("ana-dd").value||""; if(run.kind==="hv"){ run.driver=document.getElementById("ana-ddrv").value.replace(/\s+/g," ").trim().slice(0,30); if(typeof HVRec!=="undefined"&&HVRec.cur&&HVRec.cur.id===run.id){ HVRec.cur.name=run.name; HVRec.cur.driver=run.driver; } } document.getElementById("ana-dlg").classList.remove("on");
   this.save(run); this.render(); toast("走行データを更新しました","#34d399"); },
  deleteRun(){ const run=this.run(); if(!run) return;
   if(!confirm(`「${run.name}」を削除します。元に戻せません。`)) return;
@@ -269,6 +276,8 @@ const Ana={
   opt(document.getElementById("ana-run"),this.runs,this.cur,false); opt(document.getElementById("ana-cmp"),this.runs,this.cmp,true);
   for(const id of ["ana-edit","ana-del"]) document.getElementById(id).disabled=!run;
   this.playUI();
+  const hv=!!run&&run.kind==="hv"; document.getElementById("ana").classList.toggle("hvm",hv);
+  if(typeof HVA!=="undefined"){ if(hv){ this.stopPlay(); HVA.render(run); return; } else HVA.hide(); }
   if(!run) return;
   if(!this.xr) this.xr=[0,Math.max(10,run.kmMax)];
   this.renderMap(); this.drawCharts(); this.renderPane();
