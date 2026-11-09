@@ -56,6 +56,7 @@ const Orders={
   const Z=this.limitZone(es.km,dmax), dist=Z.end-es.km;   // 制限速度が変わる地点で区切る
   const plan=typeof Strategy!=="undefined"? Strategy.plan(false) : null;   // 裏で作り直している最新の戦略 (同期で作り直すと画面が止まる)
   let v=Math.round(plan? Strategy.speedFor(plan,es.km,dist,es.soc,es.lastSolar||0) : 70); v=Math.min(v,Z.lim);   // 速度配分 (勾配で変わる) を区間で平均し、制限速度を超えない
+  if(P.useTargets&&typeof Trend!=="undefined"){ const t=Trend.targetAt(es.km); if(t) v=Math.min(Math.round(t.v),Z.lim); }   // 傾向で作ったドライバーの目標を使う
   const I=this.current(es,v,es.km,dist);
   this.cur={v,I,k0:es.km,k1:es.km+dist,in:0,tot:0,dev:0,iSum:0,react:null,t0:performance.now()};
   Radio.push(`時速 ${v} km・電流 ${I.toFixed(1)} A`,"戦略班",{speak:true}); if(Snd.radioBeep) Snd.radioBeep();

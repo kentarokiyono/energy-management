@@ -31,7 +31,7 @@ const HVA={
  timeAt(o,sx){ const s=o.s, t=o.lt; for(let i=1;i<s.length;i++) if(s[i-1]<=sx&&s[i]>=sx&&s[i]-s[i-1]<50){ const u=(sx-s[i-1])/((s[i]-s[i-1])||1); return t[i-1]+(t[i]-t[i-1])*u; } return NaN; },
  valid(run){ return this.laps(run).filter(l=>!l.pit&&Number.isFinite(l.sec[0])); },
  best(run){ const V=this.valid(run); return V.length? V.reduce((a,b)=>b.t<a.t?b:a) : null; },
- hide(){ const el=document.getElementById("ana-hv"); if(el&&el.style.display!=="none"){ el.style.display="none"; const b=document.getElementById("ana-body"); if(b) b.style.display=""; } },
+ hide(){ const el=document.getElementById("ana-hv"); if(el&&el.style.display!=="none"){ el.style.display="none"; const b=document.getElementById("ana-body"); if(b&&!(typeof Ana!=="undefined"&&Ana.cat==="trend")) b.style.display=""; } },
  ensure(){ let el=document.getElementById("ana-hv"); if(el) return el;
   el=document.createElement("div"); el.id="ana-hv"; el.innerHTML=`
    <div class="hv-l"><div class="hv-card hv-mapc" id="hv-mapc"><canvas id="hv-map"></canvas><div class="hv-tags" id="hv-tags"></div><div class="ana-ctl hv-ctl"><button class="btn" title="左に回す" onclick="HVA.m3&&HVA.m3.rot(-1)">${ic("rotate","flipx")}</button><button class="btn" title="右に回す" onclick="HVA.m3&&HVA.m3.rot(1)">${ic("rotate")}</button><button class="btn" title="寝かせる" onclick="HVA.m3&&HVA.m3.tilt(1)">${ic("chd")}</button><button class="btn" title="起こす" onclick="HVA.m3&&HVA.m3.tilt(-1)">${ic("chu")}</button><button class="btn" title="真上から" onclick="HVA.m3&&HVA.m3.top()">真上</button><button class="btn" title="初期の向き" onclick="HVA.m3&&HVA.m3.reset()">初期</button></div><div class="hv-leg" id="hv-leg"></div></div>
