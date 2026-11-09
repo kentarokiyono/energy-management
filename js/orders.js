@@ -44,7 +44,8 @@ const Orders={
  /* 今の制限速度 (300 m 先までで一番低いもの) と、その制限が変わる地点 (k0 から最大 dist 先まで) */
  limitZone(k0,dist){ let lim=200; for(let k=k0;k<=k0+0.3;k+=0.05) lim=Math.min(lim,speedLimitAt(k));
   const l0=speedLimitAt(k0+0.3); let end=k0+dist; for(let k=k0+0.35;k<k0+dist;k+=0.05) if(speedLimitAt(k)!==l0){ end=k; break; }
-  return {lim,end:Math.max(end,k0+0.5)}; },
+  end=Math.max(end,k0+0.5); for(let k=k0;k<=end+1e-9;k+=0.05) lim=Math.min(lim,speedLimitAt(Math.min(TOTAL_KM,k)));   // 区間を 0.5 km に広げたときも、区間全体の一番低い制限に
+  return {lim,end}; },
  /* 速度 v [km/h] を保つ指令電流 [A]: 必要な電力 (転がり・空気 (向かい風込み)・勾配・損失。補機は除く) ÷ 電池電圧 */
  current(es,v,k0,dist){
   const vms=v/3.6, gr=(profileAt(Math.min(TOTAL_KM,k0+dist)).elev-profileAt(k0).elev)/(dist*1000), head=Number.isFinite(es.lastHead)? es.lastHead : 0;
