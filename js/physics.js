@@ -5,7 +5,8 @@ const massBallast=()=>Math.max(0, 80-P.massDriver);
 const massTotal=()=>P.massDry+P.massDriver+massBallast();
 const V_NOM=91;
 // ---- Li-ion OCV曲線(正規化) / 実効公称電圧 ----
-const OCV_TBL=[[0,0],[0.05,0.20],[0.10,0.31],[0.20,0.43],[0.30,0.51],[0.40,0.57],[0.50,0.62],[0.60,0.68],[0.70,0.75],[0.80,0.83],[0.90,0.91],[1.0,1.0]];
+// リチウムポリマーの定格 (0.5C 放電の平均電圧 = 公称) に、内部抵抗の分を足した開放電圧の平均に合うよう、中ほどを少し下げた形 (両端は満充電・放電終止のまま)
+const OCV_TBL=[[0,0],[0.05,0.190],[0.10,0.292],[0.20,0.397],[0.30,0.467],[0.40,0.521],[0.50,0.569],[0.60,0.631],[0.70,0.707],[0.80,0.797],[0.90,0.892],[1.0,1.0]];
 function ocvFrac(soc){
 soc=Math.max(0,Math.min(1,soc));
 for(let i=1;i<OCV_TBL.length;i++){ const [s1,f1]=OCV_TBL[i]; if(soc<=s1){ const [s0,f0]=OCV_TBL[i-1]; return f0+(f1-f0)*(soc-s0)/(s1-s0); } }
