@@ -90,6 +90,8 @@ const Trend={
   for(const p of P){ p.rate=p.n?p.ok/p.n:NaN; p.mean=p.fins.length? p.fins.reduce((a,x)=>a+x,0)/p.fins.length : NaN; p.p10=q(p.fins,0.1); p.p90=q(p.fins,0.9); p.minSoc/=Math.max(1,p.n); }
   const thr=this.cfg.thr, mn=r.minN? Math.max(3,Math.floor(r.minN*tot/Math.max(1,n))) : 3; let best=-1; P.forEach((p,i)=>{ if(p.n>=mn&&p.rate>=thr&&Number.isFinite(p.mean)&&(best<0||p.mean<P[best].mean)) best=i; });
   let fb=-1; const fbN=P.some(p=>p.n>=mn)? mn : 1; if(best<0) P.forEach((p,i)=>{ if(p.n>=fbN&&(fb<0||p.rate>P[fb].rate||(p.rate===P[fb].rate&&p.mean<P[fb].mean))) fb=i; });
+  if(r.mode==="search"&&this.pickFinal){ const F=this.filt, nof=!(F.years&&F.years.length)&&F.storm==="all"&&F.late[0]===0&&F.late[1]===1&&F.fc[0]===0&&F.fc[1]===1, pk=this.pickFinal();   // 二段階: 別の条件で確かめ直した結果で推奨を決める
+   if(pk!=null&&nof){ const h=r.st[pk].h; if(h.ok/h.n>=thr){ best=pk; fb=-1; } else { best=-1; fb=pk; } } }
   r.P=P; r.best=best; r.fallback=fb; r.tot=tot; r.okAll=tot?ok/tot:NaN; r.sens=this.sensitivity(); },
  /* 要因の効き方: 値で 5 つに分けて、完走率とゴール時刻の平均の幅 (いちばん良い組 − いちばん悪い組) */
  sensitivity(){ const r=this.res, W=this.W, b=r.buf, n=r.done, out=[], vars=[...this.CK.filter(k=>k!=="year"&&k!=="storm").map(k=>({k,src:"c",label:(this.COND[k==="fcLv"?"fcErr":k]||{}).label||k})),{k:"storm",src:"c",label:"暴風雨の有無",cat:true},...Object.keys(this.POL).map(k=>({k,src:"p",label:this.POL[k].label}))];
@@ -130,9 +132,10 @@ Object.assign(Trend,{
   const run=state==="run"||this.busy, n=info&&info.n||0, N=info&&info.N||c.runs;
   L.innerHTML=`<div class="hv-card"><div class="hv-h">${ic("play")}実行</div>
    <div class="tr-f"><label>探索<select onchange="Trend.cfg.mode=this.value;Trend.left()"><option value="search" ${c.mode!=="grid"?"selected":""}>二段階 (広域 → 最適化)</option><option value="grid" ${c.mode==="grid"?"selected":""}>総当たり</option></select></label></div>
-   ${c.mode!=="grid"? `   <div class="tr-f"><label>広域<input type="number" min="400" max="20000" step="100" value="${c.s1}" onchange="Trend.cfg.s1=clamp(+this.value||2000,400,20000);this.value=Trend.cfg.s1"> 本</label><label>最適化<input type="number" min="1000" max="50000" step="500" value="${c.s2}" onchange="Trend.cfg.s2=clamp(+this.value||5000,1000,50000);this.value=Trend.cfg.s2"> 本</label></div>
+   ${c.mode!=="grid"? `   <div class="tr-f tr-pre">予算${[[2000,5000,"標準 (約 10 秒)"],[10000,40000,"多め (約 1〜2 分)"],[40000,200000,"最大 (約 5〜8 分)"]].map(([a,b,l])=>`<button class="${c.s1===a&&c.s2===b?"on":""}" onclick="Trend.cfg.s1=${a};Trend.cfg.s2=${b};Trend.left()">${l}</button>`).join("")}</div>
+   <div class="tr-f"><label>広域<input type="number" min="400" max="100000" step="100" value="${c.s1}" onchange="Trend.cfg.s1=clamp(+this.value||2000,400,100000);Trend.left()"> 本</label><label>最適化<input type="number" min="1000" max="1000000" step="500" value="${c.s2}" onchange="Trend.cfg.s2=clamp(+this.value||5000,1000,1000000);Trend.left()"> 本</label></div>
    <div class="tr-f"><label>完走率の下限<input type="number" min="50" max="100" step="1" value="${(c.thr*100).toFixed(0)}" onchange="Trend.cfg.thr=clamp(+this.value/100,0.5,1);Trend.aggregate();Trend.right()"> %</label></div>
-   <div class="dim tr-note">広域: 方針 ${Math.round(c.s1/20)} 個を各 20 通りの条件で走らせ、有望な範囲を絞る。最適化: 完走率の下限を制約に TPE で 8 個ずつ方針を出し、各 30〜150 通りで評価 (下限に届かないと言えたら打ち切り)。最後に上位 3 つを 300 通りで確かめ直す。CPU ${navigator.hardwareConcurrency||"?"} コアで並列。</div>` : `   <div class="tr-f"><label>本数<input type="number" min="100" max="100000" step="100" value="${c.runs}" onchange="Trend.cfg.runs=clamp(+this.value||1000,100,100000);this.value=Trend.cfg.runs"></label><input type="range" min="2" max="5" step="0.01" value="${Math.log10(c.runs)}" oninput="Trend.cfg.runs=Math.round(Math.pow(10,+this.value)/100)*100;this.previousElementSibling.querySelector('input').value=Trend.cfg.runs"></div>
+   <div class="dim tr-note">${(()=>{ const S={...this.SRCH}; this.plan&&this.plan(c.s2); const t=`広域: 方針 ${Math.round(c.s1/20).toLocaleString()} 個を各 20 通りの条件で走らせ、有望な範囲を絞る。最適化: 完走率の下限を制約に TPE で ${this.SRCH.B} 個ずつ方針を出し、${this.SRCH.LOOK.join("・")} 通りの区切りで評価 (下限に届かない・同じ条件で 30 分以上遅いと言えたら打ち切り。条件は全方針で共通)。最後に上位 ${this.SRCH.top} つを、探索で使っていない別の条件 ${this.SRCH.mFin} 通りで確かめ直して推奨を決める。`; Object.assign(this.SRCH,S); return t; })()}CPU ${navigator.hardwareConcurrency||"?"} コアで並列。</div>` : `   <div class="tr-f"><label>本数<input type="number" min="100" max="100000" step="100" value="${c.runs}" onchange="Trend.cfg.runs=clamp(+this.value||1000,100,100000);this.value=Trend.cfg.runs"></label><input type="range" min="2" max="5" step="0.01" value="${Math.log10(c.runs)}" oninput="Trend.cfg.runs=Math.round(Math.pow(10,+this.value)/100)*100;this.previousElementSibling.querySelector('input').value=Trend.cfg.runs"></div>
    <div class="tr-f"><label>方針の数<input type="number" min="2" max="2000" value="${c.pols}" onchange="Trend.cfg.pols=clamp(+this.value||100,2,2000)"></label><label>完走率の下限<input type="number" min="50" max="100" step="1" value="${(c.thr*100).toFixed(0)}" onchange="Trend.cfg.thr=clamp(+this.value/100,0.5,1);Trend.aggregate();Trend.right()"> %</label></div>
    <div class="dim tr-note">1 つの方針あたり 約 ${Math.max(1,Math.floor(c.runs/c.pols))} 通りの条件で走らせます (どの方針も同じ条件の組)。CPU ${navigator.hardwareConcurrency||"?"} コアで並列。</div>`}
    <div class="tr-years">${years.map(y=>`<button class="${!c.years||c.years.includes(+y)?"on":""}" onclick="Trend.toggleYear(${y})">${y}</button>`).join("")}</div>
@@ -161,6 +164,7 @@ Object.assign(Trend,{
     <span style="margin-left:auto;display:flex;gap:6px"><button class="btn ana-sm" onclick="Trend.report()">${ic("download")}レポート</button><button class="btn ana-sm" onclick="Trend.csv()">${ic("download")}CSV</button><button class="btn ana-sm pri" onclick="Trend.makeTargets()">${ic("flag")}ドライバーの目標を作る</button></span></div>
    <div class="hv-card tr-rec"><div class="hv-h">${ic("check")}推奨の方針 ${r.best>=0? `<span class="dim">完走率 ${this.pct(this.cfg.thr)} 以上の中でゴールが一番早い</span>` : `<span class="bad">完走率 ${this.pct(this.cfg.thr)} 以上の方針がない → 完走率が一番高いもの</span>`}</div>
     <div class="tr-kpi"><div><span>完走率</span><b>${this.pct(B.rate,1)}</b></div><div><span>ゴール (平均)</span><b>${this.fmtH(B.mean)}</b></div><div><span>早い 1 割 / 遅い 1 割</span><b>${this.fmtH(B.p10)} / ${this.fmtH(B.p90)}</b></div><div><span>走らせた本数</span><b>${B.n}</b></div></div>
+    ${r.mode==="search"&&this.heldLine? this.heldLine(bi) : ""}
     <div class="tr-pol">${Object.entries(this.POL).map(([k,d])=>`<span>${escHtml(d.label)}</span><b>${this.fv(d,pol[k])}</b>`).join("")}</div>
     ${Object.keys(B.why).length? `<div class="dim tr-note">完走できなかった理由: ${Object.entries(B.why).sort((a,b)=>b[1]-a[1]).map(([w,c])=>`${escHtml(w)} ${c} 本`).join("・")}</div>` : ""}</div>
    ${this.convCard?this.convCard():""}
@@ -245,7 +249,8 @@ Object.assign(Trend,{
   inp.onchange=async()=>{ const f=inp.files&&inp.files[0]; if(!f) return; try{ const o=JSON.parse(await f.text()); if(o.kind!=="trend"||!o.buf||!o.pols) throw new Error("傾向の結果ファイルではありません");
     const bin=atob(o.buf), u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i); const buf=new Float32Array(u8.buffer);
     if(buf.length<o.N*this.W) throw new Error("ファイルが壊れています");
-    this.res={N:o.N,K:o.K,pols:o.pols,R:o.R,years:o.years,condSeed:o.condSeed,buf,done:o.N,time:o.time,cfg:o.cfg||this.cfg,ctxInfo:o.ctxInfo}; this.selPol=null; this.aggregate(); this.ui();
+    let ci=null; if(o.ci){ const b2=atob(o.ci), u2=new Uint8Array(b2.length); for(let i=0;i<b2.length;i++) u2[i]=b2.charCodeAt(i); ci=new Int32Array(u2.buffer); }
+    this.res={N:o.N,K:o.K,pols:o.pols,R:o.R,years:o.years,condSeed:o.condSeed,buf,done:o.N,time:o.time,cfg:o.cfg||this.cfg,ctxInfo:o.ctxInfo,mode:o.mode,ci,st:o.st,search:o.search,thr:o.thr,minN:o.minN}; this.selPol=null; this.aggregate(); this.ui();
     if(o.N<=200000) this.save(); toast(`読み込みました: ${o.N.toLocaleString()} 本`,"#34d399"); }catch(e){ toast("読み込めません: "+e.message,"#ef4444"); } };
   inp.click(); },
 });

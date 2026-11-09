@@ -2,10 +2,12 @@
 "use strict";
 /* 傾向: ブラウザを開かずに、速い計算 (js/trend-worker.js) を CPU のコア数ぶん並列に回す
  使い方:
-  node tools/trend-cli.js --runs 200000 --pols 400
+  node tools/trend-cli.js --runs 200000 --pols 400                     (総当たり)
+  node tools/trend-cli.js --search --s1 50000 --s2 500000               (二段階の探索: 広域 → 完走率の制約付き TPE → 別の条件で確かめ直す)
   node tools/trend-cli.js --ctx trend-ctx.json --runs 500000          (傾向タブの「コマンド用の設定を書き出す」で作ったファイル: この端末の車両の値・変える要素の範囲)
  主なオプション:
-  --runs N      本数 (上限なし。既定 100000)        --pols K   方針の数 (既定 200)
+  --runs N      本数 (上限なし。既定 100000)        --pols K   方針の数 (既定 200)   [総当たり]
+  --search      二段階の探索。--s1 広域の本数 (既定 10000)、--s2 最適化の本数 (既定 40000)
   --years 2010-2025 / 2015,2020,2025 (既定: 全部)  --thr 0.9  完走率の下限
   --threads T   並列の数 (既定: コア数 − 1)          --seed S   方針の乱数の種
   --out FILE    結果のファイル (既定: tools/trend-out/trend-日時.json)。傾向タブの「結果ファイルを読み込む」で開ける
@@ -24,18 +26,50 @@ function loadHist(){ const box={}; vm.runInNewContext(fs.readFileSync(path.join(
 function policies(POL,K,seed){ const keys=Object.keys(POL), perm={}; let x=seed||12345; const r=()=>((x=(x*16807)%2147483647)/2147483647);
  for(const k of keys){ const a=[...Array(K).keys()]; for(let i=K-1;i>0;i--){ const j=Math.floor(r()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } perm[k]=a; }
  return [...Array(K)].map((_,i)=>{ const o={}; for(const k of keys){ const d=POL[k], u=(perm[k][i]+r())/K; let v=d.fix!=null? d.fix : d.min+(d.max-d.min)*u; if(k==="replanH"||k==="stormLead"||k==="csExtra") v=Math.round(v); o[k]=v; } return o; }); }
-/* ゲームから計算の元データを取る (裏でブラウザを開く) */
-async function ctxFromGame(){
+/* ゲームを裏のブラウザで開く */
+async function openGame(){
  let chromium; try{ ({chromium}=require("playwright")); }catch(e){ throw new Error("playwright がありません (npm install)。または --ctx で傾向タブから書き出した設定を渡してください"); }
  const MIME={".html":"text/html",".js":"application/javascript",".css":"text/css",".svg":"image/svg+xml",".woff2":"font/woff2",".png":"image/png",".json":"application/json"};
  const srv=http.createServer((q,r)=>{ let p=decodeURIComponent(q.url.split("?")[0]); if(p.endsWith("/")) p+="index.html"; const f=path.join(ROOT,path.normalize(p).replace(/^(\.\.[/\\])+/,""));
   if(!f.startsWith(ROOT)||!fs.existsSync(f)||fs.statSync(f).isDirectory()){ r.writeHead(404); r.end(); return; } r.writeHead(200,{"Content-Type":MIME[path.extname(f)]||"application/octet-stream"}); fs.createReadStream(f).pipe(r); });
  await new Promise(res=>srv.listen(0,"127.0.0.1",res));
- const b=await chromium.launch(); try{ const p=await b.newPage(); await p.goto(`http://127.0.0.1:${srv.address().port}/index.html`); await p.waitForFunction(()=>typeof TrendLoad==="object"&&typeof Strategy==="object",null,{timeout:60000});
-  return await p.evaluate(async()=>{ await TrendLoad.load(); await Trend.loadHist(); const c=Trend.ctx(); c.pTab=[...c.pTab]; c.roll=[...c.roll]; c.loc=null; return {ctx:c,R:Trend.ranges(),POL:Trend.POL,src:"game"}; }); }
- finally{ await b.close(); srv.close(); } }
+ const b=await chromium.launch(), p=await b.newPage(); p.on("pageerror",e=>process.stderr.write("ページのエラー: "+e.message+"\n"));
+ await p.goto(`http://127.0.0.1:${srv.address().port}/index.html`); await p.waitForFunction(()=>typeof TrendLoad==="object"&&typeof Strategy==="object",null,{timeout:60000});
+ await p.evaluate(async()=>{ await TrendLoad.load(); await Trend.loadHist(); });
+ return {p,close:async()=>{ await b.close(); srv.close(); }}; }
+/* ゲームから計算の元データを取る */
+async function ctxFromGame(){ const g=await openGame(); try{ return await g.p.evaluate(()=>{ const c=Trend.ctx(); c.pTab=[...c.pTab]; c.roll=[...c.roll]; c.loc=null; return {ctx:c,R:Trend.ranges(),POL:Trend.POL,src:"game"}; }); } finally{ await g.close(); } }
+/* 二段階の探索: ゲームの探索の処理を、裏のブラウザでそのまま回す (CPU のコア数ぶん並列) */
+async function runSearch(){ const t0=Date.now(), g=await openGame(), p=g.p;
+ try{ const S=A.ctx? JSON.parse(fs.readFileSync(A.ctx,"utf8")) : null; if(S&&S.kind!=="trend-ctx") throw new Error("--ctx は傾向タブの「コマンド用の設定を書き出す」のファイルです");
+  const cfg={mode:"search",s1:Math.round(+A.s1||10000),s2:Math.round(+A.s2||40000),thr:+A.thr||0.9,years:null};
+  await p.evaluate(([S,cfg,yrs])=>{ if(S){ const c=S.ctx; Trend.ctx=()=>({...c,pTab:new Float32Array(c.pTab),roll:new Float32Array(c.roll),loc:WEATHER_HIST.loc,hours:WEATHER_HIST.hours,years:{}});   // この端末の車両の値
+    for(const [k,v] of Object.entries(S.R)){ const d=Trend.COND[k]||Trend.POL[k]; if(!d) continue; d.min=v.min; d.max=v.max; if(v.fix!=null) d.fix=v.fix; else delete d.fix; } }
+   const all=Object.keys(WEATHER_HIST.years).map(Number); let years=null; if(yrs){ years= /^\d{4}-\d{4}$/.test(yrs)? all.filter(x=>x>=+yrs.slice(0,4)&&x<=+yrs.slice(5)) : yrs.split(",").map(Number).filter(x=>all.includes(x)); }
+   Object.assign(Trend.cfg,cfg,{years}); window._srch=Trend.start(); },[S,cfg,A.years?String(A.years):null]);
+  process.stderr.write(`二段階の探索: 広域 ${cfg.s1.toLocaleString()} 本 + 最適化 ${cfg.s2.toLocaleString()} 本・車両の値: ${S?path.basename(A.ctx):"ゲームの既定 (+ 非公開ファイルがあればその値)"}\n`);
+  for(;;){ const st=await p.evaluate(()=>({busy:Trend.busy,done:Trend.res?Trend.res.done:0,stage:Trend.res&&Trend.res.search?Trend.res.search.stage:0,budget:Trend.res&&Trend.res.search?Trend.res.search.budget:0}));
+   const rate=st.done/((Date.now()-t0)/1000); process.stderr.write(`\r${["","広域","最適化","確かめ直し"][st.stage]||""} ${st.done.toLocaleString()} / 約 ${st.budget.toLocaleString()} 本  ${rate.toFixed(0)} 本/秒   `);
+   if(!st.busy&&st.done>0) break; await new Promise(r=>setTimeout(r,2000)); }
+  await p.evaluate(()=>window._srch);
+  // 結果を取り出す (大きいので分けて)
+  const meta=await p.evaluate(()=>{ const r=Trend.res, pk=Trend.pickFinal(); return {N:r.done,K:r.pols.length,pols:r.pols,R:r.R,years:r.years,condSeed:r.condSeed,cfg:r.cfg,time:r.time,ctxInfo:r.ctxInfo,mode:r.mode,st:r.st,search:r.search,thr:r.thr,minN:r.minN,pk,
+    lines:(r.search.final||[]).map(i=>{ const s=r.st[i], h=s.h||{n:0,ok:0,sum:0}; return {i,inS:[s.ok/s.n,s.sum/s.ok,s.n],held:[h.n?h.ok/h.n:NaN,h.ok?h.sum/h.ok:NaN,h.n],pol:r.pols[i]}; })}; });
+  const chunks=[]; for(let a=0;;a++){ const c=await p.evaluate((a)=>{ const r=Trend.res, CH=1<<22, u8=new Uint8Array(r.buf.buffer,r.buf.byteOffset,r.done*Trend.W*4); if(a*CH>=u8.length) return null; let s=""; const part=u8.subarray(a*CH,(a+1)*CH); for(let i=0;i<part.length;i+=0x8000) s+=String.fromCharCode.apply(null,part.subarray(i,i+0x8000)); return btoa(s); },a); if(c==null) break; chunks.push(Buffer.from(c,"base64")); }
+  const ciB=await p.evaluate(()=>{ const r=Trend.res, u8=new Uint8Array(r.ci.buffer,r.ci.byteOffset,r.done*4); let s=""; for(let i=0;i<u8.length;i+=0x8000) s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000)); return btoa(s); });
+  return {meta,buf:Buffer.concat(chunks),ciB,time:(Date.now()-t0)/1000}; }
+ finally{ await g.close(); } }
 
 (async()=>{
+ if(A.search){ const R=await runSearch(), m=R.meta, POLd=m.pols.length? Object.keys(m.pols[0]) : [];
+  console.log(`\n\n完了: ${m.N.toLocaleString()} 本・方針 ${m.K}・${R.time.toFixed(0)} 秒`);
+  console.log("確かめ直した上位 (探索で使っていない別の条件で):");
+  console.log("  方針   別の条件: 完走率  ゴール平均   (探索中: 完走率  ゴール平均  本数)   "+POLd.join(" "));
+  for(const l of m.lines) console.log(`${l.i===m.pk?"→":" "} #${String(l.i+1).padEnd(4)} ${(l.held[0]*100).toFixed(1).padStart(5)} %  ${fmtH(l.held[1]).padEnd(10)} (${(l.inS[0]*100).toFixed(1).padStart(5)} %  ${fmtH(l.inS[1]).padEnd(10)} ${l.inS[2]})   ${POLd.map(k=>+(+l.pol[k]).toFixed(2)).join(" ")}`);
+  console.log(`推奨: 方針 #${m.pk+1} (→)`);
+  const out=A.out||path.join(ROOT,"tools","trend-out",`trend-search-${new Date().toISOString().replace(/[:.]/g,"-").slice(0,19)}.json`); fs.mkdirSync(path.dirname(out),{recursive:true});
+  const {pk,lines,...rest}=m; fs.writeFileSync(out,JSON.stringify({kind:"trend",name:`傾向 二段階 (コマンド) ${new Date().toLocaleString("ja-JP")}`,ts:Date.now(),...rest,buf:R.buf.toString("base64"),ci:R.ciB}));
+  console.log(`\n結果のファイル: ${out} (${(fs.statSync(out).size/1048576).toFixed(1)} MB)。傾向タブの「結果ファイルを読み込む」で図・レポートにできます`); return; }
  const t0=Date.now(), H=loadHist();
  let S; if(A.ctx){ S=JSON.parse(fs.readFileSync(A.ctx,"utf8")); if(S.kind!=="trend-ctx") throw new Error("--ctx は傾向タブの「コマンド用の設定を書き出す」のファイルです"); S.src=path.basename(A.ctx); }
  else { process.stderr.write("ゲームから車両の値を取得中…\n"); S=await ctxFromGame(); }
