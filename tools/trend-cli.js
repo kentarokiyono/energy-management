@@ -16,7 +16,7 @@ const fs=require("fs"), path=require("path"), os=require("os"), vm=require("vm")
 const ROOT=path.dirname(__dirname);
 const A={}; for(let i=2;i<process.argv.length;i++){ const a=process.argv[i]; if(a.startsWith("--")){ const k=a.slice(2), v=process.argv[i+1]; if(v==null||v.startsWith("--")) A[k]=true; else { A[k]=v; i++; } } }
 if(A.help||A.h){ console.log(fs.readFileSync(__filename,"utf8").split("*/")[0].replace(/^[\s\S]*?\/\*/,"")); process.exit(0); }
-const W=25, WHY=["","電池切れ","Day6 17 時までにゴールできない","暴風雨で横転","Day1 の日没までに Katherine に着けない","CS の締め切りに遅れた","天気のデータなし"];
+const W=26, WHY=["","電池切れ","Day6 17 時までにゴールできない","暴風雨で横転","Day1 の日没までに Katherine に着けない","CS の締め切りに遅れた","天気のデータなし"];
 const N=Math.max(100,Math.round(+A.runs||100000)), K0=Math.max(2,Math.round(+A.pols||200)), thr=+A.thr||0.9, nT=Math.max(1,Math.round(+A.threads||Math.max(1,os.cpus().length-1)));
 const fmtH=(a)=>{ if(!Number.isFinite(a)) return "―"; const d=Math.floor(a/24)+1, h=a-(d-1)*24; return `D${d} ${Math.floor(h)}:${String(Math.floor(h%1*60)).padStart(2,"0")}`; };
 
@@ -68,7 +68,7 @@ async function runSearch(){ const t0=Date.now(), g=await openGame(), p=g.p;
   for(const l of m.lines) console.log(`${l.i===m.pk?"→":" "} #${String(l.i+1).padEnd(4)} ${(l.held[0]*100).toFixed(1).padStart(5)} %  ${fmtH(l.held[1]).padEnd(10)} (${(l.inS[0]*100).toFixed(1).padStart(5)} %  ${fmtH(l.inS[1]).padEnd(10)} ${l.inS[2]})   ${POLd.map(k=>+(+l.pol[k]).toFixed(2)).join(" ")}`);
   console.log(`推奨: 方針 #${m.pk+1} (→)`);
   const out=A.out||path.join(ROOT,"tools","trend-out",`trend-search-${new Date().toISOString().replace(/[:.]/g,"-").slice(0,19)}.json`); fs.mkdirSync(path.dirname(out),{recursive:true});
-  const {pk,lines,...rest}=m; fs.writeFileSync(out,JSON.stringify({kind:"trend",name:`傾向 二段階 (コマンド) ${new Date().toLocaleString("ja-JP")}`,ts:Date.now(),...rest,buf:R.buf.toString("base64"),ci:R.ciB}));
+  const {pk,lines,...rest}=m; fs.writeFileSync(out,JSON.stringify({W:26,kind:"trend",name:`傾向 二段階 (コマンド) ${new Date().toLocaleString("ja-JP")}`,ts:Date.now(),...rest,buf:R.buf.toString("base64"),ci:R.ciB}));
   console.log(`\n結果のファイル: ${out} (${(fs.statSync(out).size/1048576).toFixed(1)} MB)。傾向タブの「結果ファイルを読み込む」で図・レポートにできます`); return; }
  const t0=Date.now(), H=loadHist();
  let S; if(A.ctx){ S=JSON.parse(fs.readFileSync(A.ctx,"utf8")); if(S.kind!=="trend-ctx") throw new Error("--ctx は傾向タブの「コマンド用の設定を書き出す」のファイルです"); S.src=path.basename(A.ctx); }
@@ -105,6 +105,6 @@ async function runSearch(){ const t0=Date.now(), g=await openGame(), p=g.p;
  console.log("完走できなかった理由: "+(Object.entries(why).sort((a,b)=>b[1]-a[1]).map(([w,c])=>`${w} ${c.toLocaleString()}`).join("・")||"なし"));
  // 結果のファイル (傾向タブで開ける)
  const out=A.out||path.join(ROOT,"tools","trend-out",`trend-${new Date().toISOString().replace(/[:.]/g,"-").slice(0,19)}.json`); fs.mkdirSync(path.dirname(out),{recursive:true});
- const o={kind:"trend",name:`傾向 (コマンド) ${new Date().toLocaleString("ja-JP")}`,ts:Date.now(),N,K,pols,R,years,condSeed,cfg:{runs:N,pols:K,thr,years},time,ctxInfo:{Wh:ctx.Wh,vTop:ctx.vTop,src:S.src==="game"?"game":"ctx"},buf:Buffer.from(buf.buffer).toString("base64")};
+ const o={W,kind:"trend",name:`傾向 (コマンド) ${new Date().toLocaleString("ja-JP")}`,ts:Date.now(),N,K,pols,R,years,condSeed,cfg:{runs:N,pols:K,thr,years},time,ctxInfo:{Wh:ctx.Wh,vTop:ctx.vTop,src:S.src==="game"?"game":"ctx"},buf:Buffer.from(buf.buffer).toString("base64")};
  fs.writeFileSync(out,JSON.stringify(o)); console.log(`\n結果のファイル: ${out} (${(fs.statSync(out).size/1048576).toFixed(1)} MB)。傾向タブの「結果ファイルを読み込む」で図・レポートにできます`);
 })().catch(e=>{ console.error("\nエラー: "+e.message); process.exit(1); });

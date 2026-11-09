@@ -60,7 +60,8 @@ Object.assign(Trend,{
    const top=Math.max(0,...r.st.filter(x=>x.n>=30).map(x=>this.est(x).rate));
    const act=list.filter(i=>{ const s=r.st[i], e=this.est(s); if(s.n>=mMax) return false;
     if(feasAny){ if(e.up<r.thr) return false; if(!inc||inc.i===i) return true; const d=this.paired(s,r.st[inc.i]); return !(d>0.5); }   // 同じ条件どうしで 30 分以上遅いなら打ち切り
-    return e.up>=top-0.02; });   // 下限に届く方針が無い: 一番高い完走率に届きうるものを伸ばす
+    if(e.up<top-0.02) return false; if(top>0) return true;   // 下限に届く方針が無い: 一番高い完走率に届きうるものを伸ばす
+    const ts=Math.max(0,...r.st.filter(x=>x.n>=30).map(x=>this.est(x).soft)); return e.soft>=ts-0.03; });   // どれも完走しない: どこまで走れたかで比べる
    if(!act.length) return; const pairs=[]; for(const i of act){ const s=r.st[i]; for(let c=s.n;c<Math.min(mMax,next(s.n));c++) pairs.push([i,c]); }
    await this.evalPairs(pairs); this.progress(); } },
  /* いま一番良い方針 (mMax 通り以上で確かめたものの中で) */
@@ -73,7 +74,7 @@ Object.assign(Trend,{
   const years=(c.years&&c.years.length? c.years : Object.keys(WEATHER_HIST.years).map(Number)), ctx=this.ctx(), yearsData={}; for(const y of years) yearsData[y]=WEATHER_HIST.years[y];
   const t0=performance.now(), K1=Math.max(20,Math.round(s1/S.m1)); this.ctxTotal=ctx.total;
   this.res={mode:"search",N:0,K:0,pols:[],st:[],R:this.ranges(),years,condSeed:(Math.random()*1e9)>>>0,buf:new Float32Array((s1+s2+S.mFin*S.top+2000)*this.W),ci:null,done:0,t0,thr:c.thr,minN:S.mFin,
-   ctxInfo:{Wh:ctx.Wh,vTop:ctx.vTop},cfg:{...c},search:{stage:1,budget:s1+s2+S.mFin*S.top,s1,s2,hist:[],bounds:null,full:{},plan:{look:S.LOOK,mMax:S.mMax,mFin:S.mFin,B:S.B,top:S.top}}};
+   ctxInfo:{Wh:ctx.Wh,vTop:ctx.vTop,cal:!!ctx.cal},cfg:{...c},search:{stage:1,budget:s1+s2+S.mFin*S.top,s1,s2,hist:[],bounds:null,full:{},plan:{look:S.LOOK,mMax:S.mMax,mFin:S.mFin,B:S.B,top:S.top}}};
   const r=this.res; r.ci=new Int32Array(r.buf.length/this.W);
   try{ await this.pool(yearsData,ctx);
    // 1. 広域

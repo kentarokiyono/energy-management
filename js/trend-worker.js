@@ -8,6 +8,9 @@
   区間の速度 = その速度 × 勾配の調整 × 曇りの減速 × 満充電の上げ。制限速度・モーターの上限で切る。暴風雨は前縁の何分前に止まるか */
 let C=null;   // 事前計算 (ゲーム側から 1 回だけ受け取る)
 const D2R=Math.PI/180;
+/* その年の突風 (再解析) で横転とみなす危険度: 再解析の突風は地点・1 時間の平均的な値なので、実車が横転しなかった値より上に置く
+ (2025 年 Day3 の実車の走り: 再解析の突風で 1.36 でも横転していない)。局地的な暴風雨 (突風を直接与える) は 1 のまま */
+const ROLL_HIST=1.5;
 function sunPos(lat,lon,doy,clockH){ const B=2*Math.PI*(doy-81)/364, eot=9.87*Math.sin(2*B)-7.53*Math.cos(B)-1.5*Math.sin(B), solarH=clockH+(4*(lon-142.5)+eot)/60, g=2*Math.PI/365*(doy-1);
  const dl=0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)-0.006758*Math.cos(2*g)+0.000907*Math.sin(2*g)-0.002697*Math.cos(3*g)+0.00148*Math.sin(3*g), la=lat*D2R, ha=(solarH-12)*15*D2R;
  const s=Math.sin(la)*Math.sin(dl)+Math.cos(la)*Math.cos(dl)*Math.cos(ha); return Math.asin(Math.max(-1,Math.min(1,s))); }
@@ -37,26 +40,33 @@ function solar(cd,W,km,abs,tilted,fc){
  if(tilted){ const tr=C.tilt*D2R, ci=Math.max(0,Math.cos(Math.PI/2-alt-tr)); G=dni*ci*iam(ci)+dhi*(1+Math.cos(tr))/2*0.95+C.albedo*(dni*cz+dhi)*(1-Math.cos(tr))/2*0.9; G*=C.tiltK; }
  else { G=(dni*cz*iam(cz)+dhi*0.95)*pvAlt(alt); }
  const Ta=wx(W,"t",km,th)+cd.tOff, Tc=Ta+G*(0.92-C.cellEff)/(tilted?25:20+2*15);
- return Math.max(0,C.pvA*cd.effK*G*Math.max(0.6,1-C.gamma*Math.max(0,Tc-25))); }
-function headWind(cd,W,km,abs,bear){ const th=abs+C.dayOff*24, ws=wx(W,"ws",km,th)*0.6*cd.windK, wd=wx(W,"wd",km,th); const to=(wd+180)*D2R; return ws*Math.cos(to-bear+Math.PI); }
+ return Math.max(0,C.pvA*cd.effK*G*Math.max(0.6,1-C.gamma*Math.max(0,Tc-25)))*(C.cal? (tilted? C.cal.tilt : C.cal.solar) : 1); }   /* エンジンとの合わせ込み */
+/* 空気抵抗の上乗せ [W]: 走行電力の表 (空気密度 1.17・無風) との差。ゲームのエンジンと同じく、空気密度 (標高・気温)、向かい風、横風による偏揺れ角の抵抗増を入れる */
+function airExtra(cd,W,km,abs,s,vk){ const th=abs+C.dayOff*24, vm=vk/3.6, ws=wx(W,"ws",km,th)*0.6*cd.windK, to=(wx(W,"wd",km,th)+180)*D2R, ph=to-s.b+Math.PI, head=ws*Math.cos(ph), cross=ws*Math.sin(ph);
+ const vApp=Math.max(0,vm+head), yaw=Math.atan2(Math.abs(cross),Math.max(vm,1)), yd=yaw/D2R, Y=C.yawTab, yi=Math.min(Y.length-2,Math.floor(yd/2)), yk=Y[yi]+(Y[yi+1]-Y[yi])*(yd/2-yi);
+ const rho=C.rhoFix>0? C.rhoFix : 101325*Math.pow(1-2.25577e-5*Math.max(0,s.elev||0),5.25588)/(287.05*(wx(W,"t",km,th)+cd.tOff+273.15));
+ return (0.5*rho*C.CdA*cd.cdaK*yk*vApp*vApp-0.5*1.17*C.CdA*vm*vm)*vm*1.05; }   /* 1.05: 力が増えた分のモーターの損失 */
+/* エンジンとの合わせ込み (傾向タブの「エンジンで合わせ込む」): 消費の倍率、時間の倍率 (同じ距離にかかる時間)、電池の出入りの倍率 (放電・充電) */
+const CAP=()=>C.cal&&C.cal.cap? C.cal.cap : 1,   /* 電池の電力量の倍率 */
+ KL=(km)=>{ const c=C.cal; if(!c) return 1; const L=c.legs; if(L&&km!=null){ let j=0; while(j<C.cs.length&&km>=C.cs[j].km) j++; return c.load*(L[j]||1); } return c.load; },   /* 消費の倍率: 全体 × CS 間ごと */ KT=()=>C.cal&&C.cal.time? C.cal.time : 1, bat=(x)=>C.cal? x*(x<0? C.cal.batD : C.cal.batC) : x;
 /* 予報の発電 (見積もり用に 20 km × 15 分で丸めて覚えておく) */
 function fcSolar(cd,W,km,abs,tilted){ const kb=Math.round(km/20), hb=Math.round(abs*4), key=(kb*4000+hb)*2+(tilted?1:0); let v=cd._c.get(key); if(v===undefined){ v=solar(cd,W,Math.min(C.total,kb*20),hb/4,tilted,true); cd._c.set(key,v); } return v; }
 /* 実際の発電 (2 km × 3 分で丸めて覚えておく。同じ条件の方針どうしで使い回す) */
 function actSolar(cd,W,km,abs,tilted){ const kb=Math.round(km/2), hb=Math.round(abs*20), key=(kb*20000+hb)*2+(tilted?1:0); let v=cd._a.get(key); if(v===undefined){ v=solar(cd,W,Math.min(C.total,kb*2),hb/20,tilted,false); cd._a.set(key,v); } return v; }
 /* 方針: 今から一定速度 v で走ったときに、電池が下限を割らずに Day6 17 時までにゴールできるか (予報で、1 時間刻み) */
-function feasible(cd,pl,W,st,v){
- let abs=st.abs, km=st.km, e=st.soc*cd.Wh, ci=st.csI||0; const fl=pl.floor*cd.Wh, late=(a)=>(Math.floor(a/24)+1>=4? 1-pl.lateBias : 1);
+function feasible(cd,pl,W,st,v){ const WhC=cd.Wh*CAP();
+ let abs=st.abs, km=st.km, e=st.soc*WhC, ci=st.csI||0; const fl=pl.floor*WhC, late=(a)=>(Math.floor(a/24)+1>=4? 1-pl.lateBias : 1);
  for(let guard=0;guard<400&&km<C.total;guard++){ const day=Math.floor(abs/24), h=abs-day*24;
   if(abs>=8*24+17) return true;   // 電池の見積もりは締め切りを気にせず最後まで (間に合わないかは走った結果で判定)
   if(h>=17||h<8){
-   if(h>=17){ const s=C.segAt(km), ss=sunset(s.lat,s.lon,C.doy0+day); for(let x=abs;x<day*24+ss;x+=0.5) e+=fcSolar(cd,W,km,x+0.25,true)*pl.fcBias*late(x)*0.5; }
-   const m0=(h>=17?(day+1)*24:day*24)+6.25; for(let x=Math.max(abs,m0);x<m0+1.75;x+=0.5) e+=fcSolar(cd,W,km,x+0.25,true)*pl.fcBias*late(x)*0.5;
-   abs=m0+1.75; e=Math.min(e,cd.Wh); continue; }
+   if(h>=17){ const s=C.segAt(km), ss=sunset(s.lat,s.lon,C.doy0+day); for(let x=abs;x<day*24+ss;x+=0.5) e+=bat(fcSolar(cd,W,km,x+0.25,true)*pl.fcBias*late(x)*0.5); }
+   const m0=(h>=17?(day+1)*24:day*24)+6.25; for(let x=Math.max(abs,m0);x<m0+1.75;x+=0.5) e+=bat(fcSolar(cd,W,km,x+0.25,true)*pl.fcBias*late(x)*0.5);
+   abs=m0+1.75; e=Math.min(e,WhC); continue; }
   const dt=Math.min(1,17-h), s=C.segAt(km), vk=Math.min(v,s.vlimAvg,C.vTop);
-  e+=(fcSolar(cd,W,km,abs+dt/2,false)*pl.fcBias*late(abs)-pDrive(vk,0)*cd.lossK-cd.auxD)*dt;
+  e+=bat((fcSolar(cd,W,km,abs+dt/2,false)*pl.fcBias*late(abs)-(pDrive(vk,0)*cd.lossK+cd.auxD)*KL(km))*dt);
   if(e<fl) return false;
-  km+=vk*dt; abs+=dt; e=Math.min(e,cd.Wh);
-  while(ci<C.cs.length&&km>=C.cs[ci].km){ const st2=0.5+(cd.csWait+pl.csExtra)/60; e=Math.min(cd.Wh,e+fcSolar(cd,W,km,abs+st2/2,true)*pl.fcBias*late(abs)*st2); abs+=st2; ci++; } }
+  km+=vk*dt/KT(); abs+=dt; e=Math.min(e,WhC);
+  while(ci<C.cs.length&&km>=C.cs[ci].km){ const st2=0.5+(cd.csWait+pl.csExtra)/60; e=Math.min(WhC,e+bat(fcSolar(cd,W,km,abs+st2/2,true)*pl.fcBias*late(abs)*st2)); abs+=st2; ci++; } }
  return true; }
 function planSpeed(cd,pl,W,st,prev){ const top=Math.min(pl.vcap,C.vTop); let lo=25, hi=top, it=9;
  if(prev){ const a=Math.max(25,prev-10), b=Math.min(top,prev+10); if(feasible(cd,pl,W,st,a)){ lo=a; hi=b; it=6; if(b<top&&feasible(cd,pl,W,st,b)){ lo=b; hi=top; it=8; } } }   // 前の速度の近くから探す
@@ -65,12 +75,15 @@ function planSpeed(cd,pl,W,st,prev){ const top=Math.min(pl.vcap,C.vTop); let lo=
 /* 1 本を走らせる (trace=true で区間ごとの記録も返す) */
 function run(cd,pl,trace){
  const W=C.years[cd.year]; if(!W) return {ok:false,why:"天気のデータなし"}; if(!cd._c){ cd._c=new Map(); cd._a=new Map(); }
- const Wh=cd.Wh; let abs=8+(cd.grid-1)/60, km=0, soc=1, minSoc=1, why="", vPlan=60, nextPlan=0;
- const tr=trace?[]:null, dayKm=[0,0,0,0,0,0,0]; let csI=0, dcDone=false, moving=0, energyUse=0, energySun=0, stormStop=0;
- const charge=(t0,t1,tilted)=>{ for(let x=t0;x<t1-1e-6;x+=0.25){ const d=Math.min(0.25,t1-x), p=actSolar(cd,W,km,x+d/2,tilted); energySun+=p*d; soc=Math.min(1,soc+(p-(tilted?2:cd.auxW))*d/Wh); } };
- for(let i=0;i<C.segN&&km<C.total-1e-6;){
+ const FX=pl.sp||null, NR=!!pl.noRules;   /* NR: 締め切りを見ないで最後まで (合わせ込み用) */   /* 決まった速度 (2 km ごと) でなぞる: エンジンとの合わせ込み用 */
+ const Wh=cd.Wh*CAP(), ST=pl.start;   /* ST: 途中の状態 {abs, km, soc} から始める (実車のログの続きなど) */
+ let abs=ST? ST.abs : 8+(cd.grid-1)/60, km=ST? ST.km : 0, soc=ST? ST.soc : 1, minSoc=soc, why="", vPlan=60, nextPlan=0;
+ const tr=trace?[]:null, dayKm=[0,0,0,0,0,0,0]; let csI=ST? C.cs.filter(c=>c.km<=km+1e-6).length : 0, dcDone=!!ST&&km>=C.dc, moving=0, energyUse=0, energySun=0, stormStop=0;
+ const DE=trace?{}:null, de=(a)=>{ const d=Math.floor(a/24)+1; return DE[d]||(DE[d]={mv:0,load:0,tilt:0}); };   /* 日ごとの電力量 (記録付きのときだけ) */
+ const charge=(t0,t1,tilted)=>{ for(let x=t0;x<t1-1e-6;x+=0.25){ const d=Math.min(0.25,t1-x), p=actSolar(cd,W,km,x+d/2,tilted); energySun+=p*d; if(DE&&tilted) de(x).tilt+=p*d; soc=Math.min(1,soc+bat((p-(tilted?2:cd.auxW))*d)/Wh); } };
+ for(let i=ST? Math.min(C.segN-1,Math.max(0,C.seg.indexOf(C.segAt(km)))) : 0;i<C.segN&&km<C.total-1e-6;){
   const day=Math.floor(abs/24), h=abs-day*24;
-  if(day>=6&&!(h<8)){ why="Day6 17 時までにゴールできない"; break; }
+  if(day>=(NR?9:6)&&!(h<8)){ why="Day6 17 時までにゴールできない"; break; }
   if(h>=17||h<8){   // 夜: 日没まで・朝 6:15 から 8:00 まで傾けて充電
    dayKm[Math.min(6,day)]=km; const s=C.segAt(km), ss=sunset(s.lat,s.lon,C.doy0+day);
    if(h>=17){ if(h<ss) charge(abs,day*24+ss,true); abs=(day+1)*24+6.25; } else if(h<6.25) abs=day*24+6.25;
@@ -78,37 +91,42 @@ function run(cd,pl,trace){
   // 暴風雨: 前縁の pl.stormLead 分前に止まる (0 = 止まらない)
   const sm=cd.storm;
   if(sm&&pl.stormLead>0&&abs>=sm.start-pl.stormLead/60&&abs<sm.start+sm.dur){ const t1=sm.start+sm.dur+0.08; charge(abs,t1,true); stormStop+=t1-abs; abs=t1; nextPlan=0; continue; }
-  if(abs>=nextPlan){ vPlan=planSpeed(cd,pl,W,{abs,km,soc,csI},nextPlan>0?vPlan:0); nextPlan=abs+pl.replanH; }
+  if(!FX&&abs>=nextPlan){ vPlan=planSpeed(cd,pl,W,{abs,km,soc,csI},nextPlan>0?vPlan:0); nextPlan=abs+pl.replanH; }
   const s=C.seg[i], g=s.g;
-  let v=vPlan*Math.max(0.6,Math.min(1.25,1-pl.gradeK*g*20));   // 登りは遅く・下りは速く
+  let v= FX? FX[Math.min(FX.length-1,i)] : vPlan*Math.max(0.6,Math.min(1.25,1-pl.gradeK*g*20));   // 登りは遅く・下りは速く (FX: 決まった速度でなぞる)
   const pNow=actSolar(cd,W,km,abs,false), pFc=fcSolar(cd,W,km,abs,false);
-  if(pFc>200&&pNow<pFc*0.6) v*=1-pl.cloudSlow;   // 予報より暗い (雲): 減速
-  if(soc>0.97&&pNow>pDrive(v,g)) v*=1+pl.fullBoost;   // 満充電で発電が余る: 速く
+  if(!FX&&pFc>200&&pNow<pFc*0.6) v*=1-pl.cloudSlow;   // 予報より暗い (雲): 減速
+  if(!FX&&soc>0.97&&pNow>pDrive(v,g)) v*=1+pl.fullBoost;   // 満充電で発電が余る: 速く
   v=Math.max(15,Math.min(v,s.vlim,C.vTop));
-  const dt=s.len/v, hw=headWind(cd,W,km,abs,s.b), pAir=0.5*1.17*C.CdA*cd.cdaK*(Math.max(0,v/3.6+hw)**2-(v/3.6)**2)*(v/3.6);
-  const pD=pDrive(v,g)*cd.lossK+pAir+cd.auxD;
+  const dt=s.len/v, pAir=airExtra(cd,W,km,abs,s,v);
+  const pD=(pDrive(v,g)*cd.lossK+pAir+cd.auxD)*KL(km);
   // 暴風雨の中を走っている: 横転の判定 (いちばん強い突風)
   if(sm&&abs+dt>sm.start&&abs<sm.start+sm.dur){ const gust= abs<sm.start+0.05? sm.max : sm.max*0.8; if(rollRisk(gust,v/3.6)>=1){ why="暴風雨で横転"; km+=0; break; } }
-  soc+=(pNow-pD)*dt/Wh; energyUse+=pD*dt; energySun+=pNow*dt; soc=Math.min(1,soc);
+  // その年の実際の突風 (再解析の最大瞬間風速 × 倍率) の、道に直角な成分: 方針が警告で止まるなら止まって待つ、走り続けて危険度が 1 を超えたら横転
+  if(W.wg&&!NR){ const th=abs+C.dayOff*24, gc=wx(W,"wg",km,th)*cd.gustK*Math.abs(Math.sin(wx(W,"wd",km,th)*D2R-s.b)), rk=rollRisk(gc,v/3.6);
+   if(pl.stormLead>0&&rk>=ROLL_HIST*0.8&&!FX){ const t1=Math.floor(abs)+1; charge(abs,t1,false); stormStop+=t1-abs; abs=t1; nextPlan=0; continue; }
+   if(rk>=ROLL_HIST){ why="暴風雨で横転"; break; } }
+  const dtT=dt*KT();   /* 加減速・減速の手前などで実際にかかる時間 (エンジンとの合わせ込み)。その間も発電する */
+  soc+=bat(pNow*dtT-pD*dt)/Wh; energyUse+=pD*dt; energySun+=pNow*dtT; soc=Math.min(1,soc); if(DE){ const q=de(abs); q.mv+=pNow*dtT; q.load+=pD*dt; }
   if(soc<minSoc) minSoc=soc;
   if(soc<=0){ why="電池切れ"; break; }
-  abs+=dt; km+=s.len; moving+=dt; i++;
+  abs+=dtT; km+=s.len; moving+=dtT; i++;
   if(trace) tr.push([+km.toFixed(1),+abs.toFixed(3),+(soc*100).toFixed(1),Math.round(v),Math.round(pNow),Math.round(pD)]);
   // ルール: Katherine に Day1 の日没まで、CS の締め切り
   if(!dcDone&&km>=C.dc){ dcDone=true; charge(abs,abs+C.dcMin/60,true); abs+=C.dcMin/60; }
-  while(csI<C.cs.length&&km>=C.cs[csI].km){ const c=C.cs[csI]; if(abs>c.close){ why="CS の締め切りに遅れた"; break; }
-   if(csI===0&&abs>sunset(s.lat,s.lon,C.doy0)){ why="Day1 の日没までに Katherine に着けない"; break; }
+  while(csI<C.cs.length&&km>=C.cs[csI].km){ const c=C.cs[csI]; if(!NR&&abs>c.close){ why="CS の締め切りに遅れた"; break; }
+   if(!NR&&csI===0&&abs>sunset(s.lat,s.lon,C.doy0)){ why="Day1 の日没までに Katherine に着けない"; break; }
    const stay=0.5+(cd.csWait+pl.csExtra)/60; charge(abs,abs+stay,true); abs+=stay; csI++; }
   if(why) break; }
  const ok=!why&&km>=C.total-1e-6&&abs<=5*24+17+1e-6; if(!ok&&!why) why="Day6 17 時までにゴールできない";
- return {ok,why,fin:ok?abs:NaN,km,minSoc,dayKm,avgV:moving>0?km/moving:0,eUse:energyUse/1000,eSun:energySun/1000,stormStop,trace:tr}; }
+ return {ok,why,fin:ok?abs:NaN,km,minSoc,dayKm,avgV:moving>0?km/moving:0,eUse:energyUse/1000,eSun:energySun/1000,stormStop,trace:tr,dayE:DE}; }
 /* 条件・方針の乱数 (傾向タブで決めた範囲から) */
 function sampleCond(r,R,years){ const u=(k)=>{ const x=R[k]; return x.fix!=null? x.fix : x.min+(x.max-x.min)*r(); };
  const year=years[Math.floor(r()*years.length)], fcLv=u("fcErr"), daySd=u("daySd");
  const dayK=[...Array(7)].map(()=>Math.max(0.5,1+gauss(r)*daySd)), fcDayK=dayK.map(k=>Math.max(0.5,k*(1+gauss(r)*fcLv)));
  const late=u("late"), stP=u("stormP"); let storm=null; if(r()<stP){ const d=3+Math.floor(r()*4); storm={start:(d-1)*24+12+r()*4.5,dur:0.4+r()*0.3,max:u("stormMax")}; }
- const Wh=C.Wh*u("batK");
- return {year,daySd,fcLv,dayK,fcDayK,late,stormP:stP,storm,stormMax:storm?storm.max:0,solarK:u("solarK"),windK:u("windK"),tOff:u("tOff"),effK:u("effK"),lossK:u("lossK"),cdaK:u("cdaK"),batK:Wh/C.Wh,Wh,auxD:u("auxD"),auxW:C.auxW+u("auxD"),grid:Math.round(u("grid")),csWait:u("csWait")}; }
+ const Wh=C.Wh*u("batK"), gustK=R.gustK? u("gustK") : 1;
+ return {year,daySd,fcLv,dayK,fcDayK,late,stormP:stP,storm,stormMax:storm?storm.max:0,solarK:u("solarK"),windK:u("windK"),tOff:u("tOff"),effK:u("effK"),lossK:u("lossK"),cdaK:u("cdaK"),batK:Wh/C.Wh,Wh,auxD:u("auxD"),auxW:C.auxW+u("auxD"),gustK,grid:Math.round(u("grid")),csWait:u("csWait")}; }
 function samplePolicy(r,R){ const u=(k)=>{ const x=R[k]; return x.fix!=null? x.fix : x.min+(x.max-x.min)*r(); };
  return {vcap:u("vcap"),floor:u("floor"),fcBias:u("fcBias"),lateBias:u("lateBias"),gradeK:u("gradeK"),cloudSlow:u("cloudSlow"),fullBoost:u("fullBoost"),replanH:Math.round(u("replanH")),stormLead:Math.round(u("stormLead")),csExtra:Math.round(u("csExtra"))}; }
 /* 結果の 1 行: [方針, 完走, ゴール, 電池の最低, km, 平均速度, 使った電力量, 発電量, 理由, ...条件] */
@@ -133,7 +151,14 @@ self.onmessage=(e)=>{ const m=e.data;
    const res=run(cd,pl,false), o=j*m.width;
    row(out,o,pi,res,cd); }
   self.postMessage({t:"done",id:m.id,n,buf:out},[out.buffer]); return; }
+ if(m.t==="cal"){ C.cal=m.cal; self.postMessage({t:"cal",id:m.id}); return; }   // 合わせ込みの倍率だけ入れ替える
+ if(m.t==="probe"){   // 合わせ込み用: ゲームのエンジンが走った点 [km, 経過時間, 速度 km/h, 傾け (1/0)] で、速い計算の発電・消費 [W] を求める
+  const P=m.pts, n=P.length/4, out=new Float32Array(n*3), cd=m.cond, W=C.years[cd.year], cal0=C.cal; if(!m.useCal) C.cal=null; cd._c=new Map(); cd._a=new Map();   /* エンジンとの合わせ込みは補正なしの値で、実車との比較は補正入りで */
+  for(let j=0;j<n;j++){ const km=P[j*4], abs=P[j*4+1], v=P[j*4+2], tl=P[j*4+3]>0.5, s=C.segAt(km);
+   out[j*3]=solar(cd,W,km,abs,tl,false); { const th=abs+C.dayOff*24; out[j*3+2]= W.wg? rollRisk(wx(W,"wg",km,th)*(cd.gustK||1)*Math.abs(Math.sin(wx(W,"wd",km,th)*D2R-s.b)),v/3.6) : 0; }   /* その年の突風での横転の危険度 */
+   if(v>1){ out[j*3+1]=(pDrive(v,s.g)*cd.lossK+airExtra(cd,W,km,abs,s,v)+cd.auxD)*KL(km); } else out[j*3+1]=NaN; }
+  C.cal=cal0; self.postMessage({t:"probe",id:m.id,buf:out},[out.buffer]); return; }
  if(m.t==="trace"){ const cr=rnd(m.condSeed), cd=m.cond||sampleCond(cr,m.R,m.years); const res=run(cd,m.pol,true); delete cd._c; delete cd._a; self.postMessage({t:"trace",id:m.id,res,cond:cd}); return; }
 };
 const WHY=["","電池切れ","Day6 17 時までにゴールできない","暴風雨で横転","Day1 の日没までに Katherine に着けない","CS の締め切りに遅れた","天気のデータなし"];
-const CKEYS=["year","solarK","daySd","late","fcLv","storm","stormMax","windK","tOff","effK","lossK","cdaK","batK","auxD","grid","csWait"];
+const CKEYS=["year","solarK","daySd","late","fcLv","storm","stormMax","windK","tOff","effK","lossK","cdaK","batK","auxD","grid","csWait","gustK"];
