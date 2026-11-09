@@ -106,7 +106,7 @@ function run(cd,pl,trace){
   // 暴風雨の中を走っている: 横転の判定 (いちばん強い突風)
   if(sm&&abs+dt>sm.start&&abs<sm.start+sm.dur){ const gust= abs<sm.start+0.05? sm.max : sm.max*0.8; if(rollRisk(gust,v/3.6)>=1){ why="暴風雨で横転"; km+=0; break; } }
   // その年の実際の突風 (再解析の最大瞬間風速 × 倍率) の、道に直角な成分: 方針が警告で止まるなら止まって待つ、走り続けて危険度が 1 を超えたら横転
-  if(W.wg&&!NR){ const th=abs+C.dayOff*24, gc=wx(W,"wg",km,th)*cd.gustK*Math.abs(Math.sin(wx(W,"wd",km,th)*D2R-s.b)), rk=rollRisk(gc,v/3.6);
+  if(W.wg&&!NR&&!pl.noGust){ const th=abs+C.dayOff*24, gc=wx(W,"wg",km,th)*cd.gustK*Math.abs(Math.sin(wx(W,"wd",km,th)*D2R-s.b)), rk=rollRisk(gc,v/3.6);
    if(pl.stormLead>0&&rk>=ROLL_HIST*0.8&&!FX){ const t1=Math.floor(abs)+1; charge(abs,t1,false); stormStop+=t1-abs; abs=t1; nextPlan=0; continue; }
    if(rk>=ROLL_HIST){ why="暴風雨で横転"; break; } }
   const dtT=dt*KT();   /* 加減速・減速の手前などで実際にかかる時間 (エンジンとの合わせ込み)。その間も発電する */
