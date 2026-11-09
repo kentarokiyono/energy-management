@@ -60,7 +60,7 @@ const Ana={
   for(const it of items) if(this.runs.includes(it.run)) this.save(it.run); },
  /* 計測器のログの電池の残量 (SOC) を、電力の積算と電圧の両方から出す
   ・電圧だけだと、充電の直後や電流が流れている間は高め・低めに出る。電力の積算だけだと日ごとに少しずつずれる (充電を多めに数えるなど)
-  ・そこで「休止に近い点」(電流 3 A 以内が 10 分続き、大きな電流 (8 A 超) から 20 分以上たった点) でだけ電圧から残量を決め (電流 × 内部抵抗で補正)、
+  ・そこで「休止に近い点」(電流 3 A 以内が 10 分続き、大きな電流 (8 A 超) から 20 分以上たった点。ログの始めと切り離しから戻った直後は一晩休んでいるので、その点も) でだけ電圧から残量を決め (電流 × 内部抵抗で補正)、
     その間は電力の積算でつなぐ。点ごとのずれは、前後の点の間で時間に比例して配る
   ・暦で続いた日のログは、夜は電池を切り離していて変わらないものとしてつなぐ
   ・内部抵抗は、電流が急に変わった前後の電圧の差から求める (足りなければ電池モデルの値) */
@@ -68,7 +68,7 @@ const Ana={
   const E1=CAP_AH()*[...Array(100)].reduce((a,_,i)=>a+VOC((i+0.5)/100)/100,0), EF=[0]; { let a=0; for(let i=1;i<=100;i++){ a+=VOC((i-0.5)/100)/100; EF.push(a); } for(let i=0;i<=100;i++) EF[i]/=a; }
   const ef=(soc)=>{ const x=clamp(soc,0,1)*100, i=Math.min(99,Math.floor(x)); return EF[i]+(EF[i+1]-EF[i])*(x-i); }, efInv=(e)=>{ e=clamp(e,0,1); let i=0; while(i<99&&EF[i+1]<e) i++; return (i+(e-EF[i])/((EF[i+1]-EF[i])||1))/100; };
   const inv=(V)=>{ const f=(V-PRO.vEmpty)/(PRO.vFull-PRO.vEmpty); if(f<=0) return 0; if(f>=1) return 1; for(let i=1;i<OCV_TBL.length;i++){ const [s1,f1]=OCV_TBL[i]; if(f<=f1){ const [s0,f0]=OCV_TBL[i-1]; return s0+(s1-s0)*(f-f0)/(f1-f0); } } return 1; };
-  const ok=(x)=>Number.isFinite(x.vt)&&x.vt>=PRO.vEmpty*0.6&&Number.isFinite(x.ia);
+  const ok=(x)=>Number.isFinite(x.vt)&&x.vt>=PRO.vEmpty*0.9&&Number.isFinite(x.ia);   // 切り離しの前後 (電圧が抜けていく・立ち上がる途中) は使わない
   // 内部抵抗
   const rr=[]; for(const run of L){ const R=run.rows; for(let i=1;i<R.length;i++){ const a=R[i-1], c=R[i]; if(!ok(a)||!ok(c)||c.t-a.t>1/120) continue; const dI=c.ia-a.ia; if(Math.abs(dI)>=5){ const r=-(c.vt-a.vt)/dI; if(r>0&&r<1) rr.push(r); } } }
   rr.sort((a,b)=>a-b); const Rint= rr.length>=30? rr[Math.floor(rr.length/2)] : Phys.rInt(25,0.5);
@@ -77,10 +77,11 @@ const Ana={
   for(const ch of chains){ const P=[]; let C=0;   // P: 全行 {row, c=積算 [Wh]}
    for(const run of ch){ const R=run.rows; R.forEach((x,i)=>{ const dt=i? x.t-R[i-1].t : 0; if(dt>0&&dt<0.01){ const net=-(x.pm-x.ps); if(Number.isFinite(net)) C+= net>0? net*dt*0.97 : net*dt; } P.push({x,c:C,run}); }); }
    // 休止に近い点 (10 分に 1 つ)
-   const A=[]; let calm=0, big=-1e9, last=null;
-   P.forEach((p,k)=>{ const x=p.x, dt=k&&P[k-1].run===p.run? x.t-P[k-1].x.t : 0, I=Math.abs(x.ia||0); if(k&&P[k-1].run!==p.run){ calm=0; big=-1e9; }
-    if(!ok(x)){ calm=0; return; } if(I>8) big=x.t; calm= I<3? calm+dt : 0;
-    if(calm>=10/60&&x.t-big>=1/3&&(!last||last.run!==p.run||x.t-last.x.t>=1/6)){ const e=ef(inv(x.vt+x.ia*Rint))*E1; A.push({k,off:e-p.c}); last=p; } });
+   const A=[]; let calm=0, big=-1e9, last=null, fresh=true;   // fresh: ログの始めや、切り離しから戻った直後 (一晩休んでいて電圧が落ち着いている)
+   P.forEach((p,k)=>{ const x=p.x, dt=k&&P[k-1].run===p.run? x.t-P[k-1].x.t : 0, I=Math.abs(x.ia||0); if(k&&P[k-1].run!==p.run){ calm=0; big=-1e9; fresh=true; }
+    if(!ok(x)){ calm=0; fresh=true; return; } if(I>8) big=x.t; calm= I<3? calm+dt : 0;
+    const pv=k&&P[k-1].run===p.run? P[k-1].x.vt : NaN, rested=fresh&&I<1&&Math.abs(x.vt-pv)<0.3; if(rested||I>=1) fresh=false;   // 電圧が落ち着いてから
+    if((rested||(calm>=10/60&&x.t-big>=1/3))&&(rested||!last||last.run!==p.run||x.t-last.x.t>=1/6)){ const e=ef(inv(x.vt+x.ia*Rint))*E1; A.push({k,off:e-p.c}); last=p; } });
    if(!A.length) continue;
    let j=0; P.forEach((p,k)=>{ while(j<A.length-1&&A[j+1].k<=k) j++; let off; if(k<=A[0].k) off=A[0].off; else if(j>=A.length-1) off=A[A.length-1].off; else { const a=A[j], b=A[j+1], u=(k-a.k)/((b.k-a.k)||1); off=a.off+(b.off-a.off)*u; }
     const e=(p.c+off)/E1; p.x.socE=clamp(e,0,1)*100; p.x.soc= ok(p.x)||Number.isFinite(p.x.socE)? efInv(e)*100 : NaN; });
@@ -121,13 +122,17 @@ const Ana={
    const e0=profileAt(Math.max(0,km-0.25)).elev, e1=profileAt(Math.min(TOTAL_KM,km+0.25)).elev, d=Math.min(TOTAL_KM,km+0.25)-Math.max(0,km-0.25);
    rows.push({t:t/3600,day:1,km,v,ps,pm:ps+pb,net:-pb,soc:NaN,el:profileAt(km).elev,gr:d>0?(e1-e0)/(d*1000)*100:0,st:v>0.5?"走行":"停車",vt:iU>=0?+l[iU]:NaN,ia:iA>=0?+l[iA]:NaN}); }
   if(rows.length<10) throw new Error("データ行がありません");
-  // 時刻: 夕方の長い停車 (40 分以上) の始まりを 17:00 とする。見つからなければ 8:30 発
-  let h0=H0, st=null; for(const r of rows){ if(r.v<1){ if(st==null) st=r.t; } else { if(st!=null&&r.t-st>=40/60){ const c=17-st; if(c>=7&&c<=10.5) h0=c; } st=null; } }
-  if(st!=null&&rows[rows.length-1].t-st>=40/60){ const c=17-st; if(c>=7&&c<=10.5) h0=c; }
+  // 時刻 (ログの始まりが何時か): まず「その日の走り終わり = 17:00」(17 時で止まるので)。朝・夕方は傾けて充電で止まっているので、停車の長さでは決めない
+  let h0=H0; { let lm=-1; rows.forEach((r,i)=>{ if(r.v>1) lm=i; }); if(lm>0){ const c=17-rows[lm].t; if(c>=5&&c<=10) h0=c; } }
   // 日付 (見出しの日付) がレース期間なら、その日の実際の天気 (日射・気温・風) を補う → 発電の効率・向かい風込みの推定に使える
   let day=1, doy=null; for(const l of lines.slice(0,li)){ let m=l.join(" ").match(/(20\d\d)[\/-](\d{1,2})[\/-](\d{1,2})/);
    if(!m){ const x=l.map(Number).find(v=>v>36500&&v<73000); if(x){ const d0=new Date(Date.UTC(1899,11,30)+x*864e5); m=[0,d0.getUTCFullYear(),d0.getUTCMonth()+1,d0.getUTCDate()]; } }   // Excel の日付 (通し日数)
    if(m){ const d=new Date(+m[1],+m[2]-1,+m[3]); date=this.ymd(d); const j=Math.round((d-new Date(+m[1],0,0))/864e5); if(j-PRO.dayOfYear>=0&&j-PRO.dayOfYear<7){ doy=j; day=j-PRO.dayOfYear+1; } break; } }
+  // レース期間で実際の天気があれば: 走行中 (パネルは平置き) の発電と、その時刻・場所の全天日射の重なりが一番よい始まりの時刻を選ぶ (± 2 時間、5 分きざみ)
+  if(doy!=null&&typeof RealWx!=="undefined"&&RealWx.ok){ const S=rows.filter((r,i)=>r.v>5&&i%12===0); if(S.length>60){ const Q=S.map(r=>profileAt(r.km));
+    let best=null; for(let c=h0-2;c<=h0+2+1e-9;c+=1/12){ let n=0,sx=0,sy=0,sxx=0,syy=0,sxy=0; S.forEach((r,k)=>{ const g=RealWx.at("ghi",Q[k].lat,Q[k].lon,doy,c+r.t); if(g==null) return; n++; sx+=g; sy+=r.ps; sxx+=g*g; syy+=r.ps*r.ps; sxy+=g*r.ps; });
+     if(n<40) continue; const cc=(n*sxy-sx*sy)/Math.sqrt(Math.max(1e-9,(n*sxx-sx*sx)*(n*syy-sy*sy))); if(!best||cc>best.cc) best={c,cc}; }
+    if(best&&best.cc>0.6) h0=best.c; } }
   for(const r of rows){ r.day=day; r.abs=(day-1)*24+h0+r.t; r.eh=r.abs-8; const hr=h0+r.t;
    if(doy!=null&&typeof RealWx!=="undefined"&&RealWx.ok){ const q=profileAt(r.km), g=RealWx.at("ghi",q.lat,q.lon,doy,hr), t=RealWx.at("t",q.lat,q.lon,doy,hr), w=RealWx.wind(q.lat,q.lon,doy,hr);
     if(g!=null) r.ghi=g; if(t!=null) r.ta=t; if(w) r.head=-w.ws*Math.cos(w.toward-q.bearing);
@@ -136,8 +141,8 @@ const Ana={
   let socEst=false;
   if(iU>=0&&iA>=0&&rows.every(r=>Number.isFinite(r.vt))){ const R=Phys.rInt(25,0.5), oc=rows.map(r=>r.vt+(Number.isFinite(r.ia)?r.ia:0)*R), n=Math.max(1,Math.round(150/dt));
    const inv=(V)=>{ const f=(V-PRO.vEmpty)/(PRO.vFull-PRO.vEmpty); if(f<=0) return 0; if(f>=1) return 1; for(let i=1;i<OCV_TBL.length;i++){ const [s1,f1]=OCV_TBL[i]; if(f<=f1){ const [s0,f0]=OCV_TBL[i-1]; return s0+(s1-s0)*(f-f0)/(f1-f0); } } return 1; };
-   // 電圧が明らかに低い記録 (夜に電池を切り離している間など。空の電池の電圧の 6 割未満) は使わない
-   const ok=rows.map(r=>r.vt>=PRO.vEmpty*0.6); let sum=0, cnt=0; const pre=[0], pc=[0]; oc.forEach((v,i)=>{ if(ok[i]){ sum+=v; cnt++; } pre.push(sum); pc.push(cnt); });
+   // 電圧が明らかに低い記録 (夜に電池を切り離している間や、その前後で電圧が抜けていく・立ち上がる途中。空の電池の電圧の 9 割未満) は使わない
+   const ok=rows.map(r=>r.vt>=PRO.vEmpty*0.9); let sum=0, cnt=0; const pre=[0], pc=[0]; oc.forEach((v,i)=>{ if(ok[i]){ sum+=v; cnt++; } pre.push(sum); pc.push(cnt); });
    rows.forEach((r,i)=>{ const a=Math.max(0,i-n), b=Math.min(rows.length,i+n+1), c=pc[b]-pc[a]; r.soc= ok[i]&&c>0? inv((pre[b]-pre[a])/c)*100 : NaN; }); socEst=true; }
   return this.prep({id:this.newId("log"),name,date:date||"",rows,logger:true,socEst});
  },

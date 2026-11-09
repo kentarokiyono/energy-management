@@ -133,7 +133,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   const sr=await p.evaluate(async()=>{ Trend.cfg.mode="search"; Trend.cfg.s1=400; Trend.cfg.s2=1000; Trend.cfg.years=[2019,2025]; await Trend.start(); const R=Trend.res, bi=R.best>=0?R.best:R.fallback;
    const B=R.search.bounds, narrowed=Object.entries(B).every(([k,b])=>b.lo>=Trend.POL[k].min-1e-9&&b.hi<=Trend.POL[k].max+1e-9&&b.hi>b.lo);
    const pk=Trend.pickFinal(), h=R.st[pk].h, held=document.querySelector(".tr-held");
-   return {done:R.done,s1:R.search.s1Done,pols:R.pols.length,fin:R.search.final.length,pick:pk===bi,hn:h&&h.n,heldUi:!!held&&/別の条件 300 通り/.test(held.textContent),look10:R.st.some(s=>s.stage===2&&s.n<Trend.SRCH.mMax),narrowed,stage2:R.st.some(s=>s.stage===2&&s.n>=30),hist:R.search.hist.length,conv:!!document.getElementById("tr-conv"),bnd:document.querySelectorAll(".tr-bnd b").length}; });
+   return {done:R.done,s1:R.search.s1Done,pols:R.pols.length,fin:R.search.final.length,pick:pk===bi,hn:h&&h.n,heldUi:!!held&&/別の条件 300 通り/.test(held.textContent),look10:R.st.filter(s=>s.stage===2&&s.n>=10).length>=8,narrowed,stage2:R.st.some(s=>s.stage===2&&s.n>=30),hist:R.search.hist.length,conv:!!document.getElementById("tr-conv"),bnd:document.querySelectorAll(".tr-bnd b").length}; });
   check("傾向: 二段階の探索 (広域で範囲を絞る → TPE・10 通りから打ち切り判定 → 上位 3 つを別の条件 300 通りで確かめ直して推奨)",sr.s1===400&&sr.done>1400&&sr.done<4000&&sr.fin===3&&sr.pick&&sr.hn===300&&sr.heldUi&&sr.look10&&sr.narrowed&&sr.stage2&&sr.conv&&sr.bnd>=8,JSON.stringify(sr));
   // コマンド (ブラウザを開かずに回す): 結果のファイルを傾向タブで開ける
   const outF=path.join(__dirname,"out","trend-cli.json"); let cli="";
