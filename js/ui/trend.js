@@ -128,7 +128,7 @@ Object.assign(Trend,{
   if(!el.dataset.built){ el.dataset.built=1; el.innerHTML=`<div class="tr-l" id="tr-l"></div><div class="tr-r" id="tr-r"></div>`; }
   this.ui(); },
  ui(state,info){ const L=document.getElementById("tr-l"); if(!L) return; this.left(state,info); this.right(); },
- left(state,info){ const L=document.getElementById("tr-l"), c=this.cfg, years=typeof WEATHER_HIST!=="undefined"? Object.keys(WEATHER_HIST.years) : [...Array(21)].map((_,i)=>String(2005+i));
+ left(state,info){ const L=document.getElementById("tr-l"); if(!L) return; const c=this.cfg, years=typeof WEATHER_HIST!=="undefined"? Object.keys(WEATHER_HIST.years) : [...Array(21)].map((_,i)=>String(2005+i));
   const row=(k,d,grp)=>`<div class="tr-v"><label class="chk" title="チェックを外すと固定 (中央の値)"><input type="checkbox" ${d.fix==null?"checked":""} onchange="Trend.toggleVar('${grp}','${k}',this.checked)"><i></i>${escHtml(d.label)}</label>
    <span>${d.fix==null? `<input type="number" step="any" value="${d.pct?+(d.min*100).toFixed(1):d.min}" onchange="Trend.setVar('${grp}','${k}','min',this.value)"> 〜 <input type="number" step="any" value="${d.pct?+(d.max*100).toFixed(1):d.max}" onchange="Trend.setVar('${grp}','${k}','max',this.value)">` : `<input type="number" step="any" value="${d.pct?+(d.fix*100).toFixed(1):d.fix}" onchange="Trend.setVar('${grp}','${k}','fix',this.value)"> 固定`} <i>${d.pct?"%":d.unit}</i></span></div>`;
   const groups={}; for(const [k,d] of Object.entries(this.COND)) (groups[d.g]=groups[d.g]||[]).push(row(k,d,"COND"));

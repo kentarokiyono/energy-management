@@ -84,10 +84,13 @@ function run(cd,pl,trace){
  for(let i=ST? Math.min(C.segN-1,Math.max(0,C.seg.indexOf(C.segAt(km)))) : 0;i<C.segN&&km<C.total-1e-6;){
   const day=Math.floor(abs/24), h=abs-day*24;
   if(day>=(NR?9:6)&&!(h<8)){ why="Day6 17 時までにゴールできない"; break; }
-  if(h>=17||h<8){   // 夜: 日没まで・朝 6:15 から 8:00 まで傾けて充電
+  const hEnd=(pl.endH&&pl.endH[day+1])||17;   // その日の走行の終わり (例: 出発が遅れた日は後ろにずれる)
+  if(h>=hEnd||h<8){   // 夜: 日没まで・朝 6:15 から 8:00 まで傾けて充電
    dayKm[Math.min(6,day)]=km; const s=C.segAt(km), ss=sunset(s.lat,s.lon,C.doy0+day);
-   if(h>=17){ if(h<ss) charge(abs,day*24+ss,true); abs=(day+1)*24+6.25; } else if(h<6.25) abs=day*24+6.25;
+   if(h>=hEnd){ if(h<ss) charge(abs,day*24+ss,true); abs=(day+1)*24+6.25; } else if(h<6.25) abs=day*24+6.25;
    charge(abs,Math.floor(abs/24)*24+8,true); abs=Math.floor(abs/24)*24+8; nextPlan=0; continue; }
+  // 出発を待つ (例: 暴風の警報で全チームの出発が遅れた): その時刻まで傾けて充電
+  if(pl.holdUntil&&abs<pl.holdUntil&&pl.holdUntil-abs<12){ charge(abs,pl.holdUntil,true); abs=pl.holdUntil; nextPlan=0; continue; }
   // 暴風雨: 前縁の pl.stormLead 分前に止まる (0 = 止まらない)
   const sm=cd.storm;
   if(sm&&pl.stormLead>0&&abs>=sm.start-pl.stormLead/60&&abs<sm.start+sm.dur){ const t1=sm.start+sm.dur+0.08; charge(abs,t1,true); stormStop+=t1-abs; abs=t1; nextPlan=0; continue; }
@@ -118,7 +121,7 @@ function run(cd,pl,trace){
    if(!NR&&csI===0&&abs>sunset(s.lat,s.lon,C.doy0)){ why="Day1 の日没までに Katherine に着けない"; break; }
    const stay=0.5+(cd.csWait+pl.csExtra)/60; charge(abs,abs+stay,true); abs+=stay; csI++; }
   if(why) break; }
- const ok=!why&&km>=C.total-1e-6&&abs<=5*24+17+1e-6; if(!ok&&!why) why="Day6 17 時までにゴールできない";
+ const ok=!why&&km>=C.total-1e-6&&abs<=5*24+((pl.endH&&pl.endH[6])||17)+1e-6; if(!ok&&!why) why="Day6 17 時までにゴールできない";
  return {ok,why,fin:ok?abs:NaN,km,minSoc,dayKm,avgV:moving>0?km/moving:0,eUse:energyUse/1000,eSun:energySun/1000,stormStop,trace:tr,dayE:DE}; }
 /* 条件・方針の乱数 (傾向タブで決めた範囲から) */
 function sampleCond(r,R,years){ const u=(k)=>{ const x=R[k]; return x.fix!=null? x.fix : x.min+(x.max-x.min)*r(); };
