@@ -42,7 +42,7 @@ const Trend={
  cfg:{runs:20000,pols:200,thr:0.9,years:null}, res:null, busy:false, workers:[], filt:{years:null,storm:"all",late:[0,1],fc:[0,1]}, selPol:null,
  /* ---------- 天気のデータ (使うときだけ読み込む) ---------- */
  loadHist(){ if(typeof WEATHER_HIST!=="undefined") return Promise.resolve(); if(this._lp) return this._lp;
-  return this._lp=new Promise((res,rej)=>{ const s=document.createElement("script"); s.src="js/data/weather-hist.js?v="+(window.BUILD||""); s.onload=()=>res(); s.onerror=()=>rej(new Error("天気のデータを読み込めません")); document.head.appendChild(s); }); },
+  return this._lp=new Promise((res,rej)=>{ const s=document.createElement("script"); s.src="js/data/weather-hist.js?v="+TrendLoad.ver(); s.onload=()=>res(); s.onerror=()=>rej(new Error("天気のデータを読み込めません")); document.head.appendChild(s); }); },
  /* ---------- 事前計算 (裏のスレッドへ 1 回だけ渡す) ---------- */
  ctx(){
   const seg=[], step=2; for(let k=0;k<TOTAL_KM-1e-6;k+=step){ const len=Math.min(step,TOTAL_KM-k), p0=profileAt(k), p1=profileAt(k+len), pm=profileAt(k+len/2); let vl=200; for(let x=k;x<=k+len;x+=0.25) vl=Math.min(vl,speedLimitAt(Math.min(TOTAL_KM,x)));
@@ -71,7 +71,7 @@ const Trend={
   this.res={N,K,pols,R,years,condSeed,buf,done:0,t0,ctxInfo:{Wh:ctx.Wh,vTop:ctx.vTop},cfg:{...this.cfg}};
   await new Promise(fin=>{ let alive=0;
    const give=(w)=>{ if(this.stopReq||next>=N){ w.terminate(); if(--alive===0) fin(); return; } const n=Math.min(CH,N-next); w.postMessage({t:"job",i0:next,n,pols,R,years,condSeed,width:this.W}); next+=n; };
-   for(let i=0;i<nW;i++){ const w=new Worker("js/trend-worker.js?v="+(window.BUILD||"")); this.workers.push(w); alive++;
+   for(let i=0;i<nW;i++){ const w=new Worker("js/trend-worker.js?v="+TrendLoad.ver()); this.workers.push(w); alive++;
     w.onmessage=(e)=>{ const m=e.data; if(m.t==="ready"){ w.postMessage({t:"years",years:yearsData}); return; } if(m.t==="yearsOk"){ give(w); return; }
      if(m.t==="done"){ buf.set(m.buf,m.i0*this.W); done+=m.n; got[m.i0]=m.n; while(got[cont]) cont+=got[cont]; this.res.done=cont;   /* 集計は頭から切れ目なく済んだところまで */ const now=performance.now(); if(!this._lu||now-this._lu>700||done>=N){ this._lu=now; try{ this.aggregate(); this.ui("run",{n:done,N,rate:done/((now-t0)/1000)}); }catch(err){ console.error(err); } } give(w); } };
     w.onerror=(e)=>{ console.error(e); toast("計算でエラー: "+(e.message||""),"#ef4444"); w.terminate(); if(--alive===0) fin(); };
@@ -94,7 +94,7 @@ const Trend={
  sensitivity(){ const r=this.res, W=this.W, b=r.buf, n=r.done, out=[], vars=[...this.CK.filter(k=>k!=="year"&&k!=="storm").map(k=>({k,src:"c",label:(this.COND[k==="fcLv"?"fcErr":k]||{}).label||k})),{k:"storm",src:"c",label:"暴風雨の有無",cat:true},...Object.keys(this.POL).map(k=>({k,src:"p",label:this.POL[k].label}))];
   const idx=[]; for(let i=0;i<n;i++) if(this.mask(i)) idx.push(i); if(idx.length<50) return [];
   for(const v of vars){ const val=(i)=> v.src==="c"? b[i*W+9+this.CK.indexOf(v.k)] : r.pols[b[i*W]][v.k];
-   const vs=idx.map(val), lo=Math.min(...vs), hi=Math.max(...vs); if(!(hi>lo)) continue; const B=v.cat?2:5, bins=[...Array(B)].map(()=>({n:0,ok:0,f:0,fn:0}));
+   const vs=idx.map(val); let lo=Infinity, hi=-Infinity; for(const x of vs){ if(x<lo) lo=x; if(x>hi) hi=x; }   /* 本数が多くても大丈夫なように (… で広げない) */ if(!(hi>lo)) continue; const B=v.cat?2:5, bins=[...Array(B)].map(()=>({n:0,ok:0,f:0,fn:0}));
    idx.forEach((i,j)=>{ const t=v.cat? (vs[j]?1:0) : Math.min(B-1,Math.floor((vs[j]-lo)/(hi-lo)*B)), x=bins[t], o=i*W; x.n++; if(b[o+1]){ x.ok++; x.f+=b[o+2]; x.fn++; } });
    const rates=bins.filter(x=>x.n>=10).map(x=>x.ok/x.n), fins=bins.filter(x=>x.fn>=10).map(x=>x.f/x.fn);
    out.push({...v,dRate:rates.length>1?Math.max(...rates)-Math.min(...rates):0,dFin:fins.length>1?Math.max(...fins)-Math.min(...fins):0,
@@ -107,9 +107,9 @@ const Trend={
  async saved(){ if(this.list) return this.list; return this.list=(await Ana.DB.all()).filter(x=>x&&x.kind==="trend").sort((a,b)=>b.ts-a.ts); },
  async loadSaved(id){ const o=(await this.saved()).find(x=>x.id===id); if(!o) return; this.res={N:o.N,K:o.K,pols:o.pols,R:o.R,years:o.years,condSeed:o.condSeed,buf:o.buf,done:o.N,time:o.time,cfg:o.cfg||this.cfg,ctxInfo:o.ctxInfo}; this.selPol=null; this.aggregate(); this.ui(); },
  /* ---------- 1 本を詳しく (裏のスレッドで記録付きで走らせる) ---------- */
- async trace(pi,ci){ const r=this.res; await this.loadHist(); const w=this._tw||(this._tw=new Worker("js/trend-worker.js?v="+(window.BUILD||"")));
+ async trace(pi,ci,cond){ const r=this.res; await this.loadHist(); const w=this._tw||(this._tw=new Worker("js/trend-worker.js?v="+TrendLoad.ver()));
   if(!this._twReady){ await new Promise(res=>{ w.onmessage=(e)=>{ if(e.data.t==="ready"){ w.postMessage({t:"years",years:WEATHER_HIST.years}); } if(e.data.t==="yearsOk"){ this._twReady=true; res(); } }; w.postMessage({t:"ctx",ctx:this.ctx()}); }); }
-  return new Promise(res=>{ const id=Math.random(); w.onmessage=(e)=>{ if(e.data.t==="trace"&&e.data.id===id) res(e.data); }; w.postMessage({t:"trace",id,pol:r.pols[pi],condSeed:(r.condSeed+ci*7919)>>>0,R:r.R,years:r.years}); }); },
+  return new Promise(res=>{ const id=Math.random(); w.onmessage=(e)=>{ if(e.data.t==="trace"&&e.data.id===id) res(e.data); }; w.postMessage({t:"trace",id,pol:r.pols[pi],cond,condSeed:(r.condSeed+ci*7919)>>>0,R:r.R,years:r.years}); }); },
 };
 /* ============ 傾向タブの画面 ============ */
 Object.assign(Trend,{
@@ -133,6 +133,8 @@ Object.assign(Trend,{
    <div class="dim tr-note">1 つの方針あたり 約 ${Math.max(1,Math.floor(c.runs/c.pols))} 通りの条件で走らせます (どの方針も同じ条件の組)。CPU ${navigator.hardwareConcurrency||"?"} コアで並列。</div>
    <div class="tr-years">${years.map(y=>`<button class="${!c.years||c.years.includes(+y)?"on":""}" onclick="Trend.toggleYear(${y})">${y}</button>`).join("")}</div>
    <div class="tr-run">${run? `<button class="btn" onclick="Trend.stop()">${ic("x")}止める</button>` : `<button class="btn pri" onclick="Trend.start()">${ic("play")}実行</button>`}<select id="tr-saved" onchange="Trend.loadSaved(this.value)"><option value="">保存した結果…</option></select></div>
+   <div class="tr-io"><button class="btn ana-sm" onclick="Trend.importFile()" title="コマンド (tools/trend-cli.js) で回した結果を開く">${ic("download")}結果ファイルを読み込む</button><button class="btn ana-sm" onclick="Trend.exportCtx()" title="この端末の車両の値と、変える要素の範囲を、コマンド用に書き出す">${ic("download")}コマンド用の設定を書き出す</button></div>
+   <div class="dim tr-note">100,000 本より多く回すときは、コマンド: <code>node tools/trend-cli.js --ctx trend-ctx.json --runs 500000</code></div>
    ${run? `<div class="tr-prog"><i style="width:${(n/N*100).toFixed(1)}%"></i></div><div class="dim tr-note">${n.toLocaleString()} / ${N.toLocaleString()} 本 ${info&&info.rate? `・${info.rate.toFixed(0)} 本/秒・残り約 ${Math.max(0,(N-n)/info.rate/60).toFixed(1)} 分` : "・準備中 (天気のデータを読み込み)"}</div>` : ""}</div>
    ${Object.entries(groups).map(([g,rows])=>`<div class="hv-card"><div class="hv-h">${ic("sliders")}変える要素: ${g}</div>${rows.join("")}</div>`).join("")}
    <div class="hv-card"><div class="hv-h">${ic("sliders")}走り方の方針 (比べる範囲)</div>${Object.entries(this.POL).map(([k,d])=>row(k,d,"POL")).join("")}</div>
@@ -157,12 +159,13 @@ Object.assign(Trend,{
     <div class="tr-kpi"><div><span>完走率</span><b>${this.pct(B.rate,1)}</b></div><div><span>ゴール (平均)</span><b>${this.fmtH(B.mean)}</b></div><div><span>早い 1 割 / 遅い 1 割</span><b>${this.fmtH(B.p10)} / ${this.fmtH(B.p90)}</b></div><div><span>走らせた本数</span><b>${B.n}</b></div></div>
     <div class="tr-pol">${Object.entries(this.POL).map(([k,d])=>`<span>${escHtml(d.label)}</span><b>${this.fv(d,pol[k])}</b>`).join("")}</div>
     ${Object.keys(B.why).length? `<div class="dim tr-note">完走できなかった理由: ${Object.entries(B.why).sort((a,b)=>b[1]-a[1]).map(([w,c])=>`${escHtml(w)} ${c} 本`).join("・")}</div>` : ""}</div>
+   <div class="hv-card"><div class="hv-h">${ic("check")}ゲームの戦略計算で確かめる<button class="btn ana-sm" style="margin-left:auto" onclick="this.disabled=true;Trend.verify().finally(()=>{ this.disabled=false; })">${ic("play")}上位 5 つを確かめる</button></div><div id="tr-ver"></div></div>
    <div class="tr-grid">
     <div class="hv-card"><div class="hv-h">${ic("activity")}方針の比較 (点 = 1 つの方針。右下ほど良い。クリックで選ぶ)</div><canvas id="tr-par"></canvas></div>
     <div class="hv-card"><div class="hv-h">${ic("sliders")}要因の効き方 (値の大小で完走率がどれだけ変わるか)</div><div id="tr-sens" class="tr-sens"></div></div></div>
    <div class="hv-card"><div class="hv-h">${ic("map")}年 × 方針 (上位 12 の方針。色 = 完走率、数字 = ゴールの平均)</div><div id="tr-heat" class="tr-heat"></div></div>
    <div class="hv-card" id="tr-sel"></div>`;
-  this.drawPareto(); this.drawSens(); this.drawHeat(); this.drawSel(); },
+  this.drawPareto(); this.drawSens(); this.drawHeat(); this.drawSel(); this.drawVer(); },
  score(p){ const m=Number.isFinite(p.mean)?p.mean:999; return p.rate>=this.cfg.thr? -m : -1e6+p.rate*1e4-m*0.001; },
  drawPareto(){ const cv=document.getElementById("tr-par"); if(!cv) return; const r=this.res, P=r.P; const [c,W,H]=HVA.fit(cv); c.clearRect(0,0,W,H);
   const pts=P.map((p,i)=>({i,x:p.rate,y:p.mean})).filter(p=>p.x>=0&&Number.isFinite(p.y)); if(!pts.length) return;
@@ -189,7 +192,7 @@ Object.assign(Trend,{
   el.innerHTML=`<div class="hv-h">${ic("timer")}選んだ方針 (方針 #${i+1})<span class="dim">完走率 ${this.pct(p.rate,1)}・ゴール平均 ${this.fmtH(p.mean)}・電池の最低 平均 ${this.pct(p.minSoc)}</span></div>
    <div class="tr-pol">${Object.entries(this.POL).map(([k,d])=>`<span>${escHtml(d.label)}</span><b>${this.fv(d,pol[k])}</b>`).join("")}</div>
    <div class="tr-grid"><div><div class="hv-h">ゴール時刻の分布</div><canvas id="tr-hist"></canvas></div><div><div class="hv-h">代表の 1 本 (ゴールが中央の条件)<button class="btn ana-sm" style="margin-left:auto" onclick="Trend.showTrace(${i})">${ic("play")}走らせて見る</button></div><canvas id="tr-trace"></canvas><div class="dim tr-note" id="tr-trn"></div></div></div>`;
-  const cv=document.getElementById("tr-hist"), [c,W,H]=HVA.fit(cv); const F=p.fins; if(!F.length) return; const lo=Math.floor(Math.min(...F)), hi=Math.ceil(Math.max(...F)), B=Math.max(5,Math.min(40,(hi-lo)*2)), bins=new Array(B).fill(0); for(const x of F) bins[Math.min(B-1,Math.floor((x-lo)/(hi-lo||1)*B))]++;
+  const cv=document.getElementById("tr-hist"), [c,W,H]=HVA.fit(cv); const F=p.fins; if(!F.length) return; let mn=Infinity, mx0=-Infinity; for(const x of F){ if(x<mn) mn=x; if(x>mx0) mx0=x; } const lo=Math.floor(mn), hi=Math.ceil(mx0), B=Math.max(5,Math.min(40,(hi-lo)*2)), bins=new Array(B).fill(0); for(const x of F) bins[Math.min(B-1,Math.floor((x-lo)/(hi-lo||1)*B))]++;
   const mx=Math.max(...bins), L=30, PW=W-L-10; c.fillStyle="#f5b51c"; bins.forEach((n,k)=>{ const x=L+k/B*PW, h=n/mx*(H-30); c.fillRect(x+1,H-20-h,PW/B-2,h); });
   c.fillStyle="#8b9097"; c.font="500 10px 'Chakra Petch',sans-serif"; for(let t=lo;t<=hi;t+=Math.max(1,Math.round((hi-lo)/5))) c.fillText(this.fmtH(t),L+(t-lo)/(hi-lo||1)*PW-18,H-6); },
  async showTrace(pi){ const r=this.res, W=this.W, b=r.buf; const runs=[]; for(let i=0;i<r.done;i++){ const o=i*W; if(b[o]===pi&&this.mask(i)&&b[o+1]) runs.push([b[o+2],Math.floor(i/r.K)]); }
@@ -200,6 +203,46 @@ Object.assign(Trend,{
   c.strokeStyle="#e6e6e3"; c.beginPath(); T.forEach((t,k)=>{ k?c.lineTo(X(t[0]),Ys(t[2])):c.moveTo(X(t[0]),Ys(t[2])); }); c.stroke();
   c.fillStyle="#8b9097"; c.font="500 10px 'Chakra Petch',sans-serif"; c.fillText("速度 km/h",L+4,12); c.fillText("電池 %",L+4,h2+16); for(let k=0;k<=3000;k+=500) c.fillText(k+" km",X(k)-12,H-4);
   const cd=d.cond; document.getElementById("tr-trn").textContent=`${cd.year} 年の天気・日射 ×${(cd.solarK).toFixed(2)}・後半の悪化 ${(cd.late*100).toFixed(0)} %・予報のずれ ${(cd.fcLv*100).toFixed(0)} %${cd.storm?`・暴風雨 D${Math.floor(cd.storm.start/24)+1}`:""} → ${d.res.ok?"ゴール "+this.fmtH(d.res.fin):"完走できず ("+d.res.why+")"}・平均 ${d.res.avgV.toFixed(1)} km/h`; },
+ /* ゲームの戦略計算で確かめる: ゲームと同じ 2025 年の天気・揺らぎなしで、上位の方針を速い計算で走らせ、
+  その 2 km ごとの速度をゲームの戦略計算 (Strategy.simulate: ゲームの発電・消費・夜と CS の充電) になぞらせて、ゴール時刻と電池を比べる */
+ verCond(){ const ones=[1,1,1,1,1,1,1]; return {year:2025,solarK:1,daySd:0,fcLv:0,dayK:ones,fcDayK:ones,late:0,stormP:0,storm:null,stormMax:0,windK:1,tOff:0,effK:1,lossK:1,cdaK:1,batK:1,Wh:P.batteryWh,auxD:0,auxW:P.auxW,grid:1,csWait:0}; },
+ async verify(n=5){ const r=this.res; if(!r||!r.P||this.busy) return; await this.loadHist(); if(!WEATHER_HIST.years[2025]){ toast("2025 年の天気がありません","#ef4444"); return; }
+  const top=r.P.map((p,i)=>({p,i})).filter(x=>x.p.n).sort((a,c)=>this.score(c.p)-this.score(a.p)).slice(0,n), out=[], es=Engine.st;
+  const save={mode:P.mode,rw:P.realWeather,ev:P.event,sc:es.scenario,fc:es.fc,sp:es.stormPlan,wp:es.weatherPlan};
+  P.mode="race"; P.realWeather=true; P.event=null; es.scenario=null; es.fc=null; es.stormPlan=null;   // ゲームの戦略計算を、2025 年の実際の天気・予報のずれなしで
+  try{
+   for(const {i} of top){ const d=await this.trace(i,0,this.verCond()), T=d.res.trace||[]; if(T.length<2) continue;
+    const sp=new Float32Array(Math.ceil(TOTAL_KM/2)+2); let k0=0; for(const t of T){ const a=Math.floor(k0/2+1e-6); for(let j=a;j<Math.min(sp.length,Math.ceil(t[0]/2-1e-6));j++) sp[j]=t[3]; k0=t[0]; }
+    const vf=(g,km)=>sp[Math.min(sp.length-1,Math.floor(km/2+1e-6))]||60; vf.full=vf;
+    const g=Strategy.simulate(vf,{abs:8,km:0,soc:1,floor:-9,trace:true}), fs=T.reduce((a,t)=>Math.min(a,t[2]/100),1);
+    const at=(tr,km,col,div)=>{ for(const t of tr) if(t[0]>=km) return t[col]/(div||1); return NaN; };
+    const cs=RP_CS.map(c=>({name:c.name,fast:at(T,c.km,2,100),game:at(g.trace,c.km,2)}));
+    out.push({i,fast:{ok:d.res.ok,fin:d.res.fin,why:d.res.why,minSoc:fs,avgV:d.res.avgV},game:{ok:g.ok&&g.minSoc>0,fin:g.finishAbs,minSoc:g.minSoc,late:g.lateCS?g.lateCS.name:""},cs,curve:{fast:T.map(t=>[t[0],t[2]/100]),game:g.trace.map(t=>[t[0],t[2]])}}); }
+  } finally{ P.mode=save.mode; P.realWeather=save.rw; P.event=save.ev; es.scenario=save.sc; es.fc=save.fc; es.stormPlan=save.sp; es.weatherPlan=save.wp; }
+  r.ver=out; this.drawVer(); return out; },
+ drawVer(){ const el=document.getElementById("tr-ver"), V=this.res&&this.res.ver; if(!el) return;
+  if(!V){ el.innerHTML=`<div class="dim tr-note">上位 5 つの方針を、ゲームと同じ 2025 年の天気・揺らぎなしで速い計算で走らせ、同じ速度でゲームの戦略計算 (発電・消費・充電の計算) になぞらせて比べます。差が大きいときは、速い計算の結果を割り引いて見てください。</div>`; return; }
+  const f=(x)=>Number.isFinite(x)?(x*100).toFixed(0)+" %":"―", dh=(a,b)=>Number.isFinite(a)&&Number.isFinite(b)? ((b-a)*60>=0?"+":"")+((b-a)*60).toFixed(0)+" 分" : "―";
+  el.innerHTML=`<table class="tr-vt"><tr><th>方針</th><th>速い計算: ゴール</th><th>ゲーム: ゴール</th><th>差</th><th>電池の最低 (速い / ゲーム)</th><th>ゲームの判定</th></tr>${V.map(v=>`<tr onclick="Trend.selPol=${v.i};Trend.drawPareto();Trend.drawSel();Trend.drawVerCurve(${v.i})"><td>#${v.i+1}</td><td>${v.fast.ok?this.fmtH(v.fast.fin):"完走できず"}</td><td>${this.fmtH(v.game.fin)}</td><td>${dh(v.fast.fin,v.game.fin)}</td><td>${f(v.fast.minSoc)} / ${f(v.game.minSoc)}</td><td class="${v.game.ok&&!v.game.late?"":"bad"}">${v.game.minSoc<=0?"電池切れ":v.game.late?v.game.late+" の締め切りに遅れる":"完走"}</td></tr>`).join("")}</table>
+   <canvas id="tr-vc"></canvas><div class="dim tr-note">線 = 電池 (黄 = 速い計算、白 = ゲームの戦略計算)。行をクリックで切り替え。2025 年の天気・揺らぎなし・暴風雨なしの 1 本だけの比較。わかっている違い: ゲームの戦略計算はパネルの温度による損失を一定 (0.92) とみる (実際の走りと速い計算は気温・日射から求めるので、涼しい日は発電が多め)。速い計算は向かい風・勾配・ドライバー交代の 5 分を入れる。</div>`;
+  this.drawVerCurve(V[0]&&V[0].i); },
+ drawVerCurve(pi){ const V=this.res&&this.res.ver, v=V&&V.find(x=>x.i===pi), cv=document.getElementById("tr-vc"); if(!v||!cv) return; const [c,W,H]=HVA.fit(cv); c.clearRect(0,0,W,H);
+  const L=34, PW=W-L-10, X=(k)=>L+k/TOTAL_KM*PW, Y=(s)=>6+(1-clamp(s,0,1))*(H-24);
+  c.font="500 10px 'Chakra Petch',sans-serif"; c.fillStyle="#8b9097"; for(let s=0;s<=1;s+=0.5){ c.strokeStyle="#1a1d21"; c.beginPath(); c.moveTo(L,Y(s)); c.lineTo(W-10,Y(s)); c.stroke(); c.fillText((s*100)+" %",2,Y(s)+3); }
+  for(let k=0;k<=3000;k+=500) c.fillText(k+" km",X(k)-12,H-4);
+  for(const [key,col] of [["game","#e6e6e3"],["fast","#f5b51c"]]){ c.strokeStyle=col; c.lineWidth=1.3; c.beginPath(); v.curve[key].forEach((t,k)=>{ k?c.lineTo(X(t[0]),Y(t[1])):c.moveTo(X(t[0]),Y(t[1])); }); c.stroke(); }
+  c.fillStyle="#8b9097"; c.fillText(`方針 #${pi+1}`,L+4,14); },
+ /* コマンド (tools/trend-cli.js) との受け渡し */
+ async exportCtx(){ try{ await this.loadHist(); }catch(e){ toast(e.message,"#ef4444"); return; } const c=this.ctx(); c.pTab=[...c.pTab]; c.roll=[...c.roll]; c.loc=null; c.years={};
+  const o={kind:"trend-ctx",ts:Date.now(),ctx:c,R:this.ranges(),POL:this.POL,cfg:this.cfg}, a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([JSON.stringify(o)],{type:"application/json"})); a.download="trend-ctx.json"; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000);
+  toast("コマンド用の設定を書き出しました (この端末の車両の値を含みます。共有しないでください)","#34d399"); },
+ importFile(){ const inp=document.createElement("input"); inp.type="file"; inp.accept=".json,application/json";
+  inp.onchange=async()=>{ const f=inp.files&&inp.files[0]; if(!f) return; try{ const o=JSON.parse(await f.text()); if(o.kind!=="trend"||!o.buf||!o.pols) throw new Error("傾向の結果ファイルではありません");
+    const bin=atob(o.buf), u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i); const buf=new Float32Array(u8.buffer);
+    if(buf.length<o.N*this.W) throw new Error("ファイルが壊れています");
+    this.res={N:o.N,K:o.K,pols:o.pols,R:o.R,years:o.years,condSeed:o.condSeed,buf,done:o.N,time:o.time,cfg:o.cfg||this.cfg,ctxInfo:o.ctxInfo}; this.selPol=null; this.aggregate(); this.ui();
+    if(o.N<=200000) this.save(); toast(`読み込みました: ${o.N.toLocaleString()} 本`,"#34d399"); }catch(e){ toast("読み込めません: "+e.message,"#ef4444"); } };
+  inp.click(); },
 });
 /* ============ レポート・CSV・ドライバーの目標 ============ */
 Object.assign(Trend,{
@@ -223,6 +266,7 @@ Object.assign(Trend,{
    <h2>図</h2><div class="g2"><div><div class="sub">方針の比較 (右下ほど良い。黄 = 推奨)</div><img src="${img("tr-par")}"></div><div><div class="sub">選んだ方針のゴール時刻の分布</div><img src="${img("tr-hist")}"></div></div>
    <h2>結果を左右する要素</h2><table><tr><th>要素</th><th>完走率の幅</th><th>ゴール時刻の幅</th><th>向き</th></tr>${sens.map(s=>`<tr><td>${escHtml(s.label)}${s.src==="p"?" (方針)":""}</td><td>${(s.dRate*100).toFixed(1)} 点</td><td>${s.dFin.toFixed(1)} 時間</td><td>${s.dir>0?"大きいほど完走しやすい":s.dir<0?"小さいほど完走しやすい":"―"}</td></tr>`).join("")}</table>
    <h2>上位の方針</h2><table><tr><th>#</th><th>完走率</th><th>ゴール (平均)</th>${Object.values(this.POL).map(d=>`<th>${escHtml(d.label)}</th>`).join("")}</tr>${top.map(({p,i},k)=>`<tr><td>${k+1}</td><td>${this.pct(p.rate,1)}</td><td>${this.fmtH(p.mean)}</td>${Object.entries(this.POL).map(([kk,d])=>`<td>${this.fv(d,r.pols[i][kk])}</td>`).join("")}</tr>`).join("")}</table>
+   ${r.ver&&r.ver.length? `<h2>ゲームの戦略計算での確かめ (2025 年の天気・揺らぎなし)</h2><table><tr><th>方針</th><th>速い計算: ゴール</th><th>ゲーム: ゴール</th><th>電池の最低 (速い / ゲーム)</th><th>ゲームの判定</th></tr>${r.ver.map(v=>`<tr><td>#${v.i+1}</td><td>${v.fast.ok?this.fmtH(v.fast.fin):"完走できず"}</td><td>${this.fmtH(v.game.fin)}</td><td>${this.pct(v.fast.minSoc)} / ${this.pct(v.game.minSoc)}</td><td>${v.game.minSoc<=0?"電池切れ":v.game.late?escHtml(v.game.late)+" の締め切りに遅れる":"完走"}</td></tr>`).join("")}</table><div class="g2"><div><div class="sub">電池 (黄 = 速い計算、白 = ゲーム)</div><img src="${img("tr-vc")}"></div></div>` : ""}
    <h2>完走できなかった理由 (全部の方針)</h2><table>${Object.entries(why).sort((a,b)=>b[1]-a[1]).map(([w,c])=>`<tr><td>${escHtml(w)}</td><td>${c.toLocaleString()} 本</td></tr>`).join("")||"<tr><td>なし</td></tr>"}</table>
    <h2>変えた要素の範囲</h2><table>${cond}</table>
    ${T? `<h2>ドライバーの目標 (推奨の方針、CS 間)</h2><table><tr><th>区間</th><th>目標速度</th><th>幅 (25〜75 %)</th><th>目標電流</th></tr>${T.cs.map(x=>`<tr><td>${escHtml(x.name)}</td><td>${x.v.toFixed(0)} km/h</td><td>${x.vlo.toFixed(0)}〜${x.vhi.toFixed(0)}</td><td>${x.I.toFixed(1)} A</td></tr>`).join("")}</table>` : ""}
@@ -244,11 +288,10 @@ Object.assign(Trend,{
   const T={ts:Date.now(),pol:r.pols[pi],rate:r.P[pi].rate,n:all.length,all:agg(all),sunny:agg(cls.sunny),normal:agg(cls.normal),cloudy:agg(cls.cloudy),late:agg(cls.late)};
   const cs=[0,...RP_CS.map(c=>c.km),TOTAL_KM], names=["Darwin",...RP_CS.map(c=>c.name),"Adelaide"]; T.cs=[];
   for(let i=0;i<cs.length-1;i++){ const L=T.all.filter(x=>x&&x.k0>=cs[i]&&x.k0<cs[i+1]); if(!L.length) continue; const m=(f)=>L.reduce((a,x)=>a+x[f],0)/L.length; T.cs.push({name:`${names[i]} → ${names[i+1]}`,v:m("v"),vlo:m("vlo"),vhi:m("vhi"),I:m("I")}); }
-  this.targets=T; try{ localStorage.setItem("bwsc_targets",JSON.stringify(T)); }catch(e){}
+  this.targets=T; TrendLoad.setTargets(T);
   toast(`ドライバーの目標を作りました (${all.length} 本から)。レースの「速度指示に傾向の目標を使う」で使えます`,"#34d399"); const sel=this.selPol; this.right(); this.selPol=sel; this.drawTargets(); },
- loadTargets(){ if(this.targets) return this.targets; try{ return this.targets=JSON.parse(localStorage.getItem("bwsc_targets")||"null"); }catch(e){ return null; } },
- /* 目標 (速度指示から): km の 10 km 区間の目標。天気の傾向 (P.targetCls) を選べる */
- targetAt(km){ const T=this.loadTargets(); if(!T) return null; const L=T[P.targetCls||"all"]||T.all; if(!L) return null; const x=L[Math.min(L.length-1,Math.floor(km/10))]; return x||null; },
+ loadTargets(){ return this.targets||(this.targets=TrendLoad.targets()); },
+ targetAt(km){ return TrendLoad.targetAt(km); },
  drawTargets(){ const el=document.getElementById("tr-sel"), T=this.loadTargets(); if(!el||!T||!T.cs) return; const d=document.createElement("div"); d.className="tr-tg";
   d.innerHTML=`<div class="hv-h">${ic("flag")}ドライバーの目標 (推奨の方針・CS 間の平均)<span class="dim">${T.n} 本から・${new Date(T.ts).toLocaleString("ja-JP")}</span></div><div class="tr-tgt"><span class="lb">区間</span><span class="lb">目標速度</span><span class="lb">幅 (25〜75 %)</span><span class="lb">目標電流</span>${T.cs.map(x=>`<span>${escHtml(x.name)}</span><b>${x.v.toFixed(0)} km/h</b><span>${x.vlo.toFixed(0)}〜${x.vhi.toFixed(0)}</span><b>${x.I.toFixed(1)} A</b>`).join("")}</div>`;
   el.appendChild(d); },

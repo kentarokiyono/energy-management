@@ -297,7 +297,8 @@ const Ana={
   document.getElementById("ana-empty").textContent= this.cat==="hv"? "ヒドゥンバレーの走行がありません。予選・車検モードで走ると、自動で記録されます。" : "本戦の走行ログがありません。レースモードで走るか、CSV を読み込むか、デモを追加してください。";
   for(const id of ["ana-edit","ana-del"]) document.getElementById(id).disabled=!run;
   this.playUI();
-  if(this.cat==="trend"){ this.stopPlay(); if(typeof HVA!=="undefined") HVA.hide(); document.getElementById("ana").classList.add("cat-trend"); Trend.render(); return; }
+  if(this.cat==="trend"){ this.stopPlay(); if(typeof HVA!=="undefined") HVA.hide(); document.getElementById("ana").classList.add("cat-trend");
+   if(typeof Trend==="undefined"){ TrendLoad.load().then(()=>{ if(this.cat==="trend") Trend.render(); }).catch(e=>toast(e.message,"#ef4444")); } else Trend.render(); return; }   // 傾向の画面は開いたときに読み込む
   document.getElementById("ana").classList.remove("cat-trend"); if(typeof Trend!=="undefined") Trend.hide();
   const hv=!!run&&run.kind==="hv"; document.getElementById("ana").classList.toggle("hvm",hv);
   if(typeof HVA!=="undefined"){ if(hv){ this.stopPlay(); HVA.render(run); return; } else HVA.hide(); }

@@ -32,7 +32,7 @@ function solar(cd,W,km,abs,tilted,fc){
  const alt=sunPos(lat,lon,C.doy0+day-1,h); if(alt<=0) return 0;
  let k=cd.solarK*cd.dayK[Math.min(6,day-1)]; if(day>=4&&day<=6) k*=(1-cd.late);
  if(fc){ k=cd.solarK*cd.fcDayK[Math.min(6,day-1)]; }   // 予報 (後半の悪化は知らない)
- const dni=wx(W,"dni",km,th)*k, dhi=wx(W,"dhi",km,th)*(0.5+0.5*k), cz=Math.sin(alt);
+ const dni=wx(W,"dni",km,th+0.5)*k, dhi=wx(W,"dhi",km,th+0.5)*(0.5+0.5*k), cz=Math.sin(alt);   /* 日射は「その前の 1 時間の平均」なので半時間ずらす (ゲームと同じ) */
  let G;
  if(tilted){ const tr=C.tilt*D2R, ci=Math.max(0,Math.cos(Math.PI/2-alt-tr)); G=dni*ci*iam(ci)+dhi*(1+Math.cos(tr))/2*0.95+C.albedo*(dni*cz+dhi)*(1-Math.cos(tr))/2*0.9; G*=C.tiltK; }
  else { G=(dni*cz*iam(cz)+dhi*0.95)*pvAlt(alt); }
