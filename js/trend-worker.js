@@ -88,6 +88,8 @@ function run(cd,pl,trace){
    dayKm[Math.min(6,day)]=km; const s=C.segAt(km), ss=sunset(s.lat,s.lon,C.doy0+day);
    if(h>=17){ if(h<ss) charge(abs,day*24+ss,true); abs=(day+1)*24+6.25; } else if(h<6.25) abs=day*24+6.25;
    charge(abs,Math.floor(abs/24)*24+8,true); abs=Math.floor(abs/24)*24+8; nextPlan=0; continue; }
+  // 出発を待つ (例: 暴風の警報で全チームの出発が遅れた): その時刻まで傾けて充電
+  if(pl.holdUntil&&abs<pl.holdUntil&&pl.holdUntil-abs<12){ charge(abs,pl.holdUntil,true); abs=pl.holdUntil; nextPlan=0; continue; }
   // 暴風雨: 前縁の pl.stormLead 分前に止まる (0 = 止まらない)
   const sm=cd.storm;
   if(sm&&pl.stormLead>0&&abs>=sm.start-pl.stormLead/60&&abs<sm.start+sm.dur){ const t1=sm.start+sm.dur+0.08; charge(abs,t1,true); stormStop+=t1-abs; abs=t1; nextPlan=0; continue; }
