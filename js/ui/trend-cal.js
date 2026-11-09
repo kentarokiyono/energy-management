@@ -27,18 +27,18 @@ Object.assign(Trend,{
  calPol(){ const r=this.res; if(r&&r.P){ const bi=r.best>=0?r.best:r.fallback; if(bi>=0) return {pol:r.pols[bi],src:"推奨の方針"}; }
   return {pol:{vcap:100,floor:0.08,fcBias:1,lateBias:0,gradeK:0.3,cloudSlow:0.05,fullBoost:0.1,replanH:1,stormLead:0,csExtra:0},src:"標準的な方針"}; },
  /* 合わせ込みで走らせる方針: 電池を使い切ると、エンジンは電流を絞って遅くなり比べられないので、下限を 20 % 以上・巡航 95 km/h まで */
- calDrivePol(){ const {pol,src}=this.calPol(); return {pol:{...pol,floor:Math.max(0.2,pol.floor),vcap:Math.min(95,pol.vcap),fcBias:Math.min(0.97,pol.fcBias)},src}; },
+ calDrivePol(){ const {pol,src}=this.calPol(); return {pol:{...pol,floor:Math.max(0.2,pol.floor),vcap:Math.min(95,pol.vcap),fcBias:Math.min(0.97,pol.fcBias),noRules:true},src}; },   /* 締め切りで止めずに最後まで走る */
  async calibrate(){ if(this.busy) return; this.busy=true; const st=this.calState={p:0,msg:"準備中"}; const upd=(p,msg)=>{ st.p=p; if(msg) st.msg=msg; this.left(); };
   let w0=null, w1=null;
   try{ await this.loadHist(); if(!WEATHER_HIST.years[2025]) throw new Error("2025 年の天気がありません"); const {pol,src}=this.calDrivePol();
    upd(0.02,"速い計算で走りを作る"); w0=await this.calWorker(null); const t0=await w0.trace(pol), T0=t0.res.trace||[];
-   const N=Math.ceil(TOTAL_KM/2)+2, sp=new Float32Array(N); let k0=0; for(const t of T0){ for(let j=Math.floor(k0/2+1e-6);j<Math.min(N,Math.ceil(t[0]/2-1e-6));j++) sp[j]=t[3]; k0=t[0]; } for(let j=0;j<N;j++) if(!sp[j]) sp[j]=j? sp[j-1] : 60;
+   const N=Math.ceil(TOTAL_KM/2)+2, sp=new Float32Array(N); let k0=0; for(const t of T0){ for(let j=Math.floor(k0/2+1e-6);j<Math.min(N,Math.ceil(t[0]/2-1e-6));j++) sp[j]=t[3]; k0=t[0]; } const vm=T0.length? T0.reduce((a,t)=>a+t[3],0)/T0.length : 60; for(let j=0;j<N;j++) if(!sp[j]) sp[j]=vm;   /* 走りが途中で終わったら残りは平均の速度 */
    upd(0.05,"ゲームのエンジンで本戦を走らせる (×1 の時間)"); const E=await this.engineRun(sp,(p)=>upd(0.05+p*0.85));
    upd(0.92,"比べて倍率を出す"); const S=E.S, W=E.W, n=S.length/W, pts=new Float64Array(n*4); for(let i=0;i<n;i++){ pts[i*4]=S[i*W]; pts[i*4+1]=S[i*W+1]; pts[i*4+2]=S[i*W+2]; pts[i*4+3]=S[i*W+3]; }
    // エンジンの電池 (SOC) は電荷の割合。電圧が残量で変わるので、電力量の割合に直して比べる (速い計算は電力量)
    const ef=(soc)=>{ const T=E.efTab, x=clamp(soc,0,1)*(T.length-1), i=Math.min(T.length-2,Math.floor(x)); return T[i]+(T[i+1]-T[i])*(x-i); };
    const F=(await w0.probe(pts)).buf, A={solar:[0,0],tilt:[0,0],load:[0,0],batD:[0,0],batC:[0,0]};
-   for(let i=0;i<n;i++){ const o=i*W, v=S[o+2], tl=S[o+3], disc=S[o+8]; if(disc) continue; const fs=F[i*2], fl=F[i*2+1];
+   for(let i=0;i<n;i++){ const o=i*W, v=S[o+2], tl=S[o+3], disc=S[o+8]; if(disc) continue; const fs=F[i*3], fl=F[i*3+1];
     if(v>1){ A.solar[0]+=S[o+4]; A.solar[1]+=fs; if(fl===fl){ A.load[0]+=S[o+5]; A.load[1]+=fl; } } else if(tl){ A.tilt[0]+=S[o+4]; A.tilt[1]+=fs; }
     if(i>0&&!S[o-W+8]){ const dt=S[o+1]-S[o-W+1], ds=(ef(S[o+7])-ef(S[o-W+7]))*E.E1, pn=(S[o+6]+S[o-W+6])/2; if(dt>0&&dt<0.01){ if(pn>20){ A.batD[0]+=-ds; A.batD[1]+=pn*dt; } else if(pn<-20&&S[o+7]<0.985){ A.batC[0]+=ds; A.batC[1]+=-pn*dt; } } } }
    const k={}; for(const [key,[a,b]] of Object.entries(A)) k[key]= b>1e-6&&a>0? clamp(a/b,0.5,2) : 1;
@@ -88,7 +88,7 @@ Object.assign(Trend,{
   if(!h) return head+`<div class="dim tr-note">実行すると、過去の天気 (2005〜2025 年) を読み込んで、ここに根拠を出します。</div></div>`;
   return head+`<div class="dim tr-note" style="line-height:1.7">
    ・後半 (Day4〜6) の日射は、前半 (Day1〜3) の <b>${(h.lateMin*100).toFixed(0)}〜${(h.lateMax*100).toFixed(0)} %</b> (中央 ${(h.lateMed*100).toFixed(0)} %、2025 年 ${(h.rows.find(r=>r.y===2025)||{late:NaN}).late*100|0} %)。この落ち方は年ごとの天気にもう入っているので、「後半の低下」「日ごとの揺らぎ」は上乗せ分として小さく (0〜10 %・0〜0.05)。<br>
-   ・その年の突風 (再解析の最大瞬間風速) を、道に直角な成分にして横転の判定に使う。走行中の日最大が 20 m/s 以上の年: ${h.g20.length? h.g20.join("・") : "なし"} (${h.g20.length} / ${h.rows.length} 年)。<br>
+   ・その年の突風 (再解析の最大瞬間風速) を、道に直角な成分にして横転の判定に使う (危険度 1.5 以上で横転: 2025 年 Day3 の実車は 1.36 で横転していないため)。走行中の日最大が 20 m/s 以上の年: ${h.g20.length? h.g20.join("・") : "なし"} (${h.g20.length} / ${h.rows.length} 年)。<br>
    ・再解析は局地的な暴風雨 (ダウンバースト) を弱く見る (2025 年 Day6: 再解析 約 21〜25 m/s、実際 39 m/s)。これは「局地的な暴風雨」として別に起こす: 確率 5〜25 %・最大 28〜40 m/s。${h.hasG?"":"<br><b class=\"bad\">突風のデータがありません (天気のデータを作り直してください)</b>"}</div></div>`; },
  /* ---------- 実車のログで確かめる: 分析画面に読み込んだ計測器の CSV (日付がレース期間のもの) と、その日の過去の天気での速い計算を比べる ---------- */
  realRuns(){ return (typeof Ana!=="undefined"&&Ana.runs||[]).filter(r=>r&&r.logger&&r.rows&&r.rows.length>50&&r.rows.some(x=>Number.isFinite(x.abs))); },
@@ -97,8 +97,9 @@ Object.assign(Trend,{
    const R=run.rows.filter(r=>r.v>1&&Number.isFinite(r.abs)&&Number.isFinite(r.ps)&&Number.isFinite(r.pm)), n=R.length; if(n<30) throw new Error("走行中の行が足りません");
    const pts=new Float64Array(n*4); R.forEach((r,i)=>{ pts[i*4]=r.km; pts[i*4+1]=r.abs; pts[i*4+2]=r.v; pts[i*4+3]=0; });
    const cal=this.calActive(); w=await this.calWorker(cal,y); const F=(await w.probe(pts,{...this.verCond(),year:y},true)).buf;
-   let rs=0,fs=0,rl=0,fl=0; const bins={}; R.forEach((r,i)=>{ const a=F[i*2], b=F[i*2+1]; if(a>30){ rs+=r.ps; fs+=a; } if(b===b){ rl+=r.pm; fl+=b; } const k=Math.floor(r.abs*6)/6, q=bins[k]||(bins[k]={n:0,rs:0,fs:0,rl:0,fl:0}); q.n++; q.rs+=r.ps; q.fs+=a; q.rl+=r.pm; q.fl+=b===b?b:0; });
-   this.realRes={id,name:run.name,date:run.date,y,n,km:R[n-1].km-R[0].km,solar:fs>0?rs/fs:NaN,load:fl>0?rl/fl:NaN,cal:!!cal,series:Object.entries(bins).map(([k,q])=>[+k,q.rs/q.n,q.fs/q.n,q.rl/q.n,q.fl/q.n]).sort((a,b)=>a[0]-b[0])};
+   let rs=0,fs=0,rl=0,fl=0; const bins={}; R.forEach((r,i)=>{ const a=F[i*3], b=F[i*3+1]; if(a>30){ rs+=r.ps; fs+=a; } if(b===b){ rl+=r.pm; fl+=b; } const k=Math.floor(r.abs*6)/6, q=bins[k]||(bins[k]={n:0,rs:0,fs:0,rl:0,fl:0}); q.n++; q.rs+=r.ps; q.fs+=a; q.rl+=r.pm; q.fl+=b===b?b:0; });
+   let mr=0, mrAt=null; R.forEach((r,i)=>{ const k=F[i*3+2]; if(k>mr){ mr=k; mrAt=[r.km,r.abs,r.v]; } });   // その日の実際の走りでの横転の危険度 (その年の突風) の最大
+   this.realRes={maxRisk:mr,maxRiskAt:mrAt,id,name:run.name,date:run.date,y,n,km:R[n-1].km-R[0].km,solar:fs>0?rs/fs:NaN,load:fl>0?rl/fl:NaN,cal:!!cal,series:Object.entries(bins).map(([k,q])=>[+k,q.rs/q.n,q.fs/q.n,q.rl/q.n,q.fl/q.n]).sort((a,b)=>a[0]-b[0])};
   }catch(e){ toast("実車との比較: "+e.message,"#ef4444"); }
   finally{ if(w) w.end(); this.busy=false; this.left(); } },
  /* 比べた比を、変える要素 (発電の効率・走行の消費) の範囲の中心に (± 3 %) */
@@ -109,7 +110,7 @@ Object.assign(Trend,{
   const sel=`<div class="tr-run"><select id="tr-realsel">${L.map(x=>`<option value="${x.id}" ${r&&r.id===x.id?"selected":""}>${escHtml(x.name)} (${escHtml(x.date||"")})</option>`).join("")}</select><button class="btn ana-sm" ${this.busy?"disabled":""} onclick="Trend.realCheck(document.getElementById('tr-realsel').value)">${ic("play")}比べる</button></div>`;
   if(!r) return head+sel+`</div>`;
   const pc=(x)=>Number.isFinite(x)? "×"+x.toFixed(3) : "―";
-  return head+sel+`<div class="tr-calk"><span>${escHtml(r.date)}・${r.y} 年の天気・${r.km.toFixed(0)} km・${r.n.toLocaleString()} 点</span><b></b><span>発電 (実車 ÷ 速い計算)</span><b>${pc(r.solar)}</b><span>消費 (実車 ÷ 速い計算)</span><b>${pc(r.load)}</b></div>
+  return head+sel+`<div class="tr-calk"><span>${escHtml(r.date)}・${r.y} 年の天気・${r.km.toFixed(0)} km・${r.n.toLocaleString()} 点</span><b></b><span>発電 (実車 ÷ 速い計算)</span><b>${pc(r.solar)}</b><span>消費 (実車 ÷ 速い計算)</span><b>${pc(r.load)}</b><span>横転の危険度の最大 (この日の突風・実際の速度)</span><b>${Number.isFinite(r.maxRisk)?r.maxRisk.toFixed(2):"―"}</b></div>
    <canvas id="tr-realc"></canvas><div class="dim tr-note">10 分ごとの平均。黄 = 実車の発電、灰 = 速い計算の発電、赤 = 実車の消費、白 = 速い計算の消費。速い計算は${r.cal?"エンジンとの合わせ込み入り":"合わせ込みなし"}。天気は再解析 (約 25 km 四方の平均) なので、雲のかかり方などで 1 日の中では大きくずれることがあります。比は 1 日を通した値。</div>
    <div class="tr-run"><button class="btn ana-sm" style="white-space:normal;flex:1;line-height:1.35" onclick="Trend.realApply()">${ic("check")}この比を「発電の効率」「走行の消費」の範囲に入れる (± 3 %)</button></div></div>`; },
  drawReal(){ const cv=document.getElementById("tr-realc"), r=this.realRes; if(!cv||!r) return; const [c,W,H]=HVA.fit(cv); c.clearRect(0,0,W,H); const S=r.series; if(S.length<2) return;

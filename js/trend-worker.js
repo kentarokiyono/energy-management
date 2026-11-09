@@ -8,6 +8,9 @@
   区間の速度 = その速度 × 勾配の調整 × 曇りの減速 × 満充電の上げ。制限速度・モーターの上限で切る。暴風雨は前縁の何分前に止まるか */
 let C=null;   // 事前計算 (ゲーム側から 1 回だけ受け取る)
 const D2R=Math.PI/180;
+/* その年の突風 (再解析) で横転とみなす危険度: 再解析の突風は地点・1 時間の平均的な値なので、実車が横転しなかった値より上に置く
+ (2025 年 Day3 の実車の走り: 再解析の突風で 1.36 でも横転していない)。局地的な暴風雨 (突風を直接与える) は 1 のまま */
+const ROLL_HIST=1.5;
 function sunPos(lat,lon,doy,clockH){ const B=2*Math.PI*(doy-81)/364, eot=9.87*Math.sin(2*B)-7.53*Math.cos(B)-1.5*Math.sin(B), solarH=clockH+(4*(lon-142.5)+eot)/60, g=2*Math.PI/365*(doy-1);
  const dl=0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)-0.006758*Math.cos(2*g)+0.000907*Math.sin(2*g)-0.002697*Math.cos(3*g)+0.00148*Math.sin(3*g), la=lat*D2R, ha=(solarH-12)*15*D2R;
  const s=Math.sin(la)*Math.sin(dl)+Math.cos(la)*Math.cos(dl)*Math.cos(ha); return Math.asin(Math.max(-1,Math.min(1,s))); }
@@ -72,14 +75,14 @@ function planSpeed(cd,pl,W,st,prev){ const top=Math.min(pl.vcap,C.vTop); let lo=
 /* 1 本を走らせる (trace=true で区間ごとの記録も返す) */
 function run(cd,pl,trace){
  const W=C.years[cd.year]; if(!W) return {ok:false,why:"天気のデータなし"}; if(!cd._c){ cd._c=new Map(); cd._a=new Map(); }
- const FX=pl.sp||null;   /* 決まった速度 (2 km ごと) でなぞる: エンジンとの合わせ込み用 */
+ const FX=pl.sp||null, NR=!!pl.noRules;   /* NR: 締め切りを見ないで最後まで (合わせ込み用) */   /* 決まった速度 (2 km ごと) でなぞる: エンジンとの合わせ込み用 */
  const Wh=cd.Wh*CAP(); let abs=8+(cd.grid-1)/60, km=0, soc=1, minSoc=1, why="", vPlan=60, nextPlan=0;
  const tr=trace?[]:null, dayKm=[0,0,0,0,0,0,0]; let csI=0, dcDone=false, moving=0, energyUse=0, energySun=0, stormStop=0;
  const DE=trace?{}:null, de=(a)=>{ const d=Math.floor(a/24)+1; return DE[d]||(DE[d]={mv:0,load:0,tilt:0}); };   /* 日ごとの電力量 (記録付きのときだけ) */
  const charge=(t0,t1,tilted)=>{ for(let x=t0;x<t1-1e-6;x+=0.25){ const d=Math.min(0.25,t1-x), p=actSolar(cd,W,km,x+d/2,tilted); energySun+=p*d; if(DE&&tilted) de(x).tilt+=p*d; soc=Math.min(1,soc+bat((p-(tilted?2:cd.auxW))*d)/Wh); } };
  for(let i=0;i<C.segN&&km<C.total-1e-6;){
   const day=Math.floor(abs/24), h=abs-day*24;
-  if(day>=6&&!(h<8)){ why="Day6 17 時までにゴールできない"; break; }
+  if(day>=(NR?9:6)&&!(h<8)){ why="Day6 17 時までにゴールできない"; break; }
   if(h>=17||h<8){   // 夜: 日没まで・朝 6:15 から 8:00 まで傾けて充電
    dayKm[Math.min(6,day)]=km; const s=C.segAt(km), ss=sunset(s.lat,s.lon,C.doy0+day);
    if(h>=17){ if(h<ss) charge(abs,day*24+ss,true); abs=(day+1)*24+6.25; } else if(h<6.25) abs=day*24+6.25;
@@ -99,9 +102,9 @@ function run(cd,pl,trace){
   // 暴風雨の中を走っている: 横転の判定 (いちばん強い突風)
   if(sm&&abs+dt>sm.start&&abs<sm.start+sm.dur){ const gust= abs<sm.start+0.05? sm.max : sm.max*0.8; if(rollRisk(gust,v/3.6)>=1){ why="暴風雨で横転"; km+=0; break; } }
   // その年の実際の突風 (再解析の最大瞬間風速 × 倍率) の、道に直角な成分: 方針が警告で止まるなら止まって待つ、走り続けて危険度が 1 を超えたら横転
-  if(W.wg){ const th=abs+C.dayOff*24, gc=wx(W,"wg",km,th)*cd.gustK*Math.abs(Math.sin(wx(W,"wd",km,th)*D2R-s.b)), rk=rollRisk(gc,v/3.6);
-   if(pl.stormLead>0&&rk>=0.8&&!FX){ const t1=Math.floor(abs)+1; charge(abs,t1,false); stormStop+=t1-abs; abs=t1; nextPlan=0; continue; }
-   if(rk>=1){ why="暴風雨で横転"; break; } }
+  if(W.wg&&!NR){ const th=abs+C.dayOff*24, gc=wx(W,"wg",km,th)*cd.gustK*Math.abs(Math.sin(wx(W,"wd",km,th)*D2R-s.b)), rk=rollRisk(gc,v/3.6);
+   if(pl.stormLead>0&&rk>=ROLL_HIST*0.8&&!FX){ const t1=Math.floor(abs)+1; charge(abs,t1,false); stormStop+=t1-abs; abs=t1; nextPlan=0; continue; }
+   if(rk>=ROLL_HIST){ why="暴風雨で横転"; break; } }
   const dtT=dt*KT();   /* 加減速・減速の手前などで実際にかかる時間 (エンジンとの合わせ込み)。その間も発電する */
   soc+=bat(pNow*dtT-pD*dt)/Wh; energyUse+=pD*dt; energySun+=pNow*dtT; soc=Math.min(1,soc); if(DE){ const q=de(abs); q.mv+=pNow*dtT; q.load+=pD*dt; }
   if(soc<minSoc) minSoc=soc;
@@ -110,8 +113,8 @@ function run(cd,pl,trace){
   if(trace) tr.push([+km.toFixed(1),+abs.toFixed(3),+(soc*100).toFixed(1),Math.round(v),Math.round(pNow),Math.round(pD)]);
   // ルール: Katherine に Day1 の日没まで、CS の締め切り
   if(!dcDone&&km>=C.dc){ dcDone=true; charge(abs,abs+C.dcMin/60,true); abs+=C.dcMin/60; }
-  while(csI<C.cs.length&&km>=C.cs[csI].km){ const c=C.cs[csI]; if(abs>c.close){ why="CS の締め切りに遅れた"; break; }
-   if(csI===0&&abs>sunset(s.lat,s.lon,C.doy0)){ why="Day1 の日没までに Katherine に着けない"; break; }
+  while(csI<C.cs.length&&km>=C.cs[csI].km){ const c=C.cs[csI]; if(!NR&&abs>c.close){ why="CS の締め切りに遅れた"; break; }
+   if(!NR&&csI===0&&abs>sunset(s.lat,s.lon,C.doy0)){ why="Day1 の日没までに Katherine に着けない"; break; }
    const stay=0.5+(cd.csWait+pl.csExtra)/60; charge(abs,abs+stay,true); abs+=stay; csI++; }
   if(why) break; }
  const ok=!why&&km>=C.total-1e-6&&abs<=5*24+17+1e-6; if(!ok&&!why) why="Day6 17 時までにゴールできない";
@@ -149,10 +152,10 @@ self.onmessage=(e)=>{ const m=e.data;
   self.postMessage({t:"done",id:m.id,n,buf:out},[out.buffer]); return; }
  if(m.t==="cal"){ C.cal=m.cal; self.postMessage({t:"cal",id:m.id}); return; }   // 合わせ込みの倍率だけ入れ替える
  if(m.t==="probe"){   // 合わせ込み用: ゲームのエンジンが走った点 [km, 経過時間, 速度 km/h, 傾け (1/0)] で、速い計算の発電・消費 [W] を求める
-  const P=m.pts, n=P.length/4, out=new Float32Array(n*2), cd=m.cond, W=C.years[cd.year], cal0=C.cal; if(!m.useCal) C.cal=null; cd._c=new Map(); cd._a=new Map();   /* エンジンとの合わせ込みは補正なしの値で、実車との比較は補正入りで */
+  const P=m.pts, n=P.length/4, out=new Float32Array(n*3), cd=m.cond, W=C.years[cd.year], cal0=C.cal; if(!m.useCal) C.cal=null; cd._c=new Map(); cd._a=new Map();   /* エンジンとの合わせ込みは補正なしの値で、実車との比較は補正入りで */
   for(let j=0;j<n;j++){ const km=P[j*4], abs=P[j*4+1], v=P[j*4+2], tl=P[j*4+3]>0.5, s=C.segAt(km);
-   out[j*2]=solar(cd,W,km,abs,tl,false);
-   if(v>1){ out[j*2+1]=(pDrive(v,s.g)*cd.lossK+airExtra(cd,W,km,abs,s,v)+cd.auxD)*KL(km); } else out[j*2+1]=NaN; }
+   out[j*3]=solar(cd,W,km,abs,tl,false); { const th=abs+C.dayOff*24; out[j*3+2]= W.wg? rollRisk(wx(W,"wg",km,th)*(cd.gustK||1)*Math.abs(Math.sin(wx(W,"wd",km,th)*D2R-s.b)),v/3.6) : 0; }   /* その年の突風での横転の危険度 */
+   if(v>1){ out[j*3+1]=(pDrive(v,s.g)*cd.lossK+airExtra(cd,W,km,abs,s,v)+cd.auxD)*KL(km); } else out[j*3+1]=NaN; }
   C.cal=cal0; self.postMessage({t:"probe",id:m.id,buf:out},[out.buffer]); return; }
  if(m.t==="trace"){ const cr=rnd(m.condSeed), cd=m.cond||sampleCond(cr,m.R,m.years); const res=run(cd,m.pol,true); delete cd._c; delete cd._a; self.postMessage({t:"trace",id:m.id,res,cond:cd}); return; }
 };
