@@ -66,7 +66,7 @@ function feasible(cd,pl,W,st,v){ const WhC=cd.Wh*CAP();
   e+=bat((fcSolar(cd,W,km,abs+dt/2,false)*pl.fcBias*late(abs)-(pDrive(vk,0)*cd.lossK+cd.auxD)*KL(km))*dt);
   if(e<fl) return false;
   km+=vk*dt/KT(); abs+=dt; e=Math.min(e,WhC);
-  while(ci<C.cs.length&&km>=C.cs[ci].km){ const st2=0.5+(cd.csWait+pl.csExtra)/60; e=Math.min(WhC,e+bat(fcSolar(cd,W,km,abs+st2/2,true)*pl.fcBias*late(abs)*st2)); abs+=st2; ci++; } }
+  while(ci<C.cs.length&&km>=C.cs[ci].km){ const st2=0.5+(cd.csWait+pl.csExtra)/60; e=Math.min(WhC,e+bat(fcSolar(cd,W,km,abs+st2/2,!C.csFlat)*pl.fcBias*late(abs)*st2)); abs+=st2; ci++; } }
  return true; }
 function planSpeed(cd,pl,W,st,prev){ const top=Math.min(pl.vcap,C.vTop); let lo=25, hi=top, it=9;
  if(prev){ const a=Math.max(25,prev-10), b=Math.min(top,prev+10); if(feasible(cd,pl,W,st,a)){ lo=a; hi=b; it=6; if(b<top&&feasible(cd,pl,W,st,b)){ lo=b; hi=top; it=8; } } }   // 前の速度の近くから探す
@@ -106,7 +106,7 @@ function run(cd,pl,trace){
   // 暴風雨の中を走っている: 横転の判定 (いちばん強い突風)
   if(sm&&abs+dt>sm.start&&abs<sm.start+sm.dur){ const gust= abs<sm.start+0.05? sm.max : sm.max*0.8; if(rollRisk(gust,v/3.6)>=1){ why="暴風雨で横転"; km+=0; break; } }
   // その年の実際の突風 (再解析の最大瞬間風速 × 倍率) の、道に直角な成分: 方針が警告で止まるなら止まって待つ、走り続けて危険度が 1 を超えたら横転
-  if(W.wg&&!NR){ const th=abs+C.dayOff*24, gc=wx(W,"wg",km,th)*cd.gustK*Math.abs(Math.sin(wx(W,"wd",km,th)*D2R-s.b)), rk=rollRisk(gc,v/3.6);
+  if(W.wg&&!NR&&!pl.noGust){ const th=abs+C.dayOff*24, gc=wx(W,"wg",km,th)*cd.gustK*Math.abs(Math.sin(wx(W,"wd",km,th)*D2R-s.b)), rk=rollRisk(gc,v/3.6);
    if(pl.stormLead>0&&rk>=ROLL_HIST*0.8&&!FX){ const t1=Math.floor(abs)+1; charge(abs,t1,false); stormStop+=t1-abs; abs=t1; nextPlan=0; continue; }
    if(rk>=ROLL_HIST){ why="暴風雨で横転"; break; } }
   const dtT=dt*KT();   /* 加減速・減速の手前などで実際にかかる時間 (エンジンとの合わせ込み)。その間も発電する */
@@ -119,7 +119,7 @@ function run(cd,pl,trace){
   if(!dcDone&&km>=C.dc){ dcDone=true; charge(abs,abs+C.dcMin/60,true); abs+=C.dcMin/60; }
   while(csI<C.cs.length&&km>=C.cs[csI].km){ const c=C.cs[csI]; if(!NR&&abs>c.close){ why="CS の締め切りに遅れた"; break; }
    if(!NR&&csI===0&&abs>sunset(s.lat,s.lon,C.doy0)){ why="Day1 の日没までに Katherine に着けない"; break; }
-   const stay=0.5+(cd.csWait+pl.csExtra)/60; charge(abs,abs+stay,true); abs+=stay; csI++; }
+   const stay=0.5+(cd.csWait+pl.csExtra)/60; charge(abs,abs+stay,!C.csFlat); abs+=stay; csI++; }   /* C.csFlat: CS では傾けられない (平置きのまま) */
   if(why) break; }
  const ok=!why&&km>=C.total-1e-6&&abs<=5*24+((pl.endH&&pl.endH[6])||17)+1e-6; if(!ok&&!why) why="Day6 17 時までにゴールできない";
  return {ok,why,fin:ok?abs:NaN,km,minSoc,dayKm,avgV:moving>0?km/moving:0,eUse:energyUse/1000,eSun:energySun/1000,stormStop,trace:tr,dayE:DE}; }
