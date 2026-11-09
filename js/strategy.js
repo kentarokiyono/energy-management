@@ -14,7 +14,7 @@ const Strategy={
   return (F*vms+motorIronW(vms)+(F/PRO.kt)**2*PRO.rWinding+PRO.ctrlW+0.01*F*vms)*LossK.k()+P.auxW;   // 消費の補正 (走行ログとの合わせ込み)
  },
  /* 速度 v [km/h] で今から走り切ったときの経過 → {ok, minSoc, minKm, finishAbs, socNextCS, kmToday, lateCS} */
- /* o (任意): {abs, km, soc} から始める (走行の答え合わせ用)。o.trace があれば 2 km ごとの [km, 時刻, SOC, 速度] を残す */
+ /* o (任意): {abs, km, soc} から始める (走行の答え合わせ用)。o.trace があれば 2 km ごとの [km, 時刻, SOC, 速度] を残す。o.floor で電池の下限を変える。v は関数 v(勾配, km) でもよい */
  simulate(v,o){
   const s=Engine.st, save={doy:s.dayOfYear,km:s.km,w:s.weather}, Wh=Math.max(500,P.batteryWh), tr=o&&o.trace? [] : null;
   const pv=(G)=>P.arrayArea*P.cellEff*P.mpptEff*G*PRO.solarScale*0.92;
@@ -26,7 +26,7 @@ const Strategy={
    s.dayOfYear=PRO.dayOfYear+day-1; s.km=km; s.weather= RealWx.on()? null : ((s.fc&&s.fc.plan)||s.weatherPlan||[]).find(w=>abs>=w.start&&abs<w.start+w.dur)||null;   // 予報で見積もる
    const r=Engine.solarCalc(pr.lat,h,tilted,pr.lon,pr.elev); return pv(r.G*PVLoss.k(r.alt,tilted)); };
   const charge=(hours)=>{ for(let t=0;t<hours;t+=0.25){ const d=Math.min(0.25,hours-t); soc=Math.min(1,soc+G(true)*d/Wh); abs+=d; } };
-  const startDay=Math.floor(abs/24), FL=this.floor(); this.fcOn=true;
+  const startDay=Math.floor(abs/24), FL=o&&o.floor!=null? o.floor : this.floor(); this.fcOn=true;
   let psNow=null; const Ps0=()=>(psNow=G(false));   // 今の発電 (満タンの判定と、その区間の計算で 1 回だけ求める)
   try{
    for(let guard=0;guard<6000&&km<TOTAL_KM;guard++){
@@ -41,7 +41,7 @@ const Strategy={
     const su=typeof Storm!=="undefined"&&Storm.stopUntil(s,abs); if(su){ abs=su; continue; }   // 暴風雨: 止まって待つ (発電はほぼ無い)
     const seg=Math.min(this.SEG,TOTAL_KM-km), grade=(profileAt(km+seg).elev-profileAt(km).elev)/(seg*1000);
     // 速度配分のとき: 電池がほぼ満タン (発電を貯めきれない) なら、余る分を速度に回す
-    const vk=Math.min(typeof v==="function"? (soc>=0.97&&(this._ps=Ps0())>this.drivePower(v(grade)/3.6,grade)? v.full(grade) : v(grade)) : v,speedLimitAt(km+seg/2)), vms=vk/3.6;
+    const vk=Math.min(typeof v==="function"? (soc>=0.97&&(this._ps=Ps0())>this.drivePower(v(grade,km)/3.6,grade)? v.full(grade,km) : v(grade,km)) : v,speedLimitAt(km+seg/2)), vms=vk/3.6;
     const dt=seg/vk, Ps=psNow!=null? psNow : G(false), Pd=this.drivePower(vms,grade); psNow=null;
     soc=Math.min(1,soc+(Ps-Pd)*dt/Wh); km+=seg; abs+=dt; if(tr) tr.push([km,abs,soc,vk,dt]);
     if(soc<minSoc){ minSoc=soc; minKm=km; }

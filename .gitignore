@@ -6,3 +6,4 @@ js/data/vehicle-private.js
 node_modules/
 tests/out/
 tools/real-cache/
+tools/trend-out/

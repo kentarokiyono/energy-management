@@ -21,6 +21,7 @@ const Ana={
   return this.DB.put({id:run.id,name:run.name,date:run.date||"",demo:!!run.demo,live:!!run.live,socEst:!!run.socEst,rows:run.rows,ts:Date.now()}).then(ok=>{ if(!ok) toast("この端末に保存できませんでした (ブラウザの設定を確認)","#f59e0b"); return ok; }); },
  async loadStored(){ if(this.loaded) return; this.loaded=true;
   for(const o of await this.DB.all()){ if(!o||!o.id||!Array.isArray(o.rows)||this.runs.some(r=>r.id===o.id)) continue;
+   if(o.kind==="trend") continue;   // 傾向の結果 (傾向タブで読む)
    if(o.kind==="hv"){ if(o.hv&&o.hv.S) this.runs.push(this.hvRun(o)); continue; }
    try{ const run=this.prep({id:String(o.id),name:String(o.name||"走行"),date:String(o.date||""),demo:!!o.demo,live:false,wasLive:!!o.live,socEst:!!o.socEst,rows:o.rows}); run.stored=true; this.runs.push(run); }catch(e){} } },
  label(r){ return r.name+(r.date?` ・ ${r.date}`:""); },
@@ -129,7 +130,7 @@ const Ana={
  build(){
   if(this.built) return; this.built=true;
   const el=document.createElement("div"); el.id="ana"; el.innerHTML=`
-  <div class="ana-top"><img src="assets/img/logo.svg" class="logo" width="54" alt=""><span class="ana-ttl">RUN ANALYSIS</span><div class="seg ana-cat" id="ana-cat"><button data-c="race">本戦</button><button data-c="hv">ヒドゥンバレー</button></div>
+  <div class="ana-top"><img src="assets/img/logo.svg" class="logo" width="54" alt=""><span class="ana-ttl">RUN ANALYSIS</span><div class="seg ana-cat" id="ana-cat"><button data-c="race">本戦</button><button data-c="hv">ヒドゥンバレー</button><button data-c="trend">傾向</button></div>
    <span class="lb">走行</span><select id="ana-run"></select><button class="btn ana-sm ana-ico" id="ana-edit" title="名前・日付を編集">${ic("edit")}</button><button class="btn ana-sm ana-ico" id="ana-del" title="この走行を削除">${ic("trash")}</button>
    <span class="lb">比較</span><select id="ana-cmp"></select>
    <button class="btn ana-sm" id="ana-demo" title="お試し用のデモ走行を追加">${ic("play")}デモ</button>
@@ -217,7 +218,7 @@ const Ana={
   if(this.cur>=this.runs.length) this.cur=0;
   // 開いたときの分類: 予選・車検モードから開いたらヒドゥンバレー、それ以外は前回の分類
   let c=null; try{ c=localStorage.getItem("bwsc_ana_cat"); }catch(e){} if(P.mode==="test"&&!P.event) c="hv"; else if(live) c="race";
-  this.cat= c==="hv"? "hv" : "race";
+  this.cat= c==="hv"||c==="trend"? c : "race";
   if(this.cat==="hv"&&!this.inCat("hv").length){ let off=false; try{ off=localStorage.getItem("bwsc_ana_nodemo_hv")==="1"; }catch(e){} if(!off&&typeof HVA!=="undefined") this.runs.push(HVA.demo()); }
   const L=this.inCat(); if(!L.some(([,i])=>i===this.cur)) this.cur= L.length? L[L.length-1][1] : -1;
   if(live&&this.cat==="race"){ const i=this.runs.findIndex(r=>r.id===live.id); if(i>=0) this.cur=i; }
@@ -279,7 +280,7 @@ const Ana={
  inCat(c){ return this.runs.map((r,i)=>[r,i]).filter(([r])=>this.catOf(r)===(c||this.cat)); },
  /* ヒドゥンバレーのデモ (10 周) */
  addHVDemo(){ if(typeof HVA==="undefined") return; let i=this.runs.findIndex(r=>r.id==="hv-demo"); if(i<0){ this.runs.push(HVA.demo()); i=this.runs.length-1; } this.cur=i; this.cat="hv"; this.render(); toast("デモ走行 (10 周) を追加しました","#34d399"); },
- setCat(c){ if(c!=="race"&&c!=="hv") return; if(this.runs[this.cur]&&this.catOf(this.runs[this.cur])===this.cat) this.curBy[this.cat]=this.runs[this.cur].id;
+ setCat(c){ if(c!=="race"&&c!=="hv"&&c!=="trend") return; if(this.runs[this.cur]&&this.catOf(this.runs[this.cur])===this.cat) this.curBy[this.cat]=this.runs[this.cur].id;
   this.cat=c; try{ localStorage.setItem("bwsc_ana_cat",c); }catch(e){}
   if(c==="hv"&&!this.inCat("hv").length){ let off=false; try{ off=localStorage.getItem("bwsc_ana_nodemo_hv")==="1"; }catch(e){} if(!off&&typeof HVA!=="undefined") this.runs.push(HVA.demo()); }   // 走行が無いときはデモを出す
   const L=this.inCat(c), keep=L.find(([r])=>r.id===this.curBy[c]); this.cur= keep? keep[1] : L.length? L[L.length-1][1] : -1;
@@ -296,6 +297,9 @@ const Ana={
   document.getElementById("ana-empty").textContent= this.cat==="hv"? "ヒドゥンバレーの走行がありません。予選・車検モードで走ると、自動で記録されます。" : "本戦の走行ログがありません。レースモードで走るか、CSV を読み込むか、デモを追加してください。";
   for(const id of ["ana-edit","ana-del"]) document.getElementById(id).disabled=!run;
   this.playUI();
+  if(this.cat==="trend"){ this.stopPlay(); if(typeof HVA!=="undefined") HVA.hide(); document.getElementById("ana").classList.add("cat-trend");
+   if(typeof Trend==="undefined"||!Trend.search){ TrendLoad.load().then(()=>{ if(this.cat==="trend") Trend.render(); }).catch(e=>toast(e.message,"#ef4444")); } else Trend.render(); return; }   // 傾向の画面は開いたときに読み込む
+  document.getElementById("ana").classList.remove("cat-trend"); if(typeof Trend!=="undefined") Trend.hide();
   const hv=!!run&&run.kind==="hv"; document.getElementById("ana").classList.toggle("hvm",hv);
   if(typeof HVA!=="undefined"){ if(hv){ this.stopPlay(); HVA.render(run); return; } else HVA.hide(); }
   if(!run) return;

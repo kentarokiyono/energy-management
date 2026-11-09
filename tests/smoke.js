@@ -90,6 +90,34 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
    return {n:L.length,secOk:L.every(l=>l.sec.every(Number.isFinite)&&Math.abs(l.sec[0]+l.sec[1]+l.sec[2]-l.t)<0.3),sec:sec.map(x=>+(x/T.len).toFixed(2)),wh:L[0].wh>0,best:HVA.best(run).n,pane:document.getElementById("hv-pane").textContent.includes("理論ベスト"),drv:document.getElementById("hv-pane").textContent.includes("ドライバーごと"),res:document.getElementById("hv-pane").textContent.includes("車検テストの結果"),vis:getComputedStyle(document.getElementById("ana-hv")).display,sep,demo:(()=>{ const d=HVA.demo(), L=HVA.laps(d), V=HVA.valid(d); return L.length===10&&V.length===9&&L[9].pit&&V.every(l=>l.wh>0); })(),back:(Ana.setCat("race"),Ana.run()&&Ana.run().kind!=="hv"&&getComputedStyle(document.getElementById("ana-hv")).display==="none")}; });
   check("分析画面: ヒドゥンバレー (本戦とデータを分けて切り替え・デモ 10 周・周回・3 セクター・電力・車検・ドライバーごと)",r.n===2&&r.secOk&&r.sec[0]>0.25&&r.sec[0]<0.42&&r.sec[1]>0.58&&r.sec[1]<0.75&&r.wh&&r.best===2&&r.pane&&r.drv&&r.res&&r.vis==="grid"&&r.sep&&r.back&&r.demo&&noErr(p).length===0,JSON.stringify(r)+" "+noErr(p).slice(0,2).join(" | "));
   await p.context().close(); }
+ // ---- 傾向: 過去の天気で方針を何本も走らせる (並列) → 推奨の方針・要因・年 × 方針・1 本詳しく・ドライバーの目標 ----
+ { const p=await newPage(b,base);
+  const lazy=await p.evaluate(()=>typeof Trend==="undefined"&&typeof TrendLoad==="object");
+  const r=await p.evaluate(async()=>{ await Ana.open(); Ana.setCat("trend"); await TrendLoad.load(); await new Promise(res=>setTimeout(res,200)); Trend.cfg.mode="grid"; Trend.cfg.runs=600; Trend.cfg.pols=12; Trend.cfg.years=[2015,2025]; await Trend.start();
+   const R=Trend.res, bi=R.best>=0?R.best:R.fallback, why=new Set(); for(let i=0;i<R.done;i++) why.add(Trend.WHY[R.buf[i*Trend.W+8]]);
+   const tc=await Trend.trace(bi,0), T=tc.res.trace; Trend.filt.storm="no"; Trend.aggregate(); const tot2=R.tot; Trend.filt.storm="all"; Trend.aggregate();
+   await Trend.makeTargets(); const tg=Trend.targetAt(800); P.useTargets=true;
+   const ver=await Trend.verify(3); const vok=ver.length===3&&ver.every(v=>Number.isFinite(v.game.fin)&&v.game.fin>8&&v.curve.game.length>1000);
+   const ui=document.getElementById("ana-trend").textContent;
+   return {done:R.done,years:[...new Set([...Array(R.done)].map((_,i)=>R.buf[i*Trend.W+9]))].sort().join(","),pol:R.P.length,bi,why:[...why].filter(x=>x!==undefined),trace:T&&T.length>50&&Math.abs(T[T.length-1][0]-tc.res.km)<3&&T.every((t,k)=>!k||t[1]>=T[k-1][1]),sens:(R.sens||[]).length,tot2,rec:ui.includes("推奨の方針"),heat:document.querySelectorAll("#tr-heat tr").length,tg:!!tg&&tg.v>20&&tg.v<130,vok,vtab:document.querySelectorAll(".tr-vt tr").length,vis:getComputedStyle(document.getElementById("ana-trend")).display,
+    back:(Ana.setCat("race"),getComputedStyle(document.getElementById("ana-trend")).display==="none")}; });
+  check("傾向: 過去の天気で方針を並列に走らせ、推奨の方針・要因・年 × 方針・1 本の記録・ドライバーの目標",r.done===600&&r.years==="2015,2025"&&r.pol===12&&r.bi>=0&&r.trace&&r.sens>5&&r.tot2>0&&r.tot2<600&&r.rec&&r.heat>=2&&r.tg&&r.vok&&r.vtab===4&&lazy&&r.vis==="grid"&&r.back,JSON.stringify({lazy,...r}));
+  // 二段階の探索 (広域 → 完走率の制約付き最適化 → 上位を確かめ直す)
+  const sr=await p.evaluate(async()=>{ Trend.cfg.mode="search"; Trend.cfg.s1=400; Trend.cfg.s2=1000; Trend.cfg.years=[2019,2025]; await Trend.start(); const R=Trend.res, bi=R.best>=0?R.best:R.fallback;
+   const B=R.search.bounds, narrowed=Object.entries(B).every(([k,b])=>b.lo>=Trend.POL[k].min-1e-9&&b.hi<=Trend.POL[k].max+1e-9&&b.hi>b.lo);
+   const pk=Trend.pickFinal(), h=R.st[pk].h, held=document.querySelector(".tr-held");
+   return {done:R.done,s1:R.search.s1Done,pols:R.pols.length,fin:R.search.final.length,pick:pk===bi,hn:h&&h.n,heldUi:!!held&&/別の条件 300 通り/.test(held.textContent),look10:R.st.some(s=>s.stage===2&&s.n<Trend.SRCH.mMax),narrowed,stage2:R.st.some(s=>s.stage===2&&s.n>=30),hist:R.search.hist.length,conv:!!document.getElementById("tr-conv"),bnd:document.querySelectorAll(".tr-bnd b").length}; });
+  check("傾向: 二段階の探索 (広域で範囲を絞る → TPE・10 通りから打ち切り判定 → 上位 3 つを別の条件 300 通りで確かめ直して推奨)",sr.s1===400&&sr.done>1400&&sr.done<4000&&sr.fin===3&&sr.pick&&sr.hn===300&&sr.heldUi&&sr.look10&&sr.narrowed&&sr.stage2&&sr.conv&&sr.bnd>=8,JSON.stringify(sr));
+  // コマンド (ブラウザを開かずに回す): 結果のファイルを傾向タブで開ける
+  const outF=path.join(__dirname,"out","trend-cli.json"); let cli="";
+  try{ cli=require("child_process").execFileSync(process.execPath,[path.join(__dirname,"..","tools","trend-cli.js"),"--runs","400","--pols","8","--years","2025","--threads","2","--out",outF],{encoding:"utf8",timeout:180000,stdio:["ignore","pipe","pipe"]}); }catch(e){ cli="ERR "+e.message; }
+  const fileOk=fs.existsSync(outF)&&(()=>{ const o=JSON.parse(fs.readFileSync(outF,"utf8")); return o.kind==="trend"&&o.N===400&&Buffer.from(o.buf,"base64").length===400*25*4; })();
+  let cli2=""; const outS=path.join(__dirname,"out","trend-cli-search.json");
+  try{ cli2=require("child_process").execFileSync(process.execPath,[path.join(__dirname,"..","tools","trend-cli.js"),"--search","--s1","400","--s2","1000","--years","2025","--out",outS],{encoding:"utf8",timeout:240000,stdio:["ignore","pipe","pipe"]}); }catch(e){ cli2="ERR "+e.message; }
+  const fileS=fs.existsSync(outS)&&(()=>{ const o=JSON.parse(fs.readFileSync(outS,"utf8")); return o.kind==="trend"&&o.mode==="search"&&Buffer.from(o.buf,"base64").length===o.N*25*4&&Buffer.from(o.ci,"base64").length===o.N*4; })();
+  check("傾向: コマンドで二段階の探索",/推奨: 方針/.test(cli2)&&fileS,cli2.split("\n").filter(x=>/→|完了/.test(x)).join(" / "));
+  check("傾向: コマンドで回して結果のファイルを書く",/推奨の方針/.test(cli)&&fileOk,cli.split("\n").slice(0,3).join(" / "));
+  await p.context().close(); }
  // ---- テレメトリ (同じ PC の別ウィンドウ): つながり、値が届き、監視側から指示を送れる。外部とは通信しない ----
  { const p=await newPage(b,base);
   await p.evaluate(()=>{ window.pushChart=()=>{}; P.mode="race"; P.crewProc=false; startGame(); running=false; Engine.st.gridStartH=0; Engine.st.hour=10; Engine.st.v=20; setInterval(()=>Tele.frame(Engine.st),300); });
