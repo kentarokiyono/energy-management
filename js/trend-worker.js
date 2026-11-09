@@ -111,6 +111,9 @@ function sampleCond(r,R,years){ const u=(k)=>{ const x=R[k]; return x.fix!=null?
  return {year,daySd,fcLv,dayK,fcDayK,late,stormP:stP,storm,stormMax:storm?storm.max:0,solarK:u("solarK"),windK:u("windK"),tOff:u("tOff"),effK:u("effK"),lossK:u("lossK"),cdaK:u("cdaK"),batK:Wh/C.Wh,Wh,auxD:u("auxD"),auxW:C.auxW+u("auxD"),grid:Math.round(u("grid")),csWait:u("csWait")}; }
 function samplePolicy(r,R){ const u=(k)=>{ const x=R[k]; return x.fix!=null? x.fix : x.min+(x.max-x.min)*r(); };
  return {vcap:u("vcap"),floor:u("floor"),fcBias:u("fcBias"),lateBias:u("lateBias"),gradeK:u("gradeK"),cloudSlow:u("cloudSlow"),fullBoost:u("fullBoost"),replanH:Math.round(u("replanH")),stormLead:Math.round(u("stormLead")),csExtra:Math.round(u("csExtra"))}; }
+/* 結果の 1 行: [方針, 完走, ゴール, 電池の最低, km, 平均速度, 使った電力量, 発電量, 理由, ...条件] */
+function row(out,o,pi,res,cd){ out[o]=pi; out[o+1]=res.ok?1:0; out[o+2]=res.ok?res.fin:NaN; out[o+3]=res.minSoc; out[o+4]=res.km; out[o+5]=res.avgV; out[o+6]=res.eUse; out[o+7]=res.eSun; out[o+8]=WHY.indexOf(res.why);
+ let q=9; for(const k of CKEYS) out[o+(q++)]= k==="year"? cd.year : k==="storm"? (cd.storm?1:0) : cd[k]; }
 self.onmessage=(e)=>{ const m=e.data;
  if(m.t==="ctx"){ C=m.ctx; const S=C.seg; C.segAt=(km)=>{ let lo=0,hi=S.length-1; while(hi-lo>1){ const md=(lo+hi)>>1; if(S[md].k0<=km) lo=md; else hi=md; } return S[lo]; }; C.segN=S.length;
   C.locKm=C.loc.map(l=>l[0]); self.postMessage({t:"ready"}); return; }
@@ -121,9 +124,15 @@ self.onmessage=(e)=>{ const m=e.data;
   for(let j=0;j<m.n;j++){ const idx=m.i0+j, pi=idx%m.pols.length, ci=Math.floor(idx/m.pols.length), pl=m.pols[pi];
    if(ci!==lastCi){ cd=sampleCond(rnd((m.condSeed+ci*7919)>>>0),m.R,m.years); lastCi=ci; }
    const res=run(cd,pl,false), o=j*m.width;
-   out[o]=pi; out[o+1]=res.ok?1:0; out[o+2]=res.ok?res.fin:NaN; out[o+3]=res.minSoc; out[o+4]=res.km; out[o+5]=res.avgV; out[o+6]=res.eUse; out[o+7]=res.eSun; out[o+8]=WHY.indexOf(res.why);
-   let q=9; for(const k of CKEYS) out[o+(q++)]= k==="year"? cd.year : k==="storm"? (cd.storm?1:0) : cd[k]; }
+   row(out,o,pi,res,cd); }
   self.postMessage({t:"done",i0:m.i0,n:m.n,buf:out},[out.buffer]); return; }
+ if(m.t==="pairs"){   // 指定の (方針, 条件) の組だけ走らせる (二段階の探索)。条件の番号の順に並べてあると、条件と発電の覚えを使い回せる
+  const P=m.pairs, n=P.length/2, out=new Float32Array(n*m.width); let lastCi=-1, cd=null;
+  for(let j=0;j<n;j++){ const pi=P[j*2], ci=P[j*2+1], pl=m.pols[pi];
+   if(ci!==lastCi){ cd=sampleCond(rnd((m.condSeed+ci*7919)>>>0),m.R,m.years); lastCi=ci; }
+   const res=run(cd,pl,false), o=j*m.width;
+   row(out,o,pi,res,cd); }
+  self.postMessage({t:"done",id:m.id,n,buf:out},[out.buffer]); return; }
  if(m.t==="trace"){ const cr=rnd(m.condSeed), cd=m.cond||sampleCond(cr,m.R,m.years); const res=run(cd,m.pol,true); delete cd._c; delete cd._a; self.postMessage({t:"trace",id:m.id,res,cond:cd}); return; }
 };
 const WHY=["","電池切れ","Day6 17 時までにゴールできない","暴風雨で横転","Day1 の日没までに Katherine に着けない","CS の締め切りに遅れた","天気のデータなし"];

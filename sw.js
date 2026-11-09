@@ -11,7 +11,7 @@ self.addEventListener("install",e=>{
   await c.put("./index.html",res.clone()); await c.put("./",res.clone());
   const html=await res.text(), urls=new Set(["assets/img/logo.svg"]);
   for(const m of html.matchAll(/(?:src|href)="([^"#:]+\.(?:js|css|svg)(?:\?[^"]*)?)"/g)) if(!/vehicle-private/.test(m[1])) urls.add(m[1]);   // 実車諸元は保存しない
-  const ver=(html.match(/BUILD (\d{8}-\w+)/)||[])[1]; if(ver) for(const f of ["js/ui/trend.js","js/trend-worker.js"]) urls.add(f+"?v="+ver);   // 傾向の画面 (開いたときに読む)。20 年分の天気は大きいので使ったときに保存
+  const ver=(html.match(/BUILD (\d{8}-\w+)/)||[])[1]; if(ver) for(const f of ["js/ui/trend.js","js/ui/trend-search.js","js/trend-worker.js"]) urls.add(f+"?v="+ver);   // 傾向の画面 (開いたときに読む)。20 年分の天気は大きいので使ったときに保存
   await Promise.all([...urls].map(async u=>{ try{ const r=await fetch(u); if(r.ok) await c.put(u,r); }catch(err){} }));
   const keep=new Set([...urls].map(u=>new URL(u,self.registration.scope).href));   // 古い版 (?v= が違うもの) を消す
   for(const k of await c.keys()) if(/[?&]v=/.test(k.url)&&!keep.has(k.url)) await c.delete(k);
