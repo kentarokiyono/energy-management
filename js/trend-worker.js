@@ -76,11 +76,12 @@ function planSpeed(cd,pl,W,st,prev){ const top=Math.min(pl.vcap,C.vTop); let lo=
 function run(cd,pl,trace){
  const W=C.years[cd.year]; if(!W) return {ok:false,why:"天気のデータなし"}; if(!cd._c){ cd._c=new Map(); cd._a=new Map(); }
  const FX=pl.sp||null, NR=!!pl.noRules;   /* NR: 締め切りを見ないで最後まで (合わせ込み用) */   /* 決まった速度 (2 km ごと) でなぞる: エンジンとの合わせ込み用 */
- const Wh=cd.Wh*CAP(); let abs=8+(cd.grid-1)/60, km=0, soc=1, minSoc=1, why="", vPlan=60, nextPlan=0;
- const tr=trace?[]:null, dayKm=[0,0,0,0,0,0,0]; let csI=0, dcDone=false, moving=0, energyUse=0, energySun=0, stormStop=0;
+ const Wh=cd.Wh*CAP(), ST=pl.start;   /* ST: 途中の状態 {abs, km, soc} から始める (実車のログの続きなど) */
+ let abs=ST? ST.abs : 8+(cd.grid-1)/60, km=ST? ST.km : 0, soc=ST? ST.soc : 1, minSoc=soc, why="", vPlan=60, nextPlan=0;
+ const tr=trace?[]:null, dayKm=[0,0,0,0,0,0,0]; let csI=ST? C.cs.filter(c=>c.km<=km+1e-6).length : 0, dcDone=!!ST&&km>=C.dc, moving=0, energyUse=0, energySun=0, stormStop=0;
  const DE=trace?{}:null, de=(a)=>{ const d=Math.floor(a/24)+1; return DE[d]||(DE[d]={mv:0,load:0,tilt:0}); };   /* 日ごとの電力量 (記録付きのときだけ) */
  const charge=(t0,t1,tilted)=>{ for(let x=t0;x<t1-1e-6;x+=0.25){ const d=Math.min(0.25,t1-x), p=actSolar(cd,W,km,x+d/2,tilted); energySun+=p*d; if(DE&&tilted) de(x).tilt+=p*d; soc=Math.min(1,soc+bat((p-(tilted?2:cd.auxW))*d)/Wh); } };
- for(let i=0;i<C.segN&&km<C.total-1e-6;){
+ for(let i=ST? Math.min(C.segN-1,Math.max(0,C.seg.indexOf(C.segAt(km)))) : 0;i<C.segN&&km<C.total-1e-6;){
   const day=Math.floor(abs/24), h=abs-day*24;
   if(day>=(NR?9:6)&&!(h<8)){ why="Day6 17 時までにゴールできない"; break; }
   if(h>=17||h<8){   // 夜: 日没まで・朝 6:15 から 8:00 まで傾けて充電

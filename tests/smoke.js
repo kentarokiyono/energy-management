@@ -90,6 +90,24 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
    return {n:L.length,secOk:L.every(l=>l.sec.every(Number.isFinite)&&Math.abs(l.sec[0]+l.sec[1]+l.sec[2]-l.t)<0.3),sec:sec.map(x=>+(x/T.len).toFixed(2)),wh:L[0].wh>0,best:HVA.best(run).n,pane:document.getElementById("hv-pane").textContent.includes("理論ベスト"),drv:document.getElementById("hv-pane").textContent.includes("ドライバーごと"),res:document.getElementById("hv-pane").textContent.includes("車検テストの結果"),vis:getComputedStyle(document.getElementById("ana-hv")).display,sep,demo:(()=>{ const d=HVA.demo(), L=HVA.laps(d), V=HVA.valid(d); return L.length===10&&V.length===9&&L[9].pit&&V.every(l=>l.wh>0); })(),back:(Ana.setCat("race"),Ana.run()&&Ana.run().kind!=="hv"&&getComputedStyle(document.getElementById("ana-hv")).display==="none")}; });
   check("分析画面: ヒドゥンバレー (本戦とデータを分けて切り替え・デモ 10 周・周回・3 セクター・電力・車検・ドライバーごと)",r.n===2&&r.secOk&&r.sec[0]>0.25&&r.sec[0]<0.42&&r.sec[1]>0.58&&r.sec[1]<0.75&&r.wh&&r.best===2&&r.pane&&r.drv&&r.res&&r.vis==="grid"&&r.sep&&r.back&&r.demo&&noErr(p).length===0,JSON.stringify(r)+" "+noErr(p).slice(0,2).join(" | "));
   await p.context().close(); }
+ // ---- 分析画面: Excel (.xlsx) の計測器のログを読み込み、2 日目は前の日の終わりの距離から続ける (テスト用に小さな xlsx を作る) ----
+ { const p=await newPage(b,base);
+  const zip=(files)=>{ const parts=[], cen=[]; let off=0; for(const [name,txt] of Object.entries(files)){ const nb=Buffer.from(name), d=Buffer.from(txt), h=Buffer.alloc(30);
+    h.writeUInt32LE(0x04034b50,0); h.writeUInt16LE(20,4); h.writeUInt32LE(d.length,18); h.writeUInt32LE(d.length,22); h.writeUInt16LE(nb.length,26); parts.push(h,nb,d);
+    const c=Buffer.alloc(46); c.writeUInt32LE(0x02014b50,0); c.writeUInt16LE(20,4); c.writeUInt16LE(20,6); c.writeUInt32LE(d.length,20); c.writeUInt32LE(d.length,24); c.writeUInt16LE(nb.length,28); c.writeUInt32LE(off,42); cen.push(c,nb); off+=30+nb.length+d.length; }
+   const cd=Buffer.concat(cen), e=Buffer.alloc(22); e.writeUInt32LE(0x06054b50,0); e.writeUInt16LE(Object.keys(files).length,8); e.writeUInt16LE(Object.keys(files).length,10); e.writeUInt32LE(cd.length,12); e.writeUInt32LE(off,16); return Buffer.concat([...parts,cd,e]); };
+  const xl=(serial,v)=>{ const cell=(r,c,x)=>typeof x==="number"? `<c r="${String.fromCharCode(65+c)}${r}"><v>${x}</v></c>` : `<c r="${String.fromCharCode(65+c)}${r}" t="inlineStr"><is><t>${x}</t></is></c>`;
+   const rows=[["ZP Download Data"],[serial],["データ記録=","5秒間隔"],["No","Solar[A]","Battery[A]","Main_Volt[V]","Solar_Watt[W]","Battery_Watt[W]","Sub_Volt[V]","Speed[kmh]"]]; for(let i=1;i<=720;i++) rows.push([i,8,2,100,800,200,0,i<10?i*6:v]);
+   return zip({"[Content_Types].xml":"<Types/>","xl/workbook.xml":`<workbook xmlns:r="r"><sheets><sheet name="グラフ" sheetId="2" r:id="rId9"/><sheet name="ZPデータ" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+    "xl/_rels/workbook.xml.rels":`<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId9" Target="chartsheets/sheet1.xml"/></Relationships>`,
+    "xl/worksheets/sheet1.xml":`<worksheet><sheetData>${rows.map((r,i)=>`<row r="${i+1}">${r.map((x,c)=>cell(i+1,c,x)).join("")}</row>`).join("")}<row r="9999"/></sheetData></worksheet>`}); };
+  const dir=path.join(__dirname,"out"); fs.mkdirSync(dir,{recursive:true}); const f1=path.join(dir,"day2.xlsx"), f0=path.join(dir,"day1.xlsx"); fs.writeFileSync(f1,xl(45894.74,60)); fs.writeFileSync(f0,xl(45893.74,72));   // 2025/8/25 と 8/24 (逆の順で渡す)
+  await p.evaluate(async()=>{ await Ana.open(); Ana.setCat("race"); }); await p.setInputFiles("#ana-file",[f1,f0]);
+  await p.waitForFunction(()=>Ana.runs.filter(r=>r.logger).length>=2,null,{timeout:30000}).catch(()=>{});
+  const r=await p.evaluate(()=>Ana.runs.filter(r=>r.logger).map(r=>({date:r.date,n:r.rows.length,km0:+r.rows[0].km.toFixed(2),km1:+r.rows[r.rows.length-1].km.toFixed(2),day:Math.floor(r.rows[0].abs/24)+1})).sort((a,b)=>a.date<b.date?-1:1));
+  const ok=r.length===2&&r[0].date==="2025-08-24"&&r[1].date==="2025-08-25"&&r[0].n===720&&r[1].day===2&&Math.abs(r[1].km0-r[0].km1)<0.2&&r[0].km1>50;
+  check("分析画面: Excel (.xlsx) の計測器のログ (シートを探す・日付・2 日目は前の日から距離をつなぐ)",ok,JSON.stringify(r));
+  await p.context().close(); }
  // ---- 傾向: 過去の天気で方針を何本も走らせる (並列) → 推奨の方針・要因・年 × 方針・1 本詳しく・ドライバーの目標 ----
  { const p=await newPage(b,base);
   const lazy=await p.evaluate(()=>typeof Trend==="undefined"&&typeof TrendLoad==="object");

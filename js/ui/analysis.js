@@ -43,14 +43,33 @@ const Ana={
   const rows=RunLog.rows.map(r=>{ const o={}; for(const k in idx) o[k]=r[idx[k]]; o.abs=r[1]; return o; });
   const d=new Date(); return this.prep({id:"live-"+(RunLog.sid||"0"),date:this.ymd(Date.now()),name:`今回の走行 (${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")} 時点)`,rows,live:true});
  },
- parseCSV(text,name,date){
+ /* ファイルを読み込む (CSV・Excel、複数可)。計測器のログが 2 日目以降なら、前の日 (同じ年) のログの終わりの距離から続ける */
+ async importFiles(files){ const items=[];
+  for(const f of files){ try{ const buf=await f.arrayBuffer(), name=f.name.replace(/\.(csv|xlsx)$/i,""), date=this.ymd(f.lastModified||Date.now());
+    if(/\.xlsx$/i.test(f.name)){ const parse=(off)=>this.parseXlsx(buf,name,date,off); items.push({f,parse,run:await parse(0)}); }
+    else { let txt; try{ txt=new TextDecoder("utf-8",{fatal:true}).decode(buf); }catch(x){ txt=new TextDecoder("shift_jis").decode(buf); }   // Excel の CSV (Shift_JIS) も読む
+     const parse=async(off)=>this.parseCSV(txt,name,date,off); items.push({f,parse,run:await parse(0)}); } }
+   catch(err){ toast("読み込めません: "+escHtml(f.name)+" ― "+escHtml(err.message),"#ef4444"); } }
+  const dayOf=(r)=>r.logger&&r.rows.length&&Number.isFinite(r.rows[0].abs)? Math.floor(r.rows[0].abs/24)+1 : null;
+  items.sort((a,b)=>(dayOf(a.run)||99)-(dayOf(b.run)||99));
+  for(const it of items){ try{ let run=it.run; const d=dayOf(run);
+    if(d>1){ const pd=new Date(run.date+"T12:00:00"); pd.setDate(pd.getDate()-1); const pds=this.ymd(pd.getTime()), prev=[...this.runs,...items.map(x=>x.run)].filter(r=>r!==run&&r.logger&&r.date===pds).pop();   // 前の日 (暦の前日) のログ
+     if(prev){ const off=prev.rows[prev.rows.length-1].km; if(off>1){ run=await it.parse(off); it.run=run; } } }
+    this.runs.push(run); this.cur=this.runs.length-1; this.cat="race"; this.save(run); }catch(err){ toast("読み込めません: "+escHtml(it.f.name)+" ― "+escHtml(err.message),"#ef4444"); } } },
+ parseCSV(text,name,date,off){
   text=text.replace(/^﻿/,""); const lines=[]; let row=[], f="", q=false;
   for(let i=0;i<text.length;i++){ const c=text[i];
    if(q){ if(c==='"'){ if(text[i+1]==='"'){ f+='"'; i++; } else q=false; } else f+=c; }
    else if(c==='"') q=true; else if(c===","){ row.push(f); f=""; } else if(c==="\n"){ row.push(f.replace(/\r$/,"")); lines.push(row); row=[]; f=""; } else f+=c; }
   if(f||row.length){ row.push(f); lines.push(row); }
+  return this.parseLines(lines,name,date,off); },
+ /* Excel (.xlsx): 計測器のデータ (Speed[km/h] の列) があるシートを探して読む。無ければ最初のシートを表として */
+ async parseXlsx(buf,name,date,off){ const L=await Xlsx.sheets(buf); if(!L.length) throw new Error("シートがありません");
+  for(const sh of L){ const rows=await Xlsx.rows(L.z,sh.path); if(rows.some(l=>l.some(c=>/^Speed\[km\/?h\]$/i.test(String(c).trim())))) return this.parseLines(rows,name,date,off); }
+  return this.parseLines(await Xlsx.rows(L.z,L[0].path),name,date,off); },
+ parseLines(lines,name,date,off){ lines=lines.map(l=>(l||[]).map(c=>c==null?"":String(c)));
   const li=lines.findIndex(l=>l.some(c=>/^Speed\[km\/?h\]$/i.test(c.trim())));
-  if(li>=0&&!(lines[0]||[]).some(c=>this.COLMAP[c.trim()])) return this.fromLogger(lines,li,name,date);   // 車載の計測器の CSV
+  if(li>=0&&!(lines[0]||[]).some(c=>this.COLMAP[c.trim()])) return this.fromLogger(lines,li,name,date,off);   // 車載の計測器の CSV
   const head=lines.shift()||[], idx={}; head.forEach((c,i)=>{ const k=this.COLMAP[c.trim()]; if(k) idx[k]=i; });
   if(idx.km==null||idx.v==null) throw new Error("km と 速度 の列がありません");
   const TXT={st:1,drv:1,wx:1,memo:1};
@@ -61,12 +80,12 @@ const Ana={
  },
  /* 車載の計測器の CSV (一定間隔: 速度・発電・電池の電力・電圧)。距離は速度を積み上げ、時刻は夕方の長い停車を 17:00 として合わせ (なければ 8:30 発)、日付がレース期間ならその日の実際の天気を補い、勾配・標高はルートから補う。
   モーター側の電力 = 発電 + 電池 (電池は放電を + とする) */
- fromLogger(lines,li,name,date){
+ fromLogger(lines,li,name,date,off){
   const head=lines[li].map(c=>c.trim()), col=(re)=>head.findIndex(c=>re.test(c));
   const iV=col(/^Speed\[/i), iS=col(/^Solar_Watt\[/i), iB=col(/^Battery_Watt\[/i), iU=col(/^Main_Volt\[/i), iA=col(/^Battery\[A\]/i);
   if(iV<0||iS<0||iB<0) throw new Error("速度・発電・電池の電力の列がありません");
   let dt=5; for(const l of lines.slice(0,li)){ const m=l.join(" ").match(/(\d+(?:\.\d+)?)\s*秒間隔/); if(m) dt=+m[1]; }
-  const H0=8.5, rows=[]; let km=0, t=0, pv=0;
+  const H0=8.5, rows=[]; let km=off||0, t=0, pv=0;   // off: 前の日までに走った距離 (2 日目以降のログ)
   let no=0; for(const l of lines.slice(li+1)){ const n=+(l[0]||"").trim(); if(!/^\d+$/.test((l[0]||"").trim())||(no&&n!==no+1)) { if(no) break; continue; } no=n;   // 通し番号が途切れたら終わり (下の集計行は読まない)
    const v=+l[iV], ps=+l[iS], pb=+l[iB]; if(![v,ps,pb].every(Number.isFinite)) continue;
    km=Math.min(TOTAL_KM,km+(v+pv)/2*dt/3600); pv=v; t+=dt;
@@ -77,7 +96,9 @@ const Ana={
   let h0=H0, st=null; for(const r of rows){ if(r.v<1){ if(st==null) st=r.t; } else { if(st!=null&&r.t-st>=40/60){ const c=17-st; if(c>=7&&c<=10.5) h0=c; } st=null; } }
   if(st!=null&&rows[rows.length-1].t-st>=40/60){ const c=17-st; if(c>=7&&c<=10.5) h0=c; }
   // 日付 (見出しの日付) がレース期間なら、その日の実際の天気 (日射・気温・風) を補う → 発電の効率・向かい風込みの推定に使える
-  let day=1, doy=null; for(const l of lines.slice(0,li)){ const m=l.join(" ").match(/(20\d\d)[\/-](\d{1,2})[\/-](\d{1,2})/); if(m){ const d=new Date(+m[1],+m[2]-1,+m[3]); date=this.ymd(d); const j=Math.round((d-new Date(+m[1],0,0))/864e5); if(j-PRO.dayOfYear>=0&&j-PRO.dayOfYear<7){ doy=j; day=j-PRO.dayOfYear+1; } break; } }
+  let day=1, doy=null; for(const l of lines.slice(0,li)){ let m=l.join(" ").match(/(20\d\d)[\/-](\d{1,2})[\/-](\d{1,2})/);
+   if(!m){ const x=l.map(Number).find(v=>v>36500&&v<73000); if(x){ const d0=new Date(Date.UTC(1899,11,30)+x*864e5); m=[0,d0.getUTCFullYear(),d0.getUTCMonth()+1,d0.getUTCDate()]; } }   // Excel の日付 (通し日数)
+   if(m){ const d=new Date(+m[1],+m[2]-1,+m[3]); date=this.ymd(d); const j=Math.round((d-new Date(+m[1],0,0))/864e5); if(j-PRO.dayOfYear>=0&&j-PRO.dayOfYear<7){ doy=j; day=j-PRO.dayOfYear+1; } break; } }
   for(const r of rows){ r.day=day; r.abs=(day-1)*24+h0+r.t; r.eh=r.abs-8; const hr=h0+r.t;
    if(doy!=null&&typeof RealWx!=="undefined"&&RealWx.ok){ const q=profileAt(r.km), g=RealWx.at("ghi",q.lat,q.lon,doy,hr), t=RealWx.at("t",q.lat,q.lon,doy,hr), w=RealWx.wind(q.lat,q.lon,doy,hr);
     if(g!=null) r.ghi=g; if(t!=null) r.ta=t; if(w) r.head=-w.ws*Math.cos(w.toward-q.bearing);
@@ -134,7 +155,7 @@ const Ana={
    <span class="lb">走行</span><select id="ana-run"></select><button class="btn ana-sm ana-ico" id="ana-edit" title="名前・日付を編集">${ic("edit")}</button><button class="btn ana-sm ana-ico" id="ana-del" title="この走行を削除">${ic("trash")}</button>
    <span class="lb">比較</span><select id="ana-cmp"></select>
    <button class="btn ana-sm" id="ana-demo" title="お試し用のデモ走行を追加">${ic("play")}デモ</button>
-   <label class="btn ana-sm" title="CSV を読み込む (複数可)">${ic("upload")}CSV 読み込み<input type="file" id="ana-file" accept=".csv,text/csv" multiple hidden></label>
+   <label class="btn ana-sm" title="CSV・Excel (.xlsx) を読み込む (複数可。計測器のログは日をまたいで距離をつなぐ)">${ic("upload")}CSV・Excel 読み込み<input type="file" id="ana-file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple hidden></label>
    <span class="lb">表示</span><div class="seg" id="ana-lay"><button data-v="A">地図</button><button data-v="B">グラフ</button></div>
    <span class="lb">地図</span><div class="seg" id="ana-mode"><button data-v="band">帯</button><button data-v="elev">標高</button></div>
    <span class="lb">色</span><div class="seg" id="ana-met">${Object.entries(this.METRICS).map(([k,m])=>`<button data-v="${k}">${m.label}</button>`).join("")}</div>
@@ -154,9 +175,7 @@ const Ana={
   document.getElementById("ana-cat").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b||b.dataset.c===this.cat) return; const c=b.dataset.c; this.stopPlay(); Fade.go(()=>this.setCat(c)); });   // 本戦 / ヒドゥンバレー (フェードで切り替え)
   document.getElementById("ana-demo").onclick=()=>{ if(this.cat==="hv"){ try{ localStorage.removeItem("bwsc_ana_nodemo_hv"); }catch(e){} this.addHVDemo(); return; } try{ localStorage.removeItem("bwsc_ana_nodemo"); }catch(e){} this.emptied=false; this.addDemo(); };
   document.getElementById("ana-all").onclick=()=>{ this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); };
-  document.getElementById("ana-file").onchange=async e=>{ for(const f of e.target.files){ try{ const buf=await f.arrayBuffer(); let txt; try{ txt=new TextDecoder("utf-8",{fatal:true}).decode(buf); }catch(x){ txt=new TextDecoder("shift_jis").decode(buf); }   // Excel の CSV (Shift_JIS) も読む
-     const run=this.parseCSV(txt,f.name.replace(/\.csv$/i,""),this.ymd(f.lastModified||Date.now())); this.runs.push(run); this.cur=this.runs.length-1; this.cat="race"; this.save(run); }catch(err){ toast("読み込めません: "+escHtml(f.name)+" ― "+escHtml(err.message),"#ef4444"); } }
-   e.target.value=""; this.sel=null; this.xr=null; this.map&&(this.map.dirty=true); this.render(); };
+  document.getElementById("ana-file").onchange=async e=>{ await this.importFiles([...e.target.files]); e.target.value=""; this.sel=null; this.xr=null; this.map&&(this.map.dirty=true); this.render(); };
   addEventListener("resize",()=>{ if(this.isOpen()) this.render(); });
   // 画面の回転・表示領域の変化 (スマホ) でも描き直す
   if(window.ResizeObserver){ const ro=new ResizeObserver(()=>{ if(this.isOpen()&&!this._rz) this._rz=requestAnimationFrame(()=>{ this._rz=0; this.render(); }); }); ro.observe(document.getElementById("ana-body")); }
