@@ -8,15 +8,16 @@
  ・レポート (HTML・印刷)・CSV、ドライバーの目標 (区間ごとの目標速度・電流) を作って速度指示に使える
  天気: 2005〜2025 年の大会時期の実際の天気 (js/data/weather-hist.js、使うときだけ読み込む) */
 const Trend={
- W:25, CK:["year","solarK","daySd","late","fcLv","storm","stormMax","windK","tOff","effK","lossK","cdaK","batK","auxD","grid","csWait"],
+ W:26, CK:["year","solarK","daySd","late","fcLv","storm","stormMax","windK","tOff","effK","lossK","cdaK","batK","auxD","grid","csWait","gustK"],
  WHY:["","電池切れ","Day6 17 時までにゴールできない","暴風雨で横転","Day1 の日没までに Katherine に着けない","CS の締め切りに遅れた","天気のデータなし"],
  /* 変える要素 (条件): 既定の範囲。fix を入れると固定 */
  COND:{
   solarK:{label:"日射の全体の多さ (データ比)",min:0.92,max:1.04,unit:"×",g:"天気"},
-  daySd:{label:"日ごとの日射の揺らぎ",min:0,max:0.12,unit:"σ",g:"天気"},
-  late:{label:"後半 (Day4〜6) の日射の低下",min:0,max:0.25,unit:"",pct:true,g:"天気"},
-  stormP:{label:"暴風雨の起きる確率",min:0,max:0.4,unit:"",pct:true,g:"天気"},
-  stormMax:{label:"暴風雨の最大突風",min:22,max:40,unit:"m/s",g:"天気"},
+  daySd:{label:"日ごとの日射の揺らぎ (過去の天気に上乗せ)",min:0,max:0.05,unit:"σ",g:"天気"},
+  late:{label:"後半 (Day4〜6) の日射の低下 (過去の天気に上乗せ)",min:0,max:0.1,unit:"",pct:true,g:"天気"},
+  stormP:{label:"局地的な暴風雨 (ダウンバースト) の起きる確率",min:0.05,max:0.25,unit:"",pct:true,g:"天気"},
+  stormMax:{label:"局地的な暴風雨の最大突風",min:28,max:40,unit:"m/s",g:"天気"},
+  gustK:{label:"その年の突風の強さ (再解析比)",min:0.9,max:1.3,unit:"×",g:"天気"},
   windK:{label:"風の強さ",min:0.7,max:1.3,unit:"×",g:"天気"},
   tOff:{label:"気温のずれ",min:-3,max:3,unit:"°C",g:"天気"},
   fcErr:{label:"予報のずれ (日ごとの日射)",min:0,max:0.25,unit:"σ",g:"予報"},
@@ -46,14 +47,14 @@ const Trend={
  /* ---------- 事前計算 (裏のスレッドへ 1 回だけ渡す) ---------- */
  ctx(){
   const seg=[], step=2; for(let k=0;k<TOTAL_KM-1e-6;k+=step){ const len=Math.min(step,TOTAL_KM-k), p0=profileAt(k), p1=profileAt(k+len), pm=profileAt(k+len/2); let vl=200; for(let x=k;x<=k+len;x+=0.25) vl=Math.min(vl,speedLimitAt(Math.min(TOTAL_KM,x)));
-   seg.push({k0:k,len,g:(p1.elev-p0.elev)/(len*1000),lat:pm.lat,lon:pm.lon,b:pm.bearing,vlim:vl}); }
+   seg.push({k0:k,len,g:(p1.elev-p0.elev)/(len*1000),lat:pm.lat,lon:pm.lon,b:pm.bearing,vlim:vl,elev:pm.elev}); }
   for(let i=0;i<seg.length;i++){ let a=0,n=0; for(let j=Math.max(0,i-12);j<=Math.min(seg.length-1,i+12);j++){ a+=1/seg[j].vlim; n++; } seg[i].vlimAvg=n/a; }
   const vN=141, g0=-0.08, gStep=0.002, gN=81, pTab=new Float32Array(vN*gN); for(let gi=0;gi<gN;gi++) for(let v=0;v<vN;v++) pTab[gi*vN+v]=Strategy.drivePower(Math.max(0.3,v)/3.6,g0+gi*gStep);
   const rollC=46, rollV=41, roll=new Float32Array(rollC*rollV), es={lastRho:1.17,gLat:0,gLong:0}; for(let c=0;c<rollC;c++) for(let v=0;v<rollV;v++) roll[c*rollV+v]=VehDyn.roll(es,c,v,false).risk;
   const curve=[...Array(9)].map((_,i)=>PVLoss.k(i*10*Math.PI/180,false));
   return {seg,pTab,vN,g0,gStep,gN,roll,rollC,rollV,pvCurve:curve,tiltK:PVLoss.k(0.5,true),pvA:P.arrayArea*P.cellEff*P.mpptEff*PRO.solarScale,cellEff:P.cellEff,gamma:PANEL_TYPES[P.panel].gamma,tilt:40,albedo:PRO.albedo,
-   Wh:P.batteryWh,auxW:P.auxW,vTop:Strategy.topSpeed(true),CdA:P.Cd*P.frontal,total:TOTAL_KM,dc:RP_RULES.driverChange.km,dcMin:RP_RULES.driverChange.minutes||5,cs:RP_CS.map(c=>({km:c.km,close:Route.absHour(c.close)})),
-   doy0:PRO.dayOfYear,dayOff:2,hours:WEATHER_HIST.hours,loc:WEATHER_HIST.loc,years:{}}; },
+   yawTab:[...Array(46)].map((_,i)=>cdYawFactor(i*2*Math.PI/180)),rhoFix:PRO.airRho||0,Wh:P.batteryWh,auxW:P.auxW,vTop:Strategy.topSpeed(true),CdA:P.Cd*P.frontal,total:TOTAL_KM,dc:RP_RULES.driverChange.km,dcMin:RP_RULES.driverChange.minutes||5,cs:RP_CS.map(c=>({km:c.km,close:Route.absHour(c.close)})),
+   doy0:PRO.dayOfYear,dayOff:2,hours:WEATHER_HIST.hours,loc:WEATHER_HIST.loc,years:{},cal:this.calActive?this.calActive():null}; },   /* cal: エンジンとの合わせ込みの倍率 (js/ui/trend-cal.js) */
  ranges(){ const R={}; for(const [k,v] of Object.entries(this.COND)) R[k==="fcErr"?"fcErr":k]={min:v.min,max:v.max,fix:v.fix}; for(const [k,v] of Object.entries(this.POL)) R[k]={min:v.min,max:v.max,fix:v.fix}; return R; },
  /* 方針の組 (偏りなく散らす: ラテン超方格) */
  policies(K,seed){ const keys=Object.keys(this.POL), perm={}; let x=seed||12345; const r=()=>((x=(x*16807)%2147483647)/2147483647);
@@ -69,7 +70,7 @@ const Trend={
   const buf=new Float32Array(N*this.W); let done=0, cont=0, t0=performance.now(), next=0; const got={}; const CH=Math.max(200,Math.min(2000,Math.ceil(N/nW/8)));
   this.stopReq=false; this.workers.forEach(w=>w.terminate()); this.workers=[];
   const yearsData={}; for(const y of years) yearsData[y]=WEATHER_HIST.years[y];
-  this.res={N,K,pols,R,years,condSeed,buf,done:0,t0,ctxInfo:{Wh:ctx.Wh,vTop:ctx.vTop},cfg:{...this.cfg}};
+  this.res={N,K,pols,R,years,condSeed,buf,done:0,t0,ctxInfo:{Wh:ctx.Wh,vTop:ctx.vTop,cal:!!ctx.cal},cfg:{...this.cfg}};
   await new Promise(fin=>{ let alive=0;
    const give=(w)=>{ if(this.stopReq||next>=N){ w.terminate(); if(--alive===0) fin(); return; } const n=Math.min(CH,N-next); w.postMessage({t:"job",i0:next,n,pols,R,years,condSeed,width:this.W}); next+=n; };
    for(let i=0;i<nW;i++){ const w=new Worker("js/trend-worker.js?v="+TrendLoad.ver()); this.workers.push(w); alive++;
@@ -104,11 +105,13 @@ const Trend={
     dir: rates.length>1? Math.sign(rates[rates.length-1]-rates[0]) : 0, bins}); }
   return out.sort((a,c)=>c.dRate-a.dRate||c.dFin-a.dFin); },
  /* ---------- 保存 (この端末) ---------- */
- save(){ const r=this.res; if(!r||!r.done) return; const o={id:"trend-"+Date.now().toString(36),kind:"trend",name:`傾向 ${new Date().toLocaleString("ja-JP")}`,ts:Date.now(),N:r.done,K:r.K,pols:r.pols,R:r.R,years:r.years,condSeed:r.condSeed,cfg:r.cfg,buf:r.buf.slice(0,r.done*this.W),time:r.time,ctxInfo:r.ctxInfo,mode:r.mode,ci:r.ci?r.ci.slice(0,r.done):null,st:r.st,search:r.search,thr:r.thr,minN:r.minN};
+ save(){ const r=this.res; if(!r||!r.done) return; const o={W:this.W,id:"trend-"+Date.now().toString(36),kind:"trend",name:`傾向 ${new Date().toLocaleString("ja-JP")}`,ts:Date.now(),N:r.done,K:r.K,pols:r.pols,R:r.R,years:r.years,condSeed:r.condSeed,cfg:r.cfg,buf:r.buf.slice(0,r.done*this.W),time:r.time,ctxInfo:r.ctxInfo,mode:r.mode,ci:r.ci?r.ci.slice(0,r.done):null,st:r.st,search:r.search,thr:r.thr,minN:r.minN};
   Ana.DB.put(o).then(()=>this.prune()); this.list=null; },
  async prune(){ const all=(await Ana.DB.all()).filter(x=>x&&x.kind==="trend").sort((a,b)=>b.ts-a.ts); for(const x of all.slice(5)) Ana.DB.del(x.id); },
  async saved(){ if(this.list) return this.list; return this.list=(await Ana.DB.all()).filter(x=>x&&x.kind==="trend").sort((a,b)=>b.ts-a.ts); },
- async loadSaved(id){ const o=(await this.saved()).find(x=>x.id===id); if(!o) return; this.res={N:o.N,K:o.K,pols:o.pols,R:o.R,years:o.years,condSeed:o.condSeed,buf:o.buf,done:o.N,time:o.time,cfg:o.cfg||this.cfg,ctxInfo:o.ctxInfo,mode:o.mode,ci:o.ci||null,st:o.st,search:o.search,thr:o.thr,minN:o.minN}; this.selPol=null; this.aggregate(); this.ui(); },
+ /* 古い結果 (1 行 25 列) を今の列数に広げる */
+ padW(buf,N,w0){ if(!w0||w0===this.W) return buf; const nb=new Float32Array(N*this.W); for(let i=0;i<N;i++){ nb.set(buf.subarray(i*w0,(i+1)*w0),i*this.W); for(let j=w0;j<this.W;j++) nb[i*this.W+j]= this.CK[j-9]==="gustK"? 1 : 0; } return nb; },
+ async loadSaved(id){ const o=(await this.saved()).find(x=>x.id===id); if(!o) return; o.buf=this.padW(o.buf,o.N,o.W||25); this.res={N:o.N,K:o.K,pols:o.pols,R:o.R,years:o.years,condSeed:o.condSeed,buf:o.buf,done:o.N,time:o.time,cfg:o.cfg||this.cfg,ctxInfo:o.ctxInfo,mode:o.mode,ci:o.ci||null,st:o.st,search:o.search,thr:o.thr,minN:o.minN}; this.selPol=null; this.aggregate(); this.ui(); },
  /* ---------- 1 本を詳しく (裏のスレッドで記録付きで走らせる) ---------- */
  async trace(pi,ci,cond){ const r=this.res; await this.loadHist(); const w=this._tw||(this._tw=new Worker("js/trend-worker.js?v="+TrendLoad.ver()));
   if(!this._twReady){ await new Promise(res=>{ w.onmessage=(e)=>{ if(e.data.t==="ready"){ w.postMessage({t:"years",years:WEATHER_HIST.years}); } if(e.data.t==="yearsOk"){ this._twReady=true; res(); } }; w.postMessage({t:"ctx",ctx:this.ctx()}); }); }
@@ -143,9 +146,13 @@ Object.assign(Trend,{
    <div class="tr-io"><button class="btn ana-sm" onclick="Trend.importFile()" title="コマンド (tools/trend-cli.js) で回した結果を開く">${ic("download")}結果ファイルを読み込む</button><button class="btn ana-sm" onclick="Trend.exportCtx()" title="この端末の車両の値と、変える要素の範囲を、コマンド用に書き出す">${ic("download")}コマンド用の設定を書き出す</button></div>
    <div class="dim tr-note">100,000 本より多く回すときは、コマンド: <code>node tools/trend-cli.js --ctx trend-ctx.json --runs 500000</code></div>
    ${run? `<div class="tr-prog"><i style="width:${(n/N*100).toFixed(1)}%"></i></div><div class="dim tr-note">${n.toLocaleString()} / ${N.toLocaleString()} 本${info&&info.phase?`・${info.phase}`:""} ${info&&info.rate? `・${info.rate.toFixed(0)} 本/秒・残り約 ${Math.max(0,(N-n)/info.rate/60).toFixed(1)} 分` : "・準備中 (天気のデータを読み込み)"}</div>` : ""}</div>
+   ${this.calCard?this.calCard():""}
+   ${this.histCard?this.histCard():""}
+   ${this.realCard?this.realCard():""}
    ${Object.entries(groups).map(([g,rows])=>`<div class="hv-card"><div class="hv-h">${ic("sliders")}変える要素: ${g}</div>${rows.join("")}</div>`).join("")}
    <div class="hv-card"><div class="hv-h">${ic("sliders")}走り方の方針 (比べる範囲)</div>${Object.entries(this.POL).map(([k,d])=>row(k,d,"POL")).join("")}</div>
    <div class="dim tr-note">天気: 2005〜2025 年の大会時期の実際の天気 (Open-Meteo / ERA5 再解析, CC BY 4.0) に、上の揺らぎを加える。速い計算は 2 km ごとの区間で、ハンドル操作・交通は入らない。</div>`;
+  if(this.drawCal) this.drawCal(); if(this.drawReal) this.drawReal();
   this.saved().then(list=>{ const s=document.getElementById("tr-saved"); if(s) s.innerHTML=`<option value="">保存した結果…</option>`+list.map(o=>`<option value="${o.id}">${escHtml(o.name)} (${o.N.toLocaleString()} 本)</option>`).join(""); }); },
  toggleVar(g,k,on){ const d=this[g][k]; if(on) delete d.fix; else d.fix= +( (d.min+d.max)/2 ).toFixed(3); this.left(); },
  setVar(g,k,f,v){ const d=this[g][k]; let x=+v; if(!Number.isFinite(x)) return; if(d.pct) x/=100; d[f]=x; if(f!=="fix"&&d.min>d.max){ const t=d.min; d.min=d.max; d.max=t; this.left(); } },
@@ -214,7 +221,7 @@ Object.assign(Trend,{
   const cd=d.cond; document.getElementById("tr-trn").textContent=`${cd.year} 年の天気・日射 ×${(cd.solarK).toFixed(2)}・後半の悪化 ${(cd.late*100).toFixed(0)} %・予報のずれ ${(cd.fcLv*100).toFixed(0)} %${cd.storm?`・暴風雨 D${Math.floor(cd.storm.start/24)+1}`:""} → ${d.res.ok?"ゴール "+this.fmtH(d.res.fin):"完走できず ("+d.res.why+")"}・平均 ${d.res.avgV.toFixed(1)} km/h`; },
  /* ゲームの戦略計算で確かめる: ゲームと同じ 2025 年の天気・揺らぎなしで、上位の方針を速い計算で走らせ、
   その 2 km ごとの速度をゲームの戦略計算 (Strategy.simulate: ゲームの発電・消費・夜と CS の充電) になぞらせて、ゴール時刻と電池を比べる */
- verCond(){ const ones=[1,1,1,1,1,1,1]; return {year:2025,solarK:1,daySd:0,fcLv:0,dayK:ones,fcDayK:ones,late:0,stormP:0,storm:null,stormMax:0,windK:1,tOff:0,effK:1,lossK:1,cdaK:1,batK:1,Wh:P.batteryWh,auxD:0,auxW:P.auxW,grid:1,csWait:0}; },
+ verCond(){ const ones=[1,1,1,1,1,1,1]; return {gustK:1,year:2025,solarK:1,daySd:0,fcLv:0,dayK:ones,fcDayK:ones,late:0,stormP:0,storm:null,stormMax:0,windK:1,tOff:0,effK:1,lossK:1,cdaK:1,batK:1,Wh:P.batteryWh,auxD:0,auxW:P.auxW,grid:1,csWait:0}; },
  async verify(n=5){ const r=this.res; if(!r||!r.P||this.busy) return; await this.loadHist(); if(!WEATHER_HIST.years[2025]){ toast("2025 年の天気がありません","#ef4444"); return; }
   const top=r.P.map((p,i)=>({p,i})).filter(x=>x.p.n).sort((a,c)=>this.score(c.p)-this.score(a.p)).slice(0,n), out=[], es=Engine.st;
   const save={mode:P.mode,rw:P.realWeather,ev:P.event,sc:es.scenario,fc:es.fc,sp:es.stormPlan,wp:es.weatherPlan};
@@ -247,8 +254,8 @@ Object.assign(Trend,{
   toast("コマンド用の設定を書き出しました (この端末の車両の値を含みます。共有しないでください)","#34d399"); },
  importFile(){ const inp=document.createElement("input"); inp.type="file"; inp.accept=".json,application/json";
   inp.onchange=async()=>{ const f=inp.files&&inp.files[0]; if(!f) return; try{ const o=JSON.parse(await f.text()); if(o.kind!=="trend"||!o.buf||!o.pols) throw new Error("傾向の結果ファイルではありません");
-    const bin=atob(o.buf), u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i); const buf=new Float32Array(u8.buffer);
-    if(buf.length<o.N*this.W) throw new Error("ファイルが壊れています");
+    const bin=atob(o.buf), u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i); let buf=new Float32Array(u8.buffer);
+    const w0=o.W||25; if(buf.length<o.N*w0) throw new Error("ファイルが壊れています"); buf=this.padW(buf,o.N,w0);
     let ci=null; if(o.ci){ const b2=atob(o.ci), u2=new Uint8Array(b2.length); for(let i=0;i<b2.length;i++) u2[i]=b2.charCodeAt(i); ci=new Int32Array(u2.buffer); }
     this.res={N:o.N,K:o.K,pols:o.pols,R:o.R,years:o.years,condSeed:o.condSeed,buf,done:o.N,time:o.time,cfg:o.cfg||this.cfg,ctxInfo:o.ctxInfo,mode:o.mode,ci,st:o.st,search:o.search,thr:o.thr,minN:o.minN}; this.selPol=null; this.aggregate(); this.ui();
     if(o.N<=200000) this.save(); toast(`読み込みました: ${o.N.toLocaleString()} 本`,"#34d399"); }catch(e){ toast("読み込めません: "+e.message,"#ef4444"); } };
@@ -269,7 +276,7 @@ Object.assign(Trend,{
    .kpi{display:flex;gap:24px;margin:8px 0} .kpi div{background:#f7f7f2;border:1px solid #e5e1cf;padding:8px 12px} .kpi b{display:block;font-size:20px}
    img{max-width:100%;background:#0d0e10;border:1px solid #ccc} .g2{display:grid;grid-template-columns:1fr 1fr;gap:14px} @media print{ .noprint{display:none} body{margin:10mm} }</style></head><body>
    <button class="noprint" onclick="print()" style="float:right;padding:6px 14px">印刷 / PDF に保存</button>
-   <h1>傾向レポート ― 本戦の戦略方針</h1><div class="sub">${new Date().toLocaleString("ja-JP")}・${r.done.toLocaleString()} 本 ${r.mode==="search"? `(二段階の探索: 広域 ${(r.search.s1Done||0).toLocaleString()} 本 → 最適化・仕上げ。方針 ${r.pols.length})` : `(方針 ${r.K} × 条件 約 ${Math.floor(r.done/r.K)} 通り)`}・天気 ${r.years[0]}〜${r.years[r.years.length-1]} 年 (Open-Meteo / ERA5 再解析, CC BY 4.0)・絞り込み: ${F.storm==="all"?"暴風雨 全部":F.storm==="yes"?"暴風雨あり":"暴風雨なし"}${F.years?"・"+F.years[0]+" 年":""}</div>
+   <h1>傾向レポート ― 本戦の戦略方針</h1><div class="sub">${new Date().toLocaleString("ja-JP")}・${r.done.toLocaleString()} 本 ${r.mode==="search"? `(二段階の探索: 広域 ${(r.search.s1Done||0).toLocaleString()} 本 → 最適化・仕上げ。方針 ${r.pols.length})` : `(方針 ${r.K} × 条件 約 ${Math.floor(r.done/r.K)} 通り)`}・天気 ${r.years[0]}〜${r.years[r.years.length-1]} 年 (Open-Meteo / ERA5 再解析, CC BY 4.0)・${r.ctxInfo&&r.ctxInfo.cal?"ゲームのエンジンに合わせ込み済み":"エンジンへの合わせ込みなし"}・絞り込み: ${F.storm==="all"?"暴風雨 全部":F.storm==="yes"?"暴風雨あり":"暴風雨なし"}${F.years?"・"+F.years[0]+" 年":""}</div>
    <h2>推奨の方針</h2><div class="sub">完走率 ${this.pct(this.cfg.thr)} 以上の中で、ゴール時刻の平均が一番早いもの${r.best<0?" (下限を満たす方針がないため、完走率が一番高いもの)":""}</div>
    <div class="kpi"><div>完走率<b>${this.pct(B.rate,1)}</b></div><div>ゴール (平均)<b>${this.fmtH(B.mean)}</b></div><div>早い 1 割 / 遅い 1 割<b>${this.fmtH(B.p10)} / ${this.fmtH(B.p90)}</b></div><div>電池の最低 (平均)<b>${this.pct(B.minSoc)}</b></div></div>
    <table>${this.polRows(pol)}</table>
