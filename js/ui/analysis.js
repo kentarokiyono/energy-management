@@ -123,13 +123,15 @@ const Ana={
    rows.push({t:t/3600,day:1,km,v,ps,pm:ps+pb,net:-pb,soc:NaN,el:profileAt(km).elev,gr:d>0?(e1-e0)/(d*1000)*100:0,st:v>0.5?"走行":"停車",vt:iU>=0?+l[iU]:NaN,ia:iA>=0?+l[iA]:NaN}); }
   if(rows.length<10) throw new Error("データ行がありません");
   // 時刻 (ログの始まりが何時か): まず「その日の走り終わり = 17:00」(17 時で止まるので)。朝・夕方は傾けて充電で止まっているので、停車の長さでは決めない
-  let h0=H0; { let lm=-1; rows.forEach((r,i)=>{ if(r.v>1) lm=i; }); if(lm>0){ const c=17-rows[lm].t; if(c>=5&&c<=10) h0=c; } }
+  let h0=H0, h0Set=false; { let lm=-1; rows.forEach((r,i)=>{ if(r.v>1) lm=i; }); if(lm>0){ const c=17-rows[lm].t; if(c>=5&&c<=10) h0=c; } }
+  // 毎朝 8:00 スタート: 朝の停車 (傾けての充電) のあと、10 分以上続けて走り出したところを 8:00 とする (無ければ下の日射の重なりで)
+  { let run0=null, gap=0; for(const r of rows){ if(r.v>5){ if(run0==null) run0=r.t; gap=0; if(r.t-run0>=10/60){ const c=8-run0; if(c>=4.5&&c<=8.5){ h0=c; h0Set=true; } break; } } else if(run0!=null){ gap+=r===rows[0]?0:dt/3600; if(gap>1/60){ run0=null; gap=0; } } } }
   // 日付 (見出しの日付) がレース期間なら、その日の実際の天気 (日射・気温・風) を補う → 発電の効率・向かい風込みの推定に使える
   let day=1, doy=null; for(const l of lines.slice(0,li)){ let m=l.join(" ").match(/(20\d\d)[\/-](\d{1,2})[\/-](\d{1,2})/);
    if(!m){ const x=l.map(Number).find(v=>v>36500&&v<73000); if(x){ const d0=new Date(Date.UTC(1899,11,30)+x*864e5); m=[0,d0.getUTCFullYear(),d0.getUTCMonth()+1,d0.getUTCDate()]; } }   // Excel の日付 (通し日数)
    if(m){ const d=new Date(+m[1],+m[2]-1,+m[3]); date=this.ymd(d); const j=Math.round((d-new Date(+m[1],0,0))/864e5); if(j-PRO.dayOfYear>=0&&j-PRO.dayOfYear<7){ doy=j; day=j-PRO.dayOfYear+1; } break; } }
-  // レース期間で実際の天気があれば: 走行中 (パネルは平置き) の発電と、その時刻・場所の全天日射の重なりが一番よい始まりの時刻を選ぶ (± 2 時間、5 分きざみ)
-  if(doy!=null&&typeof RealWx!=="undefined"&&RealWx.ok){ const S=rows.filter((r,i)=>r.v>5&&i%12===0); if(S.length>60){ const Q=S.map(r=>profileAt(r.km));
+  // 8:00 の走り出しが見つからず、レース期間で実際の天気があれば: 走行中 (パネルは平置き) の発電と、その時刻・場所の全天日射の重なりが一番よい始まりの時刻を選ぶ (± 2 時間、5 分きざみ)
+  if(!h0Set&&doy!=null&&typeof RealWx!=="undefined"&&RealWx.ok){ const S=rows.filter((r,i)=>r.v>5&&i%12===0); if(S.length>60){ const Q=S.map(r=>profileAt(r.km));
     let best=null; for(let c=h0-2;c<=h0+2+1e-9;c+=1/12){ let n=0,sx=0,sy=0,sxx=0,syy=0,sxy=0; S.forEach((r,k)=>{ const g=RealWx.at("ghi",Q[k].lat,Q[k].lon,doy,c+r.t); if(g==null) return; n++; sx+=g; sy+=r.ps; sxx+=g*g; syy+=r.ps*r.ps; sxy+=g*r.ps; });
      if(n<40) continue; const cc=(n*sxy-sx*sy)/Math.sqrt(Math.max(1e-9,(n*sxx-sx*sx)*(n*syy-sy*sy))); if(!best||cc>best.cc) best={c,cc}; }
     if(best&&best.cc>0.6) h0=best.c; } }
