@@ -107,8 +107,9 @@ const Ana={
   let socEst=false;
   if(iU>=0&&iA>=0&&rows.every(r=>Number.isFinite(r.vt))){ const R=Phys.rInt(25,0.5), oc=rows.map(r=>r.vt+(Number.isFinite(r.ia)?r.ia:0)*R), n=Math.max(1,Math.round(150/dt));
    const inv=(V)=>{ const f=(V-PRO.vEmpty)/(PRO.vFull-PRO.vEmpty); if(f<=0) return 0; if(f>=1) return 1; for(let i=1;i<OCV_TBL.length;i++){ const [s1,f1]=OCV_TBL[i]; if(f<=f1){ const [s0,f0]=OCV_TBL[i-1]; return s0+(s1-s0)*(f-f0)/(f1-f0); } } return 1; };
-   let sum=0; const pre=[0]; for(const v of oc){ sum+=v; pre.push(sum); }
-   rows.forEach((r,i)=>{ const a=Math.max(0,i-n), b=Math.min(rows.length,i+n+1); r.soc=inv((pre[b]-pre[a])/(b-a))*100; }); socEst=true; }
+   // 電圧が明らかに低い記録 (夜に電池を切り離している間など。空の電池の電圧の 6 割未満) は使わない
+   const ok=rows.map(r=>r.vt>=PRO.vEmpty*0.6); let sum=0, cnt=0; const pre=[0], pc=[0]; oc.forEach((v,i)=>{ if(ok[i]){ sum+=v; cnt++; } pre.push(sum); pc.push(cnt); });
+   rows.forEach((r,i)=>{ const a=Math.max(0,i-n), b=Math.min(rows.length,i+n+1), c=pc[b]-pc[a]; r.soc= ok[i]&&c>0? inv((pre[b]-pre[a])/c)*100 : NaN; }); socEst=true; }
   return this.prep({id:this.newId("log"),name,date:date||"",rows,logger:true,socEst});
  },
  prep(run){
