@@ -55,7 +55,36 @@ const Ana={
   for(const it of items){ try{ let run=it.run; const d=dayOf(run);
     if(d>1){ const pd=new Date(run.date+"T12:00:00"); pd.setDate(pd.getDate()-1); const pds=this.ymd(pd.getTime()), prev=[...this.runs,...items.map(x=>x.run)].filter(r=>r!==run&&r.logger&&r.date===pds).pop();   // 前の日 (暦の前日) のログ
      if(prev){ const off=prev.rows[prev.rows.length-1].km; if(off>1){ run=await it.parse(off); it.run=run; } } }
-    this.runs.push(run); this.cur=this.runs.length-1; this.cat="race"; this.save(run); }catch(err){ toast("読み込めません: "+escHtml(it.f.name)+" ― "+escHtml(err.message),"#ef4444"); } } },
+    this.runs.push(run); this.cur=this.runs.length-1; this.cat="race"; }catch(err){ toast("読み込めません: "+escHtml(it.f.name)+" ― "+escHtml(err.message),"#ef4444"); } }
+  try{ this.socFuse(); }catch(err){ console.error(err); }   // 電池の残量: 電力の積算と休止中の電圧を合わせる (日をまたいで)
+  for(const it of items) if(this.runs.includes(it.run)) this.save(it.run); },
+ /* 計測器のログの電池の残量 (SOC) を、電力の積算と電圧の両方から出す
+  ・電圧だけだと、充電の直後や電流が流れている間は高め・低めに出る。電力の積算だけだと日ごとに少しずつずれる (充電を多めに数えるなど)
+  ・そこで「休止に近い点」(電流 3 A 以内が 10 分続き、大きな電流 (8 A 超) から 20 分以上たった点) でだけ電圧から残量を決め (電流 × 内部抵抗で補正)、
+    その間は電力の積算でつなぐ。点ごとのずれは、前後の点の間で時間に比例して配る
+  ・暦で続いた日のログは、夜は電池を切り離していて変わらないものとしてつなぐ
+  ・内部抵抗は、電流が急に変わった前後の電圧の差から求める (足りなければ電池モデルの値) */
+ socFuse(){ const L=this.runs.filter(r=>r.logger&&r.rows&&r.rows.length&&r.rows.some(x=>Number.isFinite(x.vt))).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0); if(!L.length) return;
+  const E1=CAP_AH()*[...Array(100)].reduce((a,_,i)=>a+VOC((i+0.5)/100)/100,0), EF=[0]; { let a=0; for(let i=1;i<=100;i++){ a+=VOC((i-0.5)/100)/100; EF.push(a); } for(let i=0;i<=100;i++) EF[i]/=a; }
+  const ef=(soc)=>{ const x=clamp(soc,0,1)*100, i=Math.min(99,Math.floor(x)); return EF[i]+(EF[i+1]-EF[i])*(x-i); }, efInv=(e)=>{ e=clamp(e,0,1); let i=0; while(i<99&&EF[i+1]<e) i++; return (i+(e-EF[i])/((EF[i+1]-EF[i])||1))/100; };
+  const inv=(V)=>{ const f=(V-PRO.vEmpty)/(PRO.vFull-PRO.vEmpty); if(f<=0) return 0; if(f>=1) return 1; for(let i=1;i<OCV_TBL.length;i++){ const [s1,f1]=OCV_TBL[i]; if(f<=f1){ const [s0,f0]=OCV_TBL[i-1]; return s0+(s1-s0)*(f-f0)/(f1-f0); } } return 1; };
+  const ok=(x)=>Number.isFinite(x.vt)&&x.vt>=PRO.vEmpty*0.6&&Number.isFinite(x.ia);
+  // 内部抵抗
+  const rr=[]; for(const run of L){ const R=run.rows; for(let i=1;i<R.length;i++){ const a=R[i-1], c=R[i]; if(!ok(a)||!ok(c)||c.t-a.t>1/120) continue; const dI=c.ia-a.ia; if(Math.abs(dI)>=5){ const r=-(c.vt-a.vt)/dI; if(r>0&&r<1) rr.push(r); } } }
+  rr.sort((a,b)=>a-b); const Rint= rr.length>=30? rr[Math.floor(rr.length/2)] : Phys.rInt(25,0.5);
+  // 日をまたいだ鎖ごとに
+  const chains=[]; for(const run of L){ const c=chains[chains.length-1], prev=c&&c[c.length-1]; const pd=prev&&new Date(prev.date+"T12:00:00"); if(pd) pd.setDate(pd.getDate()+1); if(prev&&this.ymd(pd.getTime())===run.date) c.push(run); else chains.push([run]); }
+  for(const ch of chains){ const P=[]; let C=0;   // P: 全行 {row, c=積算 [Wh]}
+   for(const run of ch){ const R=run.rows; R.forEach((x,i)=>{ const dt=i? x.t-R[i-1].t : 0; if(dt>0&&dt<0.01){ const net=-(x.pm-x.ps); if(Number.isFinite(net)) C+= net>0? net*dt*0.97 : net*dt; } P.push({x,c:C,run}); }); }
+   // 休止に近い点 (10 分に 1 つ)
+   const A=[]; let calm=0, big=-1e9, last=null;
+   P.forEach((p,k)=>{ const x=p.x, dt=k&&P[k-1].run===p.run? x.t-P[k-1].x.t : 0, I=Math.abs(x.ia||0); if(k&&P[k-1].run!==p.run){ calm=0; big=-1e9; }
+    if(!ok(x)){ calm=0; return; } if(I>8) big=x.t; calm= I<3? calm+dt : 0;
+    if(calm>=10/60&&x.t-big>=1/3&&(!last||last.run!==p.run||x.t-last.x.t>=1/6)){ const e=ef(inv(x.vt+x.ia*Rint))*E1; A.push({k,off:e-p.c}); last=p; } });
+   if(!A.length) continue;
+   let j=0; P.forEach((p,k)=>{ while(j<A.length-1&&A[j+1].k<=k) j++; let off; if(k<=A[0].k) off=A[0].off; else if(j>=A.length-1) off=A[A.length-1].off; else { const a=A[j], b=A[j+1], u=(k-a.k)/((b.k-a.k)||1); off=a.off+(b.off-a.off)*u; }
+    const e=(p.c+off)/E1; p.x.socE=clamp(e,0,1)*100; p.x.soc= ok(p.x)||Number.isFinite(p.x.socE)? efInv(e)*100 : NaN; });
+   for(const run of ch){ run.socFused=true; run.socInfo={anchors:A.filter(a=>P[a.k].run===run).length,Rint}; } } },
  parseCSV(text,name,date,off){
   text=text.replace(/^﻿/,""); const lines=[]; let row=[], f="", q=false;
   for(let i=0;i<text.length;i++){ const c=text[i];
