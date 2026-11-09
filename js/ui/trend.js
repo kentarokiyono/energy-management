@@ -54,7 +54,7 @@ const Trend={
   const curve=[...Array(9)].map((_,i)=>PVLoss.k(i*10*Math.PI/180,false));
   return {seg,pTab,vN,g0,gStep,gN,roll,rollC,rollV,pvCurve:curve,tiltK:PVLoss.k(0.5,true),pvA:P.arrayArea*P.cellEff*P.mpptEff*PRO.solarScale,cellEff:P.cellEff,gamma:PANEL_TYPES[P.panel].gamma,tilt:40,albedo:PRO.albedo,
    yawTab:[...Array(46)].map((_,i)=>cdYawFactor(i*2*Math.PI/180)),rhoFix:PRO.airRho||0,Wh:P.batteryWh,auxW:P.auxW,vTop:Strategy.topSpeed(true),CdA:P.Cd*P.frontal,total:TOTAL_KM,dc:RP_RULES.driverChange.km,dcMin:RP_RULES.driverChange.minutes||5,cs:RP_CS.map(c=>({km:c.km,close:Route.absHour(c.close)})),
-   doy0:PRO.dayOfYear,dayOff:2,hours:WEATHER_HIST.hours,loc:WEATHER_HIST.loc,years:{},cal:this.calActive?this.calActive():null}; },   /* cal: エンジンとの合わせ込みの倍率 (js/ui/trend-cal.js) */
+   doy0:PRO.dayOfYear,dayOff:2,hours:WEATHER_HIST.hours,loc:WEATHER_HIST.loc,years:{},cal:this.calActive?this.calActive():null,csFlat:this.cfg.csTilt===false}; },   /* csFlat: CS で傾けて充電しない (できない) */   /* cal: エンジンとの合わせ込みの倍率 (js/ui/trend-cal.js) */
  ranges(){ const R={}; for(const [k,v] of Object.entries(this.COND)) R[k==="fcErr"?"fcErr":k]={min:v.min,max:v.max,fix:v.fix}; for(const [k,v] of Object.entries(this.POL)) R[k]={min:v.min,max:v.max,fix:v.fix}; return R; },
  /* 方針の組 (偏りなく散らす: ラテン超方格) */
  policies(K,seed){ const keys=Object.keys(this.POL), perm={}; let x=seed||12345; const r=()=>((x=(x*16807)%2147483647)/2147483647);
@@ -134,6 +134,7 @@ Object.assign(Trend,{
   const groups={}; for(const [k,d] of Object.entries(this.COND)) (groups[d.g]=groups[d.g]||[]).push(row(k,d,"COND"));
   const run=state==="run"||this.busy, n=info&&info.n||0, N=info&&info.N||c.runs;
   L.innerHTML=`<div class="hv-card"><div class="hv-h">${ic("play")}実行</div>
+   <div class="tr-f"><label class="chk" style="padding:2px 0;border:0;background:none" title="外すと、CS (30 分の停車) では平置きのまま充電 (朝・夕方は傾ける)"><input type="checkbox" ${c.csTilt!==false?"checked":""} onchange="Trend.cfg.csTilt=this.checked"><i></i>CS で傾けて充電する</label></div>
    <div class="tr-f"><label>探索<select onchange="Trend.cfg.mode=this.value;Trend.left()"><option value="search" ${c.mode!=="grid"?"selected":""}>二段階 (広域 → 最適化)</option><option value="grid" ${c.mode==="grid"?"selected":""}>総当たり</option></select></label></div>
    ${c.mode!=="grid"? `   <div class="tr-f tr-pre">予算${[[2000,5000,"標準 (約 10 秒)"],[10000,40000,"多め (約 1〜2 分)"],[40000,200000,"最大 (約 5〜8 分)"]].map(([a,b,l])=>`<button class="${c.s1===a&&c.s2===b?"on":""}" onclick="Trend.cfg.s1=${a};Trend.cfg.s2=${b};Trend.left()">${l}</button>`).join("")}</div>
    <div class="tr-f"><label>広域<input type="number" min="400" max="100000" step="100" value="${c.s1}" onchange="Trend.cfg.s1=clamp(+this.value||2000,400,100000);Trend.left()"> 本</label><label>最適化<input type="number" min="1000" max="1000000" step="500" value="${c.s2}" onchange="Trend.cfg.s2=clamp(+this.value||5000,1000,1000000);Trend.left()"> 本</label></div>
