@@ -63,12 +63,12 @@ function check(name,ok,info){ out.push(`${ok?"PASS":"FAIL"}  ${name}${info?"  ("
    }
    const H=Orders.summary(), fin=es.teams.filter(t=>t.status==="fin").length, dnf=es.teams.filter(t=>t.status==="dnf").length;
    const avgV=TOTAL_KM/Math.max(0.1,es.drivingHours);
-   return {minAt:window._minAt,smp:window._smp,cl:window._cl,tb:window._tb,idle:window._idle,avgV,drv:es.drivingHours,penalty:es.penaltySec,dayKm:window._dayKm,steps,km:es.km,finished:es.finished,trailer:!es.competing,day:es.day,hour:es.hour,minSoc,maxSpd,orders,cs,passed:es.passedCP.size,
+   return {minAt:window._minAt,smp:window._smp,cl:window._cl,tb:window._tb,idle:window._idle,avgV,drv:es.drivingHours,penalty:es.penaltySec,dayKm:window._dayKm,steps,km:es.km,finished:es.finished,totalKm:TOTAL_KM,trailer:!es.competing,day:es.day,hour:es.hour,minSoc,maxSpd,orders,cs,passed:es.passedCP.size,
     ordersHist:H?H.n:0,trailerWhy:Radio.log.map(x=>x.replace(/<[^>]+>/g,"")).filter(x=>/トレーラー/.test(x)).slice(0,2),teamsFin:fin,teamsDnf:dnf,teamsMax:Math.max(...es.teams.map(t=>t.km)),bad,penalty:es.penaltySec};
   },real);
   const tag=real?"実際の天気":"気候値の天気";
   check(`${tag}: 壊れた値・おかしな動きなし`,r.bad.length===0&&errs.length===0,(r.bad.concat(errs)).slice(0,4).join(" | "));
-  check(`${tag}: ゴールまで走れる`,r.finished||r.km>=TOTAL_KM-1,`${r.km.toFixed(1)} km・Day${r.day} ${r.hour.toFixed(2)}・${r.trailer?"トレーラーあり":"自走"}・最低 SOC ${(r.minSoc*100).toFixed(1)} % (${r.minAt})・ステップ ${r.steps}・平均 ${r.avgV.toFixed(1)} km/h・走行 ${r.drv.toFixed(1)} h・日ごと ${JSON.stringify(r.dayKm)}${r.trailerWhy.length?"・"+r.trailerWhy.join(" / "):""}`);
+  check(`${tag}: ゴールまで走れる`,r.finished||r.km>=r.totalKm-1,`${r.km.toFixed(1)} km・Day${r.day} ${r.hour.toFixed(2)}・${r.trailer?"トレーラーあり":"自走"}・最低 SOC ${(r.minSoc*100).toFixed(1)} % (${r.minAt})・ステップ ${r.steps}・平均 ${r.avgV.toFixed(1)} km/h・走行 ${r.drv.toFixed(1)} h・日ごと ${JSON.stringify(r.dayKm)}${r.trailerWhy.length?"・"+r.trailerWhy.join(" / "):""}`);
   check(`${tag}: CS 9 か所を通過`,r.passed>=9,`通過 ${r.passed}`);
   check(`${tag}: 速度指示が出続ける`,r.orders>=200&&r.ordersHist>=50,`指示 ${r.orders} 回・採点 ${r.ordersHist} 区間`);
   check(`${tag}: 他チームが進む`,r.teamsMax>2000&&r.teamsFin+r.teamsDnf>=1,`先頭 ${r.teamsMax.toFixed(0)} km・ゴール ${r.teamsFin}・リタイア ${r.teamsDnf}`);

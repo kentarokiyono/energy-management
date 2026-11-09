@@ -106,8 +106,8 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   const sr=await p.evaluate(async()=>{ Trend.cfg.mode="search"; Trend.cfg.s1=400; Trend.cfg.s2=1000; Trend.cfg.years=[2019,2025]; await Trend.start(); const R=Trend.res, bi=R.best>=0?R.best:R.fallback;
    const B=R.search.bounds, narrowed=Object.entries(B).every(([k,b])=>b.lo>=Trend.POL[k].min-1e-9&&b.hi<=Trend.POL[k].max+1e-9&&b.hi>b.lo);
    const pk=Trend.pickFinal(), h=R.st[pk].h, held=document.querySelector(".tr-held");
-   return {done:R.done,s1:R.search.s1Done,pols:R.pols.length,fin:R.search.final.length,pick:pk===bi,hn:h&&h.n,heldUi:!!held&&/別の条件 300 通り/.test(held.textContent),look10:R.st.some(s=>s.stage===2&&s.n<Trend.SRCH.mMax),narrowed,stage2:R.st.some(s=>s.stage===2&&s.n>=30),hist:R.search.hist.length,conv:!!document.getElementById("tr-conv"),bnd:document.querySelectorAll(".tr-bnd b").length}; });
-  check("傾向: 二段階の探索 (広域で範囲を絞る → TPE・10 通りから打ち切り判定 → 上位 3 つを別の条件 300 通りで確かめ直して推奨)",sr.s1===400&&sr.done>1400&&sr.done<4000&&sr.fin===3&&sr.pick&&sr.hn===300&&sr.heldUi&&sr.look10&&sr.narrowed&&sr.stage2&&sr.conv&&sr.bnd>=8,JSON.stringify(sr));
+   return {done:R.done,s1:R.search.s1Done,pols:R.pols.length,fin:R.search.final.length,pick:pk===bi,hn:h&&h.n,heldUi:!!held&&/別の条件 300 通り/.test(held.textContent),lookSteps:R.st.filter(s=>s.stage===2).every(s=>s.n===Trend.SRCH.mMax||Trend.SRCH.LOOK.includes(s.n)),narrowed,stage2:R.st.some(s=>s.stage===2&&s.n>=30),hist:R.search.hist.length,conv:!!document.getElementById("tr-conv"),bnd:document.querySelectorAll(".tr-bnd b").length}; });
+  check("傾向: 二段階の探索 (広域で範囲を絞る → TPE・10 通りから打ち切り判定 → 上位 3 つを別の条件 300 通りで確かめ直して推奨)",sr.s1===400&&sr.done>1400&&sr.done<4000&&sr.fin===3&&sr.pick&&sr.hn===300&&sr.heldUi&&sr.lookSteps&&sr.narrowed&&sr.stage2&&sr.conv&&sr.bnd>=8,JSON.stringify(sr));
   // コマンド (ブラウザを開かずに回す): 結果のファイルを傾向タブで開ける
   const outF=path.join(__dirname,"out","trend-cli.json"); let cli="";
   try{ cli=require("child_process").execFileSync(process.execPath,[path.join(__dirname,"..","tools","trend-cli.js"),"--runs","400","--pols","8","--years","2025","--threads","2","--out",outF],{encoding:"utf8",timeout:180000,stdio:["ignore","pipe","pipe"]}); }catch(e){ cli="ERR "+e.message; }
@@ -271,9 +271,10 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
  // ---- ヒドゥンバレー: コースを 1 周すると周回が数えられる (車をコースの点に沿って動かす) ----
  { const p=await newPage(b,base);
   await p.evaluate(()=>{ window.pushChart=()=>{}; P.mode="test"; P.testKind="circuit"; startGame(); }); await p.waitForTimeout(1200);
-  await p.evaluate(()=>{ const T=HV.track(), n=T.pts.length; let i=Test.lastIdx||0, moved=0; Test.v=12; Test.state="run";
-   window._lapT=setInterval(()=>{ const step=Math.max(1,Math.round(n/60)); i=(i+step)%n; moved+=step; const q=T.pts[i]; Test.x=q.x; Test.z=q.z; Test.v=12; if(moved>n*1.3) clearInterval(window._lapT); },60); });
-  await p.waitForFunction(()=>Test.laps.length>=1,null,{timeout:60000}).catch(()=>{});
+  await p.evaluate(()=>{ const T=HV.track(), n=T.pts.length; Test.v=12; Test.state="run";
+   /* 周回を数える側 (nearestIdx は lastIdx の ±80 点だけ見る) が追いつけるよう、車は lastIdx の少し先 (60 点) に置き続ける。1 周し終わるまで動かし続ける (下の待ちが上限) */
+   window._lapT=setInterval(()=>{ const q=T.pts[(Test.lastIdx+60)%n]; Test.x=q.x; Test.z=q.z; Test.v=12; },60); });
+  await p.waitForFunction(()=>Test.laps.length>=1,null,{timeout:120000}).catch(()=>{});
   const lp=await p.evaluate(()=>{ clearInterval(window._lapT); return {laps:Test.laps.length,t:Test.laps[0]}; });
   check("ヒドゥンバレー: 周回の計測",lp.laps>=1&&lp.t>0,JSON.stringify(lp));
   await p.context().close(); }

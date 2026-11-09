@@ -42,9 +42,11 @@ const Orders={
    Radio.push(`この先 ${(k-es.km).toFixed(1)} km で制限速度 ${l} km/h (現在 ${cur} km/h)`,"前方誘導車"); return; }
  },
  /* 今の制限速度 (300 m 先までで一番低いもの) と、その制限が変わる地点 (k0 から最大 dist 先まで) */
- limitZone(k0,dist){ let lim=200; for(let k=k0;k<=k0+0.3;k+=0.05) lim=Math.min(lim,speedLimitAt(k));
-  const l0=speedLimitAt(k0+0.3); let end=k0+dist; for(let k=k0+0.35;k<k0+dist;k+=0.05) if(speedLimitAt(k)!==l0){ end=k; break; }
-  return {lim,end:Math.max(end,k0+0.5)}; },
+ limitZone(k0,dist){ let lim=200; for(let k=k0;k<=k0+0.35;k+=0.05) lim=Math.min(lim,speedLimitAt(k));
+  const l0=speedLimitAt(k0+0.35); lim=Math.min(lim,l0);   /* 端点は直接の計算で (0.05 刻みの足し算だと、変わる地点ちょうどで浮動小数点のずれが出る) */
+  let end=k0+dist, found=false;
+  for(let k=k0+0.4;k<k0+dist;k+=0.05) if(speedLimitAt(k)!==l0){ let lo=k-0.05, hi=k; for(let i=0;i<24&&hi-lo>1e-9;i++){ const m=(lo+hi)/2; if(speedLimitAt(m)===l0) lo=m; else hi=m; } end=lo; found=true; break; }   /* 変わる地点を二分探索で正確に求める (0.05 km 刻みの判定だけだと、変わった先へはみ出してしまう) */
+  return {lim,end:found?end:Math.max(end,k0+0.5)}; },   /* 制限が変わる地点で区切る。変わらないときだけ 0.5 km まで伸ばす (変わる所まで 0.5 km 伸ばすと、変わった先の低い制限に高い指示が出てしまう) */
  /* 速度 v [km/h] を保つ指令電流 [A]: 必要な電力 (転がり・空気 (向かい風込み)・勾配・損失。補機は除く) ÷ 電池電圧 */
  current(es,v,k0,dist){
   const vms=v/3.6, gr=(profileAt(Math.min(TOTAL_KM,k0+dist)).elev-profileAt(k0).elev)/(dist*1000), head=Number.isFinite(es.lastHead)? es.lastHead : 0;
