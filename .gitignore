@@ -7,3 +7,5 @@ node_modules/
 tests/out/
 tools/real-cache/
 tools/trend-out/
+# 公式ロゴ (コミットしない。待機画面が手元にあれば使う)
+assets/img/official-logo.png

@@ -123,6 +123,7 @@ Snd.silence(); FFB.update(null); Speech.stop();
 }
 Settings.load();
 if(Monitor.wanted()) Monitor.boot();   // テレメトリの監視画面 (QR から開いたとき)
+else if(Standby.wanted()) Standby.open();   // 待機画面 (?standby)
 else if(!/#r=/.test(location.hash)) Fade.intro();
 buildSetupUI();
 refreshUIModeBtns(); Settings.badge();
