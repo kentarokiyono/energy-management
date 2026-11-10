@@ -34,7 +34,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   await shot(p,"gfx-high"); await p.context().close(); }
  // ---- 練習シナリオ (スコール) と無線の速度指示 ----
  { const p=await newPage(b,base);
-  await p.click('#seg-scn button[data-v="squall"]');
+  await p.click('#ent-practice'); await p.click('#ent-sub [data-sub="scn"]'); await p.click('#ent-scn button[data-v="squall"]');
   await p.evaluate(()=>{ P.mode="race"; P.crewProc=false; startGame(); }); await p.waitForTimeout(1500);
   const sc=await p.evaluate(()=>({km:Engine.st.km,day:Engine.st.day,ts:P.timeScale,wx:Engine.st.weatherPlan.length,real:RealWx.on()}));
   await p.evaluate(()=>{ Orders.nextKm=Engine.st.km; Engine.st.v=20; }); await p.waitForTimeout(1200);
@@ -54,7 +54,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
    const a=R(10,60), b=R(20,60), c=R(20,0), d=R(20,0,true); es.gLat=0.3; const t=R(0,60); es.gLong=0.4; const t2=R(0,60); es.gLat=0; es.gLong=0;
    return {windUp:b>a, speedUp:b>c, shield:d<c*0.6, turn:t>0.05, brake:t2>t}; });
   check("横転の危険度: 風・速度・旋回・加減速で増え、風よけで下がる",Object.values(rr).every(Boolean),JSON.stringify(rr));
-  await p.click('#seg-scn button[data-v="storm"]');
+  await p.click('#ent-practice'); await p.click('#ent-sub [data-sub="scn"]'); await p.click('#ent-scn button[data-v="storm"]');
   await p.evaluate(()=>{ P.mode="race"; P.crewProc=false; P.tts="off"; startGame(); }); await p.waitForTimeout(1500);
   const st=await p.evaluate(()=>{ const es=Engine.st, c=Scenario.cur, msgs=[]; const o=Radio.push; Radio.push=(m,w)=>msgs.push(w+": "+m);
    const g=c.gusts, w0=Scenario.stormWind(c,c.abs0).ms, wIn=Scenario.stormWind(c,c.abs0+c.sc.storm.in+(g[0][0]+5)/3600).ms;
@@ -171,7 +171,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
  // ---- メニュー ----
  { const p=await newPage(b,base);
   const s=await p.evaluate(()=>({build:document.querySelector(".build").textContent, modes:document.querySelectorAll(".mode").length, seg:document.querySelectorAll("#seg-ts button").length, quali:document.getElementById("quali-info").textContent}));
-  check("メニュー表示",s.modes===3&&s.seg===7&&/BUILD/.test(s.build),JSON.stringify(s));
+  check("メニュー表示",s.modes===5&&s.seg===7&&/BUILD/.test(s.build),JSON.stringify(s));
   check("外部への通信なし",p.ext.length===0,p.ext.slice(0,3).join(" "));
   check("メニューでエラーなし",noErr(p).length===0,noErr(p).slice(0,2).join(" | "));
   // 設定の保存: 変えて再読み込み → 残る / 既定値に戻す → 消える
@@ -179,7 +179,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   await p.reload(); await p.waitForFunction(()=>typeof startGame==="function"); await p.waitForTimeout(400);
   const kept=await p.evaluate(()=>({d:P.massDriver,pn:P.panel,c:EventGame.course,ts:document.getElementById("time-scale").value,on:document.querySelector('#seg-ts .on').dataset.v,lbl:document.getElementById("settings-state").textContent}));
   check("設定の保存",kept.d===75&&kept.pn==="perov"&&kept.c==="hv"&&kept.ts==="10"&&kept.on==="10",JSON.stringify(kept));
-  p.once("dialog",d=>d.accept()); await p.click("#settings-reset"); await p.waitForFunction(()=>typeof startGame==="function"); await p.waitForTimeout(400);
+  await p.evaluate(()=>{ document.getElementById("more-set").open=true; }); p.once("dialog",d=>d.accept()); await p.click("#settings-reset"); await p.waitForFunction(()=>typeof startGame==="function"); await p.waitForTimeout(400);
   const back=await p.evaluate(()=>({d:P.massDriver,pn:P.panel,c:EventGame.course,ts:document.getElementById("time-scale").value,stored:localStorage.getItem("bwsc_settings")}));
   check("設定を既定値に戻す",back.d!==75&&back.pn!=="perov"&&back.ts==="60",JSON.stringify(back));
   await shot(p,"menu"); await p.context().close(); }
@@ -354,6 +354,18 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
    for(const t of [true,false]){ P.csTilt=t; startGame(); modalPause=false; const s=Engine.st; s.hour=12; s.km=RP_CS[0].km-0.01; Engine.beginCS(RP_CS[0],false); const td=!document.getElementById("tilt-decide").classList.contains("hidden"); show("tilt-decide",false); modalPause=false; for(let i=0;i<60;i++) Engine.step(1,1); out[t?"tilt":"flat"]={td,w:Math.round(s.lastSolar)}; }
    P.csTilt=true; return out; });
   check("車両・チームの設定: ドライバー名の移し替え・CS で傾けない運用",o.drv==="山田,鈴木"&&o.old===null&&o.tilt.td&&!o.flat.td&&o.flat.w<o.tilt.w*0.85,JSON.stringify(o));
+  await p.context().close(); }
+ // ---- メニューの入口: 練習する (本戦・予選・シナリオ) / 戦略 / 振り返る / チームで見る / イベント。前回の入口を覚える ----
+ { const p=await newPage(b,base);
+  const r=[]; const st=()=>p.evaluate(()=>({ent:Entry.ent,mode:P.mode,scn:document.getElementById("scenario").value,go:document.getElementById("ent-go-t").textContent}));
+  await p.click('#ent-practice'); await p.click('#ent-sub [data-sub="test"]'); r.push(await st());
+  await p.click('#ent-sub [data-sub="scn"]'); r.push(await st());
+  await p.click('#ent-sub [data-sub="race"]'); r.push(await st());
+  await p.click('#mode-event'); r.push(await st());
+  await p.reload(); await p.waitForFunction(()=>typeof Entry!=="undefined"&&Entry.ent); await p.waitForTimeout(300); r.push(await st());
+  await p.click('#ent-review'); await p.waitForTimeout(1500); const ana=await p.evaluate(()=>document.getElementById("ana").classList.contains("on")&&Ana.cat==="race");
+  const ok=r[0].mode==="test"&&r[0].scn===""&&r[1].mode==="race"&&r[1].scn!==""&&r[2].scn===""&&r[3].mode==="event"&&r[4].ent==="event"&&r[4].mode==="event"&&ana;
+  check("メニューの入口",ok&&noErr(p).length===0,JSON.stringify({r,ana,err:noErr(p)}));
   await p.context().close(); }
  // ---- 待機画面: ?standby で開き、ロゴが回り、触れると閉じる ----
  { const p=await newPage(b,base,{q:"?standby"});

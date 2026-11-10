@@ -131,7 +131,7 @@ setEventLevel(EventGame.level); setEventCourse(EventGame.course); setEventPracti
 segFromSelect("time-scale","seg-ts");
 segFromSelect("log-step","seg-log");
 segFromSelect("gfx","seg-gfx");
-segFromSelect("scenario","seg-scn",o=>o.value===""?"なし":o.textContent);
+Entry.init();   // 入口 (練習する・戦略・振り返る・チームで見る・イベント)
 segFromSelect("scn-level","seg-scnlv");
 segFromSelect("tts","seg-tts");
 segFromSelect("fc-err","seg-fc");
