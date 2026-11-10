@@ -300,7 +300,8 @@ parked=true; s.v=Math.max(0,s.v-3*dtR);
 const sunset=this.sunsetHour(prof.lat);
 // Reg 3.28.8-9: 電池は 19:15 までに切り離して封印、06:15 まで解除できない (夜間の CS も同じ)
 s.disconnected = (s.camp || (s.stopKind==="cp"&&s.stopTimer>0)) && (s.hour>=19.25 || s.hour<6.25);
-const tilted = parked || s.camp;
+const csFlat = P.csTilt===false && s.stopKind==="cp" && s.stopTimer>0 && !(StopMenu.active&&StopMenu.mode==="charge");   // CS で傾けられない運用: 平置きのまま
+const tilted = (parked && !csFlat) || s.camp;
 const sol=this.solarCalc(prof.lat,s.hour,tilted);
 const tReal=RealWx.on()? RealWx.at("t",prof.lat,prof.lon,s.dayOfYear,s.hour) : null, Tamb= tReal!=null? tReal+PRO.tempOffset : ambientTemp(prof.lat,s.hour);
 const phiW=s.windDirWorld-prof.bearing+Math.PI;
@@ -550,7 +551,7 @@ if(missed){ toast("🚨 コントロールストップの敷地に入らず通�
  Radio.push(`⚠ CS${cp.n} ${cp.name} に正しく入場しませんでした。`,"Event Official"); }
 else toast(`🛑 CS${cp.n} ${cp.name} 到着 ― 30分の強制点検`,"#fbbf24");
 if(cp.open && abs<Route.absHour(cp.open)) Radio.push(`CS${cp.n} はまだオープン前(${fmtAbsH(Route.absHour(cp.open))})です。`,"Event Official");
-TiltDecide.open();
+if(P.csTilt===false&&!P.event) Radio.push(`CS${cp.n}: 平置きのまま充電 (CS では傾けない運用)。`); else TiltDecide.open();
 if(P.event) EventGame.onCS(cp,missed);
 if(cp.n===9){ s.absHourAtPA=abs; Radio.push("Port Augusta 通過!大陸横断おめでとう!","Event Official"); }
 },

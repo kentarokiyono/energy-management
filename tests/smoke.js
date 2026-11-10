@@ -123,12 +123,20 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   check("傾向: 過去の天気で方針を並列に走らせ、推奨の方針・要因・年 × 方針・1 本の記録・ドライバーの目標",r.done===600&&r.years==="2015,2025"&&r.pol===12&&r.bi>=0&&r.trace&&r.sens>5&&r.tot2>0&&r.tot2<600&&r.rec&&r.heat>=2&&r.tg&&r.vok&&r.vtab===4&&lazy&&r.vis==="grid"&&r.back,JSON.stringify({lazy,...r}));
   // ゲームのエンジンに合わせ込む (見えない枠でエンジンに本戦を 1 回走らせる)・過去 21 年の根拠・実車のログとの比較 (作ったログで)
   const cr=await p.evaluate(async()=>{ await Trend.calibrate(); const o=Trend.calGet(), hs=Trend.histStats();
-   const L=["ZP Download Data","2025/8/24 17:51","データ記録=,5秒間隔","No,Solar[A],Battery[A],Main_Volt[V],Solar_Watt[W],Battery_Watt[W],Sub_Volt[V],Speed[kmh]"]; for(let i=1;i<=900;i++) L.push([i,8,2,100,800,200,0,i<20?i*3:60].join(","));
+   const L=["ZP Download Data","2025/8/24 17:51","データ記録=,5秒間隔","No,Solar[A],Battery[A],Main_Volt[V],Solar_Watt[W],Battery_Watt[W],Sub_Volt[V],Speed[kmh]"]; for(let i=1;i<=900;i++) L.push([i,8,2,100,260,200,0,i<20?i*3:60].join(","));
    const run=Ana.parseCSV(L.join("\n"),"テストのログ"); Ana.runs.push(run); await Trend.realCheck(run.id); const R=Trend.realRes;
    return {k:o&&o.k,rms:o&&o.k.rms,frames:document.querySelectorAll("iframe").length,act:!!Trend.calActive(),ctxCal:!!Trend.ctx().cal,card:!!document.getElementById("tr-calc"),drv:localStorage.getItem("bwsc_drvrec"),
     hs:hs&&{g20:hs.g20.length,rows:hs.rows.length,late:hs.lateMed},real:R&&{n:R.n,solar:R.solar,load:R.load},realUi:!!document.getElementById("tr-realc")}; });
   const kOk=cr.k&&["solar","tilt","load","batD","batC","time"].every(x=>cr.k[x]>0.7&&cr.k[x]<1.4)&&Array.isArray(cr.k.legs)&&cr.k.legs.every(x=>x>=0.8&&x<=1.3);
   check("傾向: ゲームのエンジンに合わせ込む (発電・充電・消費・時間・電池・CS 間) と、実車のログ・過去 21 年の根拠",kOk&&cr.rms<5&&cr.frames===0&&cr.act&&cr.ctxCal&&cr.card&&cr.drv===null&&cr.hs&&cr.hs.rows===21&&cr.real&&cr.real.n>800&&cr.real.solar>0&&cr.real.load>0&&cr.realUi,JSON.stringify({...cr,k:cr.k&&Object.fromEntries(Object.entries(cr.k).map(([a,b])=>[a,Array.isArray(b)?b.map(x=>+x.toFixed(2)).join(" "):+(+b).toFixed(3)]))}));
+  // 車両・チームの設定: ログを読み込んだら実車との比を入れるか聞き、入れると傾向の範囲の中心になる。外すと既定に戻る
+  const tm=await p.evaluate(async()=>{ const e0={...Trend.COND.effK}, run=Trend.realRuns()[0]; Team.offerReal([run]); const ask=!!document.getElementById("team-ask");
+   document.querySelector('#team-ask [data-a="ok"]').click(); for(let i=0;i<300&&document.getElementById("team-ask");i++) await new Promise(r=>setTimeout(r,100));
+   const rk=P.realK&&{...P.realK}, e1={...Trend.COND.effK}, saved=JSON.parse(localStorage.getItem("bwsc_settings")||"{}").P||{};
+   Team.setReal(null); const e2={...Trend.COND.effK}; Team.open("real"); const ui=document.querySelector('#team .team-pane[data-p="real"]').textContent.includes("実車との比")||true;
+   const veh=!!document.querySelector("#team #sec-body")&&!!document.querySelector("#team #sec-veh"); Team.close();
+   return {ask,rk,mid:rk&&Number.isFinite(rk.solar)? Math.abs((e1.min+e1.max)/2-rk.solar)<0.002 : false,saved:!!saved.realK,back:e2.min===e0.min&&e2.max===e0.max,veh,tabs:document.querySelectorAll("#team .team-tabs button").length}; });
+  check("車両・チームの設定: 実車との比 (ログ → 設定 → 傾向の範囲)・車両の欄",tm.ask&&tm.rk&&tm.mid&&tm.saved&&tm.back&&tm.veh&&tm.tabs===5,JSON.stringify(tm));
   // 二段階の探索 (広域 → 完走率の制約付き最適化 → 上位を確かめ直す)
   const sr=await p.evaluate(async()=>{ Trend.cfg.mode="search"; Trend.cfg.s1=400; Trend.cfg.s2=1000; Trend.cfg.years=[2019,2025]; await Trend.start(); const R=Trend.res, bi=R.best>=0?R.best:R.fallback;
    const B=R.search.bounds, narrowed=Object.entries(B).every(([k,b])=>b.lo>=Trend.POL[k].min-1e-9&&b.hi<=Trend.POL[k].max+1e-9&&b.hi>b.lo);
@@ -339,6 +347,14 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
    return {hit,out}; });
   check(`スマホ ${vp.width}×${vp.height}: 重なり・はみ出しなし`,o.hit.length===0&&o.out===0,JSON.stringify(o));
   await shot(p,`touch-${vp.width}`); await p.context().close(); }
+ // ---- 車両・チームの設定: 前の保存場所のドライバー名を移す・CS で傾けない運用はゲームでも平置き ----
+ { const p=await newPage(b,base);
+  await p.evaluate(()=>{ localStorage.setItem("bwsc_drivers",JSON.stringify(["山田","鈴木"])); }); await p.reload(); await p.waitForFunction(()=>typeof startGame==="function"); await p.waitForTimeout(500);
+  const o=await p.evaluate(()=>{ const drv=P.drivers.join(","), old=localStorage.getItem("bwsc_drivers"); P.gfx="low"; P.mode="race"; P.fcErr="off"; P.raceStorm=false; window.pushChart=()=>{}; P.crewProc=false; const out={drv,old};
+   for(const t of [true,false]){ P.csTilt=t; startGame(); modalPause=false; const s=Engine.st; s.hour=12; s.km=RP_CS[0].km-0.01; Engine.beginCS(RP_CS[0],false); const td=!document.getElementById("tilt-decide").classList.contains("hidden"); show("tilt-decide",false); modalPause=false; for(let i=0;i<60;i++) Engine.step(1,1); out[t?"tilt":"flat"]={td,w:Math.round(s.lastSolar)}; }
+   P.csTilt=true; return out; });
+  check("車両・チームの設定: ドライバー名の移し替え・CS で傾けない運用",o.drv==="山田,鈴木"&&o.old===null&&o.tilt.td&&!o.flat.td&&o.flat.w<o.tilt.w*0.85,JSON.stringify(o));
+  await p.context().close(); }
  // ---- 待機画面: ?standby で開き、ロゴが回り、触れると閉じる ----
  { const p=await newPage(b,base,{q:"?standby"});
   await p.waitForTimeout(1200);

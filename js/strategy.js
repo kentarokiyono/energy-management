@@ -25,13 +25,13 @@ const Strategy={
   const G=(tilted)=>{ const day=Math.floor(abs/24)+1, h=abs-(day-1)*24, pr=profileAt(km);
    s.dayOfYear=PRO.dayOfYear+day-1; s.km=km; s.weather= RealWx.on()? null : ((s.fc&&s.fc.plan)||s.weatherPlan||[]).find(w=>abs>=w.start&&abs<w.start+w.dur)||null;   // 予報で見積もる
    const r=Engine.solarCalc(pr.lat,h,tilted,pr.lon,pr.elev); return pv(r.G*PVLoss.k(r.alt,tilted)); };
-  const charge=(hours)=>{ for(let t=0;t<hours;t+=0.25){ const d=Math.min(0.25,hours-t); soc=Math.min(1,soc+G(true)*d/Wh); abs+=d; } };
+  const charge=(hours,tl=true)=>{ for(let t=0;t<hours;t+=0.25){ const d=Math.min(0.25,hours-t); soc=Math.min(1,soc+G(tl)*d/Wh); abs+=d; } };
   const startDay=Math.floor(abs/24), FL=o&&o.floor!=null? o.floor : this.floor(); this.fcOn=true;
   let psNow=null; const Ps0=()=>(psNow=G(false));   // 今の発電 (満タンの判定と、その区間の計算で 1 回だけ求める)
   try{
    for(let guard=0;guard<6000&&km<TOTAL_KM;guard++){
     const day=Math.floor(abs/24), h=abs-day*24;
-    if(stopH>0){ charge(stopH); stopH=0; continue; }
+    if(stopH>0){ charge(stopH,P.csTilt!==false); stopH=0; continue; }   // CS: 傾けない運用なら平置き
     if(h>=17||h<8){   // 夜: 日没まで・朝 6:15 から充電、8:00 発
      if(kmToday==null&&day===startDay) kmToday=km;
      const pr=profileAt(km), sunset=Engine.sunsetHour(pr.lat,pr.lon);

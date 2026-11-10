@@ -57,7 +57,8 @@ const Ana={
      if(prev){ const off=prev.rows[prev.rows.length-1].km; if(off>1){ run=await it.parse(off); it.run=run; } } }
     this.runs.push(run); this.cur=this.runs.length-1; this.cat="race"; }catch(err){ toast("読み込めません: "+escHtml(it.f.name)+" ― "+escHtml(err.message),"#ef4444"); } }
   try{ this.socFuse(); }catch(err){ console.error(err); }   // 電池の残量: 電力の積算と休止中の電圧を合わせる (日をまたいで)
-  for(const it of items) if(this.runs.includes(it.run)) this.save(it.run); },
+  for(const it of items) if(this.runs.includes(it.run)) this.save(it.run);
+  if(typeof Team!=="undefined") setTimeout(()=>Team.offerReal(items.map(it=>it.run).filter(r=>this.runs.includes(r))),300); },   // 実車との比を設定に入れるか聞く
  /* 計測器のログの電池の残量 (SOC) を、電力の積算と電圧の両方から出す
   ・電圧だけだと、充電の直後や電流が流れている間は高め・低めに出る。電力の積算だけだと日ごとに少しずつずれる (充電を多めに数えるなど)
   ・そこで「休止に近い点」(電流 3 A 以内が 10 分続き、大きな電流 (8 A 超) から 20 分以上たった点。ログの始めと切り離しから戻った直後は一晩休んでいるので、その点も) でだけ電圧から残量を決め (電流 × 内部抵抗で補正)、
@@ -261,7 +262,7 @@ const Ana={
   const run=this.prep({id:"demo",name:"デモ走行 (サンプル)",date:"",rows,demo:true}); this.runs.push(run); this.cur=this.runs.length-1; this.cat="race";
   this.sel=null; this.xr=null; this.map&&(this.map.dirty=true); this.render(); toast("デモ走行を追加しました","#34d399");
  },
- async open(){
+ async open(want){
   this.build(); document.getElementById("ana").classList.add("on"); this.wasPaused=typeof paused!=="undefined"&&paused;
   await this.loadStored();
   if(typeof HVRec!=="undefined"&&HVRec.cur) HVRec.save();   // 走っている途中のヒドゥンバレーの記録も出す
@@ -273,7 +274,7 @@ const Ana={
   if(!this.runs.length&&!this.emptied&&!off) this.addDemo();
   if(this.cur>=this.runs.length) this.cur=0;
   // 開いたときの分類: 予選・車検モードから開いたらヒドゥンバレー、それ以外は前回の分類
-  let c=null; try{ c=localStorage.getItem("bwsc_ana_cat"); }catch(e){} if(P.mode==="test"&&!P.event) c="hv"; else if(live) c="race";
+  let c=null; try{ c=localStorage.getItem("bwsc_ana_cat"); }catch(e){} if(P.mode==="test"&&!P.event) c="hv"; else if(live) c="race"; if(want==="race"||want==="hv"||want==="trend") c=want;
   this.cat= c==="hv"||c==="trend"? c : "race";
   if(this.cat==="hv"&&!this.inCat("hv").length){ let off=false; try{ off=localStorage.getItem("bwsc_ana_nodemo_hv")==="1"; }catch(e){} if(!off&&typeof HVA!=="undefined") this.runs.push(HVA.demo()); }
   const L=this.inCat(); if(!L.some(([,i])=>i===this.cur)) this.cur= L.length? L[L.length-1][1] : -1;

@@ -7,7 +7,7 @@ const TrendLoad={
  load(){ if(typeof Trend!=="undefined"&&Trend.search&&Trend.calibrate) return Promise.resolve(); if(this._p) return this._p;
   const ver=this.ver();
   const one=(f)=>new Promise((res,rej)=>{ const s=document.createElement("script"); s.src=f+"?v="+ver; s.onload=()=>res(); s.onerror=()=>rej(new Error("傾向の画面を読み込めません")); document.head.appendChild(s); });
-  return this._p=one("js/ui/trend.js").then(()=>one("js/ui/trend-search.js")).then(()=>one("js/ui/trend-cal.js")).catch(e=>{ this._p=null; throw e; }); },
+  return this._p=one("js/ui/trend.js").then(()=>one("js/ui/trend-search.js")).then(()=>one("js/ui/trend-cal.js")).then(()=>{ if(Trend.syncTeam) Trend.syncTeam(); }).catch(e=>{ this._p=null; throw e; }); },
  /* 版 (メニューの BUILD 表示)。読み込むファイルの ?v= に付けて、古い保存を使わないようにする */
  ver(){ if(!window.BUILD){ const v=(document.querySelector(".menu .build")||{}).textContent||""; window.BUILD=(v.match(/\d{8}-\w+/)||[""])[0]; } return window.BUILD; },
  targets(){ if(this._t===undefined){ try{ this._t=JSON.parse(localStorage.getItem("bwsc_targets")||"null"); }catch(e){ this._t=null; } } return this._t; },

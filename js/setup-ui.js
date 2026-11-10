@@ -144,11 +144,16 @@ function resetQuali(){ if(!confirm("予選のベストラップを消去しま�
 /* ---- 設定の保存 (この端末のブラウザ): 既定値から変えた項目だけを保存し、起動時に戻す ---- */
 const Settings={
  KEY:"bwsc_settings", PKEYS:null, def:null,
- keys(){ return this.PKEYS||(this.PKEYS=["shape","panel","infiniteBattery","crewProc","uiMode","logStepM","gfx","realWeather","ffb","ffbInv","ffbTune","orders","showFps","tts","fcErr","ordersK","pvAltS","pvTiltK","lossK","planLate","raceStorm","useTargets","targetCls",...SLIDERS.map(s=>s.id)]); },
+ keys(){ return this.PKEYS||(this.PKEYS=["shape","panel","infiniteBattery","crewProc","uiMode","logStepM","gfx","realWeather","ffb","ffbInv","ffbTune","orders","showFps","tts","fcErr","ordersK","pvAltS","pvTiltK","lossK","planLate","raceStorm","useTargets","targetCls","csTilt","realK","drivers",...SLIDERS.map(s=>s.id)]); },
  snapshot(){ const o={P:{},PRO:{}}; for(const k of this.keys()) o.P[k]=P[k]; for(const [k] of PRO_FIELDS) o.PRO[k]=PRO[k]; o.PRO.noSpeedCap=PRO.noSpeedCap;
   o.ts=document.getElementById("time-scale").value; o.evCourse=EventGame.course; o.evLevel=EventGame.level; o.evPractice=EventGame.practice; o.testKind=P.testKind; return o; },
  load(){
   this.def=this.snapshot();
+  try{ this.loadSaved(); } finally{ this.migrate(); } },
+ migrate(){ if(!Array.isArray(P.drivers)) P.drivers=[];
+  if(!P.drivers.length){ try{ const a=JSON.parse(localStorage.getItem("bwsc_drivers")||"[]"); if(Array.isArray(a)&&a.length){ P.drivers=a.map(x=>String(x).slice(0,20)); localStorage.removeItem("bwsc_drivers"); this.save(); } }catch(e){} }   // 前の保存場所から移す
+ },
+ loadSaved(){
   let d=null; try{ d=JSON.parse(localStorage.getItem(this.KEY)||"null"); }catch(e){}
   if(!d||typeof d!=="object") return;
   const num=(v)=>typeof v==="number"&&Number.isFinite(v);
@@ -170,6 +175,7 @@ const Settings={
   { const ut=document.getElementById("use-targets"); if(ut) ut.checked=!!P.useTargets; const tc=document.getElementById("target-cls"); if(tc) tc.value=P.targetCls||"all"; }
   { const fp=document.getElementById("fps-on"); if(fp) fp.checked=!!P.showFps; }
   document.getElementById("inf-batt").checked=!!P.infiniteBattery; document.getElementById("crew-proc").checked=!!P.crewProc;
+  if(!Array.isArray(P.drivers)) P.drivers=[]; if(P.realK!=null&&(typeof P.realK!=="object"||Array.isArray(P.realK))) P.realK=null;
   if(P.testKind!=="circuit"){ document.getElementById("test-desc").textContent=TEST_DESC[P.testKind]; document.querySelectorAll("[data-test]").forEach(b=>b.classList.toggle("on",b.dataset.test===P.testKind)); }
  },
  save(){ if(!this.def) return; const c=this.snapshot(), o={P:{},PRO:{}};
@@ -186,13 +192,13 @@ const Settings={
 let DRIVER_NAMES=null;
 const DrvDlg={
  open(){ if(P.mode!=="race"){ Fade.go(startGame); return; }
-  let last=[]; try{ last=JSON.parse(localStorage.getItem("bwsc_drivers")||"[]"); }catch(e){}
+  const last=Array.isArray(P.drivers)? P.drivers : [];
   document.getElementById("drv-n1").value=last[0]||""; document.getElementById("drv-n2").value=last[1]||"";
   show("drv-dlg",true); setTimeout(()=>document.getElementById("drv-n1").focus(),50); },
  close(){ show("drv-dlg",false); },
  ok(){ const clean=(id,def)=>(document.getElementById(id).value||"").replace(/[<>&"'\\]/g,"").trim().slice(0,20)||def;
   DRIVER_NAMES=[clean("drv-n1","ドライバーA"),clean("drv-n2","ドライバーB")];
-  try{ localStorage.setItem("bwsc_drivers",JSON.stringify(DRIVER_NAMES)); }catch(e){}
+  P.drivers=[...DRIVER_NAMES]; Settings.save();
   this.close(); Fade.go(startGame); },
 };
 addEventListener("keydown",e=>{ const d=document.getElementById("drv-dlg"); if(!d||d.classList.contains("hidden")) return;

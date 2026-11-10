@@ -553,3 +553,23 @@ body.mon-on #setup-screen, body.mon-on #game-container, body.mon-on #fade{ displ
 @keyframes sbSpin{ from{ transform:rotateY(0deg); } to{ transform:rotateY(360deg); } }
 @keyframes sbHint{ 0%,70%{ opacity:1; } 100%{ opacity:0; } }
 @media (prefers-reduced-motion: reduce){ #standby .sb-spin{ animation-duration:20s; } }
+
+/* ============ 車両・チームの設定 ============ */
+.menu .hd .team-open{ margin-left:auto; padding:7px 12px; font-size:12px; white-space:nowrap; }
+#team{ background:rgba(5,5,6,.72); }
+#team .team-card{ width:min(980px,calc(100vw - 24px)); height:min(780px,calc(100vh - 24px)); display:flex; flex-direction:column; padding:20px 24px; }
+#team .team-card h2{ font-size:22px; margin:4px 0 10px; }
+#team .team-tabs{ flex-wrap:wrap; margin-bottom:12px; }
+#team .team-tabs button.on{ background:var(--brand-a,rgba(29,63,163,.4)); color:var(--tx); }
+#team .team-body{ overflow:auto; flex:1; min-height:0; }
+#team .team-body .sec{ margin:0 0 16px; }
+#team .team-src{ font-size:12px; color:var(--tx2); margin-bottom:10px; }
+#team .team-row{ display:grid; grid-template-columns:170px 230px 1fr auto; gap:10px; align-items:center; padding:7px 0; border-bottom:1px solid var(--ln); font-size:13px; }
+#team .team-row .lb{ text-transform:none; letter-spacing:.04em; }
+#team .team-sec{ font-size:12px; color:var(--acc); margin:16px 0 4px; letter-spacing:.06em; }
+#team .team-note{ font-size:12px; line-height:1.7; margin-top:8px; }
+#team .team-act{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+#team .team-chk{ display:inline-flex; margin-top:6px; }
+@media (max-width:640px){ #team .team-row{ grid-template-columns:1fr auto; } #team .team-row .dim{ grid-column:1/-1; } }
+.team-ask{ position:fixed; right:16px; bottom:16px; z-index:120; width:min(380px,calc(100vw - 32px)); background:var(--pns); border:1px solid var(--ln); border-top:2px solid var(--acc); padding:14px 16px; font-size:13px; line-height:1.6; box-shadow:0 8px 30px rgba(0,0,0,.45); }
+.team-ask .dim{ font-size:12px; margin-top:4px; }

@@ -21,7 +21,8 @@
 <div class="menu">
 <div class="l">
 <div class="hd"><img src="assets/img/logo.svg" class="logo" alt="" width="112">
-<div><div class="ttl">BWSC 3D RACING<br>SIMULATOR</div></div></div>
+<div><div class="ttl">BWSC 3D RACING<br>SIMULATOR</div></div>
+<button class="btn team-open" onclick="Team.open()"><span data-ic="settings"></span> 車両・チームの設定</button></div>
 <div class="sub">Bridgestone World Solar Challenge ― 2025 Route<br>Darwin → Adelaide 3,027 km ― Wakayama Univ. Solar Car Team</div>
 <div id="mode-race" class="mode active" onclick="selectMode('race')"><span data-ic="finish"></span>
 <div><h3>レースモード <span class="lb">Team training</span></h3>
@@ -59,12 +60,12 @@
 <div class="build">BUILD 20261109-s5</div>
 </div>
 <div class="r">
-<div class="sec"><h4><span data-ic="car"></span>BODY / SOLAR CELL</h4>
+<div class="sec" id="sec-body"><h4><span data-ic="car"></span>BODY / SOLAR CELL</h4>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 <div><div class="lb mb-2">車体形状</div><div id="shape-cards" class="space-y-2"></div></div>
 <div><div class="lb mb-2">パネル種類</div><div id="panel-cards" class="space-y-2"></div></div>
 </div></div>
-<div class="sec"><h4><span data-ic="sliders"></span>VEHICLE</h4>
+<div class="sec" id="sec-veh"><h4><span data-ic="sliders"></span>VEHICLE</h4>
 <div id="param-sliders" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3"></div>
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
 <div class="bar-outer px-3 py-2"><div class="lb">CdA</div><div><span id="disp-cda" class="num text-lg">0.110</span><span class="u">m²</span></div></div>
@@ -466,6 +467,7 @@
 <script src="js/ui/trend-load.js?v=20261109-s5"></script>
 <script src="js/ui/map.js?v=20261109-s5"></script>
 <script src="js/ui/standby.js?v=20261109-s5"></script>
+<script src="js/ui/team.js?v=20261109-s5"></script>
 <script src="js/main.js?v=20261109-s5"></script>
 </body>
 </html>
