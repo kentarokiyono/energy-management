@@ -16,6 +16,7 @@ const Entry={
   document.getElementById("ent-sub").addEventListener("click",ev=>{ const b=ev.target.closest("button"); if(b) this.setSub(b.dataset.sub); });
   const ms=document.getElementById("more-set"); if(ms){ ms.addEventListener("toggle",()=>this.summary()); }
   document.querySelector(".menu .r").addEventListener("click",()=>setTimeout(()=>this.summary(),0));
+  addEventListener("keydown",e=>{ if(e.key==="Escape"&&document.querySelector(".menu").dataset.drw){ this.drawer(null); } });
   this.pick(this.ent,false); this.summary(); },
  save(){ try{ localStorage.setItem(this.KEY,JSON.stringify({ent:this.ent,sub:this.sub,scn:(document.getElementById("scenario")||{}).value||this.lastScn||""})); }catch(e){} },
  /* 入口を選ぶ。act: 押したとき (戦略・振り返る・チームで見るはそのまま開く) */
@@ -41,9 +42,15 @@ const Entry={
   if(e==="review") return Fade.go(()=>Ana.open("race"));
   if(e==="team") return Tele.panel();
   DrvDlg.open(); },
+ /* PC: 画面の下からせり上がるパネル (詳しい設定 / キー操作)。null で閉じる */
+ drawer(k){ const m=document.querySelector(".menu"), on=k&&m.dataset.drw!==k;
+  if(on){ m.dataset.drw=k; const ms=document.getElementById("more-set"); if(ms) ms.open=true; document.getElementById("drw-ttl").textContent= k==="keys"? "キー操作" : "詳しい設定";
+   const r=document.querySelector(".menu .r"); r.scrollTop=0; }
+  else delete m.dataset.drw;
+  document.querySelectorAll("#menu-bar [data-d]").forEach(b=>b.classList.toggle("on",!!on&&b.dataset.d===k)); document.getElementById("menu-shade").classList.toggle("on",!!on); },
  /* 「詳しい設定」の見出しに、今の主な設定を短く */
  summary(){ const el=document.getElementById("more-sum"); if(!el) return; const v=(id)=>{ const s=document.getElementById(id); return s&&s.selectedOptions[0]? s.selectedOptions[0].textContent : ""; };
   const a=[]; if(P.mode==="race"){ a.push(v("time-scale")); const ch=+(document.getElementById("chapter")||{}).value||0; if(ch&&!this.cur()) a.push("CS"+ch+" から"); }
   a.push(P.realWeather!==false?"2025 年の天気":"気候値の天気"); a.push("予報: "+v("fc-err").replace(/^予報 /,"")); a.push("画質: "+v("gfx").replace(/^画質 /,""));
-  el.textContent=a.filter(Boolean).join(" ・ "); },
+  el.textContent=a.filter(Boolean).join(" ・ "); const bs=document.getElementById("bar-sum"); if(bs) bs.textContent=el.textContent; },
 };

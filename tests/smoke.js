@@ -179,7 +179,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   await p.reload(); await p.waitForFunction(()=>typeof startGame==="function"); await p.waitForTimeout(400);
   const kept=await p.evaluate(()=>({d:P.massDriver,pn:P.panel,c:EventGame.course,ts:document.getElementById("time-scale").value,on:document.querySelector('#seg-ts .on').dataset.v,lbl:document.getElementById("settings-state").textContent}));
   check("設定の保存",kept.d===75&&kept.pn==="perov"&&kept.c==="hv"&&kept.ts==="10"&&kept.on==="10",JSON.stringify(kept));
-  await p.evaluate(()=>{ document.getElementById("more-set").open=true; }); p.once("dialog",d=>d.accept()); await p.click("#settings-reset"); await p.waitForFunction(()=>typeof startGame==="function"); await p.waitForTimeout(400);
+  await p.click('#menu-bar [data-d="set"]'); await p.waitForTimeout(500); p.once("dialog",d=>d.accept()); await p.click("#settings-reset"); await p.waitForFunction(()=>typeof startGame==="function"); await p.waitForTimeout(400);
   const back=await p.evaluate(()=>({d:P.massDriver,pn:P.panel,c:EventGame.course,ts:document.getElementById("time-scale").value,stored:localStorage.getItem("bwsc_settings")}));
   check("設定を既定値に戻す",back.d!==75&&back.pn!=="perov"&&back.ts==="60",JSON.stringify(back));
   await shot(p,"menu"); await p.context().close(); }
@@ -363,9 +363,12 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   await p.click('#ent-sub [data-sub="race"]'); r.push(await st());
   await p.click('#mode-event'); r.push(await st());
   await p.reload(); await p.waitForFunction(()=>typeof Entry!=="undefined"&&Entry.ent); await p.waitForTimeout(300); r.push(await st());
+  await p.click('#menu-bar [data-d="keys"]'); await p.waitForTimeout(500); const dk=await p.evaluate(()=>{ const r=document.querySelector(".menu .r").getBoundingClientRect(); return document.querySelector(".menu").dataset.drw==="keys"&&r.bottom<=innerHeight&&r.top>0&&getComputedStyle(document.getElementById("sec-keys")).display!=="none"; });
+  await p.keyboard.press("Escape"); await p.waitForTimeout(450); const dc=await p.evaluate(()=>!document.querySelector(".menu").dataset.drw&&document.querySelector(".menu .r").getBoundingClientRect().top>=innerHeight);
+  r.push({dk,dc});
   await p.click('#ent-review'); await p.waitForTimeout(1500); const ana=await p.evaluate(()=>document.getElementById("ana").classList.contains("on")&&Ana.cat==="race");
   const ok=r[0].mode==="test"&&r[0].scn===""&&r[1].mode==="race"&&r[1].scn!==""&&r[2].scn===""&&r[3].mode==="event"&&r[4].ent==="event"&&r[4].mode==="event"&&ana;
-  check("メニューの入口",ok&&noErr(p).length===0,JSON.stringify({r,ana,err:noErr(p)}));
+  check("メニューの入口",ok&&dk&&dc&&noErr(p).length===0,JSON.stringify({r,ana,err:noErr(p)}));
   await p.context().close(); }
  // ---- 待機画面: ?standby で開き、ロゴが回り、触れると閉じる ----
  { const p=await newPage(b,base,{q:"?standby"});

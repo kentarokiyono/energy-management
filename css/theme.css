@@ -600,3 +600,51 @@ body.mon-on #setup-screen, body.mon-on #game-container, body.mon-on #fade{ displ
 .menu .ent-row .mode p{ font-size:11px; line-height:1.6; margin-top:2px; }
 .menu .ent-row .mode>.ic{ margin-top:0; }
 @media (max-width:480px){ .menu .ent-row{ grid-template-columns:1fr; } }
+
+/* ============ メニュー (PC): 中央にそろえ、設定は画面の下のバーからせり上がるパネル ============ */
+.menu-bar, .menu-shade, .menu .drw-hd{ display:none; }
+@media (min-width:901px){
+ #setup-screen{ background:linear-gradient(180deg,rgba(29,63,163,.20),rgba(29,63,163,0) 460px),var(--bg); }
+ .menu{ display:block; min-height:100vh; }
+ .menu .l{ position:static; height:auto; min-height:100vh; box-sizing:border-box; max-width:780px; margin:0 auto; padding:36px 0 96px; border-right:0; background:none; justify-content:center; align-items:stretch; text-align:center; }
+ .menu .hd{ justify-content:center; }
+ .menu .ttl{ text-align:left; }
+ .menu .l .build{ order:0; margin:0; }
+ .menu .ent-lb{ margin-top:10px; }
+ .menu .mode.ent{ flex-direction:column; align-items:center; text-align:center; gap:6px; }
+ .menu .mode.ent>.ic{ margin-top:0; }
+ .menu .mode.ent .opts{ justify-content:center; }
+ .menu .ent-row .mode{ align-items:center; }
+ .menu .l .grow{ position:static; margin:6px 0 0; padding:0; border-top:0; background:none; justify-content:center; flex-grow:0; }
+ /* 下のバー */
+ .menu-bar{ display:flex; position:fixed; left:0; right:0; bottom:0; z-index:44; justify-content:center; gap:10px; padding:10px 16px; background:rgba(13,14,16,.95); border-top:1px solid var(--ln); backdrop-filter:blur(6px); }
+ .menu-bar button{ display:flex; gap:8px; align-items:center; border:1px solid var(--ln); background:var(--pn2); color:var(--tx); padding:9px 16px; font:inherit; font-size:13px; cursor:pointer; }
+ .menu-bar button:hover, .menu-bar button.on{ border-color:var(--acc); }
+ .menu-bar button .ic{ color:var(--acc); width:16px; height:16px; }
+ .menu-bar .dim{ color:var(--dim); font-size:12px; }
+ .menu-bar .arw{ color:var(--dim); transition:transform .25s; }
+ .menu-bar button.on .arw{ transform:rotate(180deg); }
+ .menu-shade{ display:block; position:fixed; inset:0; z-index:42; background:rgba(0,0,0,.45); opacity:0; pointer-events:none; transition:opacity .25s; }
+ .menu-shade.on{ opacity:1; pointer-events:auto; }
+ /* せり上がるパネル */
+ .menu .r{ position:fixed; left:50%; bottom:57px; z-index:43; width:min(1100px,calc(100vw - 32px)); max-height:calc(100vh - 120px); overflow-y:auto; box-sizing:border-box; padding:0 28px 24px; gap:22px;
+  background:var(--pns); border:1px solid var(--ln); border-top:2px solid var(--acc); box-shadow:0 -12px 40px rgba(0,0,0,.5);
+  transform:translate(-50%,calc(100% + 70px)); transition:transform .32s cubic-bezier(.2,.8,.2,1); visibility:hidden; }
+ .menu[data-drw] .r{ transform:translate(-50%,0); visibility:visible; }
+ .menu .drw-hd{ display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:2; background:var(--pns); padding:14px 0 10px; margin-bottom:-8px; border-bottom:1px solid var(--ln); font-weight:700; }
+ .menu .r>.team-open{ display:none; }
+ .menu .more-set{ border:0; background:none; }
+ .menu .more-set>summary{ display:none; }
+ .menu .more-set>.sec, .menu .more-set>.opts{ padding:0; }
+ .menu[data-drw="set"] #sec-keys{ display:none; }
+ .menu[data-drw="keys"] .more-set{ display:none; }
+}
+@media (prefers-reduced-motion: reduce){ .menu .r{ transition:none; } }
+@media (min-width:901px) and (max-height:860px){
+ .menu .l{ padding-top:18px; gap:10px; }
+ .menu .hd .logo{ width:84px; } .menu .ttl{ font-size:24px; }
+ .menu .sub{ display:none; }
+ .menu .mode.ent{ padding:10px 16px; gap:4px; }
+ .menu .ent-row .mode p, #mode-event>div>p{ display:none; }
+ .menu .ent-row .mode{ flex-direction:row; justify-content:center; padding:10px; }
+}

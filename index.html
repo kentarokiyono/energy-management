@@ -73,6 +73,7 @@
 <div class="build">BUILD 20261109-s5</div>
 </div>
 <div class="r">
+<div class="drw-hd"><span id="drw-ttl">詳しい設定</span><button type="button" class="btn ana-sm" onclick="Entry.drawer(null)"><span data-ic="chd"></span>閉じる</button></div>
 <div class="sec" id="sec-body"><h4><span data-ic="car"></span>BODY / SOLAR CELL</h4>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 <div><div class="lb mb-2">車体形状</div><div id="shape-cards" class="space-y-2"></div></div>
@@ -133,7 +134,7 @@
 <div class="opts" style="margin-top:-12px"><span class="lb" style="text-transform:none;letter-spacing:.06em;font-size:12px" id="settings-state"></span>
 <button type="button" class="btn" id="settings-reset" style="padding:5px 12px;font-size:12px" onclick="Settings.reset()"><span data-ic="rewind"></span>設定を既定値に戻す</button></div>
 </details>
-<div class="sec"><h4><span data-ic="gamepad"></span>CONTROLS</h4>
+<div class="sec" id="sec-keys"><h4><span data-ic="gamepad"></span>CONTROLS</h4>
 <div class="help">
 <kbd>W</kbd> <kbd>↑</kbd> 長押しでスロットル開度アップ (離すと固定) ・ <kbd>S</kbd> <kbd>↓</kbd> 開度ダウン ・ <kbd>Space</kbd> 物理ブレーキ (開度リセット) ・ <kbd>R</kbd> 回生ブレーキ ・ <kbd>A</kbd> <kbd>D</kbd> <kbd>←</kbd> <kbd>→</kbd> ハンドル<br>
 <kbd>V</kbd> カメラ ・ <kbd>G</kbd> グラフ ・ <kbd>TAB</kbd> 詳細パネル ・ <kbd>M</kbd> 停車メニュー ・ <kbd>Q</kbd> 無線で質問 ・ <kbd>N</kbd> R / D ・ <kbd>Z</kbd> <kbd>C</kbd> <kbd>X</kbd> ウインカー / ハザード ・ <kbd>B</kbd> ブースト (イベント) ・ <kbd>Esc</kbd> ポーズ<br>
@@ -141,6 +142,8 @@
 </div></div>
 </div>
 </div>
+<div class="menu-bar" id="menu-bar"><button type="button" onclick="Team.open()"><span data-ic="car"></span>車両・チームの設定</button><button type="button" data-d="set" onclick="Entry.drawer('set')"><span data-ic="sliders"></span>詳しい設定 <span class="dim" id="bar-sum"></span><span class="arw">▴</span></button><button type="button" data-d="keys" onclick="Entry.drawer('keys')"><span data-ic="gamepad"></span>キー操作<span class="arw">▴</span></button></div>
+<div class="menu-shade" id="menu-shade" onclick="Entry.drawer(null)"></div>
 </div>
 <div id="drv-dlg" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:rgba(5,5,6,.7)">
 <div class="card2" style="width:min(460px,calc(100vw - 32px))">
