@@ -536,7 +536,7 @@ body.mon-on #setup-screen, body.mon-on #game-container, body.mon-on #fade{ displ
 @media (max-width:1000px){ #ana-trend{ grid-template-columns:1fr; } .tr-grid{ grid-template-columns:1fr; } .tr-kpi{ grid-template-columns:repeat(2,1fr); } }
 
 /* ============ 待機画面 (明るい背景・ロゴが横に回る) ============ */
-#standby{ position:fixed; inset:0; z-index:300; background:#fff; color:#1d3fa3; display:flex; align-items:center; justify-content:center; cursor:none; user-select:none; -webkit-user-select:none; touch-action:none; }
+#standby{ position:fixed; inset:0; z-index:300; background:radial-gradient(ellipse 70% 65% at 50% 48%,#ffffff 0%,#f3f7fd 35%,#dbe6f7 70%,#c3d4ee 100%); color:#1d3fa3; display:flex; align-items:center; justify-content:center; cursor:none; user-select:none; -webkit-user-select:none; touch-action:none; }
 #standby .sb-stage{ perspective:1200px; width:min(42vw,560px); }
 #standby .sb-spin{ position:relative; width:100%; transform-style:preserve-3d; animation:sbSpin 7s linear infinite; }
 #standby .sb-face{ display:flex; flex-direction:column; align-items:center; gap:2vmin; backface-visibility:hidden; -webkit-backface-visibility:hidden; }

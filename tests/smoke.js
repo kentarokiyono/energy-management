@@ -342,10 +342,10 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
  // ---- 待機画面: ?standby で開き、ロゴが回り、触れると閉じる ----
  { const p=await newPage(b,base,{q:"?standby"});
   await p.waitForTimeout(1200);
-  const o=await p.evaluate(()=>{ const e=document.getElementById("standby"), s=e&&e.querySelector(".sb-spin"); return {open:!!e,anim:s?getComputedStyle(s).animationName:"",faces:e?e.querySelectorAll(".sb-face").length:0,bg:e?getComputedStyle(e).backgroundColor:""}; });
+  const o=await p.evaluate(()=>{ const e=document.getElementById("standby"), s=e&&e.querySelector(".sb-spin"); return {open:!!e,anim:s?getComputedStyle(s).animationName:"",faces:e?e.querySelectorAll(".sb-face").length:0,bg:e?getComputedStyle(e).backgroundImage:""}; });
   await p.mouse.click(200,200); await p.waitForTimeout(200);
   const c=await p.evaluate(()=>({closed:!document.getElementById("standby"),q:location.search}));
-  check("待機画面",o.open&&o.anim==="sbSpin"&&o.faces===2&&o.bg==="rgb(255, 255, 255)"&&c.closed&&c.q==="",JSON.stringify([o,c]));
+  check("待機画面",o.open&&o.anim==="sbSpin"&&o.faces===2&&/radial-gradient/.test(o.bg)&&c.closed&&c.q==="",JSON.stringify([o,c]));
   await p.context().close(); }
  // ---- オフライン: 一度開いたら回線なしで起動できる ----
  { const p=await newPage(b,base);
