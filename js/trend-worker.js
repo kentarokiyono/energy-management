@@ -55,18 +55,19 @@ function fcSolar(cd,W,km,abs,tilted){ const kb=Math.round(km/20), hb=Math.round(
 function actSolar(cd,W,km,abs,tilted){ const kb=Math.round(km/2), hb=Math.round(abs*20), key=(kb*20000+hb)*2+(tilted?1:0); let v=cd._a.get(key); if(v===undefined){ v=solar(cd,W,Math.min(C.total,kb*2),hb/20,tilted,false); cd._a.set(key,v); } return v; }
 /* 方針: 今から一定速度 v で走ったときに、電池が下限を割らずに Day6 17 時までにゴールできるか (予報で、1 時間刻み) */
 function feasible(cd,pl,W,st,v){ const WhC=cd.Wh*CAP();
- let abs=st.abs, km=st.km, e=st.soc*WhC, ci=st.csI||0; const fl=pl.floor*WhC, late=(a)=>(Math.floor(a/24)+1>=4? 1-pl.lateBias : 1);
+ let abs=st.abs, km=st.km, e=st.soc*WhC, ci=st.csI||0, rem=0; const fl=pl.floor*WhC, late=(a)=>(Math.floor(a/24)+1>=4? 1-pl.lateBias : 1);
  for(let guard=0;guard<400&&km<C.total;guard++){ const day=Math.floor(abs/24), h=abs-day*24;
   if(abs>=8*24+17) return true;   // 電池の見積もりは締め切りを気にせず最後まで (間に合わないかは走った結果で判定)
   if(h>=17||h<8){
    if(h>=17){ const s=C.segAt(km), ss=sunset(s.lat,s.lon,C.doy0+day); for(let x=abs;x<day*24+ss;x+=0.5) e+=bat(fcSolar(cd,W,km,x+0.25,true)*pl.fcBias*late(x)*0.5); }
    const m0=(h>=17?(day+1)*24:day*24)+6.25; for(let x=Math.max(abs,m0);x<m0+1.75;x+=0.5) e+=bat(fcSolar(cd,W,km,x+0.25,true)*pl.fcBias*late(x)*0.5);
-   abs=m0+1.75; e=Math.min(e,WhC); continue; }
+   abs=m0+1.75+rem; rem=0; e=Math.min(e,WhC); continue; }
   const dt=Math.min(1,17-h), s=C.segAt(km), vk=Math.min(v,s.vlimAvg,C.vTop);
   e+=bat((fcSolar(cd,W,km,abs+dt/2,false)*pl.fcBias*late(abs)-(pDrive(vk,0)*cd.lossK+cd.auxD)*KL(km))*dt);
   if(e<fl) return false;
   km+=vk*dt/KT(); abs+=dt; e=Math.min(e,WhC);
-  while(ci<C.cs.length&&km>=C.cs[ci].km){ const st2=0.5+(cd.csWait+pl.csExtra)/60; e=Math.min(WhC,e+bat(fcSolar(cd,W,km,abs+st2/2,!C.csFlat)*pl.fcBias*late(abs)*st2)); abs+=st2; ci++; } }
+  while(ci<C.cs.length&&km>=C.cs[ci].km){ const st2=0.5+(cd.csWait+pl.csExtra)/60, dEnd=Math.floor(abs/24)*24+17; e=Math.min(WhC,e+bat(fcSolar(cd,W,km,abs+st2/2,!C.csFlat)*pl.fcBias*late(abs)*st2));
+   if(abs+st2>dEnd){ rem=abs+st2-Math.max(abs,dEnd); abs=Math.max(abs,dEnd); } else abs+=st2; ci++; } }   /* 17 時をまたぐ CS は残りを翌朝に */
  return true; }
 function planSpeed(cd,pl,W,st,prev){ const top=Math.min(pl.vcap,C.vTop); let lo=25, hi=top, it=9;
  if(prev){ const a=Math.max(25,prev-10), b=Math.min(top,prev+10); if(feasible(cd,pl,W,st,a)){ lo=a; hi=b; it=6; if(b<top&&feasible(cd,pl,W,st,b)){ lo=b; hi=top; it=8; } } }   // 前の速度の近くから探す
@@ -78,7 +79,7 @@ function run(cd,pl,trace){
  const FX=pl.sp||null, NR=!!pl.noRules;   /* NR: 締め切りを見ないで最後まで (合わせ込み用) */   /* 決まった速度 (2 km ごと) でなぞる: エンジンとの合わせ込み用 */
  const Wh=cd.Wh*CAP(), ST=pl.start;   /* ST: 途中の状態 {abs, km, soc} から始める (実車のログの続きなど) */
  let abs=ST? ST.abs : 8+(cd.grid-1)/60, km=ST? ST.km : 0, soc=ST? ST.soc : 1, minSoc=soc, why="", vPlan=60, nextPlan=0;
- const tr=trace?[]:null, dayKm=[0,0,0,0,0,0,0]; let csI=ST? C.cs.filter(c=>c.km<=km+1e-6).length : 0, dcDone=!!ST&&km>=C.dc, moving=0, energyUse=0, energySun=0, stormStop=0;
+ const tr=trace?[]:null, dayKm=[0,0,0,0,0,0,0]; let csI=ST? C.cs.filter(c=>c.km<=km+1e-6).length : 0, dcDone=!!ST&&km>=C.dc, moving=0, energyUse=0, energySun=0, stormStop=0, csRem=0;
  const DE=trace?{}:null, de=(a)=>{ const d=Math.floor(a/24)+1; return DE[d]||(DE[d]={mv:0,load:0,tilt:0}); };   /* 日ごとの電力量 (記録付きのときだけ) */
  const charge=(t0,t1,tilted)=>{ for(let x=t0;x<t1-1e-6;x+=0.25){ const d=Math.min(0.25,t1-x), p=actSolar(cd,W,km,x+d/2,tilted); energySun+=p*d; if(DE&&tilted) de(x).tilt+=p*d; soc=Math.min(1,soc+bat((p-(tilted?2:cd.auxW))*d)/Wh); } };
  for(let i=ST? Math.min(C.segN-1,Math.max(0,C.seg.indexOf(C.segAt(km)))) : 0;i<C.segN&&km<C.total-1e-6;){
@@ -88,7 +89,9 @@ function run(cd,pl,trace){
   if(h>=hEnd||h<8){   // 夜: 日没まで・朝 6:15 から 8:00 まで傾けて充電
    dayKm[Math.min(6,day)]=km; const s=C.segAt(km), ss=sunset(s.lat,s.lon,C.doy0+day);
    if(h>=hEnd){ if(h<ss) charge(abs,day*24+ss,true); abs=(day+1)*24+6.25; } else if(h<6.25) abs=day*24+6.25;
-   charge(abs,Math.floor(abs/24)*24+8,true); abs=Math.floor(abs/24)*24+8; nextPlan=0; continue; }
+   charge(abs,Math.floor(abs/24)*24+8,true); abs=Math.floor(abs/24)*24+8; nextPlan=0;
+   if(csRem>0){ charge(abs,abs+csRem,!C.csFlat); abs+=csRem; csRem=0; }   /* 前の日に 17 時をまたいだ CS の残り */
+   continue; }
   // 出発を待つ (例: 暴風の警報で全チームの出発が遅れた): その時刻まで傾けて充電
   if(pl.holdUntil&&abs<pl.holdUntil&&pl.holdUntil-abs<12){ charge(abs,pl.holdUntil,true); abs=pl.holdUntil; nextPlan=0; continue; }
   // 暴風雨: 前縁の pl.stormLead 分前に止まる (0 = 止まらない)
@@ -119,7 +122,8 @@ function run(cd,pl,trace){
   if(!dcDone&&km>=C.dc){ dcDone=true; charge(abs,abs+C.dcMin/60,true); abs+=C.dcMin/60; }
   while(csI<C.cs.length&&km>=C.cs[csI].km){ const c=C.cs[csI]; if(!NR&&abs>c.close){ why="CS の締め切りに遅れた"; break; }
    if(!NR&&csI===0&&abs>sunset(s.lat,s.lon,C.doy0)){ why="Day1 の日没までに Katherine に着けない"; break; }
-   const stay=0.5+(cd.csWait+pl.csExtra)/60; charge(abs,abs+stay,!C.csFlat); abs+=stay; csI++; }   /* C.csFlat: CS では傾けられない (平置きのまま) */
+   const stay=0.5+(cd.csWait+pl.csExtra)/60, dEnd=Math.floor(abs/24)*24+((pl.endH&&pl.endH[Math.floor(abs/24)+1])||17);   /* 17 時に CS の計時は止まり、残りは翌朝 8 時から */
+   if(abs+stay>dEnd){ const pre=Math.max(0,dEnd-abs); if(pre>0) charge(abs,dEnd,!C.csFlat); abs=Math.max(abs,dEnd); csRem=stay-pre; } else { charge(abs,abs+stay,!C.csFlat); abs+=stay; } csI++; }   /* C.csFlat: CS では傾けられない (平置きのまま) */
   if(why) break; }
  const ok=!why&&km>=C.total-1e-6&&abs<=5*24+((pl.endH&&pl.endH[6])||17)+1e-6; if(!ok&&!why) why="Day6 17 時までにゴールできない";
  return {ok,why,fin:ok?abs:NaN,km,minSoc,dayKm,avgV:moving>0?km/moving:0,eUse:energyUse/1000,eSun:energySun/1000,stormStop,trace:tr,dayE:DE}; }
