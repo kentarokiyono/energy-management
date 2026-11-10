@@ -15,7 +15,7 @@ async function newPage(b,base,opt={}){
  const p=await ctx.newPage(); p.errs=[]; p.ext=[];
  p.on("pageerror",e=>p.errs.push(e.message)); p.on("console",m=>{ if(m.type()==="error") p.errs.push(m.text()); });
  p.on("request",r=>{ const u=r.url(); if(!u.startsWith(base)&&!/^(data|blob):/.test(u)) p.ext.push(u); });
- await p.goto(base+"index.html"); await p.waitForFunction(()=>typeof startGame==="function"&&typeof THREE!=="undefined");
+ await p.goto(base+"index.html"+(opt.q||"")); await p.waitForFunction(()=>typeof startGame==="function"&&typeof THREE!=="undefined");
  await p.waitForTimeout(500);
  if(!opt.gfx) await p.evaluate(()=>{ P.gfx="low"; });   // 速さを見る確認は軽い画質で (ソフトウェア描画は遅い)。高画質は別に確認
  return p; }
@@ -339,6 +339,14 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
    return {hit,out}; });
   check(`スマホ ${vp.width}×${vp.height}: 重なり・はみ出しなし`,o.hit.length===0&&o.out===0,JSON.stringify(o));
   await shot(p,`touch-${vp.width}`); await p.context().close(); }
+ // ---- 待機画面: ?standby で開き、ロゴが回り、触れると閉じる ----
+ { const p=await newPage(b,base,{q:"?standby"});
+  await p.waitForTimeout(1200);
+  const o=await p.evaluate(()=>{ const e=document.getElementById("standby"), s=e&&e.querySelector(".sb-spin"); return {open:!!e,anim:s?getComputedStyle(s).animationName:"",faces:e?e.querySelectorAll(".sb-face").length:0,bg:e?getComputedStyle(e).backgroundColor:""}; });
+  await p.mouse.click(200,200); await p.waitForTimeout(200);
+  const c=await p.evaluate(()=>({closed:!document.getElementById("standby"),q:location.search}));
+  check("待機画面",o.open&&o.anim==="sbSpin"&&o.faces===2&&o.bg==="rgb(255, 255, 255)"&&c.closed&&c.q==="",JSON.stringify([o,c]));
+  await p.context().close(); }
  // ---- オフライン: 一度開いたら回線なしで起動できる ----
  { const p=await newPage(b,base);
   await p.waitForFunction(()=>/OFFLINE READY/.test(document.querySelector(".menu .build").textContent),null,{timeout:30000});

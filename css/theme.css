@@ -534,3 +534,22 @@ body.mon-on #setup-screen, body.mon-on #game-container, body.mon-on #fade{ displ
 #tr-conv{ display:block; width:100%; height:220px; } .tr-bnd{ display:grid; grid-template-columns:1.6fr 1fr 1fr; gap:3px 10px; font-size:12px; margin-top:8px; font-variant-numeric:tabular-nums; } .tr-bnd .lb{ font-size:10.5px; color:var(--dim); } .tr-bnd b{ color:var(--acc); font-weight:600; } #tr-vc{ display:block; width:100%; height:150px; margin-top:8px; }
 .tr-tg{ margin-top:10px; } .tr-tgt{ display:grid; grid-template-columns:1.6fr 0.8fr 0.8fr 0.8fr; gap:3px 10px; font-size:12px; font-variant-numeric:tabular-nums; } .tr-tgt .lb{ font-size:10.5px; color:var(--dim); }
 @media (max-width:1000px){ #ana-trend{ grid-template-columns:1fr; } .tr-grid{ grid-template-columns:1fr; } .tr-kpi{ grid-template-columns:repeat(2,1fr); } }
+
+/* ============ 待機画面 (明るい背景・ロゴが横に回る) ============ */
+#standby{ position:fixed; inset:0; z-index:300; background:#fff; color:#1d3fa3; display:flex; align-items:center; justify-content:center; cursor:none; user-select:none; -webkit-user-select:none; touch-action:none; }
+#standby .sb-stage{ perspective:1600px; width:min(78vw,1100px); }
+#standby .sb-spin{ position:relative; width:100%; transform-style:preserve-3d; animation:sbSpin 7s linear infinite; }
+#standby .sb-face{ display:flex; flex-direction:column; align-items:center; gap:2vmin; backface-visibility:hidden; -webkit-backface-visibility:hidden; }
+#standby .sb-back{ position:absolute; inset:0; transform:rotateY(180deg); }
+#standby .sb-face img{ display:block; width:100%; height:auto; pointer-events:none; }
+#standby .sb-face img.sb-wing{ width:38%; }
+#standby .sb-name{ font-size:min(5.4vw,64px); font-weight:700; color:#f5b51c; letter-spacing:.02em; white-space:nowrap; }
+#standby .sb-name b{ color:#1d3fa3; }
+#standby .sb-hint{ position:absolute; bottom:6vh; left:0; right:0; text-align:center; font-size:13px; color:#8a93a6; animation:sbHint 4s ease forwards; }
+#standby .sb-tools{ position:absolute; right:12px; bottom:10px; display:flex; gap:8px; opacity:0; transition:opacity .3s; }
+#standby:hover .sb-tools{ opacity:1; }
+#standby .sb-tools button{ cursor:pointer; font-size:11px; color:#8a93a6; background:none; border:1px solid #d6dbe5; border-radius:6px; padding:4px 9px; }
+#standby:hover{ cursor:default; }
+@keyframes sbSpin{ from{ transform:rotateY(0deg); } to{ transform:rotateY(360deg); } }
+@keyframes sbHint{ 0%,70%{ opacity:1; } 100%{ opacity:0; } }
+@media (prefers-reduced-motion: reduce){ #standby .sb-spin{ animation-duration:20s; } }
