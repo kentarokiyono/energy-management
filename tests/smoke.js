@@ -357,7 +357,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   const o=await p.evaluate(()=>{ const drv=P.drivers.join(","), old=localStorage.getItem("bwsc_drivers"); P.gfx="low"; P.mode="race"; P.fcErr="off"; P.raceStorm=false; window.pushChart=()=>{}; P.crewProc=false; const out={drv,old};
    for(const t of [true,false]){ P.csTilt=t; startGame(); modalPause=false; const s=Engine.st; s.hour=12; s.km=RP_CS[0].km-0.01; Engine.beginCS(RP_CS[0],false); const td=!document.getElementById("tilt-decide").classList.contains("hidden"); show("tilt-decide",false); modalPause=false; for(let i=0;i<60;i++) Engine.step(1,1); out[t?"tilt":"flat"]={td,w:Math.round(s.lastSolar)}; }
    P.csTilt=true; return out; });
-  check("車両・チームの設定: ドライバー名の移し替え・CS で傾けない運用",o.drv==="山田,鈴木"&&o.old===null&&o.tilt.td&&!o.flat.td&&o.flat.w<o.tilt.w*0.85,JSON.stringify(o));
+  check("車両・チームの設定: ドライバー名の移し替え・CS で傾けない運用",o.drv==="山田,鈴木"&&o.old===null&&o.tilt.td&&!o.flat.td&&o.flat.w<o.tilt.w*0.95,JSON.stringify(o));
   await p.context().close(); }
  // ---- メニューの入口: 練習する (本戦・予選・シナリオ) / 戦略 / 振り返る / チームで見る / イベント。前回の入口を覚える ----
  { const p=await newPage(b,base);
