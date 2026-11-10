@@ -648,3 +648,22 @@ body.mon-on #setup-screen, body.mon-on #game-container, body.mon-on #fade{ displ
  .menu .ent-row .mode p, #mode-event>div>p{ display:none; }
  .menu .ent-row .mode{ flex-direction:row; justify-content:center; padding:10px; }
 }
+
+/* ============ 傾向: かんたん表示 ============ */
+#tr-easy{ display:none; }
+#ana-trend.te-on{ grid-template-columns:minmax(0,860px); justify-content:center; }
+#ana-trend.te-on .tr-l, #ana-trend.te-on .tr-r{ display:none; }
+#ana-trend.te-on #tr-easy{ display:flex; flex-direction:column; gap:10px; }
+.te-card{ padding:18px 22px; }
+.te-car{ display:flex; gap:16px; flex-wrap:wrap; align-items:center; font-size:12.5px; color:var(--tx2); margin:6px 0 4px; }
+.te-car a{ color:var(--acc); }
+.te-go{ margin:10px 0 6px; }
+.te-go .btn{ padding:11px 26px; font-size:15px; }
+.te-row{ display:grid; grid-template-columns:130px 1fr; gap:14px; padding:14px 0; border-top:1px solid var(--ln); align-items:baseline; }
+.te-k{ font-size:12px; color:var(--dim); letter-spacing:.06em; }
+.te-big{ font-size:34px; font-family:var(--fn); }
+.te-big.ok{ color:var(--ok); } .te-big.bad{ color:var(--bad); }
+.te-row ul, .te-row ol{ margin:0; padding-left:1.2em; line-height:1.9; font-size:14px; }
+.te-more{ display:flex; justify-content:center; }
+#te-back2{ margin-bottom:-2px; }
+@media (max-width:640px){ .te-row{ grid-template-columns:1fr; gap:4px; } }

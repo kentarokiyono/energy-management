@@ -137,6 +137,10 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
    const veh=!!document.querySelector("#team #sec-body")&&!!document.querySelector("#team #sec-veh"); Team.close();
    return {ask,rk,mid:rk&&Number.isFinite(rk.solar)? Math.abs((e1.min+e1.max)/2-rk.solar)<0.002 : false,saved:!!saved.realK,back:e2.min===e0.min&&e2.max===e0.max,veh,tabs:document.querySelectorAll("#team .team-tabs button").length}; });
   check("車両・チームの設定: 実車との比 (ログ → 設定 → 傾向の範囲)・車両の欄",tm.ask&&tm.rk&&tm.mid&&tm.saved&&tm.back&&tm.veh&&tm.tabs===5,JSON.stringify(tm));
+  // かんたん表示: 「調べる」で完走率・推奨の走り方 (言葉)・改善の候補 (同じ条件の並びで比べる)
+  const ez=await p.evaluate(async()=>{ const keepCs=P.csTilt; P.csTilt=false; Trend.EASY_BUDGET=[400,1000]; Trend.EASY_N=120; Trend.setView("easy"); await Trend.easyRun(); const E=Trend.easy, ui=document.getElementById("tr-easy").textContent;
+   P.csTilt=keepCs; Trend.setView("detail"); return E&&{rate:E.base.rate,n:E.base.n,words:E.words.length,lev:E.lev.map(l=>l.k).join(","),cs:(E.lev.find(l=>l.k==="cs")||{}).d,ui:ui.includes("完走率")&&ui.includes("推奨の走り方")&&ui.includes("一番効く改善"),years:Trend.cfg.years}; });
+  check("傾向: かんたん表示 (完走率・推奨の走り方・効く改善)",ez&&ez.n===120&&ez.rate>=0&&ez.rate<=1&&ez.words>=2&&ez.lev.split(",").length===4&&ez.cs>=0&&ez.ui&&ez.years==null,JSON.stringify(ez));
   // 二段階の探索 (広域 → 完走率の制約付き最適化 → 上位を確かめ直す)
   const sr=await p.evaluate(async()=>{ Trend.cfg.mode="search"; Trend.cfg.s1=400; Trend.cfg.s2=1000; Trend.cfg.years=[2019,2025]; await Trend.start(); const R=Trend.res, bi=R.best>=0?R.best:R.fallback;
    const B=R.search.bounds, narrowed=Object.entries(B).every(([k,b])=>b.lo>=Trend.POL[k].min-1e-9&&b.hi<=Trend.POL[k].max+1e-9&&b.hi>b.lo);
