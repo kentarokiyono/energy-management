@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - if: github.event_name == 'pull_request'
+        run: git fetch --depth=1 origin ${{ github.base_ref }} && node tests/build-check.js origin/${{ github.base_ref }}
       - run: npm install --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
       - run: npm test
