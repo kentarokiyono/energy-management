@@ -104,7 +104,7 @@ Object.assign(Trend,{
   finally{ if(w) w.end(); this.busy=false; this.left(); } },
  /* 比べた比を、変える要素 (発電の効率・走行の消費) の範囲の中心に (± 3 %) */
  realApply(){ const r=this.realRes; if(!r) return; const set=(k,x)=>{ if(!Number.isFinite(x)) return; const d=this.COND[k]; delete d.fix; d.min=+(x*0.97).toFixed(3); d.max=+(x*1.03).toFixed(3); };
-  set("effK",r.solar); set("lossK",r.load); toast("発電の効率・走行の消費の範囲を、実車との比に合わせました","#34d399"); this.left(); },
+  set("effK",r.solar); set("lossK",r.load); if(typeof Team!=="undefined") Team.setReal({solar:r.solar,load:r.load,src:r.name,date:r.date}); toast("発電の効率・走行の消費の範囲を、実車との比に合わせました","#34d399"); this.left(); },
  realCard(){ const L=this.realRuns(), r=this.realRes, head=`<div class="hv-card" id="tr-real"><div class="hv-h">${ic("activity")}実車のログで確かめる</div>`;
   if(!L.length) return head+`<div class="dim tr-note">分析画面 (本戦) で、計測器の CSV (日付が大会期間のもの) を読み込むと、その日の過去の天気で速い計算と比べられます。</div></div>`;
   const sel=`<div class="tr-run"><select id="tr-realsel">${L.map(x=>`<option value="${x.id}" ${r&&r.id===x.id?"selected":""}>${escHtml(x.name)} (${escHtml(x.date||"")})</option>`).join("")}</select><button class="btn ana-sm" ${this.busy?"disabled":""} onclick="Trend.realCheck(document.getElementById('tr-realsel').value)">${ic("play")}比べる</button></div>`;

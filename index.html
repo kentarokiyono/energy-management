@@ -23,48 +23,63 @@
 <div class="hd"><img src="assets/img/logo.svg" class="logo" alt="" width="112">
 <div><div class="ttl">BWSC 3D RACING<br>SIMULATOR</div></div></div>
 <div class="sub">Bridgestone World Solar Challenge ― 2025 Route<br>Darwin → Adelaide 3,027 km ― Wakayama Univ. Solar Car Team</div>
-<div id="mode-race" class="mode active" onclick="selectMode('race')"><span data-ic="finish"></span>
-<div><h3>レースモード <span class="lb">Team training</span></h3>
-<p>2025 年公式ルートノート準拠。CS1〜CS9・信号・橋・キャンプ地・朝夕の充電 (6–8 時 / 17 時–日没)・ロードトレイン・無線・随伴車まで再現。</p></div></div>
-<div id="mode-event" class="mode" onclick="selectMode('event')"><span data-ic="party"></span>
-<div><h3>イベントモード <span class="lb">For visitors</span></h3>
-<p>10 分の課題クリア型。オーストラリア: 交通ルール → 省エネ巡航 → ロードトレイン → CS → Devils Marbles の砂漠 → Port Augusta。ヒドゥンバレー: 車検 → サーキット走行。その日のランキング・1 位のゴースト・QR で走りを持ち帰り。</p>
-<div class="opts" onclick="event.stopPropagation();selectMode('event')">
-<div class="seg"><button id="ev-co-aus" type="button" onclick="setEventCourse('aus')">オーストラリア</button><button id="ev-co-hv" type="button" onclick="setEventCourse('hv')">ヒドゥンバレー</button></div>
-<div class="seg"><button id="ev-lv-kid" type="button" onclick="setEventLevel('kid')">こども</button><button id="ev-lv-adult" type="button" onclick="setEventLevel('adult')">おとな</button></div>
-<div class="seg" title="最初に 30 秒ほど操作を練習する"><button id="ev-pr-on" type="button" onclick="setEventPractice(true)">練習あり</button><button id="ev-pr-off" type="button" onclick="setEventPractice(false)">なし</button></div>
-</div></div></div>
-<div id="mode-test" class="mode" onclick="selectMode('test')"><span data-ic="timer"></span>
-<div><h3>予選・車検モード <span class="lb">Hidden Valley</span></h3>
-<p>Hidden Valley Raceway (2.87 km・14 コーナー・高低差約 13 m・反時計回り) の Hot Lap 予選、ドラッグストリップのスラローム・制動テスト、PIT PADDOCK 駐車場の 8 の字安定性試験 (競技規則 2.19)。</p>
-<div class="opts" onclick="event.stopPropagation()">
-<div class="seg">
+<div class="ent-lb">何をする？</div>
+<div id="ent-practice" class="mode ent" data-ent="practice"><span data-ic="finish"></span>
+<div><h3>練習する <span class="lb">Drivers</span></h3>
+<p>本戦 (2025 年ルート 3,027 km)・予選と車検 (Hidden Valley)・天候急変の練習シナリオ。</p>
+<div class="opts"><div class="seg" id="ent-sub"><button type="button" data-sub="race">本戦</button><button type="button" data-sub="test">予選・車検</button><button type="button" data-sub="scn">練習シナリオ</button></div></div>
+<div class="ent-sub" data-for="race"></div>
+<div class="ent-sub" data-for="test">
+<div class="opts"><div class="seg">
 <button type="button" class="on" data-test="circuit" onclick="selectTest('circuit')">Hot Lap</button>
 <button type="button" data-test="slalom" onclick="selectTest('slalom')">スラローム</button>
 <button type="button" data-test="brake" onclick="selectTest('brake')">制動</button>
 <button type="button" data-test="combo" onclick="selectTest('combo')">スラローム+制動</button>
 <button type="button" data-test="fig8" onclick="selectTest('fig8')">8 の字</button>
 </div></div>
-<p id="test-desc">サーキット予選 ― 優秀チームは2分20秒台前半。ベストラップでグリッドが決まる。</p></div></div>
+<p id="test-desc">サーキット予選 ― 優秀チームは2分20秒台前半。ベストラップでグリッドが決まる。</p></div>
+<div class="ent-sub" data-for="scn">
+<div class="opts"><div class="seg" id="ent-scn"></div></div>
+<div class="opts" id="scn-lv-box" title="暴風雨の難しさ。実戦 = 2025 年の実際の強さ (突風 最大 140 km/h)。標準 = 風は約半分、前方誘導車の予告が早い (ゆっくり走れば耐えられる)" style="margin-top:8px"><span class="lb">暴風雨の難しさ</span><div class="seg" id="seg-scnlv"></div></div>
+<p>天候の急変を練習する場面から始める (時間はゆっくり進む)。</p></div>
+</div></div>
+<div class="ent-row">
+<div id="ent-strategy" class="mode ent" data-ent="strategy"><span data-ic="chart"></span>
+<div><h3>戦略を考える</h3>
+<p>過去 21 年の天気で完走率・推奨の走り方</p></div></div>
+<div id="ent-review" class="mode ent" data-ent="review"><span data-ic="activity"></span>
+<div><h3>振り返る</h3>
+<p>走行ログを読み込んで分析 ・ <a href="#" onclick="event.stopPropagation();DrvRec.open();return false">ドライバー成績</a></p></div></div>
+<div id="ent-team" class="mode ent" data-ent="team"><span data-ic="satellite"></span>
+<div><h3>チームで見る</h3>
+<p>QR で別の端末から監視</p></div></div>
+</div>
+<div id="mode-event" class="mode ent" data-ent="event"><span data-ic="party"></span>
+<div><h3>イベント <span class="lb">For visitors</span></h3>
+<p>一般向けの展示。10 分の課題クリア型・その日のランキング・QR で走りを持ち帰り。</p>
+<div class="opts">
+<div class="seg"><button id="ev-co-aus" type="button" onclick="setEventCourse('aus')">オーストラリア</button><button id="ev-co-hv" type="button" onclick="setEventCourse('hv')">ヒドゥンバレー</button></div>
+<div class="seg"><button id="ev-lv-kid" type="button" onclick="setEventLevel('kid')">こども</button><button id="ev-lv-adult" type="button" onclick="setEventLevel('adult')">おとな</button></div>
+<div class="seg" title="最初に 30 秒ほど操作を練習する"><button id="ev-pr-on" type="button" onclick="setEventPractice(true)">練習あり</button><button id="ev-pr-off" type="button" onclick="setEventPractice(false)">なし</button></div>
+</div></div></div>
+<div id="mode-race" class="hidden"></div><div id="mode-test" class="hidden"></div>
 <div class="grow">
-<button class="btn pri" style="padding:14px 34px;font-size:16px" onclick="DrvDlg.open()"><span data-ic="play"></span> START</button>
+<button class="btn pri" id="ent-go" style="padding:14px 34px;font-size:16px" onclick="Entry.go()"><span data-ic="play"></span> <span id="ent-go-t">START</span></button>
 <span id="resume-box" style="display:none"><button class="btn" onclick="Save.resume()"><span data-ic="rewind"></span> 続きから</button><span class="lb" id="resume-info" style="text-transform:none;letter-spacing:.04em;margin:0 6px"></span><button class="btn" title="保存したレースを削除" style="padding:6px 9px" onclick="Save.remove()"><span data-ic="x"></span></button></span>
 <button class="btn" onclick="openWheelConfig()"><span data-ic="wheel"></span> ハンコン割当</button>
-<button class="btn" onclick="Fade.go(()=>Ana.open())"><span data-ic="chart"></span> 走行の分析</button>
-<button class="btn" onclick="DrvRec.open()"><span data-ic="users"></span> ドライバー成績</button>
-<button class="btn" onclick="Tele.panel()"><span data-ic="satellite"></span> テレメトリ</button>
 <button class="btn" onclick="Standby.open()"><span data-ic="moon"></span> 待機画面</button>
 <span class="lb" id="gamepad-status">未検出</span>
 </div>
 <div class="build">BUILD 20261109-s5</div>
 </div>
 <div class="r">
-<div class="sec"><h4><span data-ic="car"></span>BODY / SOLAR CELL</h4>
+<div class="drw-hd"><span id="drw-ttl">詳しい設定</span><button type="button" class="btn ana-sm" onclick="Entry.drawer(null)"><span data-ic="chd"></span>閉じる</button></div>
+<div class="sec" id="sec-body"><h4><span data-ic="car"></span>BODY / SOLAR CELL</h4>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 <div><div class="lb mb-2">車体形状</div><div id="shape-cards" class="space-y-2"></div></div>
 <div><div class="lb mb-2">パネル種類</div><div id="panel-cards" class="space-y-2"></div></div>
 </div></div>
-<div class="sec"><h4><span data-ic="sliders"></span>VEHICLE</h4>
+<div class="sec" id="sec-veh"><h4><span data-ic="sliders"></span>VEHICLE</h4>
 <div id="param-sliders" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3"></div>
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
 <div class="bar-outer px-3 py-2"><div class="lb">CdA</div><div><span id="disp-cda" class="num text-lg">0.110</span><span class="u">m²</span></div></div>
@@ -76,11 +91,11 @@
 <summary class="text-xs cursor-pointer"><span data-ic="wrench"></span> プロフェッショナル設定 (環境・バッテリー・モーター・AI・リスク)</summary>
 <div id="pro-grid" class="grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-1 mt-2 text-[11px]"></div>
 </details></div>
+<button class="team-open" onclick="Team.open()"><span data-ic="car"></span><span><b>車両・チームの設定</b><span class="dim">車両の値・実車との比・合わせ込み・運用・ドライバー</span></span><span class="go">›</span></button>
+<details id="more-set" class="more-set"><summary><span data-ic="sliders"></span>詳しい設定 <span class="dim" id="more-sum"></span></summary>
 <div class="sec"><h4><span data-ic="flag"></span>RACE</h4>
 <div class="opts" style="align-items:flex-start;gap:22px">
 <div><div class="lb mb-2">時間加速</div><div class="seg" id="seg-ts"></div></div>
-<div title="天候の急変を練習する場面から始める (時間はゆっくり進む)。選ぶとチャプターより優先"><div class="lb mb-2">練習シナリオ</div><div class="seg" id="seg-scn"></div></div>
-<div id="scn-lv-box" title="暴風雨の難しさ。実戦 = 2025 年の実際の強さ (突風 最大 140 km/h)。標準 = 風は約半分、前方誘導車の予告が早い (ゆっくり走れば耐えられる)"><div class="lb mb-2">暴風雨の難しさ</div><div class="seg" id="seg-scnlv"></div></div>
 <select id="scn-level" class="hidden"><option value="real" selected>実戦</option><option value="std">標準</option></select>
 <select id="scenario" class="hidden"><option value="" selected>なし</option><option value="squall">スコール</option><option value="cross">強い横風</option><option value="cloud">長い曇り</option><option value="storm">暴風雨</option></select>
 <div title="コントロールストップの 2 km 手前から始める。日時・電池残量は標準ペース (70 km/h) での見積もり"><div class="lb mb-2">チャプター (CS の 2 km 手前から)</div><div class="seg" id="seg-chap"></div></div>
@@ -118,7 +133,8 @@
 </div></div>
 <div class="opts" style="margin-top:-12px"><span class="lb" style="text-transform:none;letter-spacing:.06em;font-size:12px" id="settings-state"></span>
 <button type="button" class="btn" id="settings-reset" style="padding:5px 12px;font-size:12px" onclick="Settings.reset()"><span data-ic="rewind"></span>設定を既定値に戻す</button></div>
-<div class="sec"><h4><span data-ic="gamepad"></span>CONTROLS</h4>
+</details>
+<div class="sec" id="sec-keys"><h4><span data-ic="gamepad"></span>CONTROLS</h4>
 <div class="help">
 <kbd>W</kbd> <kbd>↑</kbd> 長押しでスロットル開度アップ (離すと固定) ・ <kbd>S</kbd> <kbd>↓</kbd> 開度ダウン ・ <kbd>Space</kbd> 物理ブレーキ (開度リセット) ・ <kbd>R</kbd> 回生ブレーキ ・ <kbd>A</kbd> <kbd>D</kbd> <kbd>←</kbd> <kbd>→</kbd> ハンドル<br>
 <kbd>V</kbd> カメラ ・ <kbd>G</kbd> グラフ ・ <kbd>TAB</kbd> 詳細パネル ・ <kbd>M</kbd> 停車メニュー ・ <kbd>Q</kbd> 無線で質問 ・ <kbd>N</kbd> R / D ・ <kbd>Z</kbd> <kbd>C</kbd> <kbd>X</kbd> ウインカー / ハザード ・ <kbd>B</kbd> ブースト (イベント) ・ <kbd>Esc</kbd> ポーズ<br>
@@ -126,6 +142,8 @@
 </div></div>
 </div>
 </div>
+<div class="menu-bar" id="menu-bar"><button type="button" onclick="Team.open()"><span data-ic="car"></span>車両・チームの設定</button><button type="button" data-d="set" onclick="Entry.drawer('set')"><span data-ic="sliders"></span>詳しい設定 <span class="dim" id="bar-sum"></span><span class="arw">▴</span></button><button type="button" data-d="keys" onclick="Entry.drawer('keys')"><span data-ic="gamepad"></span>キー操作<span class="arw">▴</span></button></div>
+<div class="menu-shade" id="menu-shade" onclick="Entry.drawer(null)"></div>
 </div>
 <div id="drv-dlg" class="fixed inset-0 z-50 hidden items-center justify-center" style="background:rgba(5,5,6,.7)">
 <div class="card2" style="width:min(460px,calc(100vw - 32px))">
@@ -466,6 +484,8 @@
 <script src="js/ui/trend-load.js?v=20261109-s5"></script>
 <script src="js/ui/map.js?v=20261109-s5"></script>
 <script src="js/ui/standby.js?v=20261109-s5"></script>
+<script src="js/ui/team.js?v=20261109-s5"></script>
+<script src="js/ui/entry.js?v=20261109-s5"></script>
 <script src="js/main.js?v=20261109-s5"></script>
 </body>
 </html>
