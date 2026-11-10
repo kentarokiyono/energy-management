@@ -20,7 +20,7 @@ const Strategy={
   const pv=(G)=>P.arrayArea*P.cellEff*P.mpptEff*G*PRO.solarScale*0.92;
   let abs=o? o.abs : (s.day-1)*24+s.hour, km=o? o.km : s.km, soc=o? o.soc : s.soc, minSoc=soc, minKm=km, socNextCS=null, kmToday=null, lateCS=null;
   const csList=RP_CS.filter(c=>(o||!s.passedCP.has(c.km))&&c.km>km-0.2), nextCS=csList[0];
-  let ci=0, stopH= o? 0 : s.stopTimer>0? s.stopTimer/3600 : 0;
+  let ci=0, stopH= o? 0 : s.stopTimer>0? s.stopTimer/3600 : 0, stopRem=0;
   if(tr) tr.push([km,abs,soc,0]);
   const G=(tilted)=>{ const day=Math.floor(abs/24)+1, h=abs-(day-1)*24, pr=profileAt(km);
    s.dayOfYear=PRO.dayOfYear+day-1; s.km=km; s.weather= RealWx.on()? null : ((s.fc&&s.fc.plan)||s.weatherPlan||[]).find(w=>abs>=w.start&&abs<w.start+w.dur)||null;   // 予報で見積もる
@@ -31,13 +31,16 @@ const Strategy={
   try{
    for(let guard=0;guard<6000&&km<TOTAL_KM;guard++){
     const day=Math.floor(abs/24), h=abs-day*24;
-    if(stopH>0){ charge(stopH,P.csTilt!==false); stopH=0; continue; }   // CS: 傾けない運用なら平置き
+    if(stopH>0){ const end=day*24+17;   // CS: 傾けない運用なら平置き。17 時に計時が止まり、残りは翌朝 8 時から
+     if(h>=17||h<8){ stopRem+=stopH; stopH=0; }
+     else if(abs+stopH>end){ const pre=end-abs; charge(pre,P.csTilt!==false); stopRem+=stopH-pre; stopH=0; continue; }
+     else { charge(stopH,P.csTilt!==false); stopH=0; continue; } }
     if(h>=17||h<8){   // 夜: 日没まで・朝 6:15 から充電、8:00 発
      if(kmToday==null&&day===startDay) kmToday=km;
      const pr=profileAt(km), sunset=Engine.sunsetHour(pr.lat,pr.lon);
      if(h>=17&&h<sunset) charge(sunset-h);
      const morning=(h>=8? (day+1)*24 : day*24);
-     abs=Math.max(abs,morning+6.25); charge(8-6.25); continue; }
+     abs=Math.max(abs,morning+6.25); charge(8-6.25); if(stopRem>0){ stopH=stopRem; stopRem=0; } continue; }
     const su=typeof Storm!=="undefined"&&Storm.stopUntil(s,abs); if(su){ abs=su; continue; }   // 暴風雨: 止まって待つ (発電はほぼ無い)
     const seg=Math.min(this.SEG,TOTAL_KM-km), grade=(profileAt(km+seg).elev-profileAt(km).elev)/(seg*1000);
     // 速度配分のとき: 電池がほぼ満タン (発電を貯めきれない) なら、余る分を速度に回す

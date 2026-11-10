@@ -300,7 +300,7 @@ parked=true; s.v=Math.max(0,s.v-3*dtR);
 const sunset=this.sunsetHour(prof.lat);
 // Reg 3.28.8-9: 電池は 19:15 までに切り離して封印、06:15 まで解除できない (夜間の CS も同じ)
 s.disconnected = (s.camp || (s.stopKind==="cp"&&s.stopTimer>0)) && (s.hour>=19.25 || s.hour<6.25);
-const csFlat = P.csTilt===false && s.stopKind==="cp" && s.stopTimer>0 && !(StopMenu.active&&StopMenu.mode==="charge");   // CS で傾けられない運用: 平置きのまま
+const csFlat = P.csTilt===false && s.stopKind==="cp" && s.stopTimer>0 && !(s.hour>=17||s.hour<8) && !(StopMenu.active&&StopMenu.mode==="charge");   // 17 時以降・朝は CS でも傾ける   // CS で傾けられない運用: 平置きのまま
 const tilted = (parked && !csFlat) || s.camp;
 const sol=this.solarCalc(prof.lat,s.hour,tilted);
 const tReal=RealWx.on()? RealWx.at("t",prof.lat,prof.lon,s.dayOfYear,s.hour) : null, Tamb= tReal!=null? tReal+PRO.tempOffset : ambientTemp(prof.lat,s.hour);
