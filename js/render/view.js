@@ -724,9 +724,11 @@ const vv=es.v;
 // ---- ワールド座標での運動 (分岐/Uターンに対応) ----
 if(vv>0.3){
  const yawRate=gearDir()*(VEH.active&&VEH.spec.chassis? VehDyn.yawRate(Input.steer,vv) : Input.steer*clamp(6.5/Math.max(vv,4),0.12,1.0));   // 後退では向きの変わり方が逆
- this.ch+=yawRate*dtR;
- es.gLat=(yawRate*vv)/9.81;
-} else es.gLat=0;
+ /* 車は切った瞬間には向きが変わらない (タイヤがたわんで横力が立ち上がるまでの遅れ・車体の回りにくさ)。速いほど遅れが目立つ */
+ const tau=0.06+0.10*clamp(vv/25,0,1); this.yawR=lerp(Number.isFinite(this.yawR)?this.yawR:0,yawRate,clamp(dtR/tau,0,1));
+ this.ch+=this.yawR*dtR;
+ es.gLat=(this.yawR*vv)/9.81;
+} else { es.gLat=0; this.yawR=0; }
 const cx0=this.cx, cz0=this.cz;   // 当たり判定の掃引用
 this.cx+=Math.sin(this.ch)*vv*gearDir()*dtR; this.cz-=Math.cos(this.ch)*vv*gearDir()*dtR;
 // 横風 (諸元があるとき): 横方向に押される。タイヤの横すべりで遅れて効く
@@ -833,7 +835,8 @@ this.smokes.forEach((sm,i)=>{ sm.position.y=1.2+((t*0.8+i*0.5)%2.5); sm.material
 let camPos,lookAt;
 if(this.cam===0){
 const cx=this.car.position.x, cy=this.car.position.y, cz=this.car.position.z;
-camPos=new THREE.Vector3(cx-Math.sin(hCar)*11, cy+4.2, cz+Math.cos(hCar)*11);
+const cd=11+clamp(vv,0,36)*0.07;   // 速いほど少し離れる (速度感)
+camPos=new THREE.Vector3(cx-Math.sin(hCar)*cd, cy+4.2-clamp(vv,0,36)*0.012, cz+Math.cos(hCar)*cd);
 const shk=clamp((vv-26)/45,0,1)*0.06;camPos.x+=(Math.random()-.5)*shk;camPos.y+=(Math.random()-.5)*shk;
 lookAt=new THREE.Vector3(cx+Math.sin(hCar)*20, cy+1.1, cz-Math.cos(hCar)*20);
 } else if(this.cam===1){
@@ -843,9 +846,12 @@ lookAt=new THREE.Vector3(cx+Math.sin(hCar)*40, cy+1.0, cz-Math.cos(hCar)*40);
 } else if(this.cam===2){ // ドライバー: 頭を車体に固定(勾配ピッチ・オフロード揺れを継承)
 this.car.updateMatrixWorld();
 const E0=(VEH.active&&VEH.spec.eye)||[0,.84,-.45];
-const eye=new THREE.Vector3(E0[0]-(es.gLat||0)*.05, E0[1]+(es.offroad?(Math.random()-.5)*.03:0), E0[2]);
+/* 頭の動き: 横 G で外へ・加減速で前後へ傾き、路面の細かい揺れ (速いほど) を拾う。曲がる先を少し見る */
+ const gl=clamp(es.gLat||0,-1,1), gg=clamp(es.gLong||0,-1,1), t=performance.now()/1000, rv=clamp(vv/28,0,1)*(es.offroad?0.03:0.0035);
+ this.headX=lerp(this.headX||0,-gl*0.07,clamp(dtR*5,0,1)); this.headZ=lerp(this.headZ||0,gg*0.05,clamp(dtR*4,0,1)); this.lookX=lerp(this.lookX||0,clamp(this.yawR||0,-0.6,0.6)*9,clamp(dtR*3,0,1));
+ const eye=new THREE.Vector3(E0[0]+this.headX, E0[1]+(Math.sin(t*31)+Math.sin(t*47.3)*0.6)*rv-Math.abs(gg)*0.008, E0[2]+this.headZ);
 eye.applyMatrix4(this.car.matrixWorld);
-const aim=new THREE.Vector3(0,.76,-30).applyMatrix4(this.car.matrixWorld);
+const aim=new THREE.Vector3(this.lookX,.76,-30).applyMatrix4(this.car.matrixWorld);
 camPos=eye; lookAt=aim;
 } else {
 const cx=this.car.position.x, cy=this.car.position.y, cz=this.car.position.z;
@@ -883,14 +889,16 @@ this.sunLight.position.copy(this.sun.position);
 // 天候の切り替わりは約 10 秒 (実時間) かけて移る (空・日差し・雲・明るさ・映り込み・陽炎)
 { const want=es.weather?1:0; if(this.wxMix==null||this._wxGame!==es) { this.wxMix=want; this._wxGame=es; } this.wxMix+=clamp(want-this.wxMix,-dtR/10,dtR/10); }
 const WX=this.wxMix;
-this.sunLight.intensity=clamp(Math.sin(alt)*1.45,0.02,1.2)*(1-0.65*WX);
-{ const warm=clamp(alt/0.45,0,1); this.sunLight.color.setRGB(1.0,0.62+0.33*warm,0.38+0.5*warm); }
+/* 明るさ: 目 (カメラ) は暗さに慣れるので、太陽が 10° も上がればほぼ昼の明るさに見える。夕焼けの色は地平線近く (約 8° 以下) だけ */
+const sunUp=clamp(Math.sin(alt)/0.5,0,1), dayK=Math.pow(sunUp,0.45);
+this.sunLight.intensity=clamp(1.25*dayK,0.02,1.2)*(1-0.65*WX);
+{ const warm=clamp(alt/0.3,0,1); this.sunLight.color.setRGB(1.0,0.62+0.33*warm,0.38+0.5*warm); }
 this.sunLight.target.position.copy(this.car.position);
 this.sunLight.position.sub(this.car.position).normalize().multiplyScalar(1400).add(this.car.position);
 const dayTop=new THREE.Color(0x2f7fc4),dayHor=new THREE.Color(0xbdd7ea);
 const setTop=new THREE.Color(0x27356b),setHor=new THREE.Color(0xe8814f);
 const nigTop=new THREE.Color(0x040914),nigHor=new THREE.Color(0x0a1226);
-const t1=clamp(alt/0.18,0,1),t2=clamp((alt-0.18)/0.5,0,1);
+const t1=clamp((alt+0.1)/0.13,0,1),t2=clamp((alt-0.02)/0.2,0,1);   /* 夜 → 薄明 (太陽が地平線の下 6° から) → 昼 (太陽が約 12° で昼の空) */
 const hor=nigHor.clone().lerp(setHor,t1).lerp(dayHor,t2);
 const top=nigTop.clone().lerp(setTop,t1).lerp(dayTop,t2);
 if(WX>0){hor.lerp(new THREE.Color(0x8a94a0),0.5*WX);top.lerp(new THREE.Color(0x5c6672),0.5*WX);}
@@ -901,11 +909,11 @@ u.uTop.value.copy(top);u.uHor.value.copy(hor);
 u.uSunDir.value.copy(this.sun.position).sub(this.car.position).normalize();
 u.uCover.value=0.22+0.38*WX;
 if(u.uDust){ const b=biomeAt(es.km); u.uDust.value.setHex(b.urban?0xc9c4b8:0xd9b48c).convertSRGBToLinear().lerp(hor,0.35); }
-u.uNight.value=clamp(1-alt/0.18,0,1);
+u.uNight.value=clamp(1-(alt+0.1)/0.1,0,1);   /* 星は太陽が沈んでから */
 u.uTime.value=performance.now()/1000;
 this.skyDome.position.copy(this.camera.position);
 }
-this.hemiLight.intensity=clamp(Math.sin(alt)*0.9,0.12,0.8)*(1-0.4*WX);
+this.hemiLight.intensity=clamp(0.14+0.66*dayK+0.12*t1,0.12,0.8)*(1-0.4*WX);
 // 車体などに映る空 (時刻・天気・土地の色に合わせて作り直す。画質「低」は作らない)
 EnvLight.update(this.renderer,this.scene,top,hor,new THREE.Color(biomeAt(es.km).soil),this.sun.position.clone().sub(this.car.position).normalize(),clamp(Math.sin(alt)*1.3,0,1)*(1-0.8*WX),this.sunLight.color);
 this.updateEnvironment(es,pHere,alt,hor);
