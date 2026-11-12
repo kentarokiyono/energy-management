@@ -33,3 +33,22 @@ fragmentShader:[
 ].join("\n")});
 return new THREE.Mesh(new THREE.SphereGeometry(2200,32,15),mat);
 }
+/* ============ 遠くの山並み (地平線の上の稜線。もやで霞む) ============
+ 視点のまわりの円筒。稜線の形は方角で決まり、走ると少しずつ変わる。高さは土地の起伏 (uHill) に合わせる */
+function makeFarRidge(R){
+const mat=new THREE.ShaderMaterial({side:THREE.BackSide,transparent:true,depthWrite:false,
+uniforms:{uCol:{value:new THREE.Color(0x7a5a48)},uHaze:{value:new THREE.Color(0xbdd7ea)},uHill:{value:0},uShift:{value:0},uR:{value:R}},
+vertexShader:[
+"uniform float uHill;uniform float uShift;uniform float uR;varying float vT;varying float vH;",
+"float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}",
+"float vn(vec2 p){vec2 i=floor(p);vec2 f=fract(p);vec2 u=f*f*(3.0-2.0*f);return mix(mix(hash(i),hash(i+vec2(1.,0.)),u.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),u.x),u.y);}",
+"void main(){vec3 p=position;float a=atan(p.z,p.x);vec2 q=vec2(cos(a),sin(a))*3.0;",
+"float n=vn(q*1.3+uShift)*0.6+vn(q*3.1+uShift*1.7+7.0)*0.28+vn(q*8.0+uShift*2.3+3.0)*0.12;",
+"float gap=smoothstep(0.35,0.6,vn(q*0.7+uShift*0.6+11.0));",   // 山のない方角もある
+"float h=uR*0.07*uHill*max(0.0,n-0.28)*gap;vT=uv.y;vH=h;",
+"p.y=mix(-uR*0.012,h,uv.y);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);}"].join("\n"),
+fragmentShader:[
+"uniform vec3 uCol;uniform vec3 uHaze;varying float vT;varying float vH;",
+"void main(){if(vH<0.5)discard;vec3 c=mix(uHaze,uCol,0.46+0.12*vT);gl_FragColor=vec4(c,0.95);}"].join("\n")});
+const g=new THREE.CylinderGeometry(R,R,1,192,1,true); const m=new THREE.Mesh(g,mat); m.frustumCulled=false; m.renderOrder=-1; return m;
+}

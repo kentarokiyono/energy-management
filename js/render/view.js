@@ -19,6 +19,7 @@ this.scene=new THREE.Scene();
 this.scene.background=null;
 setupRenderQuality(this.renderer,this.scene); EnvLight.reset();
 this.skyDome=makeSkyDome(); this.skyDome.frustumCulled=false; this.scene.add(this.skyDome);
+this.farRidge=makeFarRidge(GFX.cur().far*0.9); this.scene.add(this.farRidge);
 this.camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,GFX.cur().far);
 this.hemiLight=new THREE.HemisphereLight(0xbfe6ff,0x8a5a33,0.9);
 this.scene.add(this.hemiLight);
@@ -735,6 +736,8 @@ this.cx+=Math.sin(this.ch)*vv*gearDir()*dtR; this.cz-=Math.cos(this.ch)*vv*gearD
 if(VEH.active&&VEH.spec.chassis&&P.mode==="race"){
  const aY= vv>1? VehDyn.sideAccel(-(es.lastCross||0),es.lastRho||1.17,massTotal()) : 0;
  this.vyWind=lerp(this.vyWind||0,aY*0.35,clamp(dtR*3,0,1));
+ /* 突風: 風が急に変わると鼻先が振られる (当て舵が要る)。風が一定になれば収まる */
+ this.aYs=lerp(Number.isFinite(this.aYs)?this.aYs:aY,aY,clamp(dtR/1.2,0,1)); this.aYw=aY; if(vv>3) this.ch+=clamp((aY-this.aYs)*0.018,-0.05,0.05)*dtR;
  this.cx+=Math.cos(this.ch)*this.vyWind*dtR; this.cz+=Math.sin(this.ch)*this.vyWind*dtR;
 }
 // 横転の危険度 (レース): 横風・浮き上がり・旋回・加減速。0.6 で後方追走車が警告、0.85 で警報、1 を 0.25 秒超えると横転
@@ -794,9 +797,14 @@ this.car.rotation.y=-hCar;
 if(this.car.userData.wheels) for(const w of this.car.userData.wheels){   // 車輪の回転と前輪の舵角
  w.spin=((w.spin||0)+vv*dtR/w.r)%(Math.PI*2); w.g.rotation.order="YXZ";
  w.g.rotation.y= w.front? -Input.steer*0.45 : 0; w.g.rotation.x=-w.spin; }
-this.car.rotation.x=-Math.atan(pHere.g)*0.8+clamp(-es.gLong*0.025,-0.045,0.045);
+/* サスペンション: 加減速で前後に沈み (ブレーキで前のめり)、少し行き過ぎて戻る。路面のうねり・荒れで上下に揺れる */
+{ const tgt=clamp(-(es.gLong||0)*0.04,-0.06,0.06), h=Math.min(dtR,0.05), k=90, c=8.5; if(!Number.isFinite(this.pitchS)){ this.pitchS=0; this.pitchV=0; }
+  this.pitchV+=((tgt-this.pitchS)*k-this.pitchV*c)*h; this.pitchS+=this.pitchV*h; if(!Number.isFinite(this.pitchS)||Math.abs(this.pitchS)>0.2){ this.pitchS=0; this.pitchV=0; }
+  const sp=clamp(vv/10,0,1), amp=es.offroad?0.03:0.0045, sd=this.s||0, hv=(Math.sin(sd*0.31)+Math.sin(sd*0.83+1.7)*0.6+Math.sin(sd*2.9+0.4)*0.25)*amp*sp;
+  this.car.position.y+=hv; this.heave=hv;
+  this.car.rotation.x=-Math.atan(pHere.g)*0.8+this.pitchS+Math.cos(sd*0.83)*amp*0.6*sp; }
 this.car.rotation.order="YXZ";
-{ const want= es.rolledOver? 1.75*(es.tipDir||1) : clamp((es.tipRatio||0)*0.06,0,0.08)*(es.tipDir||1);   // 横転: 風下へ倒れる
+{ const want= es.rolledOver? 1.75*(es.tipDir||1) : clamp((es.tipRatio||0)*0.06,0,0.08)*(es.tipDir||1)-clamp((es.gLat||0)*0.035,-0.04,0.04);   // 横転: 風下へ倒れる。旋回では外側へ少し傾く
   this.carRoll=lerp(this.carRoll||0,want,clamp(dtR*(es.rolledOver?2.2:6),0,1)); this.car.rotation.z=-this.carRoll; if(es.rolledOver) this.car.position.y+=Math.sin(Math.abs(this.carRoll))*0.5;
   // 横転したら風下へ転がりながら滑り、路肩で止まる (2025 年の映像のように)
   if(es.rolledOver){ const p0=this.roadPoint(this.s), edge=(es.tipDir||1)>0? p0.R+1.2 : -(p0.L+1.2), dl=edge-this.lateral; this.rollSlide=(this.rollSlide||0)+dtR;
@@ -913,6 +921,9 @@ u.uNight.value=clamp(1-(alt+0.1)/0.1,0,1);   /* 星は太陽が沈んでから *
 u.uTime.value=performance.now()/1000;
 this.skyDome.position.copy(this.camera.position);
 }
+if(this.farRidge){ const b=biomeAt(es.km), fu=this.farRidge.material.uniforms; this.farRidge.position.set(this.camera.position.x,pHere.y-(pHere.bh||0),this.camera.position.z);
+ fu.uHill.value=lerp(fu.uHill.value,P.mode==="race"&&!b.urban? clamp((b.hill-0.5)/2.5,0,1) : 0,0.02); fu.uShift.value=es.km*0.004;
+ fu.uHaze.value.copy(hor); fu.uCol.value.setHex(b.soil).multiplyScalar(0.55*clamp(0.25+dayK,0,1)); }
 this.hemiLight.intensity=clamp(0.14+0.66*dayK+0.12*t1,0.12,0.8)*(1-0.4*WX);
 // 車体などに映る空 (時刻・天気・土地の色に合わせて作り直す。画質「低」は作らない)
 EnvLight.update(this.renderer,this.scene,top,hor,new THREE.Color(biomeAt(es.km).soil),this.sun.position.clone().sub(this.car.position).normalize(),clamp(Math.sin(alt)*1.3,0,1)*(1-0.8*WX),this.sunLight.color);
@@ -969,7 +980,7 @@ updateEnvironment(es,pHere,alt,hor){
  for(let i=0;i<4;i++){ ca.set([sc.r,sc.g,sc.b],i*3); va.set([vc.r,vc.g,vc.b,bio.cov],i*4); ma.set([0,bio.stone*0.5,bio.field],i*3); }
  g.attributes.color.needsUpdate=g.attributes.aVeg.needsUpdate=g.attributes.aMisc.needsUpdate=true;
  // 半球光の地面色=土の照り返し
- this.hemiLight.groundColor.copy(sc).multiplyScalar(1.3);
+ this.hemiLight.groundColor.copy(sc).multiplyScalar(1.05);
  // 逃げ水: 晴天・日中・高温ほど強い
  const heat=clamp(((es.Tamb||25)-22)/12,0,1)*clamp((alt-0.35)/0.4,0,1)*(1-0.85*(this.wxMix||0));
  const t=performance.now()/1000;

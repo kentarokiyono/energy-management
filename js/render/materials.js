@@ -235,6 +235,7 @@ mat.onBeforeCompile=(sh)=>{
  }
  float det=texture2D(uDetail,q*0.25).r;
  c*=0.78+0.44*det;
+ c=mix(vec3(dot(c,vec3(0.3,0.59,0.11))),c,0.80);   /* 赤土の鮮やかさを少し抑える (乾いた土は彩度が低い) */
  diffuseColor.rgb=c;
 }`);
 };

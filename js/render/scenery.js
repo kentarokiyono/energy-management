@@ -255,7 +255,7 @@ surfHit(ctx,x,z,pad){
 guardPR(){
  if(PR.__guarded) return; PR.__guarded=true;
  const keep=new Set(["solarCar","woodPole","stobie"]), DECOR=new Set(["tree","desertoak","mulga","spinifex","grass","saltbush","pandanus","palm","termite","rock"]);   // 柱は電線の高さを返すので常に置く (位置は clearAt で道路を避け済み)
- const pad={tree:0.8,redgum:0.8,houseOutback:2.5,houseTropical:2.5,houseBrick:2.5,shopStrip:3,shed:2,roadhouse:3,tower:4,windmill:1,termite:0.4,rock:0.3,tank:1};
+ const pad={tree:0.8,redgum:0.8,houseOutback:2.5,houseTropical:2.5,houseBrick:2.5,shopStrip:3,shed:2,roadhouse:3,tower:4,midrise:4,windmill:1,termite:0.4,rock:0.3,tank:1};
  for(const k of Object.keys(PR)){ const f=PR[k]; if(typeof f!=="function") continue;
   const kp=keep.has(k);
   const decor=DECOR.has(k);
@@ -435,7 +435,10 @@ urban(ctx,kind){
    if(q.blockedFar||this.pavedSite(view,s,off)||this.waterSite(view,s,off)){ s+=lotW; continue; }
    if(kind==="darwin_cbd"){ // 高層ビルは敷地の四隅も道路にかからないこと
     if([[-12,-12],[12,-12],[-12,12],[12,12]].some(([a,c])=>this.at(view,s+a,off+c).blockedFar)){ s+=lotW; continue; }
-    PR.tower(bs,q.x,y,q.z,q.face,rnd()<0.55?"resi":"office"); }
+    const front=Math.abs(off)<40, r=rnd();   // 通り沿いは低い建物が中心、高層は奥に
+    if(front? r<0.55 : r<0.3) PR.midrise(bs,q.x,y,q.z,q.face);
+    else if(front&&r<0.72){ PR.shopStrip(bs,q.x,y,q.z,q.face,3+Math.floor(rnd()*2)); const t=this.at(view,s+lotW*0.5,off-sd*9); if(!t.blockedFar&&this.roadClear(view,t.x,t.z,s)) PR.palm(bs,t.x,t.y,t.z,0.85); }
+    else PR.tower(bs,q.x,y,q.z,q.face,rnd()<0.55?"resi":"office"); }
    else if(kind==="darwin_sub"){
     const ind=km>5&&km<10.5;
     if(ind&&rnd()<0.8) PR.shed(bs,q.x,y,q.z,q.face);
