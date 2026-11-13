@@ -671,7 +671,7 @@ resetRoad(){
  if(this.road) for(const c of this.road.chunks){ this.scene.remove(c.mesh); c.mesh.traverse(ch=>{ if(ch.geometry) ch.geometry.dispose(); }); }
  if(typeof Collide!=="undefined") Collide.clear();
  const es=Engine.st, km=es?es.km:0;
- this.road={pts:[{x:0,z:0,y:0,h:0,g:0,c:0,L:5,m1:0,R:5}],builtS:0,chunks:[]};
+ this.road={pts:[{x:0,z:0,y:0,h:0,g:0,c:0,L:5,m1:0,R:5}],builtS:0,chunks:[]}; if(typeof Scenery!=="undefined") Scenery._bld=[];
  this.branches=[]; this.junctions=[]; this.prog=null; this.doneMan=new Set(); this.lastGenKm=-1; this.osmTown=null; this.geoOff=null; this.geoHold=null;
  this.s=320; this.visOrigin=Route.vis(km)-this.s;
  // 現在地より手前の動作は実行済み扱い
@@ -882,7 +882,10 @@ this.camera.lookAt(lookAt); }
 // 予備の地面: OSM の町区間 (平坦) では路面のすぐ下に置き、急な右左折の内側で地形の帯が縮んでできる隙間を塞ぐ
 const flatTown=P.mode==="race"&&Route.real(es.km)&&OsmRoute.townAt(es.km);
 const nearWater=flatTown&&[-0.3,-0.15,0,0.15,0.3,0.45].some(d=>OsmRoute.waterAt(es.km+d));   // 水面の橋の近くでは川底より下へ
-this.ground.position.set(pHere.x,(pHere.y-(pHere.bh||0))-(flatTown?(nearWater?7:0.3):60),pHere.z);
+// 右左折の区間 (平らに作る所: CS の出入りなど) も同じ。折れ目で地形の帯が重なってできる隙間から、深い穴が見えていた
+const flatZone=!flatTown&&P.mode==="race"&&[-0.25,0,0.25,0.5,0.75].some(d=>Route.zoneFade(es.km+d)<=0.02);
+{ const gT= flatTown?(nearWater?7:0.3):flatZone?0.5:60; this.gDrop= flatTown||!Number.isFinite(this.gDrop)||this._gKm==null||Math.abs(es.km-this._gKm)>0.2? gT : lerp(this.gDrop,gT,clamp(dtR*3,0,1)); this._gKm=es.km; }   /* 走行中はなめらかに、開始・移動の直後はすぐに */
+this.ground.position.set(pHere.x,(pHere.y-(pHere.bh||0))-this.gDrop,pHere.z);
 const alt=es.sunAlt||0, az=(es.sunAz||0);
 // 太陽の向き: 画面の道の向き (pHere.h) と実際の道の方位 (bearing) のずれ を足して画面の方位にする。
 // 町 (実際の道の形) とそれ以外 (作った道) でずれが変わるので、急に回らないよう走った距離に応じてゆっくり合わせる

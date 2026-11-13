@@ -12,6 +12,10 @@ warpOff(p,off){ const W=5; if(off<=-W+0.01) return off-((p.L||W)-W); if(off>=W-0
 /* 走行可能な舗装敷地 (CS構内・ドライバー交代の駐車帯・ゴール) → {y} */
 /* 橋の下の川・海 (建物・電柱を置かない範囲) */
 waterSite(view,s,lat){ const km=view.kmOfS(s); return Math.abs(lat)<190&&Route.real(km)&&[-0.015,0,0.015].some(d=>OsmRoute.waterAt(km+d)); },
+/* CS の会場のまわり (テント・駐車・ロードハウスを置く所) には町の家を建てない */
+csZone(km,lat){ for(const c of RP_CS){ const osm=OsmRoute.townAt(c.km); if(Math.abs(km-c.km)<(osm?0.07:0.2)&&Math.abs(lat)<(osm?32:62)) return true;
+  if((c.site==="park"||c.site==="oval")&&Math.abs(km-c.km)<0.1&&lat>0&&lat<92) return true; }   /* 芝のオーバルの上にも建てない */
+ return false; },
 pavedSite(view,s,lat){
  const km=view.kmOfS(s);
  for(const c of RP_CS){ const osm=OsmRoute.townAt(c.km); if(Math.abs(km-c.km)<(osm?0.045:0.16)&&Math.abs(lat)<(osm?14:24)) return {y:0.02,cs:c}; }
@@ -126,6 +130,7 @@ buildChunk(view,s0,s1){
  const bs=new BatchSet();
  const signs=[];
  const ctx={view,grp,bs,signs,s0,s1,kmA,kmB,branches:[]};
+ if(this._bld&&this._bld.length>400) this._bld=this._bld.filter(b=>b.o&&b.o.parent);   // 捨てたチャンクの建物を台帳から外す
  if(typeof Collide!=="undefined"){ this.guardPR(); Collide.owner=grp; }   // このチャンクの障害物 (チャンクを捨てるときに消す)
  grp.userData.branches=ctx.branches;
  if(P.mode==="race"){ this.branches(ctx); this.roundabouts(ctx); }
@@ -252,14 +257,25 @@ surfHit(ctx,x,z,pad){
  return false;
 },
 /* 景観の部品 (PR.*) を呼ぶ前に、置き場所が路面の上なら置かない */
+/* CS の芝のオーバル (sites() で道の右 40 m に作る) の中か */
+ovalHit(view,x,z){ for(const c of RP_CS){ if(c.site!=="park"&&c.site!=="oval") continue; let o=c._ov;
+  if(!o||o.v!==view.road){ const sc=view.sOfKm(c.km); if(!(sc<=view.road.builtS)) continue; const q=this.at(view,sc,40); o=c._ov={v:view.road,x:q.x,z:q.z}; }
+  if((o.x-x)*(o.x-x)+(o.z-z)*(o.z-z)<50*50) return true; } return false; },
+/* 建物の置き場所の台帳 (チャンクをまたいで重なりを防ぐ)。空いていれば登録して true */
+bldFree(x,z,r,owner){ const L=this._bld||(this._bld=[]);
+ for(const b of L){ const d=r+b.r; if(Math.abs(b.x-x)<d&&Math.abs(b.z-z)<d&&(b.x-x)*(b.x-x)+(b.z-z)*(b.z-z)<d*d*0.72) return false; }
+ L.push({x,z,r,o:owner}); return true; },
 guardPR(){
  if(PR.__guarded) return; PR.__guarded=true;
  const keep=new Set(["solarCar","woodPole","stobie"]), DECOR=new Set(["tree","desertoak","mulga","spinifex","grass","saltbush","pandanus","palm","termite","rock"]);   // 柱は電線の高さを返すので常に置く (位置は clearAt で道路を避け済み)
+ const BR={houseOutback:8.5,houseTropical:8,houseBrick:8,shopStrip:14,shed:11,roadhouse:17,tower:15,midrise:13,mullock:4.5,marbles:4,windmill:2.5,tank:1.8};   // 建物の占める半径 [m]
  const pad={tree:0.8,redgum:0.8,houseOutback:2.5,houseTropical:2.5,houseBrick:2.5,shopStrip:3,shed:2,roadhouse:3,tower:4,midrise:4,windmill:1,termite:0.4,rock:0.3,tank:1};
  for(const k of Object.keys(PR)){ const f=PR[k]; if(typeof f!=="function") continue;
   const kp=keep.has(k);
   const decor=DECOR.has(k);
   PR[k]=function(bs,x,y,z,...r){ const g=Scenery._guard; if(!kp&&g&&Scenery.surfHit(g,x,z,pad[k]!=null?pad[k]:0.25)) return;
+   if(g&&BR[k]&&k!=="tank"&&Scenery.ovalHit(g.view,x,z)) return;   // CS の芝のオーバルの上には建てない
+   if(g&&BR[k]){ const rr= k==="shopStrip"? 5+4.5*(r[1]||3) : k==="mullock"||k==="marbles"? BR[k]*(r[0]||1) : BR[k]; if(!Scenery.bldFree(x,z,rr,g.grp)) return; }   // 建物どうしが重ならない
    if(decor&&typeof GFX!=="undefined"&&GFX.skip(x,z)) return;   // 画質設定で景観の小物を間引く
    if(typeof Collide!=="undefined"&&Collide.owner!=null) Collide.addPR(k,x,z);   // 当たり判定に登録
    return f.call(this,bs,x,y,z,...r); }; }
@@ -466,12 +482,12 @@ townOverlay(ctx){
  for(let s=s0;s<s1;s+=rndr(16,26)) for(const sd of [-1,1]){
   const km=this.kmOfS(view,s), tk=townKind(km);
   if(!tk) continue;
-  const tp=townProx(km);
-  if(rnd()>1.15-tp/3.5) continue;
+  const ts=townSize(km);
+  if(rnd()>(1.15-ts.dist/ts.r)*ts.dens) continue;
   for(const [oa,ob] of [[SH+16,SH+26],[SH+50,SH+62],[SH+95,SH+120]]){
    if(rnd()<0.35) continue;
    const off=sd*rndr(oa,ob), q=this.at(view,s,off), y=q.y-0.05;
-   if(q.blockedFar||this.pavedSite(view,s,off)||this.waterSite(view,s,off)) continue;
+   if(q.blockedFar||this.pavedSite(view,s,off)||this.waterSite(view,s,off)||this.csZone(km,off)) continue;
    if(tk==="cooberpedy"){ rnd()<0.5? PR.mullock(bs,q.x,y,q.z,0.6) : PR.houseOutback(bs,q.x,y,q.z,q.face); }
    else if(Math.abs(off)<SH+30 && rnd()<(tk==="alice"||tk==="ptaugusta"?0.3:0.12)) PR.shopStrip(bs,q.x,y,q.z,q.face,2+Math.floor(rnd()*2));
    else PR.houseOutback(bs,q.x,y,q.z,q.face);
@@ -494,7 +510,7 @@ features(ctx){
   if(kmB<f.km0||kmA>f.km1) continue;
   if(f.id==="devils_marbles"){
    for(let i=0;i<26;i++){ const s=rndr(s0,s1); if(this.kmOfS(view,s)<f.km0||this.kmOfS(view,s)>f.km1) continue;
-    const sd=rnd()<0.5?-1:1, q=this.at(view,s,sd*(SH+rndr(14,140))); PR.marbles(bs,q.x,q.y,q.z,rndr(0.8,1.4)); }
+    const sd=f.side||(rnd()<0.5?-1:1), q=this.at(view,s,sd*(SH+rndr(14,140))); PR.marbles(bs,q.x,q.y,q.z,rndr(0.8,1.4)); }
   } else if(f.id==="mullock"){
    for(let i=0;i<60;i++){ const s=rndr(s0,s1); if(this.kmOfS(view,s)<f.km0||this.kmOfS(view,s)>f.km1) continue;
     const sd=rnd()<0.5?-1:1, q=this.at(view,s,sd*(SH+rndr(20,420))); PR.mullock(bs,q.x,q.y,q.z,rndr(0.6,1.3)); }
@@ -999,7 +1015,7 @@ crowd(ctx,s,lat,n,spread,shirts){
  for(let i=0;i<n;i++){ const q=this.at(ctx.view,s+rndr(-spread,spread),lat+rndr(-2,2)); PR.person(ctx.bs,q.x,q.y,q.z,rnd()*6.28,rndPick(shirts)); }
 },
 sites(ctx){
- const {view,kmA,kmB,bs}=ctx, W=view.ROAD_W;
+ const {view,kmA,kmB,bs}=ctx, W=view.ROAD_W, grp0=ctx.grp;
  const sAt=(k)=>view.sOfKm(k);
  // コントロールストップ
  for(const c of RP_CS){
@@ -1010,7 +1026,8 @@ sites(ctx){
   if(OsmRoute.townAt(c.km)) this.padRibbon(ctx,sc-45,sc+45,-14,14,padCol);   // 実形状の町: 敷地の道路そのものを使うので停止位置まわりだけ
   else this.padRibbon(ctx,sc-150,sc+150,-24,24,padCol);
   if(c.site==="park"||c.site==="oval"){ // 芝のオーバル
-   const q=this.at(view,sc,40); const m=new THREE.Mesh(new THREE.CircleGeometry(1,48),new THREE.MeshLambertMaterial({color:new THREE.Color(0x6f9a3f).convertSRGBToLinear()}));
+   const q=this.at(view,sc,40); const m=new THREE.Mesh(new THREE.CircleGeometry(1,48),new THREE.MeshLambertMaterial({color:new THREE.Color(0x7f8a4c).convertSRGBToLinear()}));   // 乾季の芝 (鮮やかすぎない)
+   this.bldFree(q.x,q.z,40,grp0);
    m.scale.set(45,30,1); m.rotation.x=-Math.PI/2; m.position.set(q.x,q.y+0.01,q.z); ctx.grp.add(m);
   }
   // 入口アーチ・停止枠・計時テント・係員

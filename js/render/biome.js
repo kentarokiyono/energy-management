@@ -23,7 +23,7 @@ const BIOMES=[
 { id:"sa_north",   km0:1800, km1:2100,
   soil:0x925c3e, veg:0x8f8e68, cov:0.3, burn:0, stone:0.45, field:0, hill:1.0, flora:{mulga:0.6,saltbush:0.7,spinifex:0.3,rock:0.2} },
 { id:"gibber",     km0:2100, km1:2300,
-  soil:0x7c4830, veg:0x8f8d6a, cov:0.1, burn:0, stone:1.0, field:0, hill:0.6, flora:{saltbush:0.35,rock:0.3} },
+  soil:0x9a6242, veg:0x8f8d6a, cov:0.1, burn:0, stone:0.8, field:0, hill:0.6, flora:{saltbush:0.35,rock:0.3} },
 { id:"saltbush",   km0:2300, km1:2650,
   soil:0xa06e4c, veg:0x8e9c86, cov:0.45, burn:0, stone:0.3, field:0, hill:0.5, flora:{saltbush:1.0,mulga:0.15} },
 { id:"pt_augusta", km0:2650, km1:2760,
@@ -37,7 +37,7 @@ const BIOMES=[
 ];
 /* 特定地点の地物 */
 const FEATURES=[
-{ id:"devils_marbles", km0:1084, km1:1094 },
+{ id:"devils_marbles", km0:1088.8, km1:1091.6, side:-1 },   // ルートノートの入口 2 か所 (1089.0・1092.0 km) の間、道の左 (東) 側だけ
 { id:"mullock",        km0:2160, km1:2200 },
 { id:"salt_lake",      km0:2515, km1:2560, side:1 },
 { id:"macdonnell",     km0:1470, km1:1515 },
@@ -61,9 +61,9 @@ return { id:b.id, urban:b.urban||null, b, nb, t,
 }
 function featureAt(km){ return FEATURES.filter(f=>km>=f.km0&&km<f.km1); }
 function townKind(km){
-const tp=townProx(km);
+const ts=townSize(km);
 if(isCity(km)) return null;
-if(tp<3.5) return (Math.abs(km-1496)<6)?"alice":(Math.abs(km-2181)<5)?"cooberpedy":(Math.abs(km-2720)<5)?"ptaugusta":"town";
+if(ts.dist<ts.r) return (Math.abs(km-1496)<6)?"alice":(Math.abs(km-2181)<5)?"cooberpedy":(Math.abs(km-2720)<5)?"ptaugusta":"town";
 return null;
 }
 /* ---- 決定論的ノイズ(JS側: 地形高さ/配置) ---- */

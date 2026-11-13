@@ -223,7 +223,7 @@ mat.onBeforeCompile=(sh)=>{
  c=mix(c,vec3(0.025,0.022,0.02)+0.02*n3,bn*0.85);
  vec2 sq=q*3.0, sc=floor(sq); vec2 so=vec2(gHash(sc+3.1),gHash(sc+7.7))*0.5+0.25;
  float stn=step(1.0-0.45*vMisc.y,gHash(sc))*(1.0-smoothstep(0.12,0.2,length(fract(sq)-so)))*vMisc.y;
- c=mix(c,vec3(0.06,0.03,0.018),stn*0.85);
+ c=mix(c,vec3(0.17,0.10,0.07),stn*0.8);   /* 礫 (ギバー): 赤茶の石。黒くしすぎない */
  c=mix(c,c*vec3(1.12,1.05,0.95),vMisc.y*0.35*n1);
  if(vMisc.z>0.01){
   vec2 cell=floor((q+vec2(37.,11.))/vec2(160.,110.)); float h=gHash(cell);
