@@ -195,12 +195,33 @@ shopStrip(bs,x,y,z,ry,n=3){
  for(let k=0;k<=n*2;k++){ const [px,pz]=L(-total/2+k*total/(n*2),-d/2-3.0);
   bs.get("solid").add(tpl("box"),M4(px,y,pz,0.12,3.1,0.12,ry),linCol(0x2e3a35)); }
 },
-tower(bs,x,y,z,ry,style){ // CBDの高層ビル
- const w=rndr(16,30), d=rndr(14,24), h=rndr(28,95);
- const isResi=style==="resi";
- bs.get(isResi?"resi":"office").add(boxMetric(w,h,d,6,isResi?6.4:7),M4(x,y,z,1,1,1,ry),linCol(isResi?0xffffff:rndPick([0xffffff,0xe0ecf2,0xf2ece0]),0.03));
- bs.get("solid").add(tpl("box"),M4(x,y+h,z,w*0.6,rndr(1.5,4),d*0.6,ry),linCol(0xbfc3c5));
- bs.get("solid").add(tpl("box"),M4(x,y,z,w+1.2,4.2,d+1.2,ry),linCol(0x8d9599));
+tower(bs,x,y,z,ry,style){ // CBDの高層ビル (高さはばらつかせる: 多くは 10〜15 階、ときどき 30 階)
+ const w=rndr(16,30), d=rndr(14,24), u=rnd(), h= u<0.65? rndr(26,48) : u<0.9? rndr(48,70) : rndr(70,98);
+ const isResi=style==="resi", cos=Math.cos(ry), sin=Math.sin(ry), L=(lx,lz)=>[x+lx*cos+lz*sin, z-lx*sin+lz*cos];
+ const tint=isResi? rndPick([0xffffff,0xf4ead8,0xe9eef0,0xf1e3d2]) : rndPick([0xffffff,0xe0ecf2,0xf2ece0,0xcfe0ea,0xd9d2c4]);
+ const set=rnd()<0.45&&h>40, h1= set? h*rndr(0.6,0.78) : h;   // 上の階を一回り細くする (段のあるビル)
+ bs.get(isResi?"resi":"office").add(boxMetric(w,h1,d,6,isResi?6.4:7),M4(x,y,z,1,1,1,ry),linCol(tint,0.03));
+ if(set) bs.get(isResi?"resi":"office").add(boxMetric(w*0.7,h-h1,d*0.7,6,isResi?6.4:7),M4(x,y+h1,z,1,1,1,ry),linCol(tint,0.03));
+ const tw=set?w*0.7:w, td=set?d*0.7:d;
+ bs.get("solid").add(tpl("box"),M4(x,y+h,z,tw*0.6,rndr(1.5,4),td*0.6,ry),linCol(0xbfc3c5));   // 屋上の機械室
+ { const [ax,az]=L(tw*0.22,td*0.18); bs.get("solid").add(tpl("box"),M4(ax,y+h,az,1.6,1.1,2.4,ry),linCol(0x9aa0a3)); }   // 空調の室外機
+ if(rnd()<0.3) bs.get("solid").add(tpl("cyl8"),M4(x,y+h,z,0.12,rndr(6,12),0.12),linCol(0xd8d8d8));   // アンテナ
+ bs.get("solid").add(tpl("box"),M4(x,y,z,w+1.2,4.2,d+1.2,ry),linCol(rndPick([0x8d9599,0x7d8589,0xa39a8c])));   // 低層部
+ { const [fx,fz]=L(0,-d/2-0.66); bs.get("shop").add(boxMetric(w-1,3.6,0.06,8,4),M4(fx,y,fz,1,1,1,ry),linCol(0xffffff));   // 1 階の店・入口
+   const [vx,vz]=L(0,-d/2-2.0); bs.get("corr").add(tpl("box"),M4(vx,y+3.9,vz,w+1.2,0.12,2.8,ry),linCol(rndPick([0xd9d6c8,0x9aa39b,0x39424a]),0.04)); }   // ひさし
+},
+midrise(bs,x,y,z,ry){ // ダーウィン中心部に多い 3〜8 階の建物 (ホテル・事務所・集合住宅)。暑いので日よけ・ベランダが深い
+ const w=rndr(16,26), d=rndr(13,20), fl=3+Math.floor(rnd()*6), h=fl*3.3+1.2, cos=Math.cos(ry), sin=Math.sin(ry), L=(lx,lz)=>[x+lx*cos+lz*sin, z-lx*sin+lz*cos];
+ const resi=rnd()<0.55, tint=rndPick([0xf3ead7,0xe8d9bd,0xf2f0ea,0xdcc9a6,0xe6ddd0,0xd9e2e4,0xeccfb0]);
+ bs.get(resi?"resi":"office").add(boxMetric(w,h,d,6,resi?6.4:7),M4(x,y,z,1,1,1,ry),linCol(tint,0.04));
+ // 階ごとの日よけ (ベランダの床) を前面に
+ if(resi) for(let k=1;k<=fl;k++){ const [bx,bz]=L(0,-d/2-0.7); bs.get("solid").add(tpl("box"),M4(bx,y+1.2+k*3.3-0.25,bz,w*0.94,0.18,1.4,ry),linCol(0xe9e6de,0.03)); }
+ bs.get("corr").add(tpl("box"),M4(x,y+h,z,w+0.8,0.5,d+0.8,ry),linCol(rndPick([0xb9b5a8,0x8d3b2a,0x7c8a86,0xc9c4b6]),0.04));   // 屋根
+ { const [ax,az]=L(w*0.25,d*0.2); bs.get("solid").add(tpl("box"),M4(ax,y+h+0.5,az,2.2,1.2,1.6,ry),linCol(0x9aa0a3)); }
+ // 1 階: 店と、歩道の上のひさし (柱付き)
+ const [fx,fz]=L(0,-d/2-0.05); bs.get("shop").add(boxMetric(w-0.6,3.6,0.06,8,4),M4(fx,y,fz,1,1,1,ry),linCol(0xffffff));
+ const [vx,vz]=L(0,-d/2-1.7); bs.get("corr").add(tpl("box"),M4(vx,y+3.5,vz,w,0.12,3.4,ry,0.04,0),linCol(rndPick([0xd9d6c8,0x8d3b2a,0x2f5d50,0x39424a]),0.04));
+ for(let k=0;k<=4;k++){ const [px,pz]=L(-w/2+k*w/4,-d/2-3.2); bs.get("solid").add(tpl("box"),M4(px,y,pz,0.14,3.45,0.14,ry),linCol(0x2e3a35)); }
 },
 shed(bs,x,y,z,ry){ // 工業団地の倉庫
  const w=rndr(18,34), d=rndr(20,40), h=rndr(5.5,8);

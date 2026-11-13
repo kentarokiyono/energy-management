@@ -24,7 +24,7 @@ COURSES:{
  {id:"cs", title:"CS で停車と充電", km:320.8, hour:13.0, cap:85,
   goal:"25 km/h 以下でコントロールストップ (Katherine) に入って停車しよう。止まったら太陽に向けてパネルの角度を選んで充電！",
   tip:"コントロールストップでは 30 分止まる決まり。その間、パネルを太陽に向けて傾けて充電します。角度ひとつで発電量が大きく変わります。"},
- {id:"desert", title:"赤い砂漠を走る", km:1070, hour:10.5, cap:150, distFull:170, place:[1083,1095,"📍 Devils Marbles (Karlu Karlu)"],
+ {id:"desert", title:"赤い砂漠を走る", km:1070, hour:10.5, cap:150, distFull:170, place:[1087.5,1092.5,"📍 Devils Marbles (Karlu Karlu)"],
   goal:"オーストラリアの真ん中、赤い大地の一本道。できるだけ遠くへ、でも電池は残そう。途中の巨大な丸い岩に注目！",
   tip:"Devils Marbles (先住民の言葉で Karlu Karlu) は、直径数 m の花崗岩の丸い岩が積み重なる名所。約 17 億年前の岩が風雨で削られて丸くなりました。先住民の聖地でもあります。"},
  {id:"pa", title:"Port Augusta へ", km:2625, hour:14.5, cap:150, distFull:110, hilly:true, place:[2716,2722,"📍 Port Augusta"],

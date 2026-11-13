@@ -25,7 +25,7 @@ removeOwner(o){ const l=this.owners.get(o); if(!l) return; this.owners.delete(o)
 clear(world="race"){ for(const o of [...this.owners.keys()]){ const l=this.owners.get(o); if(l.length&&l[0].w===world) this.removeOwner(o); } },
 /* 景観の部品 (PR.*) の当たり半径 [m] (0 = 当たらない: 草・低木など踏み越せるもの) */
 PR_R:{tree:0.45,palm:0.35,pandanus:0.35,desertoak:0.4,ghost:0.4,redgum:0.5,mango:0.5,mulga:0.3,woodPole:0.2,stobie:0.25,streetLight:0.18,guidePost:0.08,fencePost:0.08,
- termite:0.7,rock:0.6,marbles:2.5,mullock:3.0,tank:1.6,windmill:0.6,tower:3.5,person:0.3,car:2.0,solarCar:2.2,
+ termite:0.7,rock:0.6,marbles:2.5,mullock:3.0,tank:1.6,windmill:0.6,tower:3.5,midrise:3.5,person:0.3,car:2.0,solarCar:2.2,
  houseOutback:6,houseTropical:6,houseBrick:6,shopStrip:8,shed:9,roadhouse:9},
 PR_KIND:{person:"person",car:"vehicle",solarCar:"vehicle"},
 addPR(name,x,z){ const r=this.PR_R[name]; if(!r) return; this.circle(x,z,r,this.PR_KIND[name]||"solid"); },

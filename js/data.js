@@ -35,6 +35,9 @@ const ROUTE = [
 { name:"Adelaide Victoria Park (GOAL)", km:3026.92, elev:50, lat:-34.929, lon:138.601, cp:false },
 ];
 const TOWNS = [0,112,226,322,420,496,631,732,824,988,1103,1212.3,1302,1361,1496,1583,1694,1768,1947,2028,2181,2434,2547,2720.5,2814,2897,2928,3026.92];
+/* 町の大きさ: [家が並ぶ半径 km, 密度]。載っていない所はロードハウス 1 軒程度の小さな集落 (Dunmarra・Barrow Creek・Erldunda など) */
+const TOWN_SIZE={112:[0.8,0.7],226:[0.8,0.7],322:[3.5,1],420:[0.8,0.7],496:[0.4,0.5],732:[0.8,0.7],988:[2.5,1],1302:[0.6,0.6],1496:[3.5,1],1947:[0.6,0.6],2181:[2.5,1],2434:[0.45,0.55],2547:[0.4,0.5],2720.5:[3.5,1],2814:[0.6,0.6],2897:[1.0,0.8],2928:[0.6,0.6]};
+function townSize(km){ let d=1e9, t0=0; for(const t of TOWNS){ const x=Math.abs(km-t); if(x<d){ d=x; t0=t; } } const z=TOWN_SIZE[t0]||[0.3,0.45]; return {dist:d,r:z[0],dens:z[1],km:t0}; }
 function townProx(km){ let d=1e9; for(const t of TOWNS) d=Math.min(d,Math.abs(km-t)); return d; }
 function isCity(km){ return km<14 || km>2992; }
 /* 速度制限・ランドマークは Route Notes 2025 (js/data/route-2025.js) から */
