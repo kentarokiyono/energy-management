@@ -16,7 +16,7 @@ function yataLivery(u,zn){
 }
 /* BD (任意): 車両諸元の body。{L, noseTip, canopy:{x,len,w,top}, orangeU, skirtZ, profiles:{halfW,hullW,zPanel,zHull,zBell}}
  profiles は [u (0=先端,1=後端), 値 m] の列 (halfW/hullW は半幅, z* は地面からの高さ) */
-function buildYATA(BD){
+function buildYATA(BD,noMesh){
 BD=BD||{};
 const O=Object.assign({L:5,noseTip:.23,canopyX:1.83,canopyLen:1.55,canopyW:.44,canopyTop:1.15,orangeU:.16,skirtZ:.30,seg:48,side:10,deckK:4},
  BD.L!=null?{L:BD.L}:{}, BD.noseTip!=null?{noseTip:BD.noseTip}:{}, BD.orangeU!=null?{orangeU:BD.orangeU}:{}, BD.skirtZ!=null?{skirtZ:BD.skirtZ}:{},
@@ -247,5 +247,9 @@ if(BD.canopyOffset&&canopy) canopy.position.x=BD.canopyOffset;   // カタマラ
 const shM=new THREE.Mesh(new THREE.PlaneGeometry(2.3*Math.max(1,halfW(.6)/.9),O.L+0.3),
 new THREE.MeshBasicMaterial({map:T.shadow,transparent:true,depthWrite:false}));
 shM.rotation.x=-Math.PI/2;shM.position.y=.02;grp.add(shM);
-return {group:grp,canopy,opening:grp.userData.opening||null,tilt:tiltPivot};
+const Yp={group:grp,canopy,opening:grp.userData.opening||null,tilt:tiltPivot};
+// 自分の車で、実車の外形のデータ (非公開) が手元にあれば、胴体・上面・キャノピーをその形にする
+if(!noMesh&&PBR&&typeof YataMesh!=="undefined"&&YataMesh.ready()&&typeof VEH!=="undefined"&&VEH.active&&BD===VEH.spec.body){
+ try{ return YataMesh.build(Yp,{paint,array:matArray,glass:new THREE.MeshPhysicalMaterial({color:0x06080a,roughness:.08,metalness:0,clearcoat:1,clearcoatRoughness:.03,envMapIntensity:1.2,side:DS})}); }catch(e){ console.error(e); } }
+return Yp;
 }

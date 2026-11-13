@@ -126,6 +126,7 @@ if(Monitor.wanted()) Monitor.boot();   // テレメトリの監視画面 (QR か
 else if(Standby.wanted()) Standby.open();   // 待機画面 (?standby)
 else if(!/#r=/.test(location.hash)) Fade.intro();
 buildSetupUI();
+if(typeof YataMesh!=="undefined"&&typeof VEH!=="undefined"&&VEH.active) YataMesh.load();   // 実車の外形 (非公開。手元にある端末だけ)
 refreshUIModeBtns(); Settings.badge();
 setEventLevel(EventGame.level); setEventCourse(EventGame.course); setEventPractice(EventGame.practice);
 segFromSelect("time-scale","seg-ts");

@@ -87,7 +87,7 @@ f.position.set(x,0.40,z); body.add(f);
 if(P.shape==="wadai"){
 // YATA(61) — 車両諸元 (非公開ファイル) があれば実車の形
 const SB=VEH.active?VEH.spec.body:null;
-const Y=buildYATA(SB); this.cockOpening=Y.opening;
+const Y=buildYATA(SB); this.cockOpening=Y.opening; g.userData.yMesh=Y.mesh? Y : null;
 body.add(Y.group);
 g.userData.canopy=Y.canopy; g.userData.upperTilt=Y.tilt;
 // 車輪 (諸元にある場合): [x, z(車体中心基準, 前方 -), 半径, 幅]
@@ -172,6 +172,7 @@ if(LP&&LP.rearCombo){ g.userData.rearCombo=[];
   const ln=new THREE.Mesh(new THREE.BoxGeometry(w||0.18,0.03,0.06),m); ln.position.set(x,y,z); body.add(ln);
   g.userData.rearCombo.push({m,side:x<0?-1:1}); } }
 g.add(body);
+if(g.userData.yMesh){ try{ YataMesh.snap(body,g.userData.yMesh.hull); }catch(e){ console.error(e); } }
 return {group:g, body, canopy:g.userData.canopy};
 },
 mkVan(color){ // 随伴車: 4WDワゴン(ブルバー・ルーフラック・回転灯)  前方=-z
