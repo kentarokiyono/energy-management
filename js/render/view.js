@@ -204,13 +204,12 @@ g.add(body);
 if(g.userData.yMesh){ try{ YataMesh.snap(body,g.userData.yMesh.hull); }catch(e){ console.error(e); } }
 // 後端のレンズは後ろから車体へ当て、後端の面に沿わせる (角の外に浮いたり、中に埋もれたりしないように)
 if(rcLens.length){ body.updateMatrixWorld(true); const hm=[]; body.traverse(o=>{ if(o.isMesh&&o.visible&&!rcLens.includes(o)&&o.geometry&&o.geometry.type==="BufferGeometry"&&!(o.material&&o.material.colorWrite===false)) hm.push(o); });
- const rc=new THREE.Raycaster(), inv=new THREE.Matrix4().copy(body.matrixWorld).invert();
+ const rc=new THREE.Raycaster();
  for(const ln of rcLens){ const p0=ln.position.clone(); let h=null;
-  for(const dy of [0,-0.02,0.02,-0.04,0.04]){ rc.set(body.localToWorld(new THREE.Vector3(p0.x,p0.y+dy,p0.z+1.5)),new THREE.Vector3(0,0,-1).transformDirection(body.matrixWorld)); h=rc.intersectObjects(hm,false)[0]; if(h) break; }
-  if(!h) continue;
-  const n=h.face.normal.clone().transformDirection(h.object.matrixWorld).transformDirection(inv).normalize(); if(n.z<0) n.negate();
-  const p=body.worldToLocal(h.point.clone()); ln.geometry.dispose(); ln.geometry=new THREE.BoxGeometry(ln.geometry.parameters.width,0.03,0.008);
-  ln.position.copy(p).addScaledVector(n,0.004); ln.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),n); } }
+  for(const dy of [0,-0.015,0.015,-0.03,0.03]){ rc.set(body.localToWorld(new THREE.Vector3(p0.x,p0.y+dy,p0.z+1.5)),new THREE.Vector3(0,0,-1).transformDirection(body.matrixWorld));
+   const q=rc.intersectObjects(hm,false)[0]; if(q&&Math.abs(body.worldToLocal(q.point.clone()).z-p0.z)<0.12){ h=q; h.dy=dy; break; } }   // 後端の面に当たったものだけ (奥まで抜けたものは使わない)
+  ln.geometry.dispose(); ln.geometry=new THREE.BoxGeometry(ln.geometry.parameters.width,0.03,0.008); ln.quaternion.identity();   // 薄いレンズ。常に真後ろへ向ける
+  if(h){ const p=body.worldToLocal(h.point.clone()); ln.position.set(p0.x,p0.y+h.dy,p.z+0.004); } } }
 return {group:g, body, canopy:g.userData.canopy};
 },
 mkVan(color){ // 随伴車: 4WDワゴン(ブルバー・ルーフラック・回転灯)  前方=-z
