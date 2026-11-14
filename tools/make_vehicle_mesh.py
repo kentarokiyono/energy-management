@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """車体の外形 (STL) から、ゲームが読む軽い形のデータを作る。
 
-使い方: python3 tools/make_vehicle_mesh.py <車体の STL> [出力先]
+使い方: python3 tools/make_vehicle_mesh.py <車体の STL> [出力先] [--cell=0.012]
+ --cell: 近い頂点をまとめる格子の大きさ m (0 = まとめない)。大きいほど軽く、粗くなる
  出力先の既定は js/data/vehicle-mesh-private.bin (コミットしない。.gitignore 済み)
 
 やること
@@ -16,10 +17,37 @@
 import sys, json, struct
 import numpy as np
 
+CELL = 0.0
+
+def simplify(v, cell):
+    """格子 (cell m) ごとに頂点をまとめる。代表の位置は面の二乗誤差 (quadric) が最小の点 (求まらなければ平均)"""
+    P = v.reshape(-1, 3); key = np.floor(P / cell).astype(np.int64)
+    _, cid = np.unique(key, axis=0, return_inverse=True); cid = cid.reshape(-1, 3); nc = cid.max() + 1
+    n = np.cross(v[:, 1] - v[:, 0], v[:, 2] - v[:, 0]); a = np.linalg.norm(n, axis=1); n = n / np.maximum(a, 1e-12)[:, None]
+    d = -np.einsum("ij,ij->i", n, v[:, 0]); pl = np.concatenate([n, d[:, None]], 1)
+    K = pl[:, :, None] * pl[:, None, :] * a[:, None, None]
+    Q = np.zeros((nc, 4, 4))
+    for k in range(3): np.add.at(Q, cid[:, k], K)
+    S = np.zeros((nc, 3)); cnt = np.zeros(nc)
+    for k in range(3): np.add.at(S, cid[:, k], v[:, k]); np.add.at(cnt, cid[:, k], 1)
+    mean = S / cnt[:, None]; A = Q[:, :3, :3]; b = -Q[:, :3, 3]
+    out = mean.copy(); det = np.abs(np.linalg.det(A)); good = det > 1e-14
+    if good.any():
+        x = np.linalg.solve(A[good] + np.eye(3) * 1e-12, b[good][:, :, None])[:, :, 0]
+        far = np.linalg.norm(x - mean[good], axis=1) > cell * 1.5   # 遠くへ飛ぶ解は使わない
+        x[far] = mean[good][far]; out[good] = x
+    nv = out[cid]; keep = (cid[:, 0] != cid[:, 1]) & (cid[:, 1] != cid[:, 2]) & (cid[:, 0] != cid[:, 2])
+    nv = nv[keep]; t = np.sort(cid[keep], axis=1); _, first = np.unique(t, axis=0, return_index=True)
+    return nv[np.sort(first)]
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__); sys.exit(1)
-    src = sys.argv[1]; dst = sys.argv[2] if len(sys.argv) > 2 else "js/data/vehicle-mesh-private.bin"
+    global CELL
+    args = [x for x in sys.argv[1:] if not x.startswith("--")]
+    for x in sys.argv[1:]:
+        if x.startswith("--cell="): CELL = float(x.split("=", 1)[1])
+    src = args[0]; dst = args[1] if len(args) > 1 else "js/data/vehicle-mesh-private.bin"
     b = open(src, "rb").read(); n = struct.unpack("<I", b[80:84])[0]
     if 84 + n * 50 != len(b): raise SystemExit("バイナリ形式の STL ではありません")
     a = np.frombuffer(b, dtype=np.dtype([("n", "<f4", 3), ("v", "<f4", (3, 3)), ("a", "<u2")]), count=n, offset=84)
@@ -44,6 +72,11 @@ def main():
     root = np.array([find(x) for x in range(len(par))])[inv[:, 0]]
     ids, cnt = np.unique(root, return_counts=True); keep = root == ids[np.argmax(cnt)]
     v, c, fn, ar = v[keep], c[keep], fn[keep], ar[keep]; V = v.reshape(-1, 3)
+
+    # 軽くする: 近い頂点を格子ごとに 1 つにまとめる (まとめた先は、周りの面からのずれがいちばん小さくなる位置)
+    if CELL > 0:
+        v = simplify(v, CELL); c = v.mean(1); fn = np.cross(v[:, 1] - v[:, 0], v[:, 2] - v[:, 0]); ar = np.linalg.norm(fn, axis=1)
+        ok = ar > 1e-12; v, c, fn, ar = v[ok], c[ok], fn[ok], ar[ok]; fn = fn / ar[:, None]; V = v.reshape(-1, 3)
 
     # パネルの縁の高さ (前後の位置ごと): その位置でいちばん外側の点の高さ
     # (頂点だけで見ると、大きな三角形の所で縁を取り違える。三角形の辺が各位置の断面を横切る点で調べる)
@@ -99,6 +132,12 @@ def main():
             uv = np.stack([u, zn], 1)
         out.append((pos, nrm, uv.astype(np.float32), vid.astype(np.uint32)))
         head["groups"].append({"name": name, "nv": int(len(pos)), "ni": int(len(vid))})
+    # 影を作るときだけ使う軽い形 (見た目には使わない)。上下 (充電で傾く上のカウル) に分ける
+    sv = simplify(v, 0.04); sc = sv.mean(1); up = sc[:, 1] >= rimAt(sc[:, 2]) - 0.012
+    for name, m in (("shadowLower", ~up), ("shadowUpper", up)):
+        P = sv[m].reshape(-1, 3).astype(np.float32); n = len(P)
+        out.append((P, np.zeros_like(P), np.zeros((n, 2), np.float32), np.arange(n, dtype=np.uint32)))
+        head["groups"].append({"name": name, "nv": int(n), "ni": int(n)})
     hb = json.dumps(head).encode(); hb += b" " * ((4 - (5 + 4 + len(hb)) % 4) % 4)
     with open(dst, "wb") as f:
         f.write(b"YMSH1"); f.write(struct.pack("<I", len(hb))); f.write(hb)

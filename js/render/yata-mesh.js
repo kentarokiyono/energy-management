@@ -48,11 +48,19 @@ const YataMesh={
   if(G.deck){ const m=mk(G.deck,M.array); m.userData.upper=true; m.receiveShadow=true; upper.add(m); }
   let canopy=null;
   if(G.canopy){ const g=this.geo(G.canopy,null,yOff); g.addGroup(0,G.canopy.idx.length,0); canopy=new THREE.Mesh(g,[M.glass]); canopy.castShadow=true; canopy.userData.upper=true; upper.add(canopy); }
+  // 影: 細かい形の代わりに軽い形で作る (影を描く手間を減らす)。軽い形は画面に色も奥行きも書かない
+  if(G.shadowLower){ for(const o of grp.children.concat(upper.children)) if(o.isMesh) o.castShadow=false;
+   const sm=new THREE.MeshBasicMaterial({colorWrite:false,depthWrite:false}), sh=(g,parent)=>{ const m=new THREE.Mesh(this.geo(g,null,yOff),sm); m.castShadow=true; m.renderOrder=-5; parent.add(m); };
+   sh(G.shadowLower,grp); if(G.shadowUpper) sh(G.shadowUpper,upper); }
   // 接地の影 (コードで作った車のものをもらう)
   const sh=Y.group.children.find(o=>o.isMesh&&o.geometry&&o.geometry.type==="PlaneGeometry"&&o.material&&o.material.transparent&&o.rotation.x!==0); if(sh){ Y.group.remove(sh); grp.add(sh); }
   return {group:grp,canopy,opening:Y.opening,tilt:pivot,mesh:true,hull:grp.children.filter(o=>o.isMesh&&o.material===paint)}; },
  /* 側面の灯火など (コードの車体の位置に置いてある小さな部品) を、この車体の表面に付け直す */
  snap(body,hull){ const rc=new THREE.Raycaster(); body.updateMatrixWorld(true);
   for(const o of body.children){ if(!o.isMesh||!o.geometry||o.geometry.type!=="BoxGeometry"||Math.abs(o.position.x)<0.25) continue; const sx=Math.sign(o.position.x);
-   rc.set(new THREE.Vector3(sx*2,o.position.y,o.position.z),new THREE.Vector3(-sx,0,0)); const h=rc.intersectObjects(hull,false)[0]; if(h) o.position.x=body.worldToLocal(h.point.clone()).x+sx*0.004; else o.visible=false; } },
+   rc.set(new THREE.Vector3(sx*2,o.position.y,o.position.z),new THREE.Vector3(-sx,0,0)); const h=rc.intersectObjects(hull,false)[0];
+   if(!h){ o.visible=false; continue; }
+   // 車体の面に沿わせる (面の向きに灯火の厚みの向きを合わせ、少しだけ外へ)
+   const n=h.face.normal.clone().transformDirection(h.object.matrixWorld), inv=new THREE.Matrix4().copy(body.matrixWorld).invert(), nl=n.transformDirection(inv).normalize();
+   const p=body.worldToLocal(h.point.clone()).addScaledVector(nl,0.006); o.position.copy(p); o.quaternion.setFromUnitVectors(new THREE.Vector3(sx,0,0),nl); } },
 };
