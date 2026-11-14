@@ -3,10 +3,8 @@
 const YATA_CACHE={};
 /* 側面の塗り分け (u: 0=先端 1=後端, zn: 0=下端 1=上端) → "O"オレンジ / "K"黒 / "W"白 */
 function yataLivery(u,zn){
- if(u<0.085) return "O";                                   // ノーズコーン (先端から全周オレンジ)
- // 前から見た V 字: 上のオレンジ帯がノーズに向かって太くなり、下はノーズ中央からオレンジ
- if(u<0.30){ const up=0.86-0.42*Math.max(0,(0.30-u)/0.26); if(zn>up) return "O";
-  const lo=0.42*Math.max(0,(0.20-u)/0.16); if(zn<lo) return "O"; }
+ // ノーズの正面 (実車の写真から): 上面の黒のすぐ下に全幅のオレンジの帯、そこから中央下へすぼまるオレンジの V、V の左右は白
+ if(u<0.30&&zn>0.86*Math.min(1,u/0.13)) return "O";
  if(zn>0.86) return "O";                                   // 上縁のオレンジ
  if(u>=0.34&&zn<0.09) return "K";                          // 下端の黒
  if(u>0.60&&zn<0.09+Math.min(1,(u-0.60)/0.02)*0.13) return "K";  // 後部で段差状に太くなる黒

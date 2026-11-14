@@ -190,6 +190,10 @@ const hullMeshes=[]; if(isW&&(LP||PUB)&&g.userData.canopy){ body.updateMatrixWor
 /* 車体の上面に沿わせた薄いレンズ (前照灯・前のウインカー)。poly は上から見た形 [横, 前後] (前が -)。真上から当てて面の高さに合わせる */
 const decal=(cx,cz,poly,mat,o)=>{ if(!hullMeshes.length) return null; o=o||{}; const lift=o.lift||0.003, rc=new THREE.Raycaster();
  const cast=(p,d)=>{ rc.set(p,d); return rc.intersectObjects(hullMeshes,false)[0]||null; };
+ if(o.edge!=null){ // 上面の外の端 (面が横を向き始める所) を探し、そこから o.edge だけ内側に置く
+  const sd=Math.sign(cx)||1, up=new THREE.Vector3(0,1,0).transformDirection(body.matrixWorld), dn0=up.clone().negate(); let ex=null;
+  let obj=null; for(let x=0;x<1.2;x+=0.01){ const h=cast(body.localToWorld(new THREE.Vector3(sd*x,4,cz)),dn0); if(!h) break; if(!obj) obj=h.object; const nn=h.face.normal.clone().transformDirection(h.object.matrixWorld); if(h.object!==obj||Math.abs(nn.dot(up))<0.3) break; ex=x; }   // 同じ面 (ノーズ上面の黒) が続く所まで
+  if(ex!=null) cx=sd*Math.max(Math.abs(cx),ex-o.edge); }
  const h0=cast(body.localToWorld(new THREE.Vector3(cx,4,cz)),new THREE.Vector3(0,-1,0).transformDirection(body.matrixWorld)); if(!h0) return null;
  const par=h0.object.userData.upper? h0.object : body;
  // 当たった所の面の向きに沿った平面に形を置き、面の向きの逆から当て直す (角の丸みの上でも面に沿う)
@@ -211,7 +215,7 @@ const lensMat=new THREE.MeshStandardMaterial({color:0x7d8792,metalness:0.9,rough
 const rimMat=new THREE.MeshStandardMaterial({color:0x15181c,roughness:0.5,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});   // レンズの縁取り
 for(const [sx,sz,sy] of drlPos){ const sd=Math.sign(sx)||1;
   const poly=[[-0.07*sd,-0.075],[0.02*sd,-0.075],[0.09*sd,0.075],[-0.07*sd,0.075]]; if(sd<0) poly.reverse();
-  if(isW&&decal(sx,sz,poly.map(([x,z])=>[x*1.14,z*1.14]),rimMat,{lift:0.003})){ decal(sx,sz,poly,lensMat,{lift:0.0045}); continue; }
+  if(isW&&decal(sx,sz,poly.map(([x,z])=>[x*1.14,z*1.14]),rimMat,{lift:0.003,edge:0.09})){ decal(sx,sz,poly,lensMat,{lift:0.0045,edge:0.09}); continue; }   // 上面の外の端に寄せる (写真では黒とオレンジの境の角)
   const dl=new THREE.Mesh(new THREE.BoxGeometry(isW?0.09:0.20,isW?0.03:0.048,isW?0.22:0.05),drlMat); dl.position.set(sx,sy!=null?sy:0.5,sz); body.add(dl); }
 for(const [wx,wz,wy] of winkPos){
   const wm=new THREE.MeshBasicMaterial({color:0x7a5512});

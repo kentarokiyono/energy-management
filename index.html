@@ -6,11 +6,11 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://0.peerjs.com wss://0.peerjs.com; media-src 'self' blob: data:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>BWSC 3D Racing Simulator</title>
-<link rel="stylesheet" href="css/fonts.css?v=20261117-s26">
-<link rel="stylesheet" href="css/style.css?v=20261117-s26">
-<link rel="stylesheet" href="css/theme.css?v=20261117-s26">
+<link rel="stylesheet" href="css/fonts.css?v=20261117-s27">
+<link rel="stylesheet" href="css/style.css?v=20261117-s27">
+<link rel="stylesheet" href="css/theme.css?v=20261117-s27">
 <link rel="icon" href="assets/img/logo.svg">
-<link rel="stylesheet" href="css/tailwind.css?v=20261117-s26">
+<link rel="stylesheet" href="css/tailwind.css?v=20261117-s27">
 <script src="js/lib/three.min.js"></script>
 <script src="js/lib/three-post.js"></script>
 <script src="js/lib/chart.umd.js"></script>
@@ -71,7 +71,7 @@
 <button class="btn" onclick="Demo.start()"><span data-ic="camera"></span> デモ映像</button>
 <span class="lb" id="gamepad-status">未検出</span>
 </div>
-<div class="build">BUILD 20261117-s26</div>
+<div class="build">BUILD 20261117-s27</div>
 </div>
 <div class="r">
 <div class="drw-hd"><span id="drw-ttl">詳しい設定</span><button type="button" class="btn ana-sm" onclick="Entry.drawer(null)"><span data-ic="chd"></span>閉じる</button></div>
@@ -428,69 +428,69 @@
 <div style="display:flex;justify-content:flex-end;gap:10px"><button class="btn" onclick="Fade.go(()=>Ana.open())"><span data-ic="chart"></span>分析</button><button class="btn" id="log-btn-result" onclick="RunLog.download()">📄 走行ログ (CSV)</button><button class="btn pri" onclick="Fade.go(quitToMenu)"><span data-ic="home"></span>メニューへ戻る</button></div>
 </div>
 </div>
-<script src="js/data/route-2025.js?v=20261117-s26"></script>
-<script src="js/data/route-plan.js?v=20261117-s26"></script>
-<script src="js/data/route-osm.js?v=20261117-s26"></script>
-<script src="js/data/route-geo.js?v=20261117-s26"></script>
-<script src="js/data/weather-2025.js?v=20261117-s26"></script>
-<script src="js/route.js?v=20261117-s26"></script>
-<script src="js/data/australia.js?v=20261117-s26"></script>
-<script src="js/geo.js?v=20261117-s26"></script>
-<script src="js/data.js?v=20261117-s26"></script>
+<script src="js/data/route-2025.js?v=20261117-s27"></script>
+<script src="js/data/route-plan.js?v=20261117-s27"></script>
+<script src="js/data/route-osm.js?v=20261117-s27"></script>
+<script src="js/data/route-geo.js?v=20261117-s27"></script>
+<script src="js/data/weather-2025.js?v=20261117-s27"></script>
+<script src="js/route.js?v=20261117-s27"></script>
+<script src="js/data/australia.js?v=20261117-s27"></script>
+<script src="js/geo.js?v=20261117-s27"></script>
+<script src="js/data.js?v=20261117-s27"></script>
 <!-- 実車諸元 (手元だけのファイル): 書き換えがすぐ反映されるよう毎回キャッシュを使わずに読む -->
 <script>document.write('<script src="js/data/vehicle-private.js?t='+Date.now()+'" onerror="window.__vehPrivMissing=true"><\/script>');</script>
-<script src="js/vehicle.js?v=20261117-s26"></script>
-<script src="js/physics.js?v=20261117-s26"></script>
-<script src="js/setup-ui.js?v=20261117-s26"></script>
-<script src="js/audio.js?v=20261117-s26"></script>
-<script src="js/audio-radio.js?v=20261117-s26"></script>
-<script src="js/engine.js?v=20261117-s26"></script>
-<script src="js/controls.js?v=20261117-s26"></script>
-<script src="js/ffb.js?v=20261117-s26"></script>
-<script src="js/scenario.js?v=20261117-s26"></script>
-<script src="js/storm.js?v=20261117-s26"></script>
-<script src="js/hvrec.js?v=20261117-s26"></script>
-<script src="js/orders.js?v=20261117-s26"></script>
-<script src="js/save.js?v=20261117-s26"></script>
-<script src="js/drvrec.js?v=20261117-s26"></script>
-<script src="js/telemetry.js?v=20261117-s26"></script>
-<script src="js/ui/monitor.js?v=20261117-s26"></script>
-<script src="js/collide.js?v=20261117-s26"></script>
-<script src="js/render/quality.js?v=20261117-s26"></script>
-<script src="js/render/post.js?v=20261117-s26"></script>
-<script src="js/render/textures.js?v=20261117-s26"></script>
-<script src="js/data/vehicle-public.js?v=20261117-s26"></script>
-<script src="js/render/yata.js?v=20261117-s26"></script>
-<script src="js/render/yata-mesh.js?v=20261117-s26"></script>
-<script src="js/render/sky.js?v=20261117-s26"></script>
-<script src="js/render/biome.js?v=20261117-s26"></script>
-<script src="js/render/geobatch.js?v=20261117-s26"></script>
-<script src="js/render/materials.js?v=20261117-s26"></script>
-<script src="js/render/props.js?v=20261117-s26"></script>
-<script src="js/render/scenery.js?v=20261117-s26"></script>
-<script src="js/data/hidden-valley.js?v=20261117-s26"></script>
-<script src="js/render/hiddenvalley.js?v=20261117-s26"></script>
-<script src="js/render/cockpit.js?v=20261117-s26"></script>
-<script src="js/render/view.js?v=20261117-s26"></script>
-<script src="js/render/rain.js?v=20261117-s26"></script>
-<script src="js/crew.js?v=20261117-s26"></script>
-<script src="js/strategy.js?v=20261117-s26"></script>
-<script src="js/runlog.js?v=20261117-s26"></script>
-<script src="js/hud.js?v=20261117-s26"></script>
-<script src="js/test-mode.js?v=20261117-s26"></script>
-<script src="js/lib/qrcode.js?v=20261117-s26"></script>
-<script src="js/event-game.js?v=20261117-s26"></script>
-<script src="js/ui/fade.js?v=20261117-s26"></script>
-<script src="js/ui/icons.js?v=20261117-s26"></script>
-<script src="js/ui/xlsx.js?v=20261117-s26"></script>
-<script src="js/ui/analysis.js?v=20261117-s26"></script>
-<script src="js/ui/hvana.js?v=20261117-s26"></script>
-<script src="js/ui/trend-load.js?v=20261117-s26"></script>
-<script src="js/ui/map.js?v=20261117-s26"></script>
-<script src="js/ui/standby.js?v=20261117-s26"></script>
-<script src="js/ui/demo.js?v=20261117-s26"></script>
-<script src="js/ui/team.js?v=20261117-s26"></script>
-<script src="js/ui/entry.js?v=20261117-s26"></script>
-<script src="js/main.js?v=20261117-s26"></script>
+<script src="js/vehicle.js?v=20261117-s27"></script>
+<script src="js/physics.js?v=20261117-s27"></script>
+<script src="js/setup-ui.js?v=20261117-s27"></script>
+<script src="js/audio.js?v=20261117-s27"></script>
+<script src="js/audio-radio.js?v=20261117-s27"></script>
+<script src="js/engine.js?v=20261117-s27"></script>
+<script src="js/controls.js?v=20261117-s27"></script>
+<script src="js/ffb.js?v=20261117-s27"></script>
+<script src="js/scenario.js?v=20261117-s27"></script>
+<script src="js/storm.js?v=20261117-s27"></script>
+<script src="js/hvrec.js?v=20261117-s27"></script>
+<script src="js/orders.js?v=20261117-s27"></script>
+<script src="js/save.js?v=20261117-s27"></script>
+<script src="js/drvrec.js?v=20261117-s27"></script>
+<script src="js/telemetry.js?v=20261117-s27"></script>
+<script src="js/ui/monitor.js?v=20261117-s27"></script>
+<script src="js/collide.js?v=20261117-s27"></script>
+<script src="js/render/quality.js?v=20261117-s27"></script>
+<script src="js/render/post.js?v=20261117-s27"></script>
+<script src="js/render/textures.js?v=20261117-s27"></script>
+<script src="js/data/vehicle-public.js?v=20261117-s27"></script>
+<script src="js/render/yata.js?v=20261117-s27"></script>
+<script src="js/render/yata-mesh.js?v=20261117-s27"></script>
+<script src="js/render/sky.js?v=20261117-s27"></script>
+<script src="js/render/biome.js?v=20261117-s27"></script>
+<script src="js/render/geobatch.js?v=20261117-s27"></script>
+<script src="js/render/materials.js?v=20261117-s27"></script>
+<script src="js/render/props.js?v=20261117-s27"></script>
+<script src="js/render/scenery.js?v=20261117-s27"></script>
+<script src="js/data/hidden-valley.js?v=20261117-s27"></script>
+<script src="js/render/hiddenvalley.js?v=20261117-s27"></script>
+<script src="js/render/cockpit.js?v=20261117-s27"></script>
+<script src="js/render/view.js?v=20261117-s27"></script>
+<script src="js/render/rain.js?v=20261117-s27"></script>
+<script src="js/crew.js?v=20261117-s27"></script>
+<script src="js/strategy.js?v=20261117-s27"></script>
+<script src="js/runlog.js?v=20261117-s27"></script>
+<script src="js/hud.js?v=20261117-s27"></script>
+<script src="js/test-mode.js?v=20261117-s27"></script>
+<script src="js/lib/qrcode.js?v=20261117-s27"></script>
+<script src="js/event-game.js?v=20261117-s27"></script>
+<script src="js/ui/fade.js?v=20261117-s27"></script>
+<script src="js/ui/icons.js?v=20261117-s27"></script>
+<script src="js/ui/xlsx.js?v=20261117-s27"></script>
+<script src="js/ui/analysis.js?v=20261117-s27"></script>
+<script src="js/ui/hvana.js?v=20261117-s27"></script>
+<script src="js/ui/trend-load.js?v=20261117-s27"></script>
+<script src="js/ui/map.js?v=20261117-s27"></script>
+<script src="js/ui/standby.js?v=20261117-s27"></script>
+<script src="js/ui/demo.js?v=20261117-s27"></script>
+<script src="js/ui/team.js?v=20261117-s27"></script>
+<script src="js/ui/entry.js?v=20261117-s27"></script>
+<script src="js/main.js?v=20261117-s27"></script>
 </body>
 </html>
