@@ -47,7 +47,12 @@ const cv2=document.createElement("canvas"); cv2.width=cv2.height=256; const g2=c
 g2.strokeStyle="#5a6070"; g2.lineWidth=3; for(let i=0;i<=8;i++){ g2.beginPath(); g2.moveTo(i*32,0); g2.lineTo(i*32,256); g2.stroke(); g2.beginPath(); g2.moveTo(0,i*32); g2.lineTo(256,i*32); g2.stroke(); }
 g2.strokeStyle="rgba(200,205,220,.55)"; g2.lineWidth=1; for(let i=0;i<32;i++){ g2.beginPath(); g2.moveTo(i*8+4,0); g2.lineTo(i*8+4,256); g2.stroke(); }
 const ct2=new THREE.CanvasTexture(cv2); ct2.wrapS=ct2.wrapT=THREE.RepeatWrapping; ct2.anisotropy=8; ct2.encoding=THREE.sRGBEncoding;
-YATA_CACHE.tex={cell:ct,cellL:ct2,shadow:new THREE.CanvasTexture(cv)};
+// 接地の陰: 車体の下の輪郭に沿った濃い陰 (中ほど濃く、外へ柔らかく抜ける)。重ね塗りでぼかす (ブラウザのぼかし機能に頼らない)
+const cs=document.createElement("canvas"); cs.width=128; cs.height=512; const gs=cs.getContext("2d");
+const rr=(x,y,w,h,r)=>{ gs.beginPath(); gs.moveTo(x+r,y); gs.arcTo(x+w,y,x+w,y+h,r); gs.arcTo(x+w,y+h,x,y+h,r); gs.arcTo(x,y+h,x,y,r); gs.arcTo(x,y,x+w,y,r); gs.closePath(); gs.fill(); };
+for(let k=0;k<22;k++){ const t=k/21, ix=6+t*34, iy=10+t*70; gs.fillStyle=`rgba(0,0,0,${0.035+0.03*t})`; rr(ix,iy,128-2*ix,512-2*iy,Math.min(60,(128-2*ix)/2)); }
+const shT=new THREE.CanvasTexture(cs); shT.encoding=THREE.LinearEncoding;
+YATA_CACHE.tex={cell:ct,cellL:ct2,shadow:shT};
 }
 const T=YATA_CACHE.tex;
 const spl=a=>{const c=new THREE.SplineCurve(a.map(p=>new THREE.Vector2(p[0],p[1])));
@@ -244,8 +249,8 @@ tiltPivot.add(upper); grp.add(tiltPivot);
 for(const o of upperParts){ grp.remove(o); upper.add(o); o.userData.upper=true; }
 if(BD.canopyOffset&&canopy) canopy.position.x=BD.canopyOffset;   // カタマラン: キャノピーは左右どちらかの胴体の上
 /* ==== コンタクトシャドウ ==== */
-const shM=new THREE.Mesh(new THREE.PlaneGeometry(2.3*Math.max(1,halfW(.6)/.9),O.L+0.3),
-new THREE.MeshBasicMaterial({map:T.shadow,transparent:true,depthWrite:false}));
+const shM=new THREE.Mesh(new THREE.PlaneGeometry(2.0*Math.max(.8,halfW(.6)),O.L+0.6),
+new THREE.MeshBasicMaterial({map:T.shadow,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
 shM.rotation.x=-Math.PI/2;shM.position.y=.02;grp.add(shM);
 const Yp={group:grp,canopy,opening:grp.userData.opening||null,tilt:tiltPivot};
 // 自分の車で、実車の外形のデータ (非公開) が手元にあれば、胴体・上面・キャノピーをその形にする

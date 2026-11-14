@@ -16,6 +16,11 @@ const YataMesh={
    if(typeof View!=="undefined"&&View.car&&View.scene&&P.shape==="wadai"){ try{ View.buildCar(); }catch(e){ console.error(e); } }
   }).catch(()=>{ this.state="none"; }); },
  ready(){ return this.state==="ready"&&!!this.data; },
+ /* カーボン (2x2 綾織) の材質: 黒に近い濃いグレーにクリアのつや */
+ carbon(){ if(this._cb) return this._cb; const cv=document.createElement("canvas"); cv.width=cv.height=128; const c=cv.getContext("2d"); c.fillStyle="#0c0d10"; c.fillRect(0,0,128,128);
+  for(let y=0;y<16;y++) for(let x=0;x<16;x++){ const on=((x+y)>>1)%2===0, g=c.createLinearGradient(x*8,y*8,x*8+(on?8:0),y*8+(on?0:8)); g.addColorStop(0,on?"#1b1e23":"#101215"); g.addColorStop(1,on?"#101215":"#1b1e23"); c.fillStyle=g; c.fillRect(x*8,y*8,8,8); }
+  const t=new THREE.CanvasTexture(cv); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.encoding=THREE.sRGBEncoding; t.anisotropy=8;
+  return this._cb=new THREE.MeshPhysicalMaterial({color:0xffffff,map:t,roughness:.4,metalness:.2,clearcoat:.8,clearcoatRoughness:.12,side:THREE.DoubleSide,envMapIntensity:.6}); },
  /* 塗り分けの絵 (横 = 鼻先から後端, 縦 = 下端から縁)。頂点の色では大きな三角形で境目が崩れるので、絵にして貼る */
  livTex(){ if(this._liv) return this._liv; const W=2048,H=512, cv=document.createElement("canvas"); cv.width=W; cv.height=H; const c=cv.getContext("2d"), im=c.createImageData(W,H), d=im.data;
   const col={O:[226,86,10],K:[16,18,22],W:[232,234,238]};
@@ -34,7 +39,12 @@ const YataMesh={
   // アッパーカウル (上の板・上面・キャノピー): 傾ける軸の入れ物に入れる (中身は元の座標のまま)
   const pivot=new THREE.Group(), upper=new THREE.Group(), pv=new THREE.Vector3(tilt.position.x,head.rimWide+yOff,0); pivot.position.copy(pv); upper.position.copy(pv).multiplyScalar(-1); pivot.add(upper); grp.add(pivot);
   const paintU=paint.clone(); paintU.side=THREE.DoubleSide;
-  if(G.upperPaint){ const m=mk(G.upperPaint,paintU); m.userData.upper=true; upper.add(m); }
+  if(G.upperPaint){ // 上の板: 上向きの縁は塗装、裏 (下向きの面) はカーボン
+   const g=G.upperPaint, I=g.idx, N=g.nrm, top=[], bot=[];
+   for(let t=0;t<I.length;t+=3){ const ny=(N[I[t]*3+1]+N[I[t+1]*3+1]+N[I[t+2]*3+1])/3; (ny<-0.3?bot:top).push(I[t],I[t+1],I[t+2]); }
+   if(top.length){ const m=mk({...g,idx:Uint32Array.from(top)},paintU); m.userData.upper=true; upper.add(m); }
+   if(bot.length){ const uv=new Float32Array(g.uv.length); for(let i=0;i<g.pos.length/3;i++){ uv[i*2]=g.pos[i*3+2]*1.6; uv[i*2+1]=g.pos[i*3]*1.6; }   // カーボンの織り目は平面に貼る
+    const m=mk({...g,uv,idx:Uint32Array.from(bot)},this.carbon()); m.userData.upper=true; upper.add(m); } }
   if(G.deck){ const m=mk(G.deck,M.array); m.userData.upper=true; m.receiveShadow=true; upper.add(m); }
   let canopy=null;
   if(G.canopy){ const g=this.geo(G.canopy,null,yOff); g.addGroup(0,G.canopy.idx.length,0); canopy=new THREE.Mesh(g,[M.glass]); canopy.castShadow=true; canopy.userData.upper=true; upper.add(canopy); }

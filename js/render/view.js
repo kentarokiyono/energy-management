@@ -1,3 +1,4 @@
+const _WHITE=new THREE.Color(1,1,1);
 "use strict";
 const View={
 scene:null,camera:null,renderer:null,car:null,carBody:null,canopyMesh:null,
@@ -952,6 +953,8 @@ if(this.farRidge){ const b=biomeAt(es.km), fu=this.farRidge.material.uniforms; t
  fu.uHill.value=lerp(fu.uHill.value,P.mode==="race"&&!b.urban? clamp((b.hill-0.5)/2.5,0,1) : 0,0.02); fu.uShift.value=es.km*0.004;
  fu.uHaze.value.copy(hor); fu.uCol.value.setHex(b.soil).multiplyScalar(0.55*clamp(0.25+dayK,0,1)); }
 this.hemiLight.intensity=clamp(0.14+0.66*dayK+0.12*t1,0.12,0.8)*(1-0.4*WX);
+// 空からの光の色: 空そのものの色で照らす (朝夕は暖かく、曇りは灰色、昼は青み)。白を混ぜて色が付きすぎないように
+this.hemiLight.color.copy(top).lerp(hor,0.35).lerp(_WHITE,0.45);
 // 車体などに映る空 (時刻・天気・土地の色に合わせて作り直す。画質「低」は作らない)
 EnvLight.update(this.renderer,this.scene,top,hor,new THREE.Color(biomeAt(es.km).soil),this.sun.position.clone().sub(this.car.position).normalize(),clamp(Math.sin(alt)*1.3,0,1)*(1-0.8*WX),this.sunLight.color);
 this.updateEnvironment(es,pHere,alt,hor);
@@ -997,7 +1000,8 @@ this.speedLines.forEach((pl,i)=>{
     .addScaledVector(up,((i*29)%40)/10-2);
   pl.material.opacity=sInt*0.28;});
 Cockpit.renderRear(this);
-Post.blur= this.cam===4||this.cam===3? 0 : clamp((es.v-14)/36,0,1);   // 速度のぶれ (最高画質。リプレイの固定カメラ・後ろ向きでは掛けない)
+Post.blur= this.cam===4||this.cam===3? 0 : clamp((es.v-14)/36,0,1);
+Post.dof= this.cam===4&&this.rp&&this.rp.kind!=="wheel"? {focus:this.camera.position.distanceTo(this.car.position)} : null;   // リプレイ: 車にピント (車載カメラは掛けない)   // 速度のぶれ (最高画質。リプレイの固定カメラ・後ろ向きでは掛けない)
 Post.render(this.renderer,this.scene,this.camera);   // 画質「高」はブルーム・周辺減光つき
 },
 updateEnvironment(es,pHere,alt,hor){
