@@ -80,21 +80,23 @@ def main():
 
     # パネルの縁の高さ (前後の位置ごと): その位置でいちばん外側の点の高さ
     # (頂点だけで見ると、大きな三角形の所で縁を取り違える。三角形の辺が各位置の断面を横切る点で調べる)
-    NB = 240; rim = np.full(NB, np.nan)
+    NB = 240; rim = np.full(NB, np.nan); bot = np.full(NB, np.nan)
     E = np.concatenate([v[:, [0, 1]], v[:, [1, 2]], v[:, [2, 0]]]); za = E[:, 0, 2]; zb2 = E[:, 1, 2]
     for i in range(NB):
         zc_ = z0 + (i + 0.5) / NB * L; m = (za - zc_) * (zb2 - zc_) <= 0
         if m.sum() < 3: continue
         A = E[m, 0]; B = E[m, 1]; d = B[:, 2] - A[:, 2]; t = np.where(np.abs(d) > 1e-12, (zc_ - A[:, 2]) / np.where(np.abs(d) > 1e-12, d, 1), 0.5)
-        Pt = A + (B - A) * t[:, None]; w = np.abs(Pt[:, 0]); rim[i] = Pt[w >= w.max() - 0.002, 1].mean()
+        Pt = A + (B - A) * t[:, None]; w = np.abs(Pt[:, 0]); rim[i] = Pt[w >= w.max() - 0.002, 1].mean(); bot[i] = Pt[:, 1].min()
     idx = np.arange(NB); good = ~np.isnan(rim); rim = np.interp(idx, idx[good], rim[good])
     rim = np.convolve(np.pad(rim, 4, mode="edge"), np.ones(9) / 9, mode="valid")
     rimAt = lambda z: np.interp((z - z0) / L * NB - 0.5, idx, rim)
+    bot = np.interp(idx, idx[~np.isnan(bot)], bot[~np.isnan(bot)]); bot = np.convolve(np.pad(bot, 4, mode="edge"), np.ones(9) / 9, mode="valid")
+    botAt = lambda z: np.interp((z - z0) / L * NB - 0.5, idx, bot)   # その位置の底の高さ
     wide = np.abs(V[:, 0]) >= np.abs(V[:, 0]).max() - 0.004; rimWide = float(V[wide, 1].mean())
     yBot = float(np.percentile(V[:, 1], 2.0)); deckTop = float(np.percentile(c[(fn[:, 1] > 0.95), 1], 97))
 
     # 部位
-    r = rimAt(c[:, 2]); upper = c[:, 1] >= r - 0.012
+    r = rimAt(c[:, 2]); upper = (c[:, 1] >= r - 0.012) | ((fn[:, 1] < -0.3) & (c[:, 1] >= r - 0.12) & (c[:, 2] > z0 + 0.6 * L))   # 後部: 縁のすぐ下で下を向く面も板の裏に (後端で胴体との境がギザギザにならないように)
     # キャノピー: 上面より高い所。すそは横向きの面 (上面は上向き) で見分ける
     foot = c[:, 1] > deckTop + 0.004
     fx0, fx1, fz0, fz1 = c[foot, 0].min(), c[foot, 0].max(), c[foot, 2].min(), c[foot, 2].max()
@@ -129,6 +131,8 @@ def main():
             # 上の板: 外周の縁だけオレンジ (zn 0.95)。裏 (下向きの面) は白。下の胴体の上面 (板の陰になる所) も白
             if name == "upperPaint": zn = np.where(nrm[:, 1] < -0.3, 0.5, 0.95)
             else: zn = np.where((nrm[:, 1] > 0.7) & (zn > 0.8), 0.5, zn)
+            # 下の胴体の底面 (下半分の下向きの面) は下端の黒。後部は底が上がるので、高さの割合だけで決めると上縁の色がまだらに出る
+            if name == "lower": zn = np.where((nrm[:, 1] < -0.45) & (pos[:, 1] < (bb := botAt(pos[:, 2].astype(np.float64))) + 0.5 * (rr - bb)), 0.0, zn)
             uv = np.stack([u, zn], 1)
         out.append((pos, nrm, uv.astype(np.float32), vid.astype(np.uint32)))
         head["groups"].append({"name": name, "nv": int(len(pos)), "ni": int(len(vid))})

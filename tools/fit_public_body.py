@@ -44,6 +44,11 @@ def main():
         zBell = S[:, 1].min()   # 底: 断面のいちばん下 (車輪カバーの所は深くなり、車輪が隠れる)
         rows.append((u, halfW, hullW, zPanel + yg, rim + yg - 0.02, zBell + yg))
     good = [r for r in rows if r]
+    # 高さ (zPanel / zHull / zBell) は前後の位置と 1:2:1 でならす (丸めの段や車輪カバーのでこぼこで、下の線が波打たないように)
+    A = np.array(good)
+    for j in (3, 4, 5):
+        c0 = A[:, j].copy(); A[1:-1, j] = (c0[:-2] + 2 * c0[1:-1] + c0[2:]) / 4
+    good = [tuple(r) for r in A]
     # 非公開の実車の値 (手元にあれば) と同じ数字は公開しない: 丸めた値が一致したら 1 段ずらす
     priv = set()
     try:

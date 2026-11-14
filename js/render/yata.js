@@ -55,18 +55,21 @@ const shT=new THREE.CanvasTexture(cs); shT.encoding=THREE.LinearEncoding;
 YATA_CACHE.tex={cell:ct,cellL:ct2,shadow:shT};
 }
 const T=YATA_CACHE.tex;
-const spl=a=>{const c=new THREE.SplineCurve(a.map(p=>new THREE.Vector2(p[0],p[1])));
-const S=c.getPoints(240);
-return u=>{u=clamp(u,0,1);
-let lo=0,hi=S.length-1;
-while(lo<hi){const mid=(lo+hi)>>1;if(S[mid].x<u)lo=mid+1;else hi=mid;}
-const b=S[lo],p=S[Math.max(0,lo-1)],f=clamp((u-p.x)/((b.x-p.x)||1e-6),0,1);
-return lerp(p.y,b.y,f);};};
+/* 単調な 3 次補間 (Fritsch-Carlson): 点の間で行き過ぎない (段の付いた値でも波打たない) */
+const spl=a=>{ const n=a.length, X=a.map(p=>p[0]), Y=a.map(p=>p[1]); if(n<2) return ()=>Y[0]||0;
+ const h=[], d=[], m=new Array(n).fill(0);
+ for(let i=0;i<n-1;i++){ h[i]=Math.max(X[i+1]-X[i],1e-6); d[i]=(Y[i+1]-Y[i])/h[i]; }
+ m[0]=d[0]; m[n-1]=d[n-2];
+ for(let i=1;i<n-1;i++){ if(d[i-1]*d[i]<=0) m[i]=0; else { const w1=2*h[i]+h[i-1], w2=h[i]+2*h[i-1]; m[i]=(w1+w2)/(w1/d[i-1]+w2/d[i]); } }
+ return u=>{ u=clamp(u,X[0],X[n-1]); let i=0; while(i<n-2&&u>X[i+1]) i++;
+  const t=(u-X[i])/h[i], t2=t*t, t3=t2*t;
+  return (2*t3-3*t2+1)*Y[i]+(t3-2*t2+t)*h[i]*m[i]+(-2*t3+3*t2)*Y[i+1]+(t3-t2)*h[i]*m[i+1]; }; };
 const halfW=spl(PF.halfW||[[0,.001],[.05,.16],[.16,.44],[.30,.62],[.45,.85],[.60,.90],[.75,.86],[.90,.78],[1,.70]]);
 const hullW=spl(PF.hullW||[[0,.001],[.06,.10],[.16,.30],[.30,.44],[.50,.58],[.70,.52],[.85,.40],[1,.26]]);
 const zPanel=spl(PF.zPanel||[[0,.30],[.10,.45],[.25,.60],[.50,.62],[.75,.60],[.90,.60],[1,.58]]);
 const zHull=spl(PF.zHull||[[0,.24],[.15,.38],[.35,.48],[.60,.50],[.80,.44],[1,.34]]);
 const zBell=spl(PF.zBell||[[0,O.noseTip],[.12,.20],[.30,.145],[.60,.15],[.80,.20],[1,.28]]);
+let ZB0=1e9; for(let k=0;k<=100;k++) ZB0=Math.min(ZB0,zBell(k/100));   // 塗り分けの高さの割合は車体全体の一番下から測る (後部で底が上がっても、ストライプが曲がらない)
 const HL=O.L/2;   // 車体中心 (z=0) から先端までの距離
 const DS=THREE.DoubleSide;
 // 画質「標準」以上: 物理ベース (塗装はウレタンのクリア、セルはシリコンの青い反射、窓は透ける)。「低」は軽い材質のまま
@@ -110,7 +113,7 @@ pts.push(new THREE.Vector3(-wh*(1-s2),hd,zPos));typ.push("K");}
 for(let r=O.side-1;r>=1;r--){const t=r/O.side;
 pts.push(BF!=null? new THREE.Vector3(-wh*(bfAt(u)+(1-bfAt(u))*t),zb+(hd-zb)*t,zPos) : new THREE.Vector3(-wh*Math.pow(Math.sin(t*Math.PI/2),.85),zb+(hd-zb)*Math.pow(t,1.25),zPos));typ.push("S");}
 typ.push("S");
-Pp.push(pts);Uv.push(LIV&&typeof YataMesh!=="undefined"? pts.map(p=>new THREE.Vector2(u,clamp((p.y-zb)/Math.max(.01,hd-zb),0,1))) : pts.map(p=>new THREE.Vector2(xl,p.x+.9)));TYP.push(typ);
+Pp.push(pts);Uv.push(LIV&&typeof YataMesh!=="undefined"? pts.map(p=>new THREE.Vector2(u,clamp((p.y-ZB0)/Math.max(.01,hd-ZB0),0,1))) : pts.map(p=>new THREE.Vector2(xl,p.x+.9)));TYP.push(typ);
 }
 // コクピットの開口: キャノピーの下の上面 (K) をくり抜く。内装 (cockpit.js) が開口の縁に壁を立てる
 const cu0=(O.canopyX-O.canopyLen*0.52)/O.L, cu1=(O.canopyX+O.canopyLen*0.52)/O.L, cw0=O.canopyW*0.46;
