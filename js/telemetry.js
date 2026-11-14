@@ -3,7 +3,7 @@
  走っている PC (ドライバー側) から、別の端末 (スマホ・タブレット・別の PC) の「Realtime Run Analysis」へ、走行データを送る。
  つなぎ方: 別の端末 = ドライバー側の「テレメトリ」で QR を出す → 監視側で読み取ると監視画面が開いて、自動でつながる。
   同じ PC の別の画面 = 「この PC の別ウィンドウで開く」。ブラウザの中だけでやり取りする (BroadcastChannel。外部とは通信しない)。
- 通信: WebRTC で端末どうしを直接つなぐ。つなぐときの相手探しだけ PeerJS の無料サーバー (0.peerjs.com) を使う。
+ 通信: WebRTC で端末どうしを直接つなぐ (つなげない回線では公開の無料中継を通す)。つなぐときの相手探しだけ PeerJS の無料サーバー (0.peerjs.com) を使う。
   走行データはそのサーバーを通らない。QR に入れた合言葉 (#k=) が合わない相手からのデータは受け付けない。
  ドライバー → 監視: 1 秒ごとの値 (位置・速度・電池・電力・指示)、30 秒ごとの予報と戦略、無線の文、つないだときにそれまでの軌跡。
  監視 → ドライバー: 指示の出し方 (自動 / 入力して送る / 声で伝える)、入力した指示 (時速・電流)、警告 (無線で読み上げ)
@@ -13,7 +13,13 @@ const TeleNet={
  load(){ if(window.Peer) return Promise.resolve(); if(this._p) return this._p;
   this._p=new Promise((res,rej)=>{ const s=document.createElement("script"); s.src="js/lib/peerjs.min.js"; s.onload=()=>res(); s.onerror=()=>rej(new Error("読み込めません")); document.head.appendChild(s); }); return this._p; },
  /* 試験用: ?ps=host:port で自前の PeerServer を使う */
- opts(){ const q=new URLSearchParams(location.search).get("ps"); if(!q) return {debug:0};
+ /* 中継: 端末どうしを直接つなげない回線 (大学・会社の回線とスマホの回線など) では、公開の無料中継 (Open Relay、登録なし) を通す。
+  中継を通るときも、データは WebRTC の暗号化 (DTLS) のまま。混雑や提供終了で使えないことがある */
+ ICE:[{urls:"stun:stun.l.google.com:19302"},{urls:"stun:openrelay.metered.ca:80"},
+  {urls:"turn:openrelay.metered.ca:80",username:"openrelayproject",credential:"openrelayproject"},
+  {urls:"turn:openrelay.metered.ca:443",username:"openrelayproject",credential:"openrelayproject"},
+  {urls:"turn:openrelay.metered.ca:443?transport=tcp",username:"openrelayproject",credential:"openrelayproject"}],
+ opts(){ const q=new URLSearchParams(location.search).get("ps"); if(!q) return {debug:0,config:{iceServers:this.ICE}};
   const [host,port]=q.split(":"); return {host,port:+port||9000,path:"/",secure:false,debug:0,config:{iceServers:[]}}; },
  rid(n){ const A="abcdefghjkmnpqrstuvwxyz23456789"; let s=""; const a=new Uint32Array(n); crypto.getRandomValues(a); for(const x of a) s+=A[x%A.length]; return s; },
 };
