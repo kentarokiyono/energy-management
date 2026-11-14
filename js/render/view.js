@@ -203,8 +203,11 @@ const decal=(cx,cz,poly,mat,o)=>{ if(!hullMeshes.length) return null; o=o||{}; c
  if(t1.dot(new THREE.Vector3(1,0,0).transformDirection(body.matrixWorld))<0) t1.negate();
  const E=[]; for(let i=0;i<poly.length;i++){ const a=poly[i], b=poly[(i+1)%poly.length]; for(let k=0;k<3;k++){ const t=k/3; E.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]); } }
  const RG=[0,0.35,0.7,1], pos=[], idx=[], n=E.length, back=n0.clone().negate();
- const put=(dx,dz)=>{ const q=h0.point.clone().addScaledVector(t1,dx).addScaledVector(t2,dz), h=cast(q.clone().addScaledVector(n0,0.3),back)||h0;
-  const nn=h.face.normal.clone().transformDirection(h.object.matrixWorld); if(nn.dot(n0)<0) nn.negate(); const w=h.point.clone().addScaledVector(nn,lift); par.worldToLocal(w); pos.push(w.x,w.y,w.z); };
+ const C=h0.point.clone().addScaledVector(n0,-0.35);   // 車体の内側の点。各点はそこへ向けて当てる (縁の丸みを回り込んでも欠けない)
+ const put=(dx,dz)=>{ const o=h0.point.clone().addScaledVector(t1,dx*0.65/0.35).addScaledVector(t2,dz*0.65/0.35).addScaledVector(n0,0.3), h=cast(o,C.clone().sub(o).normalize());   // 内側の点へ向かって縮む分だけ外で広げる
+  const pp=h0.point.clone().addScaledVector(t1,dx).addScaledVector(t2,dz); let w; if(h&&h.point.distanceTo(pp)<0.035){ const nn=h.face.normal.clone().transformDirection(h.object.matrixWorld); if(nn.dot(n0)<0) nn.negate(); w=h.point.clone().addScaledVector(nn,lift); }
+  else w=pp.addScaledVector(n0,lift);   // 薄い縁の外に出た所: 下の胴体まで伸びないよう、面の向きの平面に置く
+  par.worldToLocal(w); pos.push(w.x,w.y,w.z); };
  put(0,0); for(let r=1;r<RG.length;r++) for(const [ex,ez] of E) put(ex*RG[r],ez*RG[r]);
  for(let k=0;k<n;k++) idx.push(0,1+(k+1)%n,1+k);
  for(let r=1;r<RG.length-1;r++){ const a=1+(r-1)*n, b=1+r*n; for(let k=0;k<n;k++){ const k2=(k+1)%n; idx.push(a+k,a+k2,b+k2, a+k,b+k2,b+k); } }
@@ -215,7 +218,7 @@ const lensMat=new THREE.MeshStandardMaterial({color:0x7d8792,metalness:0.9,rough
 const rimMat=new THREE.MeshStandardMaterial({color:0x15181c,roughness:0.5,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});   // レンズの縁取り
 for(const [sx,sz,sy] of drlPos){ const sd=Math.sign(sx)||1;
   const poly=[[-0.07*sd,-0.075],[0.02*sd,-0.075],[0.09*sd,0.075],[-0.07*sd,0.075]]; if(sd<0) poly.reverse();
-  if(isW&&decal(sx,sz,poly.map(([x,z])=>[x*1.14,z*1.14]),rimMat,{lift:0.003,edge:0.09})){ decal(sx,sz,poly,lensMat,{lift:0.0045,edge:0.09}); continue; }   // 上面の外の端に寄せる (写真では黒とオレンジの境の角)
+  if(isW&&decal(sx,sz,poly.map(([x,z])=>[x*1.14,z*1.14]),rimMat,{lift:0.003,edge:0.04})){ decal(sx,sz,poly,lensMat,{lift:0.0045,edge:0.04}); continue; }   // 上面の外の端に寄せる (写真では黒とオレンジの境の角)
   const dl=new THREE.Mesh(new THREE.BoxGeometry(isW?0.09:0.20,isW?0.03:0.048,isW?0.22:0.05),drlMat); dl.position.set(sx,sy!=null?sy:0.5,sz); body.add(dl); }
 for(const [wx,wz,wy] of winkPos){
   const wm=new THREE.MeshBasicMaterial({color:0x7a5512});

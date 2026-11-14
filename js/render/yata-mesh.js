@@ -35,7 +35,11 @@ const YataMesh={
   const yMin=this._yMin!=null? this._yMin : (this._yMin=G.lower.pos.reduce((m,v,i)=>i%3===1&&v<m? v : m,9)), yOff=0.07-yMin;
   const paint=M.paint(0xffffff); paint.map=this.livTex(); paint.side=THREE.FrontSide;
   const mk=(g,mat)=>{ const m=new THREE.Mesh(this.geo(g,null,yOff),mat); m.castShadow=true; return m; };
-  if(G.lower) grp.add(mk(G.lower,paint));
+  if(G.lower){ // 鼻先の上を向いた面は、太陽電池のない上面と同じオレンジ (つやの塗装だと空を映して白っぽくなる)。uv.x は鼻先からの割合
+   const g=G.lower, I=g.idx, N=g.nrm, U=g.uv, L=head.length||5, rest=[], tip=[];
+   for(let t=0;t<I.length;t+=3){ const a=I[t],b=I[t+1],c=I[t+2], ny=(N[a*3+1]+N[b*3+1]+N[c*3+1])/3, zN=(U[a*2]+U[b*2]+U[c*2])/3*L;
+    (M.tip&&typeof yataTipOrange==="function"&&ny>0.2&&yataTipOrange(zN)?tip:rest).push(a,b,c); }
+   grp.add(mk({...g,idx:Uint32Array.from(rest)},paint)); if(tip.length) grp.add(mk({...g,idx:Uint32Array.from(tip)},M.tip)); }
   // アッパーカウル (上の板・上面・キャノピー): 傾ける軸の入れ物に入れる (中身は元の座標のまま)
   const pivot=new THREE.Group(), upper=new THREE.Group(), pv=new THREE.Vector3(tilt.position.x,head.rimWide+yOff,0); pivot.position.copy(pv); upper.position.copy(pv).multiplyScalar(-1); pivot.add(upper); grp.add(pivot);
   const paintU=paint.clone(); paintU.side=THREE.DoubleSide;
@@ -47,10 +51,11 @@ const YataMesh={
     const m=mk({...g,uv,idx:Uint32Array.from(bot)},this.carbon()); m.userData.upper=true; upper.add(m); } }
   if(G.deck){ const dm=M.array.clone(); dm.side=THREE.FrontSide;   // 上の面だけ (裏から見ると、すぐ下のカーボンとちらつく)
    // 太陽電池を貼っていない所 (ノーズの上面・パネル前端の角) は黒い面に分ける。uv は (鼻先からの距離, 横の位置 + 0.9)
-   const g=G.deck, I=g.idx, U=g.uv, cell=[], bare=[];
+   const g=G.deck, I=g.idx, U=g.uv, cell=[], bare=[], tip=[];
    for(let t=0;t<I.length;t+=3){ const a=I[t],b=I[t+1],c=I[t+2], zN=(U[a*2]+U[b*2]+U[c*2])/3, ax=Math.abs((U[a*2+1]+U[b*2+1]+U[c*2+1])/3-0.9);
-    (M.bare&&typeof yataBare==="function"&&yataBare(zN,ax)?bare:cell).push(a,b,c); }
+    (M.tip&&typeof yataTipOrange==="function"&&yataTipOrange(zN)?tip:M.bare&&typeof yataBare==="function"&&yataBare(zN,ax)?bare:cell).push(a,b,c); }   // 鼻先の上面はオレンジ
    const m=mk({...g,idx:Uint32Array.from(cell)},dm); m.userData.upper=true; m.receiveShadow=true; upper.add(m);
+   if(tip.length){ const k=mk({...g,idx:Uint32Array.from(tip)},M.tip); k.userData.upper=true; k.receiveShadow=true; upper.add(k); }
    if(bare.length){ const bm=M.bare.clone(); bm.side=THREE.FrontSide; const k=mk({...g,idx:Uint32Array.from(bare)},bm); k.userData.upper=true; k.receiveShadow=true; upper.add(k); } }
   let canopy=null;
   if(G.canopy){ const g=this.geo(G.canopy,null,yOff); g.addGroup(0,G.canopy.idx.length,0); canopy=new THREE.Mesh(g,[M.glass]); canopy.castShadow=true; canopy.userData.upper=true; upper.add(canopy); }
