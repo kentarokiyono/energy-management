@@ -90,7 +90,7 @@ const Post={
   scene.overrideMaterial=this.dMat; scene.background=null; scene.fog=null; r.shadowMap.autoUpdate=false; r.setClearColor(0xffffff,1); r.setRenderTarget(this.dRT); r.clear(); r.render(scene,cam);
   r.setRenderTarget(rt); r.setClearColor(cc,ca); scene.overrideMaterial=ov; scene.background=bg; scene.fog=fog; r.shadowMap.autoUpdate=sm;
   const u=this.dofP.uniforms, fl=1/Math.tan(cam.fov*Math.PI/360);
-  u.tDepth.value=this.dRT.texture; u.uNear.value=cam.near; u.uFar.value=cam.far; u.uFocus.value=this.dof.focus; u.uK.value=0.32*fl; u.uRes.value.set(w,h); u.uMax.value=Math.max(4,h/80); },
+  u.tDepth.value=this.dRT.texture; u.uNear.value=cam.near; u.uFar.value=cam.far; u.uFocus.value=this.dof.focus; u.uK.value=0.32*fl*(this.dof.k||1); u.uRes.value.set(w,h); u.uMax.value=Math.max(4,h/80); },
  dispose(){ if(!this.comp) return; this.comp.renderTarget1.dispose(); this.comp.renderTarget2.dispose(); if(this.bloom) this.bloom.dispose&&this.bloom.dispose(); this.comp=null; },
  /* 描画: 高 = ポストプロセス、それ以外 = そのまま */
  render(r,scene,cam){

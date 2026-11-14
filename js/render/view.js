@@ -1001,7 +1001,7 @@ this.speedLines.forEach((pl,i)=>{
   pl.material.opacity=sInt*0.28;});
 Cockpit.renderRear(this);
 Post.blur= this.cam===4||this.cam===3? 0 : clamp((es.v-14)/36,0,1);
-Post.dof= this.cam===4&&this.rp&&this.rp.kind!=="wheel"? {focus:this.camera.position.distanceTo(this.car.position)} : null;   // リプレイ: 車にピント (車載カメラは掛けない)   // 速度のぶれ (最高画質。リプレイの固定カメラ・後ろ向きでは掛けない)
+Post.dof= this.cam===4&&this.rp&&this.rp.kind!=="wheel"? {focus:this.camera.position.distanceTo(this.car.position),k:this.rp.kind==="side"||this.rp.kind==="low"||this.rp.kind==="crane"? 0.4 : 1} : null;   /* 道ばたの望遠カメラは弱めに */   // リプレイ: 車にピント (車載カメラは掛けない)   // 速度のぶれ (最高画質。リプレイの固定カメラ・後ろ向きでは掛けない)
 Post.render(this.renderer,this.scene,this.camera);   // 画質「高」はブルーム・周辺減光つき
 },
 updateEnvironment(es,pHere,alt,hor){
