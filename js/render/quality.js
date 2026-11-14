@@ -21,14 +21,17 @@ function setupRenderQuality(renderer,scene){
  高 / 標準 / 低: 固定 (自動調整しない)。表示距離・景観の数は次の走行から反映 */
 const GFX={
  PRESET:{
+  ultra:{pr:2,  shadow:4096, ahead:2400, fogNear:320, fogFar:2000, far:3000, density:1},   // 最高: グラフィックボード付きの PC 向け (影を細かく広く・速度のぶれ・フィルムの質感)
   high:{pr:2,   shadow:2048, ahead:2400, fogNear:320, fogFar:2000, far:3000, density:1},
   mid: {pr:1.5, shadow:1024, ahead:1800, fogNear:280, fogFar:1600, far:2200, density:0.65},
   low: {pr:1,   shadow:0,    ahead:1200, fogNear:200, fogFar:1100, far:1400, density:0.35}},
  mobile(){ return P.uiMode==="mobile"||(typeof matchMedia==="function"&&matchMedia("(pointer:coarse)").matches); },
  down:0,   // 自動のとき、描画が重くて下げた段数 (0〜2)
- key(){ const m=P.gfx||"auto"; let k= m==="auto"? (this.mobile()?"mid":"high") : m;
+ ultra(){ return P.gfx==="ultra"; },
+ /* 画質の段 (最高は「高」と同じ扱いで、追加の効果は ultra() で見る) */
+ key(){ const m=P.gfx||"auto"; let k= m==="auto"? (this.mobile()?"mid":"high") : m==="ultra"? "high" : m;
   if(m==="auto"&&this.down){ const L=["high","mid","low"]; k=L[Math.min(2,L.indexOf(k)+this.down)]; } return k; },
- cur(){ return this.PRESET[this.key()]||this.PRESET.high; },
+ cur(){ return this.ultra()? this.PRESET.ultra : this.PRESET[this.key()]||this.PRESET.high; },
  auto(){ return (P.gfx||"auto")==="auto"; },
  /* 景観の小物 (木・草・岩など) を間引くか。位置から決めるので、同じ場所は毎回同じ結果 */
  skip(x,z){ const d=this.cur().density; if(d>=1) return false; const h=Math.sin(x*12.9898+z*78.233)*43758.5453; return (h-Math.floor(h))>d; },
@@ -45,7 +48,7 @@ const Perf={acc:0,fr:0,lv:0,good:0,bad:0,mAcc:0,mFr:0,fps:0,
   /* fps の表示 (OPTIONS の「fps を表示」) */
   meter(){ const now=performance.now(); if(!this.mT) this.mT=now; this.mFr++; const el0=(now-this.mT)/1000; if(el0<0.5) return; this.fps=this.mFr/el0; this.mT=now; this.mFr=0;
     const el=document.getElementById("fps-meter"); if(!el) return; el.style.display=P.showFps?"block":"none"; if(!P.showFps) return;
-    const r=View.renderer; el.textContent=`${this.fps.toFixed(this.fps<10?1:0)} fps ・ 画質 ${({high:"高",mid:"標準",low:"低"})[GFX.key()]}${GFX.down?" (自動で下げた)":""} ・ 解像度 ${r?r.getPixelRatio().toFixed(2):"-"}${r&&r.shadowMap.enabled?"":" ・ 影なし"}`; },
+    const r=View.renderer; el.textContent=`${this.fps.toFixed(this.fps<10?1:0)} fps ・ 画質 ${GFX.ultra()?"最高":({high:"高",mid:"標準",low:"低"})[GFX.key()]}${GFX.down?" (自動で下げた)":""} ・ 解像度 ${r?r.getPixelRatio().toFixed(2):"-"}${r&&r.shadowMap.enabled?"":" ・ 影なし"}`; },
   tick(dt){ this.meter(); if(!GFX.auto()) return; this.acc+=dt; this.fr++;
     if(this.acc<3) return; const fps=this.fr/this.acc; this.acc=0; this.fr=0;
     const n=this.steps().length;

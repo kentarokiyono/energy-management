@@ -21,7 +21,7 @@ const EnvLight={
  update(renderer,scene,top,hor,gnd,sunDir,sunI,sunCol){
   const k=GFX.key(); if(k==="low"||!scene) return;
   this.build(renderer);
-  const now=performance.now(), iv= k==="high"? 1000 : 4000;
+  const now=performance.now(), iv= GFX.ultra()? 350 : k==="high"? 1000 : 4000;
   if(this.rt&&now-this.t<iv) return; this.t=now;
   const T=new THREE.Color().copy(top).convertSRGBToLinear(), Hc=new THREE.Color().copy(hor).convertSRGBToLinear(), G=new THREE.Color().copy(gnd).convertSRGBToLinear().multiplyScalar(0.6);
   const ok=sunDir&&Number.isFinite(sunDir.x+sunDir.y+sunDir.z)&&sunDir.lengthSq()>1e-8, I=Number.isFinite(sunI)? clamp(sunI,0,1) : 0;   // 長さ 0・壊れた値は使わない
@@ -39,11 +39,23 @@ const EnvLight={
 };
 const Post={
  comp:null, renderer:null, w:0, h:0, pr:0,
- VIG:{uniforms:{tDiffuse:{value:null},uVig:{value:0.32}},
+ blur:0,
+ /* 仕上げ: 周辺減光 + 画面用の色への変換。最高画質ではさらに、速度のぶれ (画面の中心から外へ流れる)・レンズの色のにじみ・フィルムの粒・色の締まり */
+ VIG:{uniforms:{tDiffuse:{value:null},uVig:{value:0.32},uBlur:{value:0},uFx:{value:0},uTime:{value:0}},
   vertexShader:"varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }",
-  fragmentShader:`uniform sampler2D tDiffuse; uniform float uVig; varying vec2 vUv;
-   void main(){ vec4 c=texture2D(tDiffuse,vUv); vec2 p=vUv-0.5; float v=1.0-uVig*smoothstep(0.25,0.85,length(p*vec2(1.25,1.0)));
-    gl_FragColor=linearToOutputTexel(vec4(c.rgb*v,1.0)); }`},
+  fragmentShader:`uniform sampler2D tDiffuse; uniform float uVig; uniform float uBlur; uniform float uFx; uniform float uTime; varying vec2 vUv;
+   float h21(vec2 p){ return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453); }
+   void main(){ vec2 c0=vec2(0.5,0.54), d=vUv-c0; float r=length(d*vec2(1.25,1.0));
+    vec3 col;
+    if(uBlur>0.001){ float a=uBlur*0.085*smoothstep(0.10,0.75,r); float j=h21(vUv*917.0+uTime)-0.5; vec3 s=vec3(0.0);
+     for(int i=0;i<10;i++){ float t=(float(i)+j)/10.0; s+=texture2D(tDiffuse,vUv-d*a*t).rgb; } col=s/10.0; }
+    else col=texture2D(tDiffuse,vUv).rgb;
+    if(uFx>0.5){ float ca=0.0016*smoothstep(0.2,0.9,r); col.r=mix(col.r,texture2D(tDiffuse,vUv+d*ca).r,0.6); col.b=mix(col.b,texture2D(tDiffuse,vUv-d*ca).b,0.6); }
+    vec2 p=vUv-0.5; float v=1.0-uVig*smoothstep(0.25,0.85,length(p*vec2(1.25,1.0)));
+    vec4 o=linearToOutputTexel(vec4(col*v,1.0));
+    if(uFx>0.5){ float l=dot(o.rgb,vec3(0.299,0.587,0.114)); o.rgb=mix(vec3(l),o.rgb,1.08); o.rgb=mix(o.rgb,o.rgb*o.rgb*(3.0-2.0*o.rgb),0.22);   /* 少し鮮やかに・明暗を締める */
+     o.rgb+=(h21(vUv*vec2(1387.0,911.0)+fract(uTime)*7.0)-0.5)*0.022; }
+    gl_FragColor=vec4(clamp(o.rgb,0.0,1.0),1.0); }`},
  want(){ return GFX.key()==="high"&&typeof THREE.EffectComposer==="function"&&typeof THREE.UnrealBloomPass==="function"; },
  build(r){
   const w=innerWidth, h=innerHeight, pr=r.getPixelRatio();
@@ -64,6 +76,7 @@ const Post={
   const w=innerWidth, h=innerHeight, pr=r.getPixelRatio();
   if(w!==this.w||h!==this.h||pr!==this.pr){ this.comp.setPixelRatio(pr); this.comp.setSize(w,h); this.w=w; this.h=h; this.pr=pr; }
   this.rp.scene=scene; this.rp.camera=cam;
+  { const U=GFX.ultra(), u=this.fin.uniforms; u.uBlur.value= U? this.blur||0 : 0; u.uFx.value= U?1:0; u.uTime.value=(performance.now()/1000)%100; if(this.bloom) this.bloom.strength= U?0.42:0.32; }
   this.comp.render();
  },
 };

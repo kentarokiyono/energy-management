@@ -28,7 +28,7 @@ this.scene.add(this.sunLight);
 this.renderer.shadowMap.enabled=true; Perf.reset();
 this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 { const sz=GFX.cur().shadow||1024; this.sunLight.castShadow=GFX.cur().shadow>0; this.sunLight.shadow.mapSize.set(sz,sz); if(this.sunLight.shadow.map){ this.sunLight.shadow.map.dispose(); this.sunLight.shadow.map=null; } }
-Object.assign(this.sunLight.shadow.camera,{left:-45,right:45,top:45,bottom:-45,near:800,far:2600});
+{ const e=GFX.ultra()?70:45; Object.assign(this.sunLight.shadow.camera,{left:-e,right:e,top:e,bottom:-e,near:800,far:2600}); this.sunLight.shadow.camera.updateProjectionMatrix(); }
 this.sunLight.shadow.bias=-0.0006; this.sunLight.shadow.normalBias=0.02;
 this.scene.add(this.sunLight.target);
 this.sun=new THREE.Mesh(new THREE.SphereGeometry(22,16,16),
@@ -64,6 +64,22 @@ this.camera.aspect=innerWidth/innerHeight; this.camera.updateProjectionMatrix();
 this.renderer.setSize(innerWidth,innerHeight);
 });
 },
+/* ============ リプレイカメラ (中継のような視点。どの画質でも動く) ============
+ 道ばたの固定カメラ (低い三脚・高いクレーン) が車を追って首を振り、通り過ぎたら次のカメラへ。合間に、車に付けたカメラ・空からの追走を挟む */
+REPLAY:["side","low","wheel","crane","heli","front"],
+replayCam(dtR,vv,hCar){ const R=this.rp||(this.rp={i:-1,t:1e9}), car=this.car.position; R.t+=dtR;
+ const pick=()=>{ R.i=(R.i+1)%this.REPLAY.length; R.kind=this.REPLAY[R.i]; R.t=0; R.sd= (R.i%2? 1 : -1);
+  const ahead=clamp(vv*4.5,45,130), s=Math.min(this.s+ahead,this.road.builtS-20), rp=this.roadPoint(s), off= R.kind==="crane"? R.sd*((R.sd>0?rp.R:rp.L)+7) : R.sd*((R.sd>0?rp.R:rp.L)+3.2);
+  const q=typeof Scenery!=="undefined"? Scenery.at(this,s,off) : rp; R.p=new THREE.Vector3(q.x,(q.y!=null?q.y:rp.y)+(R.kind==="crane"?6.5:R.kind==="low"?0.45:1.5),q.z); R.s=s; };
+ if(R.i<0) pick();
+ const fixed=R.kind==="side"||R.kind==="low"||R.kind==="crane";
+ if(fixed? (this.s>R.s+Math.max(40,vv*2.5)||R.t>14||this.s<R.s-200) : R.t>(vv<1?6:7)) pick();
+ const f=new THREE.Vector3(Math.sin(hCar),0,-Math.cos(hCar)), r=new THREE.Vector3(Math.cos(hCar),0,Math.sin(hCar)), look=car.clone(); look.y+=0.5;
+ if(R.kind==="side"||R.kind==="low"||R.kind==="crane"){ const d=R.p.distanceTo(car), fov=clamp(2*Math.atan(4.2/Math.max(d,3))*180/Math.PI,7,48);   // 車が画面の半分ほどになるように寄る
+  return {pos:R.p.clone(),look,fov}; }
+ if(R.kind==="wheel"){ const p=car.clone().addScaledVector(r,R.sd*1.25).addScaledVector(f,-2.6); p.y+=0.32; return {pos:p,look:car.clone().addScaledVector(f,6).setY(car.y+0.35),fov:62}; }
+ if(R.kind==="front"){ const p=car.clone().addScaledVector(f,7.5).addScaledVector(r,R.sd*1.6); p.y+=0.7; return {pos:p,look,fov:34}; }
+ const a=R.t*0.12*R.sd, p=car.clone().addScaledVector(f,-26*Math.cos(a)).addScaledVector(r,26*Math.sin(a)+R.sd*6); p.y+=17; return {pos:p,look,fov:30}; },   // heli
 buildCar(){
 if(this.car) this.scene.remove(this.car);
 const m=this.buildCarModelImpl();
@@ -143,7 +159,13 @@ for(const [sx,sz,sy] of drlPos){
 const brakeMat=new THREE.MeshBasicMaterial({color:0x4a0505});
 if(LP&&LP.stop){ for(const [x,z,y] of LP.stop){ const b2=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.035,0.04),brakeMat); b2.position.set(x,y,z);
   // ハイマウント (高い位置のもの) はキャノピー後端の表面に載せる
-  const cn=g.userData.canopy; if(y>0.8&&cn){ body.updateMatrixWorld(true); cn.geometry.computeBoundingBox(); const bb=cn.geometry.boundingBox;
+  const cn=g.userData.canopy;
+  if(y>0.8&&cn&&g.userData.yMesh){ // 実車の形: キャノピー後端に埋め込んだ赤い点 (面に沿わせる)
+   body.updateMatrixWorld(true); cn.geometry.computeBoundingBox(); const bb=cn.geometry.boundingBox, yc=bb.min.y+(bb.max.y-bb.min.y)*0.5;
+   const rc=new THREE.Raycaster(new THREE.Vector3(x,yc,bb.max.z+1),new THREE.Vector3(0,0,-1)), h=rc.intersectObject(cn,false)[0];
+   if(h){ const n=h.face.normal.clone(); if(n.z<0) n.negate(); const dot=new THREE.Mesh(new THREE.CircleGeometry(0.02,24),brakeMat), p=cn.worldToLocal(h.point.clone());
+    dot.position.copy(p).addScaledVector(n,0.0012); dot.lookAt(p.clone().add(n)); cn.add(dot); continue; } }
+  if(y>0.8&&cn){ body.updateMatrixWorld(true); cn.geometry.computeBoundingBox(); const bb=cn.geometry.boundingBox;
    const zz=bb.max.z-0.1, rc=new THREE.Raycaster(new THREE.Vector3(x,3,zz),new THREE.Vector3(0,-1,0)), h=rc.intersectObject(cn,false)[0];
    if(h){ b2.position.set(x,h.point.y+0.012,zz); const n=h.face.normal; b2.rotation.x=-Math.atan2(n.z,n.y); cn.add(b2); } }   // キャノピーと一緒に動く
   if(!b2.parent) body.add(b2); } }
@@ -862,6 +884,7 @@ const E0=(VEH.active&&VEH.spec.eye)||[0,.84,-.45];
 eye.applyMatrix4(this.car.matrixWorld);
 const aim=new THREE.Vector3(this.lookX,.76,-30).applyMatrix4(this.car.matrixWorld);
 camPos=eye; lookAt=aim;
+} else if(this.cam===4){ const R=this.replayCam(dtR,vv,hCar); camPos=R.pos; lookAt=R.look; this.replayFov=R.fov;
 } else {
 const cx=this.car.position.x, cy=this.car.position.y, cz=this.car.position.z;
 camPos=new THREE.Vector3(cx+Math.sin(hCar)*0.3, cy+2.2, cz-Math.cos(hCar)*0.3);
@@ -959,8 +982,8 @@ this.escortChase.rotation.y=-chase.h;
 this.escortLead.visible=(P.mode==="race"&&!es.camp&&es.stopTimer<=0);
 this.escortChase.visible=(P.mode==="race"&&!es.camp&&es.stopTimer<=0&&this.s>45);
 this.updateAITeams(es,dtR);
-const fovT=70+clamp((es.v*3.6-55)/120,0,1)*8;
-if(Math.abs(fovT-this.camera.fov)>0.15){this.camera.fov=lerp(this.camera.fov,fovT,0.12);this.camera.updateProjectionMatrix();}
+const fovT= this.cam===4&&this.replayFov? this.replayFov : 70+clamp((es.v*3.6-55)/120,0,1)*8;
+if(Math.abs(fovT-this.camera.fov)>0.15){this.camera.fov=lerp(this.camera.fov,fovT,this.cam===4?0.25:0.12);this.camera.updateProjectionMatrix();}
 const sInt=0
 this.speedLines.forEach((pl,i)=>{
   if(sInt<=0){pl.visible=false;return;}
@@ -974,6 +997,7 @@ this.speedLines.forEach((pl,i)=>{
     .addScaledVector(up,((i*29)%40)/10-2);
   pl.material.opacity=sInt*0.28;});
 Cockpit.renderRear(this);
+Post.blur= this.cam===4||this.cam===3? 0 : clamp((es.v-14)/36,0,1);   // 速度のぶれ (最高画質。リプレイの固定カメラ・後ろ向きでは掛けない)
 Post.render(this.renderer,this.scene,this.camera);   // 画質「高」はブルーム・周辺減光つき
 },
 updateEnvironment(es,pHere,alt,hor){
