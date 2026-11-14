@@ -1114,5 +1114,5 @@ this.roadTrains.splice(i,1); }
 };
 
 /* メンテナンスハッチ: ハンドルを切った分だけ、前輪が胴体の横の板を外へ押し開く (直進では閉じる) */
-function updateHatches(car,dt){ const H=car&&car.userData.hatches; if(!H) return; const st=Math.abs(Input.steer||0), want=clamp((st-0.08)/0.6,0,1)*0.42;
+function updateHatches(car,dt){ const H=car&&car.userData.hatches; if(!H) return; const st=Math.abs(Input.steer||0), want=clamp((st-0.08)/0.6,0,1)*0.24;
  for(const h of H){ h.a=lerp(h.a||0,want,clamp(dt*12,0,1)); h.g.rotation.z=h.sd*h.a; } }

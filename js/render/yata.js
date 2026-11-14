@@ -141,8 +141,12 @@ for(let r=0;r<n;r++){const a=vid(bS,Pp,Uv,i,r),c=vid(bS,Pp,Uv,i,(r+1)%n);bS.idx.
 finish(bW);finish(bO);finish(bS); if(bL) finish(bL);
 if(HT){ grp.userData.hatches=[];
  for(const h of HT){ if(!h.b.idx.length) continue; let yt=-1e9, xt=0; for(let k=0;k<h.b.v.length;k+=3) if(h.b.v[k+1]>yt){ yt=h.b.v[k+1]; xt=h.b.v[k]; }
-  const n0=grp.children.length; finish(h.b); const m=grp.children[n0]; grp.remove(m);
-  const pv=new THREE.Group(); pv.position.set(xt,yt,h.z); m.position.set(-xt,-yt,-h.z); pv.add(m); grp.add(pv); grp.userData.hatches.push({g:pv,sd:Math.sign(h.x)}); } }
+  const n0=grp.children.length; finish(h.b); const m=grp.children[n0]; grp.remove(m); m.material=m.material.clone(); m.material.side=THREE.DoubleSide;   // 開いたとき裏側も見える
+  const pv=new THREE.Group(); pv.position.set(xt,yt,h.z); m.position.set(-xt,-yt,-h.z); pv.add(m); grp.add(pv); grp.userData.hatches.push({g:pv,sd:Math.sign(h.x)});
+  // ハッチの奥の囲い (開いたとき、穴から胴体の中や反対側の内側が見えないように)。内側の面だけ描くので、中の車輪は見える
+  let ax0=1e9, y0=1e9, y1=-1e9, z0=1e9, z1=-1e9; for(let k=0;k<h.b.v.length;k+=3){ ax0=Math.min(ax0,Math.abs(h.b.v[k])); y0=Math.min(y0,h.b.v[k+1]); y1=Math.max(y1,h.b.v[k+1]); z0=Math.min(z0,h.b.v[k+2]); z1=Math.max(z1,h.b.v[k+2]); }
+  const D=0.3, sd=Math.sign(h.x)||1, well=new THREE.Mesh(new THREE.BoxGeometry(D,y1-y0,z1-z0),new THREE.MeshLambertMaterial({color:0x101216,side:THREE.BackSide}));
+  well.position.set(sd*(ax0-0.004-D/2),(y0+y1)/2,(z0+z1)/2); grp.add(well); } }
 if(OPN.w>0) grp.userData.opening=OPN;
 // 胴体の上端からパネルの下面までの側面 (パネルは胴体に載っている。すき間から向こうが見えないように閉じる)
 { const bWl=mkB(LIV?matOrange:matWhite), TH=0.035;
