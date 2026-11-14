@@ -72,6 +72,7 @@ requestAnimationFrame(loop);
 let dtR=clamp((t-lastT)/1000,0,0.1); lastT=t;
 if(paused||modalPause){ Snd.silence(); FFB.update(null); return; }   // (読み上げは途中で切らない)
 updateInput(dtR);
+if(typeof Demo!=="undefined"&&Demo.on) Demo.frame(dtR);   // デモ映像: 自動で運転・場面の切り替え
 if(P.event){ EventGame.frame(dtR); if(!running||modalPause) return; }
 if(Test.active){ Test.frame(dtR); if(P.event) EventGame.postTest(); Perf.tick(dtR); if(P.event) EventGame.hud(); return; }
 if(P.mode==="event"&&Engine.st){
@@ -124,6 +125,7 @@ Snd.silence(); FFB.update(null); Speech.stop();
 Settings.load();
 if(Monitor.wanted()) Monitor.boot();   // テレメトリの監視画面 (QR から開いたとき)
 else if(Standby.wanted()) Standby.open();   // 待機画面 (?standby)
+else if(Demo.wanted()) setTimeout(()=>Demo.start(),300);   // デモ映像 (?demo)
 else if(!/#r=/.test(location.hash)) Fade.intro();
 buildSetupUI();
 if(typeof YataMesh!=="undefined"&&typeof VEH!=="undefined"&&VEH.active) YataMesh.load();   // 実車の外形 (非公開。手元にある端末だけ)

@@ -667,3 +667,27 @@ body.mon-on #setup-screen, body.mon-on #game-container, body.mon-on #fade{ displ
 .te-more{ display:flex; justify-content:center; }
 #te-back2{ margin-bottom:-2px; }
 @media (max-width:640px){ .te-row{ grid-template-columns:1fr; gap:4px; } }
+
+/* ============ デモ映像 (待機中に流す): 計器などを隠し、ロゴと文言だけ ============ */
+#demo{ display:none; position:fixed; inset:0; z-index:150; pointer-events:none; color:#fff; font-family:var(--fj); }
+#demo.on{ display:block; }
+body.demo-on #game-container>*:not(#three-canvas):not(#rain-glass){ visibility:hidden!important; }
+body.demo-on #toast{ visibility:hidden!important; }
+body.demo-on{ cursor:none; }
+#demo .dm-bar{ position:absolute; left:0; right:0; height:9vh; background:#000; }
+#demo .dm-top{ top:0; } #demo .dm-bot{ bottom:0; }
+#demo .dm-brand{ position:absolute; top:calc(9vh + 22px); left:34px; display:flex; gap:14px; align-items:center; filter:drop-shadow(0 2px 10px rgba(0,0,0,.55)); }
+#demo .dm-ttl{ font-size:clamp(16px,2.1vw,30px); font-weight:700; letter-spacing:.06em; }
+#demo .dm-sub{ font-size:clamp(10px,1vw,14px); opacity:.85; margin-top:2px; letter-spacing:.02em; }
+#demo .dm-place{ position:absolute; left:34px; bottom:calc(9vh + 26px); opacity:0; transform:translateX(-14px); text-shadow:0 2px 10px rgba(0,0,0,.6); }
+#demo .dm-place.show{ animation:dmPlace 10s ease forwards; }
+#demo .dm-km{ font-family:var(--fn); font-size:clamp(11px,1vw,14px); color:var(--acc); letter-spacing:.14em; }
+#demo .dm-name{ font-size:clamp(22px,3vw,44px); font-weight:700; line-height:1.15; }
+#demo .dm-psub{ font-size:clamp(11px,1.1vw,16px); opacity:.9; }
+#demo .dm-copy{ position:absolute; right:34px; bottom:calc(9vh + 26px); text-align:right; text-shadow:0 2px 10px rgba(0,0,0,.6); max-width:46vw; }
+#demo .dm-copy b{ display:block; font-size:clamp(14px,1.6vw,24px); }
+#demo .dm-copy span{ display:block; font-size:clamp(10px,0.95vw,14px); opacity:.85; margin-top:4px; }
+#demo .dm-hint{ position:absolute; left:0; right:0; bottom:calc(4.5vh - 8px); text-align:center; font-size:12px; color:#8a8f98; animation:dmBlink 3s ease-in-out infinite; }
+@keyframes dmPlace{ 0%{ opacity:0; transform:translateX(-14px); } 10%,80%{ opacity:1; transform:none; } 100%{ opacity:0; transform:none; } }
+@keyframes dmBlink{ 0%,100%{ opacity:.35; } 50%{ opacity:.9; } }
+@media (max-width:700px){ #demo .dm-copy{ display:none; } #demo .dm-brand{ left:16px; } #demo .dm-place{ left:16px; } }
