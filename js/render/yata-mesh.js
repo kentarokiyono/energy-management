@@ -20,7 +20,7 @@ const YataMesh={
  carbon(){ if(this._cb) return this._cb; const cv=document.createElement("canvas"); cv.width=cv.height=128; const c=cv.getContext("2d"); c.fillStyle="#0c0d10"; c.fillRect(0,0,128,128);
   for(let y=0;y<16;y++) for(let x=0;x<16;x++){ const on=((x+y)>>1)%2===0, g=c.createLinearGradient(x*8,y*8,x*8+(on?8:0),y*8+(on?0:8)); g.addColorStop(0,on?"#1b1e23":"#101215"); g.addColorStop(1,on?"#101215":"#1b1e23"); c.fillStyle=g; c.fillRect(x*8,y*8,8,8); }
   const t=new THREE.CanvasTexture(cv); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.encoding=THREE.sRGBEncoding; t.anisotropy=8;
-  return this._cb=new THREE.MeshPhysicalMaterial({color:0xffffff,map:t,roughness:.4,metalness:.2,clearcoat:.8,clearcoatRoughness:.12,side:THREE.DoubleSide,envMapIntensity:.6}); },
+  return this._cb=new THREE.MeshPhysicalMaterial({color:0xffffff,map:t,roughness:.5,metalness:0,clearcoat:.45,clearcoatRoughness:.3,side:THREE.DoubleSide,envMapIntensity:.3}); },
  /* 塗り分けの絵 (横 = 鼻先から後端, 縦 = 下端から縁)。頂点の色では大きな三角形で境目が崩れるので、絵にして貼る */
  livTex(){ if(this._liv) return this._liv; const W=2048,H=512, cv=document.createElement("canvas"); cv.width=W; cv.height=H; const c=cv.getContext("2d"), im=c.createImageData(W,H), d=im.data;
   const col={O:[226,86,10],K:[16,18,22],W:[232,234,238]};
@@ -41,18 +41,27 @@ const YataMesh={
   const paintU=paint.clone(); paintU.side=THREE.DoubleSide;
   if(G.upperPaint){ // 上の板: 上向きの縁は塗装、裏 (下向きの面) はカーボン
    const g=G.upperPaint, I=g.idx, N=g.nrm, top=[], bot=[];
-   for(let t=0;t<I.length;t+=3){ const ny=(N[I[t]*3+1]+N[I[t+1]*3+1]+N[I[t+2]*3+1])/3; (ny<-0.3?bot:top).push(I[t],I[t+1],I[t+2]); }
+   for(let t=0;t<I.length;t+=3){ const ny=(N[I[t]*3+1]+N[I[t+1]*3+1]+N[I[t+2]*3+1])/3; (ny<-0.6?bot:top).push(I[t],I[t+1],I[t+2]); }
    if(top.length){ const m=mk({...g,idx:Uint32Array.from(top)},paintU); m.userData.upper=true; upper.add(m); }
    if(bot.length){ const uv=new Float32Array(g.uv.length); for(let i=0;i<g.pos.length/3;i++){ uv[i*2]=g.pos[i*3+2]*1.6; uv[i*2+1]=g.pos[i*3]*1.6; }   // カーボンの織り目は平面に貼る
     const m=mk({...g,uv,idx:Uint32Array.from(bot)},this.carbon()); m.userData.upper=true; upper.add(m); } }
-  if(G.deck){ const m=mk(G.deck,M.array); m.userData.upper=true; m.receiveShadow=true; upper.add(m); }
+  if(G.deck){ const dm=M.array.clone(); dm.side=THREE.FrontSide;   // 上の面だけ (裏から見ると、すぐ下のカーボンとちらつく)
+   const m=mk(G.deck,dm); m.userData.upper=true; m.receiveShadow=true; upper.add(m); }
   let canopy=null;
   if(G.canopy){ const g=this.geo(G.canopy,null,yOff); g.addGroup(0,G.canopy.idx.length,0); canopy=new THREE.Mesh(g,[M.glass]); canopy.castShadow=true; canopy.userData.upper=true; upper.add(canopy); }
+  // 影: 細かい形の代わりに軽い形で作る (影を描く手間を減らす)。軽い形は画面に色も奥行きも書かない
+  if(G.shadowLower){ for(const o of grp.children.concat(upper.children)) if(o.isMesh) o.castShadow=false;
+   const sm=new THREE.MeshBasicMaterial({colorWrite:false,depthWrite:false}), sh=(g,parent)=>{ const m=new THREE.Mesh(this.geo(g,null,yOff),sm); m.castShadow=true; m.renderOrder=-5; parent.add(m); };
+   sh(G.shadowLower,grp); if(G.shadowUpper) sh(G.shadowUpper,upper); }
   // 接地の影 (コードで作った車のものをもらう)
   const sh=Y.group.children.find(o=>o.isMesh&&o.geometry&&o.geometry.type==="PlaneGeometry"&&o.material&&o.material.transparent&&o.rotation.x!==0); if(sh){ Y.group.remove(sh); grp.add(sh); }
   return {group:grp,canopy,opening:Y.opening,tilt:pivot,mesh:true,hull:grp.children.filter(o=>o.isMesh&&o.material===paint)}; },
  /* 側面の灯火など (コードの車体の位置に置いてある小さな部品) を、この車体の表面に付け直す */
  snap(body,hull){ const rc=new THREE.Raycaster(); body.updateMatrixWorld(true);
   for(const o of body.children){ if(!o.isMesh||!o.geometry||o.geometry.type!=="BoxGeometry"||Math.abs(o.position.x)<0.25) continue; const sx=Math.sign(o.position.x);
-   rc.set(new THREE.Vector3(sx*2,o.position.y,o.position.z),new THREE.Vector3(-sx,0,0)); const h=rc.intersectObjects(hull,false)[0]; if(h) o.position.x=body.worldToLocal(h.point.clone()).x+sx*0.004; else o.visible=false; } },
+   rc.set(new THREE.Vector3(sx*2,o.position.y,o.position.z),new THREE.Vector3(-sx,0,0)); const h=rc.intersectObjects(hull,false)[0];
+   if(!h){ o.visible=false; continue; }
+   // 車体の面に沿わせる (面の向きに灯火の厚みの向きを合わせ、少しだけ外へ)
+   const n=h.face.normal.clone().transformDirection(h.object.matrixWorld), inv=new THREE.Matrix4().copy(body.matrixWorld).invert(), nl=n.transformDirection(inv).normalize();
+   const p=body.worldToLocal(h.point.clone()).addScaledVector(nl,0.006); o.position.copy(p); o.quaternion.setFromUnitVectors(new THREE.Vector3(sx,0,0),nl); } },
 };

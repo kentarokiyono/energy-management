@@ -103,8 +103,8 @@ f.position.set(x,0.40,z); body.add(f);
 };
 if(P.shape==="wadai"){
 // YATA(61) — 車両諸元 (非公開ファイル) があれば実車の形
-const SB=VEH.active?VEH.spec.body:null;
-const Y=buildYATA(SB); this.cockOpening=Y.opening; g.userData.yMesh=Y.mesh? Y : null;
+const SB=VEH.active?VEH.spec.body:(typeof YATA_PUBLIC_BODY!=="undefined"?YATA_PUBLIC_BODY:null);   // 実車の値が無い端末は公開用の形 (2 cm 単位に丸めた値)
+const Y=buildYATA(SB); this.cockOpening=Y.opening; g.userData.yMesh=Y.mesh? Y : null; g.userData.hatches=Y.group.userData.hatches||null;   // メンテナンスハッチ
 body.add(Y.group);
 g.userData.canopy=Y.canopy; g.userData.upperTilt=Y.tilt;
 // 車輪 (諸元にある場合): [x, z(車体中心基準, 前方 -), 半径, 幅]
@@ -821,6 +821,7 @@ this.car.rotation.y=-hCar;
 if(this.car.userData.wheels) for(const w of this.car.userData.wheels){   // 車輪の回転と前輪の舵角
  w.spin=((w.spin||0)+vv*dtR/w.r)%(Math.PI*2); w.g.rotation.order="YXZ";
  w.g.rotation.y= w.front? -Input.steer*0.45 : 0; w.g.rotation.x=-w.spin; }
+updateHatches(this.car,dtR);
 /* サスペンション: 加減速で前後に沈み (ブレーキで前のめり)、少し行き過ぎて戻る。路面のうねり・荒れで上下に揺れる */
 { const tgt=clamp(-(es.gLong||0)*0.04,-0.06,0.06), h=Math.min(dtR,0.05), k=90, c=8.5; if(!Number.isFinite(this.pitchS)){ this.pitchS=0; this.pitchV=0; }
   this.pitchV+=((tgt-this.pitchS)*k-this.pitchV*c)*h; this.pitchS+=this.pitchV*h; if(!Number.isFinite(this.pitchS)||Math.abs(this.pitchS)>0.2){ this.pitchS=0; this.pitchV=0; }
@@ -1097,3 +1098,7 @@ this.roadTrains.splice(i,1); }
 }
 },
 };
+
+/* メンテナンスハッチ: ハンドルを切った分だけ、前輪が胴体の横の板を外へ押し開く (直進では閉じる) */
+function updateHatches(car,dt){ const H=car&&car.userData.hatches; if(!H) return; const st=Math.abs(Input.steer||0), want=clamp((st-0.08)/0.6,0,1)*0.42;
+ for(const h of H){ h.a=lerp(h.a||0,want,clamp(dt*12,0,1)); h.g.rotation.z=h.sd*h.a; } }

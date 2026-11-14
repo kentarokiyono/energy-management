@@ -162,7 +162,7 @@ this.car.rotation.y=-this.heading;
 this.car.rotation.x=-Math.atan(grade)*0.8;
 if(this.car.userData.brakeMat)
 this.car.userData.brakeMat.color.setHex((es.brakePhys>0.05||es.brakeRegen>0.05)?0xff2222:0x4a0505);
-updateWinkers(this.car,es); updateRearCombo(this.car,es); reverseBeep(es);
+updateWinkers(this.car,es); updateRearCombo(this.car,es); reverseBeep(es); updateHatches(this.car,dtR);
 View.updateDash(es);
 if(View.yokeMesh) View.yokeMesh.rotation.z=-Input.steer*.9; // 右ステア→右へ回転
 const hCar=this.heading, cx=this.x, cy=carY, cz=this.z;

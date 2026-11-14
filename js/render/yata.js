@@ -27,7 +27,7 @@ const BF0=BD.sectionBottom, BFE=BD.sectionBottomEnd!=null?BD.sectionBottomEnd:BF
 const BF=BF0;   // 断面の底辺の割合 (後端に向けて BFE へ: 後端の面を長方形にできる)
 const bfAt=u=>BF0==null?null: BF0+(BFE-BF0)*clamp((u-0.72)/0.28,0,1)**2;
 const PG=BD.panelGap!=null?BD.panelGap:0.06;   // パネルと胴体上面のすき間 [m]                   // 断面: 底辺の幅の割合 (台形断面, 上ほど広い)。未指定なら丸い断面
-if(LIV){ O.seg=240; O.side=40; }   // 塗り分けの境界がギザギザにならない細かさ
+if(LIV){ O.seg=200; O.side=28; }   // 塗り分けは絵で貼るので、形の細かさだけでよい   // 塗り分けの境界がギザギザにならない細かさ
 if(!YATA_CACHE.tex){
 let cv=document.createElement("canvas");cv.width=cv.height=256;
 let g=cv.getContext("2d");g.fillStyle="#0b0f13";g.fillRect(0,0,256,256);
@@ -55,18 +55,21 @@ const shT=new THREE.CanvasTexture(cs); shT.encoding=THREE.LinearEncoding;
 YATA_CACHE.tex={cell:ct,cellL:ct2,shadow:shT};
 }
 const T=YATA_CACHE.tex;
-const spl=a=>{const c=new THREE.SplineCurve(a.map(p=>new THREE.Vector2(p[0],p[1])));
-const S=c.getPoints(240);
-return u=>{u=clamp(u,0,1);
-let lo=0,hi=S.length-1;
-while(lo<hi){const mid=(lo+hi)>>1;if(S[mid].x<u)lo=mid+1;else hi=mid;}
-const b=S[lo],p=S[Math.max(0,lo-1)],f=clamp((u-p.x)/((b.x-p.x)||1e-6),0,1);
-return lerp(p.y,b.y,f);};};
+/* 単調な 3 次補間 (Fritsch-Carlson): 点の間で行き過ぎない (段の付いた値でも波打たない) */
+const spl=a=>{ const n=a.length, X=a.map(p=>p[0]), Y=a.map(p=>p[1]); if(n<2) return ()=>Y[0]||0;
+ const h=[], d=[], m=new Array(n).fill(0);
+ for(let i=0;i<n-1;i++){ h[i]=Math.max(X[i+1]-X[i],1e-6); d[i]=(Y[i+1]-Y[i])/h[i]; }
+ m[0]=d[0]; m[n-1]=d[n-2];
+ for(let i=1;i<n-1;i++){ if(d[i-1]*d[i]<=0) m[i]=0; else { const w1=2*h[i]+h[i-1], w2=h[i]+2*h[i-1]; m[i]=(w1+w2)/(w1/d[i-1]+w2/d[i]); } }
+ return u=>{ u=clamp(u,X[0],X[n-1]); let i=0; while(i<n-2&&u>X[i+1]) i++;
+  const t=(u-X[i])/h[i], t2=t*t, t3=t2*t;
+  return (2*t3-3*t2+1)*Y[i]+(t3-2*t2+t)*h[i]*m[i]+(-2*t3+3*t2)*Y[i+1]+(t3-t2)*h[i]*m[i+1]; }; };
 const halfW=spl(PF.halfW||[[0,.001],[.05,.16],[.16,.44],[.30,.62],[.45,.85],[.60,.90],[.75,.86],[.90,.78],[1,.70]]);
 const hullW=spl(PF.hullW||[[0,.001],[.06,.10],[.16,.30],[.30,.44],[.50,.58],[.70,.52],[.85,.40],[1,.26]]);
 const zPanel=spl(PF.zPanel||[[0,.30],[.10,.45],[.25,.60],[.50,.62],[.75,.60],[.90,.60],[1,.58]]);
 const zHull=spl(PF.zHull||[[0,.24],[.15,.38],[.35,.48],[.60,.50],[.80,.44],[1,.34]]);
 const zBell=spl(PF.zBell||[[0,O.noseTip],[.12,.20],[.30,.145],[.60,.15],[.80,.20],[1,.28]]);
+let ZB0=1e9; for(let k=0;k<=100;k++) ZB0=Math.min(ZB0,zBell(k/100));   // 塗り分けの高さの割合は車体全体の一番下から測る (後部で底が上がっても、ストライプが曲がらない)
 const HL=O.L/2;   // 車体中心 (z=0) から先端までの距離
 const DS=THREE.DoubleSide;
 // 画質「標準」以上: 物理ベース (塗装はウレタンのクリア、セルはシリコンの青い反射、窓は透ける)。「低」は軽い材質のまま
@@ -93,6 +96,9 @@ const ms=new THREE.Mesh(g2,b.mat);ms.castShadow=true;grp.add(ms);};
 /* ==== ハル(閉じた立体。上面はハル上端で閉じる) ==== */
 {
 const bW=mkB(matWhite),bO=mkB(matOrange),bS=mkB(matSkirt);
+// 実車の塗り分け: 絵にして貼る (面ごとに色を分けると境目がギザギザになる)
+const bL= LIV&&typeof YataMesh!=="undefined"? mkB(Object.assign(paint(0xffffff),{map:YataMesh.livTex()})) : null;
+const HT= BD.hatches&&Array.isArray(BD.wheels)? BD.wheels.filter(w=>w[1]<0).map(w=>({x:w[0],z:w[1],half:w[2]*1.3,top:w[2]*2-0.02,b:mkB(bL?bL.mat:matWhite)})) : null;
 const R=2*(O.side+O.deckK)-1,Pp=[],Uv=[],TYP=[];
 for(let i=0;i<=O.seg;i++){
 const u=i/O.seg,xl=u*O.L,wh=hullW(u),zb=zBell(u),hd=zHull(u),zPos=xl-HL;
@@ -107,7 +113,7 @@ pts.push(new THREE.Vector3(-wh*(1-s2),hd,zPos));typ.push("K");}
 for(let r=O.side-1;r>=1;r--){const t=r/O.side;
 pts.push(BF!=null? new THREE.Vector3(-wh*(bfAt(u)+(1-bfAt(u))*t),zb+(hd-zb)*t,zPos) : new THREE.Vector3(-wh*Math.pow(Math.sin(t*Math.PI/2),.85),zb+(hd-zb)*Math.pow(t,1.25),zPos));typ.push("S");}
 typ.push("S");
-Pp.push(pts);Uv.push(pts.map(p=>new THREE.Vector2(xl,p.x+.9)));TYP.push(typ);
+Pp.push(pts);Uv.push(LIV&&typeof YataMesh!=="undefined"? pts.map(p=>new THREE.Vector2(u,clamp((p.y-ZB0)/Math.max(.01,hd-ZB0),0,1))) : pts.map(p=>new THREE.Vector2(xl,p.x+.9)));TYP.push(typ);
 }
 // コクピットの開口: キャノピーの下の上面 (K) をくり抜く。内装 (cockpit.js) が開口の縁に壁を立てる
 const cu0=(O.canopyX-O.canopyLen*0.52)/O.L, cu1=(O.canopyX+O.canopyLen*0.52)/O.L, cw0=O.canopyW*0.46;
@@ -121,14 +127,22 @@ let b=TYP[i][r]==="K"?bS:(u<O.orangeU?bO:(zm<O.skirtZ?bS:bW));
 if(LIV&&TYP[i][r]!=="K"){ const uc=(i+.5)/O.seg, zb2=zBell(uc), hd2=zHull(uc), zn=clamp((zm-zb2)/Math.max(.01,hd2-zb2),0,1);
  let c=yataLivery(uc,zn); if(c==="O"&&zn>0.86&&hullW(uc)<halfW(uc)-0.05) c="W";   // デッキより細い後部では上縁のオレンジは出さない
  if(BF!=null&&(r===0||r===R-1)) c= uc<0.12? "O" : "K";   // 底面 (平らな部分): 黒。先端だけオレンジ
- b= c==="O"?bO : c==="K"?bS : bW; }
+ b= c==="O"?bO : c==="K"?bS : bW;
+ if(bL&&!(BF!=null&&(r===0||r===R-1))) b=bL; }
+// メンテナンスハッチ (BD.hatches): 前輪の横の胴体を切り取って別の板にする (上辺が蝶番。ハンドルを切ると前輪が押して開く)
+if(HT&&TYP[i][r]==="S"){ const xc=(Pp[i][r].x+Pp[i][r2].x)/2, zc=Pp[i][r].z+(Pp[i+1][r].z-Pp[i][r].z)/2;
+ const h=HT.find(q=>Math.sign(xc)===Math.sign(q.x)&&Math.abs(zc-q.z)<q.half&&zm<q.top&&Math.abs(xc)>hullW((i+.5)/O.seg)*0.86); if(h){ b=h.b; } }   /* 側面だけ (底は含めない) */
 const a=vid(b,Pp,Uv,i,r),c=vid(b,Pp,Uv,i,r2),d=vid(b,Pp,Uv,i+1,r2),e=vid(b,Pp,Uv,i+1,r);
 b.idx.push(a,c,e,c,d,e);
 }
 {const i=O.seg,n=Pp[i].length;
 const cid=bS.v.length/3;bS.v.push(0,(zBell(1)+zHull(1))/2,O.L-HL);bS.uv.push(O.L,.9);
 for(let r=0;r<n;r++){const a=vid(bS,Pp,Uv,i,r),c=vid(bS,Pp,Uv,i,(r+1)%n);bS.idx.push(cid,a,c);}}
-finish(bW);finish(bO);finish(bS);
+finish(bW);finish(bO);finish(bS); if(bL) finish(bL);
+if(HT){ grp.userData.hatches=[];
+ for(const h of HT){ if(!h.b.idx.length) continue; let yt=-1e9, xt=0; for(let k=0;k<h.b.v.length;k+=3) if(h.b.v[k+1]>yt){ yt=h.b.v[k+1]; xt=h.b.v[k]; }
+  const n0=grp.children.length; finish(h.b); const m=grp.children[n0]; grp.remove(m);
+  const pv=new THREE.Group(); pv.position.set(xt,yt,h.z); m.position.set(-xt,-yt,-h.z); pv.add(m); grp.add(pv); grp.userData.hatches.push({g:pv,sd:Math.sign(h.x)}); } }
 if(OPN.w>0) grp.userData.opening=OPN;
 // 胴体の上端からパネルの下面までの側面 (パネルは胴体に載っている。すき間から向こうが見えないように閉じる)
 { const bWl=mkB(LIV?matOrange:matWhite), TH=0.035;

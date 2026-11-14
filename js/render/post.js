@@ -50,7 +50,7 @@ const Post={
    float coc(float z){ return clamp(abs(1.0-uFocus/max(z,0.01))*uK,0.0,1.0)*uMax; }
    void main(){ float c0=coc(dist(vUv)); vec4 col=texture2D(tDiffuse,vUv); if(c0<0.4){ gl_FragColor=col; return; }
     vec3 s=col.rgb; float w=1.0; const float GA=2.39996;
-    for(int i=1;i<32;i++){ float fi=float(i), r=sqrt(fi/31.0)*c0, a=fi*GA; vec2 uv=vUv+vec2(cos(a),sin(a))*r/uRes;
+    for(int i=1;i<18;i++){ float fi=float(i), r=sqrt(fi/17.0)*c0, a=fi*GA; vec2 uv=vUv+vec2(cos(a),sin(a))*r/uRes;
      float ci=coc(dist(uv)); float k=smoothstep(r-1.5,r+0.5,ci+0.5); s+=texture2D(tDiffuse,uv).rgb*k; w+=k; }
     gl_FragColor=vec4(s/w,col.a); }`},
  /* 仕上げ: 周辺減光 + 画面用の色への変換。最高画質ではさらに、速度のぶれ (画面の中心から外へ流れる)・レンズの色のにじみ・フィルムの粒・色の締まり */
@@ -90,7 +90,7 @@ const Post={
   scene.overrideMaterial=this.dMat; scene.background=null; scene.fog=null; r.shadowMap.autoUpdate=false; r.setClearColor(0xffffff,1); r.setRenderTarget(this.dRT); r.clear(); r.render(scene,cam);
   r.setRenderTarget(rt); r.setClearColor(cc,ca); scene.overrideMaterial=ov; scene.background=bg; scene.fog=fog; r.shadowMap.autoUpdate=sm;
   const u=this.dofP.uniforms, fl=1/Math.tan(cam.fov*Math.PI/360);
-  u.tDepth.value=this.dRT.texture; u.uNear.value=cam.near; u.uFar.value=cam.far; u.uFocus.value=this.dof.focus; u.uK.value=0.32*fl*(this.dof.k||1); u.uRes.value.set(w,h); u.uMax.value=Math.max(4,h/80); },
+  u.tDepth.value=this.dRT.texture; u.uNear.value=cam.near; u.uFar.value=cam.far; u.uFocus.value=this.dof.focus; u.uK.value=0.18*fl*(this.dof.k||1); u.uRes.value.set(w,h); u.uMax.value=Math.max(3,h/120); },
  dispose(){ if(!this.comp) return; this.comp.renderTarget1.dispose(); this.comp.renderTarget2.dispose(); if(this.bloom) this.bloom.dispose&&this.bloom.dispose(); this.comp=null; },
  /* 描画: 高 = ポストプロセス、それ以外 = そのまま */
  render(r,scene,cam){
@@ -99,7 +99,7 @@ const Post={
   const w=innerWidth, h=innerHeight, pr=r.getPixelRatio();
   if(w!==this.w||h!==this.h||pr!==this.pr){ this.comp.setPixelRatio(pr); this.comp.setSize(w,h); this.w=w; this.h=h; this.pr=pr; }
   this.rp.scene=scene; this.rp.camera=cam;
-  { const on=!!(this.dof&&this.dof.focus>0); this.dofP.enabled=on; if(on) this.depth(r,scene,cam,w,h); }
+  { const on=!!(this.dof&&this.dof.focus>0); this.dofP.enabled=on; this._df=(this._df||0)+1; if(on&&(this._df%2===0||!this.dRT)) this.depth(r,scene,cam,w,h); }   /* 深度は 2 コマに 1 回 */
   { const U=GFX.ultra(), u=this.fin.uniforms; u.uBlur.value= U? this.blur||0 : 0; u.uFx.value= U?1:0; u.uTime.value=(performance.now()/1000)%100; if(this.bloom) this.bloom.strength= U?0.42:0.32; }
   this.comp.render();
  },
