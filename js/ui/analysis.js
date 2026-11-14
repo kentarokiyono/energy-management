@@ -462,7 +462,7 @@ const Ana={
  ETA:0.95,
  calib(run){
   if(run._cal) return run._cal;
-  const R=run.rows, m=massTotal(), g=9.81, eta=this.ETA, X=[], Y=[];
+  const R=run.rows, m=massTotal(), g=GRAV, eta=this.ETA, X=[], Y=[];
   /* 3 km (最長 5 分) ごとの平均に当てはめる。瞬間の値は加速・計測の揺れが大きいので使わない。運動エネルギーの増減と勾配の分は差し引く */
   let c=null; const flush=()=>{ if(c&&c.n>=3&&c.d>=0.3&&c.vMin>=15){ const T=(c.t1-c.t0)*3600, v=c.v/c.n;
     if(T>0&&v>=25/3.6&&c.pm>0){ const ke=0.5*m*(c.vb*c.vb-c.va*c.va)/T, y=c.pm/c.n-(m*g*c.gv/c.n+ke)/eta; X.push([v,c.a3/c.n,1]); Y.push(y); } } c=null; };

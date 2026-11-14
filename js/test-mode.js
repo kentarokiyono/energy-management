@@ -116,22 +116,22 @@ offTrack=near.d>HV.track().hw[near.i]+1.2 && HV.pitDist(this.x,this.z)>6.5; this
 }
 this.grade=grade;
 const m=massTotal(), mEff=m+PRO.mRot;
-const Froll=Phys.crr(this.v)*m*9.81+motorIronW(this.v)/Math.max(this.v,0.5);
+const Froll=Phys.crr(this.v)*m*GRAV+motorIronW(this.v)/Math.max(this.v,0.5);
 const Fdrag=0.5*Phys.airDensity(20,Tamb)*P.Cd*(1+(this.dmgAero||0))*P.frontal*this.v*this.v;
 const Fcorner=cornerDrag(m,es.gLat);
-const Fslope=m*9.81*grade*gearDir();
+const Fslope=m*GRAV*grade*gearDir();
 let thr=es.throttleSet;
 if(es.brakePhys>0.05||es.brakeRegen>0.05){ thr=0; es.throttleSet=0; }
 const I_cmd=thr*(es.gear==="R"? Math.min(REVERSE.maxA,motorMaxA(es.powerMode)) : motorMaxA(es.powerMode));
 const mmT=motorModel(I_cmd,this.v,es.soc,es.powerMode);
 const Ftrac= es.gear==="R"&&this.v>REVERSE.maxV? 0 : mmT.F;
 let Fbrake=0,Pregen=0;
-if(es.brakePhys>0) Fbrake+=es.brakePhys*PRO.brakeMu*m*9.81;
+if(es.brakePhys>0) Fbrake+=es.brakePhys*PRO.brakeMu*m*GRAV;
 if(es.brakeRegen>0){ const rg=regenModel(es.brakeRegen,this.v,es.soc,es.powerMode); Fbrake+=rg.F; Pregen=rg.Pgen; }
 if(offTrack&&this.v>1) Fbrake+=m*clamp(this.v*0.12,0.2,2.5);
 const FnetT=Ftrac-Froll-Fdrag-Fslope-Fbrake-Fcorner;
 this.v=Math.max(0,this.v+FnetT/mEff*dtR);
-es.gLong=(FnetT/mEff)/9.81;
+es.gLong=(FnetT/mEff)/GRAV; es.gPitch=((FnetT+Fslope)/mEff)/GRAV;
 const Pmotor=Math.max(0,mmT.Pelec-Pregen);
 es.lastAmp=I_cmd; es.lastMotorW=Pmotor;
 const Pnet=Pmotor+P.auxW-Psolar;
@@ -146,7 +146,7 @@ es.v=this.v;
 if(this.v>0.3){
 const yawRate=gearDir()*Input.steer*clamp(8.5/Math.max(this.v,3),0.15,1.2);
 this.heading+=yawRate*dtR;
-es.gLat=(yawRate*this.v)/9.81;
+es.gLat=(yawRate*this.v)/GRAV;
 } else es.gLat=0;
 const x0=this.x, z0=this.z;
 this.x+=Math.sin(this.heading)*this.v*gearDir()*dtR;
@@ -158,9 +158,20 @@ if(this.kind==="circuit"&&this.trackPts){ const n=this.trackN, a=this.trackPts[t
  const L2=(b.x-a.x)**2+(b.z-a.z)**2||1, t=clamp(((this.x-a.x)*(b.x-a.x)+(this.z-a.z)*(b.z-a.z))/L2,-1,2); carY=a.y+(b.y-a.y)*t; }
 if(this.sun){ this.sun.target.position.set(this.x,carY,this.z); this.sun.position.copy(this.sun.target.position).addScaledVector(this.sunDir,400); }
 if(this.sky) this.sky.position.copy(this.camera.position);
+// 坂: 前輪と後輪の真下のコースの高さから車体の傾きと高さを決める (両方の車輪が路面に着く)。加減速で前後に沈む (ブレーキで前のめり)
+let slopeA=Math.atan(grade||0);
+if(this.kind==="circuit"&&this.trackPts){ const n=this.trackN, P=this.trackPts, i0=this.lastIdx;
+ const hY=(x,z)=>{ let best=1e18, y=carY; for(let k=-25;k<=25;k++){ const a=P[(i0+k+n)%n], b=P[(i0+k+1+n)%n], L2=(b.x-a.x)**2+(b.z-a.z)**2||1, t=clamp(((x-a.x)*(b.x-a.x)+(z-a.z)*(b.z-a.z))/L2,0,1), px=a.x+(b.x-a.x)*t, pz=a.z+(b.z-a.z)*t, d=(px-x)**2+(pz-z)**2; if(d<best){ best=d; y=a.y+(b.y-a.y)*t; } } return y; };
+ const W=this.car.userData.wheels; let df=1.3, dr=1.3; if(W&&W.length){ df=0; dr=0; for(const w of W){ const z=w.g.position.z; if(z<0) df=Math.max(df,-z); else dr=Math.max(dr,z); } df=df||1.3; dr=dr||1.3; }
+ const fx=Math.sin(this.heading), fz=-Math.cos(this.heading), yF=hY(this.x+fx*df,this.z+fz*df), yR=hY(this.x-fx*dr,this.z-fz*dr);
+ if(Number.isFinite(yF)&&Number.isFinite(yR)){ slopeA=Math.atan2(yF-yR,df+dr); carY=yR+(yF-yR)*dr/(df+dr); } }
+{ const gp=Number.isFinite(es.gPitch)? es.gPitch : (es.gLong||0), tgt=clamp(gp*0.035,-0.05,0.05), h=Math.min(dtR,0.05); if(!Number.isFinite(this.pitchS)){ this.pitchS=0; this.pitchV=0; }
+  this.pitchV+=((tgt-this.pitchS)*90-this.pitchV*8.5)*h; this.pitchS+=this.pitchV*h; if(!Number.isFinite(this.pitchS)||Math.abs(this.pitchS)>0.2){ this.pitchS=0; this.pitchV=0; } }
 this.car.position.set(this.x,carY,this.z);
+this.car.rotation.order="YXZ";   // 向きを決めてから、車体の前後の傾き
 this.car.rotation.y=-this.heading;
-this.car.rotation.x=-Math.atan(grade)*0.8;
+this.car.rotation.x=slopeA+this.pitchS;   // + で機首上げ
+if(this.car.userData.wheels) for(const w of this.car.userData.wheels) w.g.position.y=w.r+this.pitchS*w.g.position.z;   // 車輪は路面に着いたまま (傾くのは車体だけ)
 if(this.car.userData.brakeMat)
 this.car.userData.brakeMat.color.setHex((es.brakePhys>0.05||es.brakeRegen>0.05)?0xff2222:0x4a0505);
 updateWinkers(this.car,es); updateRearCombo(this.car,es); reverseBeep(es); updateHatches(this.car,dtR);

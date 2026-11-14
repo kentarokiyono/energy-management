@@ -123,7 +123,7 @@ const Pgen=Math.max(0,(E-Ir*mp.R)*Ir*PRO.regenEff-(Ir>0.5?PRO.ctrlW:0));
 return {F,Pgen};
 }
 /* 旋回抵抗: タイヤのスリップ角 α = Fy/Cα による誘導抵抗 Fy·α (Cα: 全輪合計のコーナリングスティフネス) */
-function cornerDrag(m,gLat){ const Fy=m*9.81*Math.abs(gLat||0); return Fy*Fy/Math.max(1000,PRO.cAlpha); }
+function cornerDrag(m,gLat){ const Fy=m*GRAV*Math.abs(gLat||0); return Fy*Fy/Math.max(1000,PRO.cAlpha); }
 /* ヨー角 β [rad] での抗力係数倍率。諸元に表 (aero.cdYaw: [[deg, 倍率],...]) があれば補間、無ければ 1 + kβ² */
 function cdYawFactor(beta){
  const T=(typeof VEH!=="undefined"&&VEH.active&&VEH.spec.aero&&VEH.spec.aero.cdYaw)||null, d=Math.abs(beta)*180/Math.PI;

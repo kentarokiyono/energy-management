@@ -87,7 +87,7 @@ if(id==="arrayArea"){ const over=P.arrayArea>REG.maxArea; el.textContent+=over?"
 function onSlider(id,v){ P[id]=parseFloat(v); refreshSliderLabel(id); refreshDerived(); Settings.save(); }
 function refreshDerived(){
 document.getElementById("disp-cda").textContent=(P.Cd*P.frontal).toFixed(3);
-document.getElementById("disp-froll").textContent=(P.Crr*massTotal()*9.81).toFixed(1);
+document.getElementById("disp-froll").textContent=(P.Crr*massTotal()*GRAV).toFixed(1);
 document.getElementById("disp-ballast").textContent=massBallast().toFixed(1);
 document.getElementById("disp-ah").textContent=(P.batteryWh/V_AVG()).toFixed(1);
 }

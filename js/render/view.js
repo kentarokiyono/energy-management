@@ -813,7 +813,7 @@ if(vv>0.3){
  /* 車は切った瞬間には向きが変わらない (タイヤがたわんで横力が立ち上がるまでの遅れ・車体の回りにくさ)。速いほど遅れが目立つ */
  const tau=0.06+0.10*clamp(vv/25,0,1); this.yawR=lerp(Number.isFinite(this.yawR)?this.yawR:0,yawRate,clamp(dtR/tau,0,1));
  this.ch+=this.yawR*dtR;
- es.gLat=(this.yawR*vv)/9.81;
+ es.gLat=(this.yawR*vv)/GRAV;
 } else { es.gLat=0; this.yawR=0; }
 const cx0=this.cx, cz0=this.cz;   // 当たり判定の掃引用
 this.cx+=Math.sin(this.ch)*vv*gearDir()*dtR; this.cz-=Math.cos(this.ch)*vv*gearDir()*dtR;
@@ -884,11 +884,19 @@ if(this.car.userData.wheels) for(const w of this.car.userData.wheels){   // 車�
  w.g.rotation.y= w.front? -Input.steer*0.45 : 0; w.g.rotation.x=-w.spin; }
 updateHatches(this.car,dtR);
 /* サスペンション: 加減速で前後に沈み (ブレーキで前のめり)、少し行き過ぎて戻る。路面のうねり・荒れで上下に揺れる */
-{ const tgt=clamp(-(es.gLong||0)*0.04,-0.06,0.06), h=Math.min(dtR,0.05), k=90, c=8.5; if(!Number.isFinite(this.pitchS)){ this.pitchS=0; this.pitchV=0; }
+{ const gp=Number.isFinite(es.gPitch)? es.gPitch : (es.gLong||0), tgt=clamp(gp*0.035,-0.05,0.05), h=Math.min(dtR,0.05), k=90, c=8.5; if(!Number.isFinite(this.pitchS)){ this.pitchS=0; this.pitchV=0; }   // 加速で尻下がり (+)、ブレーキで前のめり (−)。1 G で約 2°
   this.pitchV+=((tgt-this.pitchS)*k-this.pitchV*c)*h; this.pitchS+=this.pitchV*h; if(!Number.isFinite(this.pitchS)||Math.abs(this.pitchS)>0.2){ this.pitchS=0; this.pitchV=0; }
   const sp=clamp(vv/10,0,1), amp=es.offroad?0.03:0.0045, sd=this.s||0, hv=(Math.sin(sd*0.31)+Math.sin(sd*0.83+1.7)*0.6+Math.sin(sd*2.9+0.4)*0.25)*amp*sp;
+  // 坂: 前輪と後輪の真下の路面の高さから車体の傾きと高さを決める (縦の曲がりがあっても両方の車輪が路面に着く)
+  const W=this.car.userData.wheels; let df=1.3, dr=1.3; if(W&&W.length){ df=0; dr=0; for(const w of W){ const z=w.g.position.z; if(z<0) df=Math.max(df,-z); else dr=Math.max(dr,z); } df=df||1.3; dr=dr||1.3; }
+  let slopeA=0;
+  if(!br&&!site&&this.road){ const yF=this.roadPoint(Math.min(this.s+df,this.road.builtS-1)).y, yR=this.roadPoint(Math.max(0,this.s-dr)).y;
+   if(Number.isFinite(yF)&&Number.isFinite(yR)){ slopeA=Math.atan2(yF-yR,df+dr); this.car.position.y+= yR+(yF-yR)*dr/(df+dr)-pHere.y; } }
+  else slopeA=Math.atan(pHere.g||0);
   this.car.position.y+=hv; this.heave=hv;
-  this.car.rotation.x=-Math.atan(pHere.g)*0.8+this.pitchS+Math.cos(sd*0.83)*amp*0.6*sp; }
+  const dyn=this.pitchS+Math.cos(sd*0.83)*amp*0.6*sp;   // サスペンションの動き (車体だけが傾く・上下する)
+  this.car.rotation.x=slopeA+dyn;   // + で機首上げ
+  if(W) for(const w of W) w.g.position.y=w.r+dyn*w.g.position.z-hv; }   // 車輪は路面に着いたまま (車体の傾き・上下の分を打ち消す)
 this.car.rotation.order="YXZ";
 { const want= es.rolledOver? 1.75*(es.tipDir||1) : clamp((es.tipRatio||0)*0.06,0,0.08)*(es.tipDir||1)-clamp((es.gLat||0)*0.035,-0.04,0.04);   // 横転: 風下へ倒れる。旋回では外側へ少し傾く
   this.carRoll=lerp(this.carRoll||0,want,clamp(dtR*(es.rolledOver?2.2:6),0,1)); this.car.rotation.z=-this.carRoll; if(es.rolledOver) this.car.position.y+=Math.sin(Math.abs(this.carRoll))*0.5;
