@@ -17,7 +17,7 @@ const Cockpit={
  tex(w,h,draw){ const cv=document.createElement("canvas"); cv.width=w; cv.height=h; const c=cv.getContext("2d"); draw(c,w,h); const t=new THREE.CanvasTexture(cv); t.encoding=THREE.sRGBEncoding; t.anisotropy=4; return t; },
  label(c,x,y,txt,size){ c.font=`700 ${size||22}px 'BIZ UDPGothic',sans-serif`; const w=c.measureText(txt).width+12; c.fillStyle="#fbfbf7"; c.fillRect(x-w/2,y-(size||22)*0.85,w,(size||22)*1.15); c.fillStyle="#111"; c.textAlign="center"; c.fillText(txt,x,y); },
  build(V,cock,E0,deckY,carbon){
-  const ex=E0[0], ez=E0[2], cw=(VEH.active&&VEH.spec.body&&VEH.spec.body.canopy&&VEH.spec.body.canopy.w)||0.44, half=Math.max(0.22,cw*0.62);
+  const ex=E0[0], ez=E0[2], BDc=VEH.active? VEH.spec.body : (typeof YATA_PUBLIC_BODY!=="undefined"? YATA_PUBLIC_BODY : null), cw=(BDc&&BDc.canopy&&BDc.canopy.w)||0.44, half=Math.max(0.22,cw*0.62);
   const blk=this.mat(0x0b0c0e,{roughness:.6}), alu=this.mat(0xb9bec4,{metalness:.8,roughness:.3}), gold=this.mat(0xc9a13a,{metalness:.85,roughness:.3});
   const white=this.mat(0xf1f1ec,{roughness:.55}), tape=new THREE.MeshLambertMaterial({color:0x08090a});
   const box=(w,h,d,m,x,y,z,par)=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m); b.position.set(x,y,z); (par||cock).add(b); return b; };

@@ -27,7 +27,7 @@ const BF0=BD.sectionBottom, BFE=BD.sectionBottomEnd!=null?BD.sectionBottomEnd:BF
 const BF=BF0;   // 断面の底辺の割合 (後端に向けて BFE へ: 後端の面を長方形にできる)
 const bfAt=u=>BF0==null?null: BF0+(BFE-BF0)*clamp((u-0.72)/0.28,0,1)**2;
 const PG=BD.panelGap!=null?BD.panelGap:0.06;   // パネルと胴体上面のすき間 [m]                   // 断面: 底辺の幅の割合 (台形断面, 上ほど広い)。未指定なら丸い断面
-if(LIV){ O.seg=240; O.side=40; }   // 塗り分けの境界がギザギザにならない細かさ
+if(LIV){ O.seg=200; O.side=28; }   // 塗り分けは絵で貼るので、形の細かさだけでよい   // 塗り分けの境界がギザギザにならない細かさ
 if(!YATA_CACHE.tex){
 let cv=document.createElement("canvas");cv.width=cv.height=256;
 let g=cv.getContext("2d");g.fillStyle="#0b0f13";g.fillRect(0,0,256,256);
@@ -93,6 +93,8 @@ const ms=new THREE.Mesh(g2,b.mat);ms.castShadow=true;grp.add(ms);};
 /* ==== ハル(閉じた立体。上面はハル上端で閉じる) ==== */
 {
 const bW=mkB(matWhite),bO=mkB(matOrange),bS=mkB(matSkirt);
+// 実車の塗り分け: 絵にして貼る (面ごとに色を分けると境目がギザギザになる)
+const bL= LIV&&typeof YataMesh!=="undefined"? mkB(Object.assign(paint(0xffffff),{map:YataMesh.livTex()})) : null;
 const R=2*(O.side+O.deckK)-1,Pp=[],Uv=[],TYP=[];
 for(let i=0;i<=O.seg;i++){
 const u=i/O.seg,xl=u*O.L,wh=hullW(u),zb=zBell(u),hd=zHull(u),zPos=xl-HL;
@@ -107,7 +109,7 @@ pts.push(new THREE.Vector3(-wh*(1-s2),hd,zPos));typ.push("K");}
 for(let r=O.side-1;r>=1;r--){const t=r/O.side;
 pts.push(BF!=null? new THREE.Vector3(-wh*(bfAt(u)+(1-bfAt(u))*t),zb+(hd-zb)*t,zPos) : new THREE.Vector3(-wh*Math.pow(Math.sin(t*Math.PI/2),.85),zb+(hd-zb)*Math.pow(t,1.25),zPos));typ.push("S");}
 typ.push("S");
-Pp.push(pts);Uv.push(pts.map(p=>new THREE.Vector2(xl,p.x+.9)));TYP.push(typ);
+Pp.push(pts);Uv.push(LIV&&typeof YataMesh!=="undefined"? pts.map(p=>new THREE.Vector2(u,clamp((p.y-zb)/Math.max(.01,hd-zb),0,1))) : pts.map(p=>new THREE.Vector2(xl,p.x+.9)));TYP.push(typ);
 }
 // コクピットの開口: キャノピーの下の上面 (K) をくり抜く。内装 (cockpit.js) が開口の縁に壁を立てる
 const cu0=(O.canopyX-O.canopyLen*0.52)/O.L, cu1=(O.canopyX+O.canopyLen*0.52)/O.L, cw0=O.canopyW*0.46;
@@ -121,14 +123,15 @@ let b=TYP[i][r]==="K"?bS:(u<O.orangeU?bO:(zm<O.skirtZ?bS:bW));
 if(LIV&&TYP[i][r]!=="K"){ const uc=(i+.5)/O.seg, zb2=zBell(uc), hd2=zHull(uc), zn=clamp((zm-zb2)/Math.max(.01,hd2-zb2),0,1);
  let c=yataLivery(uc,zn); if(c==="O"&&zn>0.86&&hullW(uc)<halfW(uc)-0.05) c="W";   // デッキより細い後部では上縁のオレンジは出さない
  if(BF!=null&&(r===0||r===R-1)) c= uc<0.12? "O" : "K";   // 底面 (平らな部分): 黒。先端だけオレンジ
- b= c==="O"?bO : c==="K"?bS : bW; }
+ b= c==="O"?bO : c==="K"?bS : bW;
+ if(bL&&!(BF!=null&&(r===0||r===R-1))) b=bL; }
 const a=vid(b,Pp,Uv,i,r),c=vid(b,Pp,Uv,i,r2),d=vid(b,Pp,Uv,i+1,r2),e=vid(b,Pp,Uv,i+1,r);
 b.idx.push(a,c,e,c,d,e);
 }
 {const i=O.seg,n=Pp[i].length;
 const cid=bS.v.length/3;bS.v.push(0,(zBell(1)+zHull(1))/2,O.L-HL);bS.uv.push(O.L,.9);
 for(let r=0;r<n;r++){const a=vid(bS,Pp,Uv,i,r),c=vid(bS,Pp,Uv,i,(r+1)%n);bS.idx.push(cid,a,c);}}
-finish(bW);finish(bO);finish(bS);
+finish(bW);finish(bO);finish(bS); if(bL) finish(bL);
 if(OPN.w>0) grp.userData.opening=OPN;
 // 胴体の上端からパネルの下面までの側面 (パネルは胴体に載っている。すき間から向こうが見えないように閉じる)
 { const bWl=mkB(LIV?matOrange:matWhite), TH=0.035;

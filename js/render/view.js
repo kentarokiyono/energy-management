@@ -103,7 +103,7 @@ f.position.set(x,0.40,z); body.add(f);
 };
 if(P.shape==="wadai"){
 // YATA(61) — 車両諸元 (非公開ファイル) があれば実車の形
-const SB=VEH.active?VEH.spec.body:null;
+const SB=VEH.active?VEH.spec.body:(typeof YATA_PUBLIC_BODY!=="undefined"?YATA_PUBLIC_BODY:null);   // 実車の値が無い端末は公開用の形 (2 cm 単位に丸めた値)
 const Y=buildYATA(SB); this.cockOpening=Y.opening; g.userData.yMesh=Y.mesh? Y : null;
 body.add(Y.group);
 g.userData.canopy=Y.canopy; g.userData.upperTilt=Y.tilt;
@@ -113,7 +113,9 @@ if(SB&&SB.wheels){ const tm=new THREE.MeshStandardMaterial({color:0x111316,rough
  for(const [x,z,r,w] of SB.wheels){ const wg=new THREE.Group(); wg.position.set(x,r,z);
   const t=new THREE.Mesh(new THREE.CylinderGeometry(r,r,w,28),tm); t.rotation.z=Math.PI/2; wg.add(t);
   const h=new THREE.Mesh(new THREE.CylinderGeometry(r*0.55,r*0.55,w+0.01,20),hm); h.rotation.z=Math.PI/2; wg.add(h);
-  g.add(wg); g.userData.wheels.push({g:wg,r,front:z<0}); } }
+  g.add(wg); g.userData.wheels.push({g:wg,r,front:z<0});
+  if(SB.fairings){ const fm=new THREE.MeshPhysicalMaterial({color:0xe8eaee,roughness:.15,clearcoat:1,clearcoatRoughness:.05,envMapIntensity:1}), f=new THREE.Mesh(new THREE.SphereGeometry(1,28,16),fm);   // 車輪カバー (公開用の形: 車輪を包むふくらみ)
+   f.scale.set(w*0.5+0.05,r+0.05,r*2.4); f.position.set(x,r+0.03,z); f.castShadow=true; body.add(f); } } }
 // ---- コックピット内装(ドライバーカメラで体感) ----
 const cock=new THREE.Group();
 // カーボン調 (2x2 綾織) の質感: 濃いグレー〜黒
