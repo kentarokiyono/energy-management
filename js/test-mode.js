@@ -180,6 +180,8 @@ this.car.updateMatrixWorld();
 camPos=new THREE.Vector3(0,.84,-.45).applyMatrix4(this.car.matrixWorld);
 lookAt=new THREE.Vector3(0,.76,-30).applyMatrix4(this.car.matrixWorld);
 this.camera.position.copy(camPos);
+} else if(View.cam===4&&typeof Demo!=="undefined"&&Demo.on){ const R=Demo.hvCam(this,dtR); camPos=R.pos; lookAt=R.look; this.camera.position.copy(camPos);
+ if(Math.abs(this.camera.fov-R.fov)>0.1){ this.camera.fov=R.fov; this.camera.updateProjectionMatrix(); } Post.dof={focus:R.focus,k:R.k};
 } else {
 camPos=new THREE.Vector3(cx+Math.sin(hCar)*0.3,cy+2.2,cz-Math.cos(hCar)*0.3);
 lookAt=new THREE.Vector3(cx-Math.sin(hCar)*60,cy+1.2,cz+Math.cos(hCar)*60);
@@ -187,7 +189,7 @@ this.camera.position.copy(camPos);
 }
 if(this.canopy) this.canopy.visible=(View.cam!==2);
 this.camera.lookAt(lookAt);
-Post.blur= View.cam===2||View.cam===0? clamp((this.v-14)/36,0,1) : 0;
+Post.blur= View.cam===2||View.cam===0? clamp((this.v-14)/36,0,1) : 0; if(!(typeof Demo!=="undefined"&&Demo.on&&View.cam===4)) Post.dof=null;
 Post.render(View.renderer,this.scene,this.camera);
 updateHUD();
 document.getElementById("hud-clock").textContent={circuit:"HOT LAP",slalom:"SLALOM",brake:"BRAKE",combo:"SLALOM+BRAKE",fig8:"FIGURE-8"}[this.kind];
@@ -226,7 +228,7 @@ if(this.lapPit){
  toast(`🅿 LAP ${this.laps.length}: ${fmtLap(this.t)} (${tag} ― 記録対象外)`,"#fbbf24");
 } else {
  if(!this.best||this.t<this.best) this.best=this.t;
-  if(!P.event&&this.t===this.best){ try{ const o=parseFloat(localStorage.getItem(Engine.QUALI_KEY)); if(!(o>0)||this.t<o) localStorage.setItem(Engine.QUALI_KEY,String(this.t)); }catch(e){} }   // レースのグリッドに使う
+  if(!P.event&&!(typeof Demo!=="undefined"&&Demo.on)&&this.t===this.best){ try{ const o=parseFloat(localStorage.getItem(Engine.QUALI_KEY)); if(!(o>0)||this.t<o) localStorage.setItem(Engine.QUALI_KEY,String(this.t)); }catch(e){} }   // レースのグリッドに使う
  toast(`🏁 LAP ${this.laps.length}: ${fmtLap(this.t)}${this.t===this.best?" (BEST)":""}`,"#34d399");
 }
 Snd.chime();
