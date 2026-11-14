@@ -10,7 +10,7 @@ const HVRec={
  begin(kind){ this.flush(); const S={}; for(const k of this.KEYS) S[k]=[];
   this.cur={id:"hv-"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),t0:Date.now(),kind,S,laps:[],results:[],T:0,acc:0,lastSave:0}; },
  /* 毎フレーム (Test.frame の最後) */
- frame(dtR){ const c=this.cur; if(!c||!Test.active||P.event) return; c.T+=dtR; c.acc+=dtR; if(c.acc<0.1) return; c.acc=0;
+ frame(dtR){ const c=this.cur; if(!c||!Test.active||P.event||(typeof Demo!=="undefined"&&Demo.on)) return; c.T+=dtR; c.acc+=dtR; if(c.acc<0.1) return; c.acc=0;
   if(Test.state!=="run"&&Test.v<0.3) return;
   const es=Engine.st, S=c.S, r=(x,d)=>Math.round(x*d)/d; let s=Test.x;
   if(Test.kind==="circuit"&&Test.trackPts){ const T=HV.track(), i=Test.lastIdx, a=T.pts[i], b=T.pts[(i+1)%T.n], L2=(b.x-a.x)**2+(b.z-a.z)**2||1, u=clamp(((Test.x-a.x)*(b.x-a.x)+(Test.z-a.z)*(b.z-a.z))/L2,0,1);
@@ -18,7 +18,7 @@ const HVRec={
   const v=[r(c.T,100),Test.laps.length,r(Test.t,100),r(s,10),r(Test.x,10),r(Test.z,10),r(Test.v*3.6,10),Math.round(es.lastMotorW||0),r(es.lastAmp||0,10),r(es.soc*100,100),r(es.throttleSet||0,100),r(Math.max(es.brakePhys||0,es.brakeRegen||0),100),r(es.gLat||0,100),Test.inPit?1:0];
   this.KEYS.forEach((k,j)=>S[k].push(v[j]));
   if(c.T-c.lastSave>30) this.save(); },
- lap(t,pit,tag){ const c=this.cur; if(!c||P.event) return; c.laps.push({n:c.laps.length+1,t,pit:!!pit,tag:tag||"",end:c.S.t.length}); this.save(); },
+ lap(t,pit,tag){ const c=this.cur; if(!c||P.event||(typeof Demo!=="undefined"&&Demo.on)) return; c.laps.push({n:c.laps.length+1,t,pit:!!pit,tag:tag||"",end:c.S.t.length}); this.save(); },
  result(title,rows,pass){ const c=this.cur; if(!c||P.event) return;
   c.results.push({kind:Test.kind,title:String(title),pass:!!pass,at:c.T,rows:(rows||[]).map(x=>[String(x[0]),String(x[1])]),
    d:{slalom:Test.slalomT,cone:!!Test.coneHit,entry:Test.brakeEntry!=null?Test.brakeEntry*3.6:null,dist:Test.brakeDist}}); this.save(); },
