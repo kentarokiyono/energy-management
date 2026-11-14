@@ -46,7 +46,12 @@ const YataMesh={
    if(bot.length){ const uv=new Float32Array(g.uv.length); for(let i=0;i<g.pos.length/3;i++){ uv[i*2]=g.pos[i*3+2]*1.6; uv[i*2+1]=g.pos[i*3]*1.6; }   // カーボンの織り目は平面に貼る
     const m=mk({...g,uv,idx:Uint32Array.from(bot)},this.carbon()); m.userData.upper=true; upper.add(m); } }
   if(G.deck){ const dm=M.array.clone(); dm.side=THREE.FrontSide;   // 上の面だけ (裏から見ると、すぐ下のカーボンとちらつく)
-   const m=mk(G.deck,dm); m.userData.upper=true; m.receiveShadow=true; upper.add(m); }
+   // 太陽電池を貼っていない所 (ノーズの上面・パネル前端の角) は黒い面に分ける。uv は (鼻先からの距離, 横の位置 + 0.9)
+   const g=G.deck, I=g.idx, U=g.uv, cell=[], bare=[];
+   for(let t=0;t<I.length;t+=3){ const a=I[t],b=I[t+1],c=I[t+2], zN=(U[a*2]+U[b*2]+U[c*2])/3, ax=Math.abs((U[a*2+1]+U[b*2+1]+U[c*2+1])/3-0.9);
+    (M.bare&&typeof yataBare==="function"&&yataBare(zN,ax)?bare:cell).push(a,b,c); }
+   const m=mk({...g,idx:Uint32Array.from(cell)},dm); m.userData.upper=true; m.receiveShadow=true; upper.add(m);
+   if(bare.length){ const bm=M.bare.clone(); bm.side=THREE.FrontSide; const k=mk({...g,idx:Uint32Array.from(bare)},bm); k.userData.upper=true; k.receiveShadow=true; upper.add(k); } }
   let canopy=null;
   if(G.canopy){ const g=this.geo(G.canopy,null,yOff); g.addGroup(0,G.canopy.idx.length,0); canopy=new THREE.Mesh(g,[M.glass]); canopy.castShadow=true; canopy.userData.upper=true; upper.add(canopy); }
   // 影: 細かい形の代わりに軽い形で作る (影を描く手間を減らす)。軽い形は画面に色も奥行きも書かない
