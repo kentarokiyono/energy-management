@@ -1,4 +1,5 @@
 "use strict";
+const GRAV=9.79;   // 重力加速度 [m/s²] (ルート沿いのオーストラリアの値。全部の力の計算・加減速の G・姿勢でこれを使う)
 const TOTAL_KM = RP_FINISH.km;   // Victoria Park (Route Notes 3026.92)
 const ROUTE = [
 { name:"Darwin (Start)",       km:0,    elev:30,  lat:-12.463, lon:130.838, cp:false },

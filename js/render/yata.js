@@ -3,10 +3,8 @@
 const YATA_CACHE={};
 /* 側面の塗り分け (u: 0=先端 1=後端, zn: 0=下端 1=上端) → "O"オレンジ / "K"黒 / "W"白 */
 function yataLivery(u,zn){
- if(u<0.085) return "O";                                   // ノーズコーン (先端から全周オレンジ)
- // 前から見た V 字: 上のオレンジ帯がノーズに向かって太くなり、下はノーズ中央からオレンジ
- if(u<0.30){ const up=0.86-0.42*Math.max(0,(0.30-u)/0.26); if(zn>up) return "O";
-  const lo=0.42*Math.max(0,(0.20-u)/0.16); if(zn<lo) return "O"; }
+ // ノーズの正面 (実車の写真から): 上面の黒のすぐ下に全幅のオレンジの帯、そこから中央下へすぼまるオレンジの V、V の左右は白
+ if(u<0.30&&zn>0.86*Math.min(1,u/0.13)) return "O";
  if(zn>0.86) return "O";                                   // 上縁のオレンジ
  if(u>=0.34&&zn<0.09) return "K";                          // 下端の黒
  if(u>0.60&&zn<0.09+Math.min(1,(u-0.60)/0.02)*0.13) return "K";  // 後部で段差状に太くなる黒
@@ -16,6 +14,11 @@ function yataLivery(u,zn){
 }
 /* BD (任意): 車両諸元の body。{L, noseTip, canopy:{x,len,w,top}, orangeU, skirtZ, profiles:{halfW,hullW,zPanel,zHull,zBell}}
  profiles は [u (0=先端,1=後端), 値 m] の列 (halfW/hullW は半幅, z* は地面からの高さ) */
+/* 太陽電池を貼っていない所 (実車の写真から): ノーズの上面と、パネル前端の左右の角 (ウインカーの所)。つやのある黒い面にする。
+ zN = 鼻先からの距離 [m]、ax = 中心からの横の距離 [m] */
+const YATA_BARE={tip:0.5, front:0.85, side:0.40, sideBack:1.25};   // tip: 鼻先からここまでの上面はオレンジ
+function yataBare(zN,ax){ const B=YATA_BARE; return zN>=B.tip&&(zN<B.front||(ax>B.side&&zN<B.sideBack)); }
+function yataTipOrange(zN){ return zN<YATA_BARE.tip; }
 function buildYATA(BD,noMesh){
 BD=BD||{};
 const O=Object.assign({L:5,noseTip:.23,canopyX:1.83,canopyLen:1.55,canopyW:.44,canopyTop:1.15,orangeU:.16,skirtZ:.30,seg:48,side:10,deckK:4},
@@ -78,6 +81,8 @@ const paint=(c)=>PBR? new THREE.MeshPhysicalMaterial({color:c,metalness:.1,rough
 const matWhite=paint(BD.base!=null?BD.base:0xe8eaee);   // BD.base / BD.accent: 他チームの車の色
 const matOrange=paint(BD.accent!=null?BD.accent:BD.livery?0xe2560a:0xf27316);
 const matSkirt=PBR? new THREE.MeshPhysicalMaterial({color:0x101216,metalness:.1,roughness:.3,clearcoat:.8,clearcoatRoughness:.1,side:DS,envMapIntensity:.8}) : new THREE.MeshStandardMaterial({color:0x101216,roughness:.5,side:DS});
+const matBare=PBR? new THREE.MeshPhongMaterial({color:0x07090c,specular:0x08090a,shininess:60,side:DS}) : new THREE.MeshStandardMaterial({color:0x07090c,roughness:.5,side:DS});   // 電池を貼っていない上面 (つやを抑えた黒)
+const matTip=PBR? new THREE.MeshPhongMaterial({color:BD.accent!=null?BD.accent:0xa63a06,specular:0x020202,shininess:30,side:DS}) : matOrange;   // 鼻先の上面のオレンジ (空の映り込みで白っぽくならないように)
 const matArray=PBR? new THREE.MeshPhysicalMaterial({color:0x141b4d,metalness:.85,roughness:.2,reflectivity:.9,clearcoat:.6,clearcoatRoughness:.08,map:T.cellL,side:DS,envMapIntensity:1})
  : new THREE.MeshPhysicalMaterial({color:0x0b0e12,roughness:.42,clearcoat:.5,clearcoatRoughness:.25,map:T.cell,side:DS,envMapIntensity:.35});
 // キャノピーの窓: 透過 (外から中が少し見える濃い色のガラス)
@@ -95,7 +100,7 @@ g2.setIndex(b.idx);g2.computeVertexNormals();
 const ms=new THREE.Mesh(g2,b.mat);ms.castShadow=true;grp.add(ms);};
 /* ==== ハル(閉じた立体。上面はハル上端で閉じる) ==== */
 {
-const bW=mkB(matWhite),bO=mkB(matOrange),bS=mkB(matSkirt);
+const bW=mkB(matWhite),bO=mkB(matOrange),bS=mkB(matSkirt),bT=LIV?mkB(matBare):bS, bT2=LIV?mkB(matTip):bS;   // bT: 胴体の上面 (実車の塗り分けでは電池のない黒い面)
 // 実車の塗り分け: 絵にして貼る (面ごとに色を分けると境目がギザギザになる)
 const bL= LIV&&typeof YataMesh!=="undefined"? mkB(Object.assign(paint(0xffffff),{map:YataMesh.livTex()})) : null;
 const HT= BD.hatches&&Array.isArray(BD.wheels)? BD.wheels.filter(w=>w[1]<0).map(w=>({x:w[0],z:w[1],half:w[2]*1.3,top:w[2]*2-0.02,b:mkB(bL?bL.mat:matWhite)})) : null;
@@ -123,7 +128,7 @@ const r2=(r+1)%R,u=i/O.seg;
 if(TYP[i][r]==="K"&&!BD.noOpening){ const uc=(i+.5)/O.seg, xc=(Pp[i][r].x+Pp[i][r2].x+Pp[i+1][r].x+Pp[i+1][r2].x)/4;
  if(uc>cu0&&uc<cu1&&Math.abs(xc)<cw0){ for(const q of [Pp[i][r],Pp[i][r2],Pp[i+1][r],Pp[i+1][r2]]){ OPN.w=Math.max(OPN.w,Math.abs(q.x)); OPN.z0=Math.min(OPN.z0,q.z); OPN.z1=Math.max(OPN.z1,q.z); OPN.yTop=Math.max(OPN.yTop,q.y); OPN.yMin=Math.min(OPN.yMin,q.y); } continue; } }
 const zm=(Pp[i][r].y+Pp[i][r2].y)/2;
-let b=TYP[i][r]==="K"?bS:(u<O.orangeU?bO:(zm<O.skirtZ?bS:bW));
+let b=TYP[i][r]==="K"?(LIV&&yataTipOrange(u*O.L)?bT2:bT):(u<O.orangeU?bO:(zm<O.skirtZ?bS:bW));
 if(LIV&&TYP[i][r]!=="K"){ const uc=(i+.5)/O.seg, zb2=zBell(uc), hd2=zHull(uc), zn=clamp((zm-zb2)/Math.max(.01,hd2-zb2),0,1);
  let c=yataLivery(uc,zn); if(c==="O"&&zn>0.86&&hullW(uc)<halfW(uc)-0.05) c="W";   // デッキより細い後部では上縁のオレンジは出さない
  if(BF!=null&&(r===0||r===R-1)) c= uc<0.12? "O" : "K";   // 底面 (平らな部分): 黒。先端だけオレンジ
@@ -138,7 +143,7 @@ b.idx.push(a,c,e,c,d,e);
 {const i=O.seg,n=Pp[i].length;
 const cid=bS.v.length/3;bS.v.push(0,(zBell(1)+zHull(1))/2,O.L-HL);bS.uv.push(O.L,.9);
 for(let r=0;r<n;r++){const a=vid(bS,Pp,Uv,i,r),c=vid(bS,Pp,Uv,i,(r+1)%n);bS.idx.push(cid,a,c);}}
-finish(bW);finish(bO);finish(bS); if(bL) finish(bL);
+finish(bW);finish(bO);finish(bS); if(bT!==bS){ finish(bT); finish(bT2); } if(bL) finish(bL);
 if(HT){ grp.userData.hatches=[];
  for(const h of HT){ if(!h.b.idx.length) continue; let yt=-1e9, xt=0; for(let k=0;k<h.b.v.length;k+=3) if(h.b.v[k+1]>yt){ yt=h.b.v[k+1]; xt=h.b.v[k]; }
   const n0=grp.children.length; finish(h.b); const m=grp.children[n0]; grp.remove(m); m.material=m.material.clone(); m.material.side=THREE.DoubleSide;   // 開いたとき裏側も見える
@@ -169,7 +174,7 @@ if(BD.plate){ const cv=document.createElement("canvas"); cv.width=256; cv.height
 const nUpper0=grp.children.length;   // ここからアッパーカウル (パネル翼 + キャノピー)
 /* ==== パネル翼(ハルより≥6cm上の独立フラット面=構造的にZファイティング不可) ==== */
 {
-const bA=mkB(matArray),bO=mkB(matOrange),PW=12,Gp=[],Uv=[];
+const bA=mkB(matArray),bO=mkB(matOrange),bK=mkB(matBare),bTp=mkB(matTip),PW=LIV?28:12,Gp=[],Uv=[];
 for(let i=0;i<=O.seg;i++){
 const u=i/O.seg,xl=u*O.L,wa=halfW(u);
 const ap=Math.max(zPanel(u),zHull(u)+PG),zPos=xl-HL;
@@ -186,13 +191,13 @@ for(let i=0;i<O.seg;i++)for(let j=0;j<PW;j++){
 const uc=(i+0.5)/O.seg;
 const xc=((j+0.5)/PW*2-1)*((halfW(i/O.seg)+halfW((i+1)/O.seg))*0.5);
 if(uc>u0&&uc<u1&&Math.abs(xc-(BD.canopyOffset||0))<wc) continue; // キャノピー開口はパネルをくり抜く (キャノピーを左右にずらした車はその位置)
-const b=(i/O.seg)<O.orangeU?bO:bA;
+const b= LIV&&yataTipOrange(uc*O.L)? bTp : LIV&&yataBare(uc*O.L,Math.abs(xc))? bK : (i/O.seg)<O.orangeU?bO:bA;
 const a=vid2(b,i,j),c=vid2(b,i,j+1),d=vid2(b,i+1,j+1),e=vid2(b,i+1,j);
 b.idx.push(a,c,e,c,d,e);
 }
-finish(bA);finish(bO);
+finish(bA);finish(bO);finish(bK);finish(bTp);
 // パネルの厚み: 白い下面と、外周の縁 (板が紙のように薄く見えないように)
-{ const TH=0.035, bU=mkB(matWhite), bE=mkB(matWhite), V=(b,x,y,z)=>{ b.v.push(x,y,z); b.uv.push(0,0); return b.v.length/3-1; };
+{ const TH=0.035, bU=mkB(LIV?matSkirt:matWhite), bE=mkB(LIV?matBare:matWhite),   /* 実車の塗り分け: 裏はカーボンの黒、縁は黒 */ V=(b,x,y,z)=>{ b.v.push(x,y,z); b.uv.push(0,0); return b.v.length/3-1; };
   for(let i=0;i<O.seg;i++)for(let j=0;j<PW;j++){ const uc=(i+0.5)/O.seg, xc=((j+0.5)/PW*2-1)*((halfW(i/O.seg)+halfW((i+1)/O.seg))*0.5);
    if(uc>u0&&uc<u1&&Math.abs(xc-(BD.canopyOffset||0))<wc) continue;
    const q=[Gp[i][j],Gp[i][j+1],Gp[i+1][j+1],Gp[i+1][j]].map(p=>V(bU,p.x,p.y-TH,p.z)); bU.idx.push(q[0],q[2],q[1],q[0],q[3],q[2]); }
@@ -273,6 +278,6 @@ shM.rotation.x=-Math.PI/2;shM.position.y=.02;grp.add(shM);
 const Yp={group:grp,canopy,opening:grp.userData.opening||null,tilt:tiltPivot};
 // 自分の車で、実車の外形のデータ (非公開) が手元にあれば、胴体・上面・キャノピーをその形にする
 if(!noMesh&&PBR&&typeof YataMesh!=="undefined"&&YataMesh.ready()&&typeof VEH!=="undefined"&&VEH.active&&BD===VEH.spec.body){
- try{ return YataMesh.build(Yp,{paint,array:matArray,glass:new THREE.MeshPhysicalMaterial({color:0x06080a,roughness:.08,metalness:0,clearcoat:1,clearcoatRoughness:.03,envMapIntensity:1.2,side:DS})}); }catch(e){ console.error(e); } }
+ try{ return YataMesh.build(Yp,{paint,array:matArray,bare:matBare,tip:matTip,glass:new THREE.MeshPhysicalMaterial({color:0x06080a,roughness:.08,metalness:0,clearcoat:1,clearcoatRoughness:.03,envMapIntensity:1.2,side:DS})}); }catch(e){ console.error(e); } }
 return Yp;
 }

@@ -9,7 +9,7 @@ const Strategy={
  /* 電池の下限 (残しておく量): 天気予報のずれが大きいほど多めに残す (予報より悪い天気になっても尽きないように) */
  floor(){ const s=Engine.st; return (s&&s.scenario)||!(s&&s.fc)? this.FLOOR : ({off:0.05,low:0.08,mid:0.12,high:0.18,late:0.12})[P.fcErr]||this.FLOOR; },
  drivePower(vms,grade){   // [W] 巡航に必要な電力 (下りは回生 6 割)
-  const m=massTotal(), F=Phys.crr(vms)*m*9.81+0.5*1.17*P.Cd*P.frontal*vms*vms+m*9.81*grade;
+  const m=massTotal(), F=Phys.crr(vms)*m*GRAV+0.5*1.17*P.Cd*P.frontal*vms*vms+m*GRAV*grade;
   if(F<=0) return F*vms*0.6*(P.regenStrength>0?1:0)+P.auxW;
   return (F*vms+motorIronW(vms)+(F/PRO.kt)**2*PRO.rWinding+PRO.ctrlW+0.01*F*vms)*LossK.k()+P.auxW;   // 消費の補正 (走行ログとの合わせ込み)
  },
@@ -66,7 +66,7 @@ const Strategy={
  /* 勾配 g → 速度 [km/h]: (1 + μ·電力(v, g)) / v が最小の v (μ が小さいほど速い)。勾配 0.1 % ごとに覚えておく */
  /* モーターで出せる最高速度 [km/h] (平地・電流いっぱい)。mode: false = ECO, true = POWER */
  topSpeed(mode,soc){ const m=massTotal(); let v=30;
-  for(let x=30;x<=170;x+=1){ const vms=x/3.6, mm=motorModel(motorMaxA(mode),vms,soc==null?0.8:soc,mode), Fd=Phys.crr(vms)*m*9.81+0.5*1.17*P.Cd*P.frontal*vms*vms; if(mm.F>=Fd) v=x; else break; }
+  for(let x=30;x<=170;x+=1){ const vms=x/3.6, mm=motorModel(motorMaxA(mode),vms,soc==null?0.8:soc,mode), Fd=Phys.crr(vms)*m*GRAV+0.5*1.17*P.Cd*P.frontal*vms*vms; if(mm.F>=Fd) v=x; else break; }
   return v; },
  profile(mu){ const vmax=Math.min(PRO.noSpeedCap?160:130,this.topSpeed(true)), memo=new Map();   // 出せない速度は選ばない (POWER モードの最高速度まで)
   const f=(g)=>{ const k=Math.round(g*1000); let v=memo.get(k); if(v!=null) return v; let bv=30, bc=Infinity;

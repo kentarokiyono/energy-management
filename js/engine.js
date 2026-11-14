@@ -68,7 +68,7 @@ CHAPTER_KMH:70,
 chapterState(targetKm){
  const s=this.st, V=this.CHAPTER_KMH/3.6, dt=0.05, m=massTotal(), Wh=Math.max(500,P.batteryWh);
  const pv=(G)=>P.arrayArea*P.cellEff*P.mpptEff*G*PRO.solarScale*0.92;
- const Pd=(Phys.crr(V)*m*9.81+0.5*1.17*P.Cd*P.frontal*V*V)*V/0.95+P.auxW;
+ const Pd=(Phys.crr(V)*m*GRAV+0.5*1.17*P.Cd*P.frontal*V*V)*V/0.95+P.auxW;
  const doy0=s.dayOfYear, km0=s.km;
  let day=1, h=8.0, km=0, soc=clamp(PRO.startSoc,0,1), stopH=0, next=0, dc=false;
  const cs=RP_CS.filter(c=>c.km<targetKm), dck=RP_RULES.driverChange.km;
@@ -119,7 +119,7 @@ extPenaltyMin(ext){ return Math.ceil(Math.min(ext,10)+2*Math.max(0,ext-10)); },
 /* AI チームの車両 (r: 0 = 上位 … 1 = 下位)。2025 年 Challenger の一般的な値の範囲でばらつかせる */
 aiVehicle(r){ const j=()=>1+(Math.random()-0.5)*0.06;
  return { socEve:0.12+0.15*Math.random(), vmax:125-35*r, m:(225+70*r)*j(), cda:(0.085+0.05*r)*j(), crr:(0.0036+0.0016*r)*j(), area:4.0, eff:(0.245-0.025*r)*j(), mppt:0.98, wh:3000, eta:0.955-0.03*r, aux:30 }; },
-aiDrivePower(tm,v){ const V=tm.veh, F=V.crr*(1+0.003*v)*V.m*9.81+0.5*1.17*V.cda*v*v; return F*v/V.eta+V.aux; },
+aiDrivePower(tm,v){ const V=tm.veh, F=V.crr*(1+0.003*v)*V.m*GRAV+0.5*1.17*V.cda*v*v; return F*v/V.eta+V.aux; },
 aiSolar(tm,tilted){ const pr=profileAt(tm.km), V=tm.veh; return V.area*V.eff*V.mppt*0.92*this.solarCalc(pr.lat,this.st.hour,tilted,pr.lon,pr.elev).G*PRO.solarScale; },
 initTeams(){
 /* 2025 年大会 Challenger クラスの実在チーム (HV.TEAMS: 看板用に送られた結果のスクショ由来、順位順)。自チーム (和歌山大) を除く */
@@ -324,7 +324,7 @@ const m=massTotal(), mEff=m+PRO.mRot;
 const crr = (s.burst?8:1)*Phys.crr(s.v);
 // 勾配は実際の標高 (ルートの標高データ) だけで計算する。見た目の道路の起伏は使わない
 const slope=(P.event&&typeof EventGame!=="undefined"&&EventGame.hilly&&View.road)? Math.atan(View.roadPoint(View.s).g||0) : prof.slope; s.physSlope=slope;   // イベントの Port Augusta 区間は見た目の坂がそのまま効く
-const Froll=crr*m*9.81*Math.cos(slope)+motorIronW(s.v)/Math.max(s.v,0.5);
+const Froll=crr*m*GRAV*Math.cos(slope)+motorIronW(s.v)/Math.max(s.v,0.5);
 const phi=s.windDirWorld-prof.bearing+Math.PI;
 const head=s.windSpeed*Math.cos(phi); s.lastHead=head;
 const cross=s.windSpeed*Math.sin(phi); s.lastCross=cross;
@@ -333,7 +333,7 @@ const yaw=Math.atan2(Math.abs(cross),Math.max(s.v,1));
 const cdEff=P.Cd*cdYawFactor(yaw)*(1+((s.damage&&s.damage.aero)||0));   // 接触による破損で空気抵抗が増える
 const Fdrag=0.5*rho*cdEff*P.frontal*vApp*vApp;
 const Fcorner=cornerDrag(m,s.gLat);
-const Fslope=m*9.81*Math.sin(slope)*(s.gear==="R"?-1:1);   // 後退では坂の向きが逆に効く
+const Fslope=m*GRAV*Math.sin(slope)*(s.gear==="R"?-1:1);   // 後退では坂の向きが逆に効く
 s.lastYawDeg=Math.abs(yaw)*180/Math.PI;
 let thr=s.throttleSet;
 if(s.brakePhys>0.05||s.brakeRegen>0.05){ thr=0; s.throttleSet=0; }
@@ -351,12 +351,12 @@ const mm=motorModel(I_cmd,s.v,s.soc,s.powerMode);
 let Ftrac=mm.F;
 if(s.gear==="R"&&s.v>REVERSE.maxV) Ftrac=0;   // 後退の上限速度
 let Fbrake=0, Pregen=0;
-if(s.brakePhys>0) Fbrake += s.brakePhys*PRO.brakeMu*m*9.81;
+if(s.brakePhys>0) Fbrake += s.brakePhys*PRO.brakeMu*m*GRAV;
 let Fr=0;
 if(s.brakeRegen>0){ const rg=regenModel(s.brakeRegen,s.v,s.soc,s.powerMode); Fr=rg.F; Fbrake+=Fr; Pregen=rg.Pgen; }
 const Fnet=Ftrac-Froll-Fdrag-Fslope-Fbrake-Fcorner;
 s.v=Math.max(0,s.v+Fnet/mEff*dtR);
-if(dtR>0) s.gLong=(Fnet/mEff)/9.81;
+if(dtR>0){ s.gLong=(Fnet/mEff)/GRAV; s.gPitch=((Fnet+Fslope)/mEff)/GRAV; }   // gPitch: 車体を前後に傾ける加減速 (坂の重力の成分は車体全体に効くので、前後の荷重移動には入れない)
 // 速度は実時間 dtR で変わるが、電力量はゲーム内時間 dtS で積算する。加減速 (運動エネルギーの出入り) の分は
 // 実時間でしか起きないので dtR/dtS 倍する (×1 なら同じ)。一定速度を保つ分 (走行抵抗とつり合う力) はそのまま。
 const kT= dtS>0? dtR/dtS : 1;
@@ -479,7 +479,7 @@ let out={v:45,pred:0,cs:next?next.name.replace(/\s*\(CS\d\)/,""):"ゴール"};
 for(let v=90;v>=40;v-=5){
 const vm=v/3.6;
 const va=Math.max(0,vm+(s.lastHead||0));
-const F=Phys.crr(vm)*m*9.81+0.5*(s.lastRho||1.17)*P.Cd*P.frontal*va*va;
+const F=Phys.crr(vm)*m*GRAV+0.5*(s.lastRho||1.17)*P.Cd*P.frontal*va*va;
 const Pd=F*vm+motorIronW(vm)+(F/PRO.kt)**2*PRO.rWinding+PRO.ctrlW+0.01*F*vm+P.auxW;
 const dWh=(Pd-s.lastSolar)*(dist/v);
 const pred=s.soc-dWh/P.batteryWh;

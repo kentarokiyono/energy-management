@@ -14,7 +14,7 @@ const VEH=(()=>{
  if(T.radius!=null) PRO.tireR=T.radius;
  if(T.crr!=null) P.Crr=T.crr;
  // 制動距離 d = k1·v + k2·v² [m, v km/h] の v² 項 → 減速度 a = 1/(2·k2·3.6²)
- if(B.k2) PRO.brakeMu=1/(2*B.k2*3.6*3.6)/9.81;
+ if(B.k2) PRO.brakeMu=1/(2*B.k2*3.6*3.6)/GRAV;
  if(A.Cd!=null){ P.Cd=A.Cd; BODY_SHAPES.wadai.Cd=A.Cd; }
  if(A.frontal!=null){ P.frontal=A.frontal; BODY_SHAPES.wadai.frontal=A.frontal; }
  if(S.battery&&S.battery.Wh!=null) P.batteryWh=S.battery.Wh;
@@ -52,7 +52,7 @@ const VehDyn={
  /* 操舵: 前輪舵角 δ (最大舵角とタイヤのグリップで制限) → ヨーレート = v·tanδ / ホイールベース */
  yawRate(steer,v){
   const C=VEH.spec.chassis, vS=Math.max(v,1);
-  const dLim=Math.min(C.steerMax||0.5, Math.atan((C.mu||0.8)*9.81*C.wheelbase/(vS*vS)));
+  const dLim=Math.min(C.steerMax||0.5, Math.atan((C.mu||0.8)*GRAV*C.wheelbase/(vS*vS)));
   return v*Math.tan(steer*dLim)/C.wheelbase;
  },
  /* 横風による横方向の加速度 [m/s², 右 +] (横からの風速成分 crossR: 右へ吹く向きが +) */
@@ -68,7 +68,7 @@ const VehDyn={
   諸元 (vehicle-private.js) があればその値。無いときは一般的な値 */
  roll(es,crossR,v,shield){
   const C=Object.assign({},ROLL_DEF.chassis,VEH.spec.chassis||{}), A=Object.assign({},ROLL_DEF.aero,VEH.spec.aero||{});
-  const g=9.81, m=massTotal(), rho=es.lastRho||1.17, h=C.cgHeight, half= C.cgTread? C.cgTread/2 : (C.ssf||ROLL_DEF.ssf)*h;
+  const g=GRAV, m=massTotal(), rho=es.lastRho||1.17, h=C.cgHeight, half= C.cgTread? C.cgTread/2 : (C.ssf||ROLL_DEF.ssf)*h;
   const c=Math.abs(crossR)*(shield?0.5:1), vr=Math.hypot(v,c), W=carDims()[1], hold=shield? ROLL_DEF.hold : 0;   // 風よけ: 誘導車・追走車が風上で風を弱める (風速半分)。クルーが押さえる力 [N]
   const Fy=Math.sign(crossR)*0.5*rho*A.sideArea*(c*vr*A.Cy+A.CyBeta*c*Math.max(0,v));   // 右 +
   const L=0.5*rho*A.ClCross*(A.topArea||P.arrayArea)*c*c;
@@ -77,5 +77,5 @@ const VehDyn={
   const R=Math.max(1,m*g+hold-L)*half*clamp(1-(C.wheels===3?0.6:0.25)*Math.abs(es.gLong||0),0.4,1);
   const M=Mw+Mc; return {risk:Math.abs(M)/R,dir:Math.sign(M)||1,wind:Math.abs(Mw)/R,turn:Math.abs(Mc)/R,lift:L}; },
  /* 静的な転倒余裕 SSF = トレッド / (2·重心高) から求める横加速度の限界 [m/s²] */
- tipAccel(){ const C=VEH.spec.chassis; return (C.ssf||(C.cgTread/(2*C.cgHeight)))*9.81; },
+ tipAccel(){ const C=VEH.spec.chassis; return (C.ssf||(C.cgTread/(2*C.cgHeight)))*GRAV; },
 };

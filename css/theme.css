@@ -691,3 +691,10 @@ body.demo-on{ cursor:none; }
 @keyframes dmPlace{ 0%{ opacity:0; transform:translateX(-14px); } 10%,80%{ opacity:1; transform:none; } 100%{ opacity:0; transform:none; } }
 @keyframes dmBlink{ 0%,100%{ opacity:.35; } 50%{ opacity:.9; } }
 @media (max-width:700px){ #demo .dm-copy{ display:none; } #demo .dm-brand{ left:16px; } #demo .dm-place{ left:16px; } }
+/* スマホ: イベントの残り時間・スコア・ミッション名は、画面中央をふさがないよう左の無線の下に小さく 1 行で */
+body.touch-on #event-hud{ left:8px!important; right:auto!important; top:calc(var(--tfn-top,170px) + 4px)!important; transform:none!important; --tw-translate-x:0!important; text-align:left; }
+body.touch-on #event-hud .panel{ padding:3px 10px!important; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; max-width:46vw; background:rgba(8,12,18,.62); }
+body.touch-on #event-timer{ font-size:18px!important; line-height:1.15; }
+body.touch-on #event-hud .hud-label{ font-size:10px; letter-spacing:.06em; }
+body.touch-on #event-hud #event-score{ font-size:12px!important; }
+body.touch-on #event-mission{ font-size:10px!important; margin:0!important; flex-basis:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }

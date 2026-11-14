@@ -174,7 +174,7 @@ hvResult(title,rows,pass){
  toast(`${title} ― ${this.scores[this.mi]} 点`,pass?"#34d399":"#f59e0b");
 },
 /* 80 km/h で走るときの 1 km あたりの消費 [Wh/km] (省エネ採点の基準) */
-refWhPerKm(){ const V=80/3.6, m=massTotal(); return (Phys.crr(V)*m*9.81+0.5*1.17*P.Cd*P.frontal*V*V)/0.95/3.6/1000*1000/1; },
+refWhPerKm(){ const V=80/3.6, m=massTotal(); return (Phys.crr(V)*m*GRAV+0.5*1.17*P.Cd*P.frontal*V*V)/0.95/3.6/1000*1000/1; },
 /* ---------- 外からの通知 ---------- */
 onRedRun(){ if(this.active&&this.MISSIONS[this.mi]&&this.MISSIONS[this.mi].id==="rules"){ this.st.red++; } },
 onHit(hit){
