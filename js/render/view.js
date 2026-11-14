@@ -190,12 +190,26 @@ for(const [wx,wz,wy] of winkPos){
   (wx<0?g.userData.winkL:g.userData.winkR).push(wm);
 }
 // 後端の両角: 透明レンズのブレーキランプ兼ウインカー/ハザード (諸元 lamps.rearCombo: [x, z, y, 幅])
-if(LP&&LP.rearCombo){ g.userData.rearCombo=[];
- for(const [x,z,y,w] of LP.rearCombo){ const m=new THREE.MeshBasicMaterial({color:0xd8dde2,transparent:true,opacity:.55});
-  const ln=new THREE.Mesh(new THREE.BoxGeometry(w||0.18,0.03,0.06),m); ln.position.set(x,y,z); body.add(ln);
+// 実車の値が無い端末は、公開用の形の後端の角に置く
+let RC=LP&&LP.rearCombo;
+const PB=typeof YATA_PUBLIC_BODY!=="undefined"? YATA_PUBLIC_BODY : null;
+if(!RC&&isW&&!VEH.active&&PB&&PB.profiles){ const last=(k)=>{ const a=PB.profiles[k]; return a&&a.length? a[a.length-1][1] : null; }, hw=last("halfW"), zp=last("zPanel");
+ if(hw!=null&&zp!=null) RC=[[-(hw-0.08),PB.L/2,zp-0.02,0.18],[hw-0.08,PB.L/2,zp-0.02,0.18]]; }
+const rcLens=[];
+if(RC){ g.userData.rearCombo=[];
+ for(const [x,z,y,w] of RC){ const m=new THREE.MeshBasicMaterial({color:0xd8dde2,transparent:true,opacity:.55});
+  const ln=new THREE.Mesh(new THREE.BoxGeometry(w||0.18,0.03,0.06),m); ln.position.set(x,y,z); ln.userData.noSnap=true; body.add(ln); rcLens.push(ln);
   g.userData.rearCombo.push({m,side:x<0?-1:1}); } }
 g.add(body);
 if(g.userData.yMesh){ try{ YataMesh.snap(body,g.userData.yMesh.hull); }catch(e){ console.error(e); } }
+// 後端のレンズは後ろから車体へ当て、後端の面に沿わせる (角の外に浮いたり、中に埋もれたりしないように)
+if(rcLens.length){ body.updateMatrixWorld(true); const hm=[]; body.traverse(o=>{ if(o.isMesh&&o.visible&&!rcLens.includes(o)&&o.geometry&&o.geometry.type==="BufferGeometry"&&!(o.material&&o.material.colorWrite===false)) hm.push(o); });
+ const rc=new THREE.Raycaster();
+ for(const ln of rcLens){ const p0=ln.position.clone(); let h=null;
+  for(const dy of [0,-0.015,0.015,-0.03,0.03]){ rc.set(body.localToWorld(new THREE.Vector3(p0.x,p0.y+dy,p0.z+1.5)),new THREE.Vector3(0,0,-1).transformDirection(body.matrixWorld));
+   const q=rc.intersectObjects(hm,false)[0]; if(q&&Math.abs(body.worldToLocal(q.point.clone()).z-p0.z)<0.12){ h=q; h.dy=dy; break; } }   // 後端の面に当たったものだけ (奥まで抜けたものは使わない)
+  ln.geometry.dispose(); ln.geometry=new THREE.BoxGeometry(ln.geometry.parameters.width,0.03,0.008); ln.quaternion.identity();   // 薄いレンズ。常に真後ろへ向ける
+  if(h){ const p=body.worldToLocal(h.point.clone()); ln.position.set(p0.x,p0.y+h.dy,p.z+0.004); } } }
 return {group:g, body, canopy:g.userData.canopy};
 },
 mkVan(color){ // 随伴車: 4WDワゴン(ブルバー・ルーフラック・回転灯)  前方=-z

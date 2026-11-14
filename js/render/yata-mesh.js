@@ -58,7 +58,7 @@ const YataMesh={
   return {group:grp,canopy,opening:Y.opening,tilt:pivot,mesh:true,hull:grp.children.filter(o=>o.isMesh&&o.material===paint)}; },
  /* 側面の灯火など (コードの車体の位置に置いてある小さな部品) を、この車体の表面に付け直す */
  snap(body,hull){ const rc=new THREE.Raycaster(); body.updateMatrixWorld(true);
-  for(const o of body.children){ if(!o.isMesh||!o.geometry||o.geometry.type!=="BoxGeometry"||Math.abs(o.position.x)<0.25) continue; const sx=Math.sign(o.position.x);
+  for(const o of body.children){ if(!o.isMesh||!o.geometry||o.geometry.type!=="BoxGeometry"||Math.abs(o.position.x)<0.25||o.userData.noSnap) continue; const sx=Math.sign(o.position.x);
    rc.set(new THREE.Vector3(sx*2,o.position.y,o.position.z),new THREE.Vector3(-sx,0,0)); const h=rc.intersectObjects(hull,false)[0];
    if(!h){ o.visible=false; continue; }
    // 車体の面に沿わせる (面の向きに灯火の厚みの向きを合わせ、少しだけ外へ)
