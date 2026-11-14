@@ -6,6 +6,7 @@
  ・走行の記録・ドライバー成績・分析画面には残さない */
 const Demo={
  on:false, i:-1, t:0, LEN:40,
+ FRAME_MS:31, MAX_PR:1.25,   // 軽さ: 30 コマ/秒 (60 Hz の画面で 1 コマおき)、画面の細かさは最大 1.25 倍
  SCENES:[
   {km:1.3,   h:8.7,  name:"Darwin",                 sub:"スタート直後の市街地"},
   {km:262,   h:12.2, name:"Top End",                sub:"サバンナの一本道"},
@@ -34,7 +35,7 @@ const Demo={
   addEventListener("pointerdown",this._tap=()=>{ if(performance.now()-(this.t0||0)>800) this.stop(); },true);
   addEventListener("keydown",this._key=(ev)=>{ if(performance.now()-(this.t0||0)>800){ ev.preventDefault(); ev.stopPropagation(); this.stop(); } },true);
   if(typeof Standby!=="undefined"&&Standby.wake) Standby.wake.call(Standby);
-  this.next(true); },
+  this.next(true); if(typeof Perf!=="undefined") Perf.apply(); },
  /* 次の場面: 走りを作り直して、その場所・時刻から */
  next(first){ this.i=(this.i+1)%this.SCENES.length; const S=this.SCENES[this.i], go=()=>{
    this.fail=0; this.t=0;
@@ -94,6 +95,6 @@ const Demo={
   document.getElementById("time-scale").value=k.ts||"60"; if(k.chap!=null) document.getElementById("chapter").value=k.chap; const sc=document.getElementById("scenario"); if(sc&&k.scn!=null) sc.value=k.scn;
   if(typeof RunLog!=="undefined") RunLog.rows=[];   // 分析画面に「今回の走行」として出さない
   if(typeof Standby!=="undefined"&&Standby.lock){ Standby.lock.release().catch(()=>{}); Standby.lock=null; }
-  quitToMenu(); if(typeof Entry!=="undefined") Entry.pick(Entry.ent,false);
+  quitToMenu(); if(typeof Entry!=="undefined") Entry.pick(Entry.ent,false); if(typeof Perf!=="undefined") Perf.apply();
   if(/[?&]demo\b/.test(location.search)) try{ history.replaceState(null,"",location.pathname+location.search.replace(/[?&]demo(=[^&]*)?/,"").replace(/^&/,"?")+location.hash); }catch(x){} },
 };
