@@ -374,6 +374,14 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   const ok=r[0].mode==="test"&&r[0].scn===""&&r[1].mode==="race"&&r[1].scn!==""&&r[2].scn===""&&r[3].mode==="event"&&r[4].ent==="event"&&r[4].mode==="event"&&ana;
   check("メニューの入口",ok&&dk&&dc&&noErr(p).length===0,JSON.stringify({r,ana,err:noErr(p)}));
   await p.context().close(); }
+ // ---- デモ映像: ?demo で始まり、自動で走ってリプレイの視点・ロゴと文言、触れるとメニューへ (記録は残さない) ----
+ { const p=await newPage(b,base,{q:"?demo"});
+  await p.waitForFunction(()=>typeof Demo!=="undefined"&&Demo.on&&Engine.st,null,{timeout:30000}); await p.waitForTimeout(2500);
+  const o=await p.evaluate(()=>({cam:View.cam,km:Engine.st.km,v:Engine.st.v,brand:getComputedStyle(document.getElementById("demo")).display,hud:getComputedStyle(document.getElementById("hud-top")).visibility,orders:P.orders}));
+  await p.mouse.click(300,300); await p.waitForTimeout(800);
+  const c=await p.evaluate(()=>({on:Demo.on,menu:!document.getElementById("setup-screen").classList.contains("hidden"),rows:RunLog.rows.length,ts:document.getElementById("time-scale").value,drv:(DrvRec.all()||[]).length,q:location.search}));
+  check("デモ映像",o.cam===4&&o.km>1&&o.v>3&&o.brand==="block"&&o.hud==="hidden"&&o.orders===false&&!c.on&&c.menu&&c.rows===0&&c.ts!=="1"&&c.drv===0&&c.q===""&&noErr(p).length===0,JSON.stringify([o,c,noErr(p)]));
+  await p.context().close(); }
  // ---- 待機画面: ?standby で開き、ロゴが回り、触れると閉じる ----
  { const p=await newPage(b,base,{q:"?standby"});
   await p.waitForTimeout(1200);
