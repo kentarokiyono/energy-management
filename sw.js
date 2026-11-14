@@ -24,7 +24,7 @@ self.addEventListener("activate",e=>{
 self.addEventListener("fetch",e=>{
  const req=e.request, url=new URL(req.url);
  if(req.method!=="GET"||url.origin!==location.origin) return;
- if(url.pathname.endsWith("/vehicle-private.js")) return;          // 実車諸元は保存しない
+ if(url.pathname.endsWith("/vehicle-private.js")||/\/vehicle-mesh-private\./.test(url.pathname)) return;          // 実車諸元は保存しない
  const isPage=req.mode==="navigate"||url.pathname.endsWith("/")||url.pathname.endsWith("/index.html");
  e.respondWith((async()=>{
   const c=await caches.open(CACHE);

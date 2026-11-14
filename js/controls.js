@@ -235,7 +235,7 @@ Input.keys[e.key.toLowerCase()]=true;
 if(e.key===" ") e.preventDefault();
 if(e.key==="Escape"){ const ov=document.getElementById("map-ov"); if(ov&&ov.classList.contains("on")){ MapUI.toggle(false); return; } togglePause(); }
 if(e.key==="Tab"&&running){ e.preventDefault(); toggleDetail(); }
-if(e.key.toLowerCase()==="v") View.cam=(View.cam+1)%4;
+if(e.key.toLowerCase()==="v") nextCam();
 if(e.key.toLowerCase()==="g") cycleChart();
 if(e.key.toLowerCase()==="m") StopMenu.open(true);
 if(e.key.toLowerCase()==="p"&&Engine.st&&running) togglePower();
@@ -337,3 +337,6 @@ refreshWheelLabels();
 },50);
 }
 /* ============ ① モード設定 ============ */
+
+/* 視点の切り替え (V キー・画面のカメラのボタン): 後ろから → 近くから → 運転席 → 後ろを見る → リプレイ */
+function nextCam(){ View.cam=(View.cam+1)%5; if(View.rp) View.rp.i=-1; if(typeof toast==="function") toast("視点: "+["後ろから","近くから","運転席","後ろを見る","リプレイ (中継)"][View.cam],"#9aa3b2"); }

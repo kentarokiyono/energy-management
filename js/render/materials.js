@@ -270,6 +270,28 @@ mat.onBeforeCompile=(sh)=>{
  Object.assign(sh.uniforms,mat.userData.uniforms);
  sh.vertexShader="varying vec3 vWPos;\n"+sh.vertexShader.replace("#include <begin_vertex>","#include <begin_vertex>\nvWPos=(modelMatrix*vec4(transformed,1.0)).xyz;");
  sh.fragmentShader="uniform float uMirage;uniform vec3 uSkyCol;uniform float uTime;uniform float uWet;varying vec3 vWPos;\n"+GLSL_NOISE+sh.fragmentShader
+  .replace("#include <map_fragment>",`#include <map_fragment>
+#ifdef USE_MAP
+{ // 路面の変化 (繰り返しの模様の上に、場所ごとに違うものを重ねる)。vUv.x = 車線の横の位置、vUv.y * 12 = 道に沿った距離 m
+ float vv=vUv.y*12.0, uu=vUv.x;
+ // 舗装の打ち替えの区間: 数十〜数百 m ごとに色が少し違う
+ float sec=floor(vv/95.0+gVn(vec2(vv*0.003,7.0))*1.6), hs=fract(sin(sec*91.7+3.1)*4375.85);
+ diffuseColor.rgb*=0.9+0.2*hs;
+ // 補修の跡: 片側の車線の中の四角い継ぎ当て (色が濃い)。車線の線にはかからない
+ float pc=floor(vv/27.0), ph=fract(sin(pc*12.989+1.7)*43758.5);
+ if(ph<0.24){ float pv=fract(vv/27.0), side=step(0.5,fract(ph*17.3)), w=0.08+fract(ph*91.1)*0.16, u0=side*0.5+0.06+fract(ph*37.7)*(0.36-w), l=0.1+fract(ph*53.3)*0.45;
+  float inP=step(u0,uu)*step(uu,u0+w)*step(0.25,pv)*step(pv,0.25+l), e=0.004;
+  float edge=inP*(1.0-step(u0+e,uu)*step(uu,u0+w-e)*step(0.25+e*3.0,pv)*step(pv,0.25+l-e*3.0));
+  diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(0.66,0.66,0.68),inP*0.9); diffuseColor.rgb*=1.0-edge*0.35; }
+ // タイヤの通り道: ゴムの黒い筋 (道に沿って長く伸びる)
+ float wp=max(max(1.0-smoothstep(0.012,0.048,abs(uu-0.14)),1.0-smoothstep(0.012,0.048,abs(uu-0.36))),max(1.0-smoothstep(0.012,0.048,abs(uu-0.64)),1.0-smoothstep(0.012,0.048,abs(uu-0.86))));
+ float st=gVn(vec2(uu*70.0,vv*0.12))*0.7+gVn(vec2(uu*150.0,vv*0.5))*0.3;
+ diffuseColor.rgb*=1.0-0.12*wp*smoothstep(0.35,0.8,st);
+ // 車線の真ん中の油の染み
+ float lc=max(1.0-smoothstep(0.02,0.07,abs(uu-0.25)),1.0-smoothstep(0.02,0.07,abs(uu-0.75)));
+ diffuseColor.rgb*=1.0-0.07*lc*smoothstep(0.55,0.85,gVn(vec2(uu*20.0,vv*0.3)));
+}
+#endif`)
   .replace("#include <fog_fragment>",`#include <fog_fragment>
 {
  float d=length(vWPos.xz-cameraPosition.xz);

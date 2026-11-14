@@ -9,3 +9,5 @@ tools/real-cache/
 tools/trend-out/
 # 公式ロゴ (コミットしない。待機画面が手元にあれば使う)
 assets/img/official-logo.png
+# 実車の外形データ (非公開・コミットしない)
+js/data/vehicle-mesh-private.*

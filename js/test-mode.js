@@ -187,6 +187,7 @@ this.camera.position.copy(camPos);
 }
 if(this.canopy) this.canopy.visible=(View.cam!==2);
 this.camera.lookAt(lookAt);
+Post.blur= View.cam===2||View.cam===0? clamp((this.v-14)/36,0,1) : 0;
 Post.render(View.renderer,this.scene,this.camera);
 updateHUD();
 document.getElementById("hud-clock").textContent={circuit:"HOT LAP",slalom:"SLALOM",brake:"BRAKE",combo:"SLALOM+BRAKE",fig8:"FIGURE-8"}[this.kind];
