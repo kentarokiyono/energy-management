@@ -69,7 +69,7 @@ else { const es=Engine.st, m=Math.round((es.gridStartH-8)*60);
 function loop(t){
 if(!running) return;
 requestAnimationFrame(loop);
-if(typeof Demo!=="undefined"&&Demo.on&&t-lastT<Demo.FRAME_MS) return;   // デモ映像は 30 コマ/秒に抑える (待機中に流しっぱなしにするので、GPU を使い切らない)
+if(typeof Demo!=="undefined"&&Demo.on&&t-lastT<Demo.frameMs()) return;   // デモ映像は 30 コマ/秒に抑える (待機中に流しっぱなしにするので、GPU を使い切らない。設定で 60 にできる)
 let dtR=clamp((t-lastT)/1000,0,0.1); lastT=t;
 if(paused||modalPause){ Snd.silence(); FFB.update(null); return; }   // (読み上げは途中で切らない)
 updateInput(dtR);
