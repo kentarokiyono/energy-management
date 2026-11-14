@@ -93,7 +93,9 @@ def main():
         if name == "deck": uv = np.stack([pos[:, 2] - z0, pos[:, 0] + 0.9], 1)
         else:
             rr = rimAt(pos[:, 2].astype(np.float64)); zn = np.clip((pos[:, 1] - yBot) / np.maximum(rr - yBot, 0.02), 0, 1)
-            if name == "upperPaint": zn = np.ones_like(zn)
+            # 上の板: 外周の縁だけオレンジ (zn 0.95)。裏 (下向きの面) は白。下の胴体の上面 (板の陰になる所) も白
+            if name == "upperPaint": zn = np.where(nrm[:, 1] < -0.3, 0.5, 0.95)
+            else: zn = np.where((nrm[:, 1] > 0.7) & (zn > 0.8), 0.5, zn)
             uv = np.stack([u, zn], 1)
         out.append((pos, nrm, uv.astype(np.float32), vid.astype(np.uint32)))
         head["groups"].append({"name": name, "nv": int(len(pos)), "ni": int(len(vid))})
