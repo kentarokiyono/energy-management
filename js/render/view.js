@@ -164,11 +164,9 @@ mkWheelFair(-0.62,1.2); mkWheelFair(0.62,1.2); mkWheelFair(0,-1.35);
 const isW=P.shape==="wadai";
 const LP=(isW&&VEH.active&&VEH.spec.lamps)||null;   // 灯火の位置 (諸元): [x, z, y]
 const drlMat=new THREE.MeshBasicMaterial({color:0xffffff});
-const drlPos=LP&&LP.head? LP.head : isW?[[-0.10,-2.28,0.32],[0.10,-2.28,0.32]]:[[-0.28,-2.10,0.52],[0.28,-2.10,0.52]];
-for(const [sx,sz,sy] of drlPos){
-  const dl=new THREE.Mesh(new THREE.BoxGeometry(isW?0.09:0.20,isW?0.03:0.045,isW?0.22:0.05),drlMat);
-  dl.position.set(sx,sy,sz);body.add(dl);
-}
+const PB=typeof YATA_PUBLIC_BODY!=="undefined"? YATA_PUBLIC_BODY : null, PUB=isW&&!LP&&!!(PB&&PB.profiles);   // 実車の値が無い端末は公開用の形に合わせて置く
+const nose=PUB? -PB.L/2 : 0;
+const drlPos=LP&&LP.head? LP.head : PUB? [[-0.27,nose+0.68],[0.27,nose+0.68]] : isW?[[-0.10,-2.28,0.32],[0.10,-2.28,0.32]]:[[-0.28,-2.10,0.52],[0.28,-2.10,0.52]];
 const brakeMat=new THREE.MeshBasicMaterial({color:0x4a0505});
 if(LP&&LP.stop){ for(const [x,z,y] of LP.stop){ const b2=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.035,0.04),brakeMat); b2.position.set(x,y,z);
   // ハイマウント (高い位置のもの) はキャノピー後端の表面に載せる
@@ -186,25 +184,50 @@ else { const bl=new THREE.Mesh(new THREE.BoxGeometry(isW?0.22:0.7,isW?0.035:0.05
 bl.position.set(0,isW?0.50:0.53,isW?2.52:2.18);body.add(bl); } // アレイ直下の細いブレーキライト
 g.userData.brakeMat=brakeMat;
 g.userData.winkL=[];g.userData.winkR=[];
-const winkPos=LP&&LP.wink? LP.wink : isW?[[-0.60,-1.05],[0.60,-1.05],[-0.40,1.90],[0.40,1.90]]
+const winkPos=LP&&LP.wink? LP.wink : PUB? [[-0.47,nose+1.0],[0.47,nose+1.0],[-0.76,nose+1.64],[0.76,nose+1.64]] : isW?[[-0.60,-1.05],[0.60,-1.05],[-0.40,1.90],[0.40,1.90]]
   :[[-0.57,-1.05],[0.57,-1.05],[-0.94,1.95],[0.94,1.95]];
-const hullMeshes=[]; if(LP&&g.userData.canopy){ body.updateMatrixWorld(true); body.traverse(m=>{ if(m.isMesh&&m!==g.userData.canopy&&m.geometry.type==="BufferGeometry") hullMeshes.push(m); }); }
+const hullMeshes=[]; if(isW&&(LP||PUB)&&g.userData.canopy){ body.updateMatrixWorld(true); body.traverse(m=>{ if(m.isMesh&&m!==g.userData.canopy&&m.geometry.type==="BufferGeometry"&&!(m.material&&m.material.colorWrite===false)) hullMeshes.push(m); }); }
+/* 車体の上面に沿わせた薄いレンズ (前照灯・前のウインカー)。poly は上から見た形 [横, 前後] (前が -)。真上から当てて面の高さに合わせる */
+const decal=(cx,cz,poly,mat,o)=>{ if(!hullMeshes.length) return null; o=o||{}; const lift=o.lift||0.003; const rc=new THREE.Raycaster(), down=new THREE.Vector3(0,-1,0).transformDirection(body.matrixWorld);
+ const hit=(x,z)=>{ rc.set(body.localToWorld(new THREE.Vector3(x,4,z)),down); return rc.intersectObjects(hullMeshes,false)[0]||null; };
+ const flat=(x,z)=>{ const h=hit(x,z); return h&&h.face.normal.clone().transformDirection(h.object.matrixWorld).dot(new THREE.Vector3(0,1,0).transformDirection(body.matrixWorld))>0.85; };
+ if(o.fit){ const sd=Math.sign(cx)||1; for(let k=0;k<15&&!poly.every(([dx,dz])=>flat(cx+dx,cz+dz)&&flat(cx+dx*1.3,cz+dz*1.3));k++) cx-=sd*0.01; }   // 縁の丸みにかからない所まで内側へ
+ const h0=hit(cx,cz); if(!h0) return null; const par=h0.object.userData.upper? h0.object : body;
+ const E=[]; for(let i=0;i<poly.length;i++){ const a=poly[i], b=poly[(i+1)%poly.length]; for(let k=0;k<3;k++){ const t=k/3; E.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]); } }
+ const RG=[0,0.35,0.7,1], pos=[], idx=[], n=E.length;
+ const put=(dx,dz)=>{ const h=hit(cx+dx,cz+dz)||h0, nn=h.face.normal.clone().transformDirection(h.object.matrixWorld), w=h.point.clone().addScaledVector(nn,lift); par.worldToLocal(w); pos.push(w.x,w.y,w.z); };
+ put(0,0); for(let r=1;r<RG.length;r++) for(const [ex,ez] of E) put(ex*RG[r],ez*RG[r]);
+ for(let k=0;k<n;k++) idx.push(0,1+(k+1)%n,1+k);
+ for(let r=1;r<RG.length-1;r++){ const a=1+(r-1)*n, b=1+r*n; for(let k=0;k<n;k++){ const k2=(k+1)%n; idx.push(a+k,a+k2,b+k2, a+k,b+k2,b+k); } }
+ const geo=new THREE.BufferGeometry(); geo.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); geo.setIndex(idx); geo.computeVertexNormals();
+ const m=new THREE.Mesh(geo,mat); m.renderOrder=2; par.add(m); return m; };
+// 前照灯: ノーズ上面の左右に埋め込んだ透明レンズ (中はメッキの反射板)。上から見て、奥が広く手前がすぼまる台形 (内側の辺はまっすぐ)
+const lensMat=new THREE.MeshStandardMaterial({color:0x7d8792,metalness:0.9,roughness:0.28,emissive:0xffffff,emissiveIntensity:0.03,envMapIntensity:1.0,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3});
+const rimMat=new THREE.MeshStandardMaterial({color:0x15181c,roughness:0.5,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});   // レンズの縁取り
+for(const [sx,sz,sy] of drlPos){ const sd=Math.sign(sx)||1;
+  const poly=[[-0.07*sd,-0.075],[0.02*sd,-0.075],[0.09*sd,0.075],[-0.07*sd,0.075]]; if(sd<0) poly.reverse();
+  if(isW&&decal(sx,sz,poly.map(([x,z])=>[x*1.14,z*1.14]),rimMat,{lift:0.003})){ decal(sx,sz,poly,lensMat,{lift:0.0045}); continue; }
+  const dl=new THREE.Mesh(new THREE.BoxGeometry(isW?0.09:0.20,isW?0.03:0.048,isW?0.22:0.05),drlMat); dl.position.set(sx,sy!=null?sy:0.5,sz); body.add(dl); }
 for(const [wx,wz,wy] of winkPos){
-  const wm=new THREE.MeshBasicMaterial({color:0x4a3005});
+  const wm=new THREE.MeshBasicMaterial({color:0x7a5512});
+  // 前のウインカー (内寄り): パネル上面の外寄りに、角の丸い横長のレンズ
+  if(isW&&Math.abs(wx)<0.6){ const r=0.012, w=0.065, d=0.024, poly=[[-w+r,-d],[w-r,-d],[w,-d+r],[w,d-r],[w-r,d],[-w+r,d],[-w,d-r],[-w,-d+r]];
+   wm.polygonOffset=true; wm.polygonOffsetFactor=-2; wm.polygonOffsetUnits=-2;
+   if(decal(wx,wz,poly,wm,{fit:true})){ (wx<0?g.userData.winkL:g.userData.winkR).push(wm); continue; } }
   const wk=new THREE.Mesh(new THREE.BoxGeometry(isW?0.05:0.10,0.045,0.32),wm);
   wk.position.set(wx,wy!=null?wy:(isW?0.50:0.55),wz);
-  // 車体の側面に埋め込む: 外側から車体へ向けて当て、表面に沿わせた薄いレンズにする
-  if(hullMeshes.length){ const sd=Math.sign(wx)||1, rc=new THREE.Raycaster(new THREE.Vector3(sd*3,wk.position.y,wz),new THREE.Vector3(-sd,0,0));
+  // 横のウインカー: 外側から車体へ向けて当て、側面に沿わせた薄いレンズにする
+  if(hullMeshes.length){ const sd=Math.sign(wx)||1, rc=new THREE.Raycaster(body.localToWorld(new THREE.Vector3(sd*3,wk.position.y,wz)),new THREE.Vector3(-sd,0,0).transformDirection(body.matrixWorld));
    const h=rc.intersectObjects(hullMeshes,false)[0];
    if(h){ wk.geometry.dispose(); wk.geometry=new THREE.BoxGeometry(0.012,0.04,0.22); const n=h.face.normal.clone().transformDirection(h.object.matrixWorld);
-    wk.position.copy(h.point).addScaledVector(n,-0.003); wk.lookAt(wk.position.clone().add(n)); wk.rotateY(Math.PI/2); if(h.object.userData.upper) h.object.add(wk); } }   // アッパーカウルに付くものは一緒に傾く
+    const par=h.object.userData.upper? h.object : body; const pw=h.point.clone().addScaledVector(n,-0.003); wk.position.copy(par.worldToLocal(pw)); par.add(wk);
+    const nl=n.clone().transformDirection(new THREE.Matrix4().copy(par.matrixWorld).invert()).normalize(); wk.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0),nl); wk.userData.noSnap=true; } }   // アッパーカウルに付くものは一緒に傾く
   if(!wk.parent) body.add(wk);
   (wx<0?g.userData.winkL:g.userData.winkR).push(wm);
 }
 // 後端の両角: 透明レンズのブレーキランプ兼ウインカー/ハザード (諸元 lamps.rearCombo: [x, z, y, 幅])
 // 実車の値が無い端末は、公開用の形の後端の角に置く
 let RC=LP&&LP.rearCombo;
-const PB=typeof YATA_PUBLIC_BODY!=="undefined"? YATA_PUBLIC_BODY : null;
 if(!RC&&isW&&!VEH.active&&PB&&PB.profiles){ const last=(k)=>{ const a=PB.profiles[k]; return a&&a.length? a[a.length-1][1] : null; }, hw=last("halfW"), zp=last("zPanel");
  if(hw!=null&&zp!=null) RC=[[-(hw-0.08),PB.L/2,zp-0.02,0.18],[hw-0.08,PB.L/2,zp-0.02,0.18]]; }
 const rcLens=[];
@@ -246,7 +269,7 @@ for(const sx of [-0.7,0.7]){ const dl=new THREE.Mesh(new THREE.BoxGeometry(0.3,0
 const tm=new THREE.MeshBasicMaterial({color:0xaa1111});
 for(const sx of [-0.85,0.85]){ const tl=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.35,0.05),tm); tl.position.set(sx,0.9,2.42); v.add(tl); }
 // ハザード(四隅のウインカー)
-const hz=new THREE.MeshBasicMaterial({color:0x4a3005});
+const hz=new THREE.MeshBasicMaterial({color:0x7a5512});
 for(const [x,z] of [[-0.9,-2.44],[0.9,-2.44],[-0.9,2.44],[0.9,2.44]]){ const l=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.12,0.05),hz); l.position.set(x,0.62,z); v.add(l); }
 v.userData.hazMat=hz;
 return v;
@@ -1001,7 +1024,7 @@ this.updateRoadTrains(es,dtR);
   if(this.leadHold&&!this._leadHoldMsg){ this._leadHoldMsg=true; Radio.push("赤信号で分断。前方誘導車はハザードを点けて停車・待機します。","前方誘導車"); }
   if(!this.leadHold) this._leadHoldMsg=false;
   const on=this.leadHold&&(performance.now()%800)<400;
-  if(this.escortLead.userData.hazMat) this.escortLead.userData.hazMat.color.setHex(on?0xffb020:0x4a3005);
+  if(this.escortLead.userData.hazMat) this.escortLead.userData.hazMat.color.setHex(on?0xffb020:0x7a5512);
 }
 const lead=this.roadPoint(clamp(this.leadS,0,this.road.builtS-this.SEG));
 this.escortLead.position.set(lead.x+Math.cos(lead.h)*-2.4,lead.y,lead.z+Math.sin(lead.h)*-2.4);

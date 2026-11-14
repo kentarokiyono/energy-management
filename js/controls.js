@@ -120,8 +120,8 @@ function updateWinkers(carGroup,es){
 if(!carGroup||!carGroup.userData.winkL) return;
 const on=(performance.now()%800)<400;
 const L=es.signal===-1||es.signal===2, R=es.signal===1||es.signal===2;
-carGroup.userData.winkL.forEach(m=>m.color.setHex(L&&on?0xffb020:0x4a3005));
-carGroup.userData.winkR.forEach(m=>m.color.setHex(R&&on?0xffb020:0x4a3005));
+carGroup.userData.winkL.forEach(m=>m.color.setHex(L&&on?0xffb020:0x7a5512));
+carGroup.userData.winkR.forEach(m=>m.color.setHex(R&&on?0xffb020:0x7a5512));
 if(es.signal!==0){
 if(on!==_winkPhase){ _winkPhase=on; Snd.relay(on); }   // ウインカーのリレー (カチ・コチ)
 } else _winkPhase=null;
