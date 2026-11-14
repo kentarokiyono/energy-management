@@ -95,6 +95,7 @@ const ms=new THREE.Mesh(g2,b.mat);ms.castShadow=true;grp.add(ms);};
 const bW=mkB(matWhite),bO=mkB(matOrange),bS=mkB(matSkirt);
 // 実車の塗り分け: 絵にして貼る (面ごとに色を分けると境目がギザギザになる)
 const bL= LIV&&typeof YataMesh!=="undefined"? mkB(Object.assign(paint(0xffffff),{map:YataMesh.livTex()})) : null;
+const HT= BD.hatches&&Array.isArray(BD.wheels)? BD.wheels.filter(w=>w[1]<0).map(w=>({x:w[0],z:w[1],half:w[2]*1.3,top:w[2]*2-0.02,b:mkB(bL?bL.mat:matWhite)})) : null;
 const R=2*(O.side+O.deckK)-1,Pp=[],Uv=[],TYP=[];
 for(let i=0;i<=O.seg;i++){
 const u=i/O.seg,xl=u*O.L,wh=hullW(u),zb=zBell(u),hd=zHull(u),zPos=xl-HL;
@@ -125,6 +126,9 @@ if(LIV&&TYP[i][r]!=="K"){ const uc=(i+.5)/O.seg, zb2=zBell(uc), hd2=zHull(uc), z
  if(BF!=null&&(r===0||r===R-1)) c= uc<0.12? "O" : "K";   // 底面 (平らな部分): 黒。先端だけオレンジ
  b= c==="O"?bO : c==="K"?bS : bW;
  if(bL&&!(BF!=null&&(r===0||r===R-1))) b=bL; }
+// メンテナンスハッチ (BD.hatches): 前輪の横の胴体を切り取って別の板にする (上辺が蝶番。ハンドルを切ると前輪が押して開く)
+if(HT&&TYP[i][r]==="S"){ const xc=(Pp[i][r].x+Pp[i][r2].x)/2, zc=Pp[i][r].z+(Pp[i+1][r].z-Pp[i][r].z)/2;
+ const h=HT.find(q=>Math.sign(xc)===Math.sign(q.x)&&Math.abs(zc-q.z)<q.half&&zm<q.top&&Math.abs(xc)>hullW((i+.5)/O.seg)*0.86); if(h){ b=h.b; } }   /* 側面だけ (底は含めない) */
 const a=vid(b,Pp,Uv,i,r),c=vid(b,Pp,Uv,i,r2),d=vid(b,Pp,Uv,i+1,r2),e=vid(b,Pp,Uv,i+1,r);
 b.idx.push(a,c,e,c,d,e);
 }
@@ -132,6 +136,10 @@ b.idx.push(a,c,e,c,d,e);
 const cid=bS.v.length/3;bS.v.push(0,(zBell(1)+zHull(1))/2,O.L-HL);bS.uv.push(O.L,.9);
 for(let r=0;r<n;r++){const a=vid(bS,Pp,Uv,i,r),c=vid(bS,Pp,Uv,i,(r+1)%n);bS.idx.push(cid,a,c);}}
 finish(bW);finish(bO);finish(bS); if(bL) finish(bL);
+if(HT){ grp.userData.hatches=[];
+ for(const h of HT){ if(!h.b.idx.length) continue; let yt=-1e9, xt=0; for(let k=0;k<h.b.v.length;k+=3) if(h.b.v[k+1]>yt){ yt=h.b.v[k+1]; xt=h.b.v[k]; }
+  const n0=grp.children.length; finish(h.b); const m=grp.children[n0]; grp.remove(m);
+  const pv=new THREE.Group(); pv.position.set(xt,yt,h.z); m.position.set(-xt,-yt,-h.z); pv.add(m); grp.add(pv); grp.userData.hatches.push({g:pv,sd:Math.sign(h.x)}); } }
 if(OPN.w>0) grp.userData.opening=OPN;
 // 胴体の上端からパネルの下面までの側面 (パネルは胴体に載っている。すき間から向こうが見えないように閉じる)
 { const bWl=mkB(LIV?matOrange:matWhite), TH=0.035;
