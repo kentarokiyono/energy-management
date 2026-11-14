@@ -69,7 +69,7 @@ def main():
         for g in groups:
             if len(g) < 3: continue
             m = np.mean(g, 0); wheels.append([r2(m[0]), r2(m[1] - (z0 + z1) / 2), 0.26, 0.1])
-    body = {"L": r2(L), "wheels": wheels, "livery": True, "orangeU": 0.03, "fairings": True, "noseTip": prof["zBell"][0][1],
+    body = {"L": r2(L), "wheels": wheels, "livery": True, "orangeU": 0.03, "noseTip": prof["zBell"][0][1],
             "canopy": {"x": r2(can[:, 2].mean() - z0), "len": r2(can[:, 2].max() - can[:, 2].min()), "w": r2(2 * np.abs(can[:, 0]).max()), "top": r2(can[:, 1].max() + yg)},
             "profiles": prof}
     print("車輪", wheels)
