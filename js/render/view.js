@@ -1,5 +1,15 @@
 const _WHITE=new THREE.Color(1,1,1);
 "use strict";
+/* 前の場面の描画データ (形・材質・絵) を GPU から片付ける。場面を作り直すたびに呼ぶ (デモ映像のように何度も作り直すと、溜まって重くなる)。
+ 使い回している材質・形を片付けても、次に使うときに作り直されるので問題ない */
+function disposeScene(sc,renderer){ if(!sc) return; const seen=new Set();
+ const tex=(t)=>{ if(t&&t.isTexture&&!seen.has(t)){ seen.add(t); t.dispose(); } };
+ const mat=(m)=>{ if(!m||seen.has(m)) return; seen.add(m); for(const k in m) tex(m[k]); if(m.uniforms) for(const k in m.uniforms){ const u=m.uniforms[k]; if(u) tex(u.value); } m.dispose(); };
+ sc.traverse(o=>{ if(o.geometry&&!seen.has(o.geometry)){ seen.add(o.geometry); o.geometry.dispose(); } if(o.material) (Array.isArray(o.material)?o.material:[o.material]).forEach(mat);
+  if(o.isLight&&o.shadow&&o.shadow.map){ o.shadow.map.dispose(); o.shadow.map=null; } });
+ tex(sc.environment); tex(sc.background); sc.environment=null;
+ while(sc.children.length) sc.remove(sc.children[0]);
+ if(renderer&&renderer.renderLists) renderer.renderLists.dispose(); }
 const View={
 scene:null,camera:null,renderer:null,car:null,carBody:null,canopyMesh:null,
 sun:null,sunLight:null,hemiLight:null,ground:null,
@@ -16,6 +26,7 @@ if(!this.renderer){ const canvas=document.getElementById("three-canvas");
  this.renderer=new THREE.WebGLRenderer({canvas,antialias:true});
  }
 this.renderer.setSize(innerWidth,innerHeight);
+disposeScene(this.scene,this.renderer); if(typeof Test!=="undefined"&&Test.scene&&!Test.active){ disposeScene(Test.scene,this.renderer); Test.scene=null; }
 this.scene=new THREE.Scene();
 this.scene.background=null;
 setupRenderQuality(this.renderer,this.scene); EnvLight.reset();
@@ -60,10 +71,11 @@ for(let i=0;i<10;i++) this.aiPool.push({mesh:null,team:null});
 this.roadTrains.length=0; this.rollT=0; if(typeof Rain!=="undefined") Rain.reset();
 this.lmMap.clear(); this.redSignalKm=null; this.inPit=false; this.pitBlend=0; this.fireOn=false;
 this.resetRoad();
-addEventListener("resize",()=>{
+if(!this._resizeBound){ this._resizeBound=true;   // 1 回だけ (場面ごとに足すと溜まっていく)
+addEventListener("resize",()=>{ if(!this.camera) return;
 this.camera.aspect=innerWidth/innerHeight; this.camera.updateProjectionMatrix();
 this.renderer.setSize(innerWidth,innerHeight);
-});
+}); }
 },
 /* ============ リプレイカメラ (中継のような視点。どの画質でも動く) ============
  道ばたの固定カメラ (低い三脚・高いクレーン) が車を追って首を振り、通り過ぎたら次のカメラへ。合間に、車に付けたカメラ・空からの追走を挟む */
@@ -1114,5 +1126,5 @@ this.roadTrains.splice(i,1); }
 };
 
 /* メンテナンスハッチ: ハンドルを切った分だけ、前輪が胴体の横の板を外へ押し開く (直進では閉じる) */
-function updateHatches(car,dt){ const H=car&&car.userData.hatches; if(!H) return; const st=Math.abs(Input.steer||0), want=clamp((st-0.08)/0.6,0,1)*0.42;
+function updateHatches(car,dt){ const H=car&&car.userData.hatches; if(!H) return; const st=Math.abs(Input.steer||0), want=clamp((st-0.08)/0.6,0,1)*0.24;
  for(const h of H){ h.a=lerp(h.a||0,want,clamp(dt*12,0,1)); h.g.rotation.z=h.sd*h.a; } }

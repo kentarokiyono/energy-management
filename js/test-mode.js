@@ -19,6 +19,7 @@ addEventListener("resize",()=>{ if(Test.active&&Test.camera){ View.renderer.setS
 Test.camera.aspect=innerWidth/innerHeight; Test.camera.updateProjectionMatrix(); } });
 }
 View.renderer.shadowMap.enabled=true; View.renderer.shadowMap.type=THREE.PCFSoftShadowMap; Perf.reset();
+disposeScene(this.scene,View.renderer);   // 前のコースの場面を片付ける
 this.scene=new THREE.Scene();
 setupRenderQuality(View.renderer,this.scene);
 this.camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,4000);

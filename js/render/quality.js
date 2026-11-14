@@ -40,7 +40,7 @@ const GFX={
 /* 描画の重さに合わせて解像度を自動調整。下げるのは平均 fps が 28 未満が続いたとき、上げるのは 55 以上が続いたとき。
  解像度は端末の画素密度の範囲で 2.0 → 1.5 → 1.25 → 1.0 まで (1.0 未満には下げない)。影は 2 段階下げたら切る */
 const Perf={acc:0,fr:0,lv:0,good:0,bad:0,mAcc:0,mFr:0,fps:0,
-  steps(){ const d=Math.min(devicePixelRatio||1,GFX.cur().pr); return [d,1.5,1.25,1.0].filter((x,i,a)=>x<=d&&a.indexOf(x)===i); },
+  steps(){ const d=Math.min(devicePixelRatio||1,GFX.cur().pr,typeof Demo!=="undefined"&&Demo.on?Demo.MAX_PR:9);   /* デモ映像中は細かさを控えめに */ return [d,1.5,1.25,1.0].filter((x,i,a)=>x<=d&&a.indexOf(x)===i); },
   apply(){ const r=View.renderer; if(!r) return; const st=this.steps(), pr=st[Math.min(this.lv,st.length-1)];
     if(Math.abs(r.getPixelRatio()-pr)>0.01){ r.setPixelRatio(pr); r.setSize(innerWidth,innerHeight); }
     r.shadowMap.enabled= GFX.cur().shadow>0&&this.lv<2; },
