@@ -251,9 +251,12 @@ for(const [wx,wz,wy] of winkPos){
   // 横のウインカー: 外側から車体へ向けて当て、側面に沿わせた薄いレンズにする
   if(hullMeshes.length){ const sd=Math.sign(wx)||1, rc=new THREE.Raycaster(body.localToWorld(new THREE.Vector3(sd*3,wk.position.y,wz)),new THREE.Vector3(-sd,0,0).transformDirection(body.matrixWorld));
    const h=rc.intersectObjects(hullMeshes,false)[0];
-   if(h){ wk.geometry.dispose(); wk.geometry=new THREE.BoxGeometry(0.012,0.04,0.22); const n=h.face.normal.clone().transformDirection(h.object.matrixWorld);
-    const par=h.object.userData.upper? h.object : body; const pw=h.point.clone().addScaledVector(n,-0.003); wk.position.copy(par.worldToLocal(pw)); par.add(wk);
-    const nl=n.clone().transformDirection(new THREE.Matrix4().copy(par.matrixWorld).invert()).normalize(); wk.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0),nl); wk.userData.noSnap=true; } }   // アッパーカウルに付くものは一緒に傾く
+   if(h){ wk.geometry.dispose(); wk.geometry=new THREE.BoxGeometry(0.008,0.04,0.22); const n=h.face.normal.clone().transformDirection(h.object.matrixWorld).normalize();
+    const out=new THREE.Vector3(sd,0,0).transformDirection(body.matrixWorld); if(n.dot(out)<0) n.negate();   // 面が裏向きでも外を向ける
+    const par=h.object.userData.upper? h.object : body; par.updateMatrixWorld(true); const pw=h.point.clone().addScaledVector(n,0.004); wk.position.copy(par.worldToLocal(pw)); par.add(wk);   // 面の 4 mm 外 (内側に置くと車体とちらつく)
+    // 向き: 厚み = 面の向き、長い辺 = 車の前後 (面に沿わせる)、残り = 上下。斜めにならない
+    const fwd=new THREE.Vector3(0,0,1).transformDirection(body.matrixWorld), zt=fwd.clone().addScaledVector(n,-fwd.dot(n)).normalize(), yt=new THREE.Vector3().crossVectors(zt,n).normalize();
+    const pq=new THREE.Quaternion(); par.getWorldQuaternion(pq); wk.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(n,yt,zt)).premultiply(pq.invert()); wk.userData.noSnap=true; } }   // アッパーカウルに付くものは一緒に傾く
   if(!wk.parent) body.add(wk);
   (wx<0?g.userData.winkL:g.userData.winkR).push(wm);
 }

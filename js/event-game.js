@@ -204,17 +204,24 @@ tutorial(done){
  this.cardOpen=true; modalPause=true;
  const K=Input.keys, hv=this.course==="hv", seen={l:false,r:false};
  const steps=[
-  {t:"アクセル",d:"W ・ ↑ ・ アクセルペダル",ic:"zap",ok:()=>K["w"]||K["arrowup"]||Input.gpThrottle>0.3},
-  {t:"ハンドル",d:"A D ・ ← → ・ ハンドルを左右に",ic:"wheel",ok:()=>{ if(K["a"]||K["arrowleft"]||Input.gpSteer<-0.35) seen.l=true; if(K["d"]||K["arrowright"]||Input.gpSteer>0.35) seen.r=true; return seen.l&&seen.r; }},
-  {t:"ブレーキ",d:"スペース ・ ブレーキペダル",ic:"stop",ok:()=>K[" "]||Input.gpBrake>0.3},
-  ...(hv?[]:[{t:"ウインカー",d:"Z (左) ・ C (右) ― 曲がる前に出す",ic:"left",ok:()=>K["z"]||K["c"]}])];
+  {t:"アクセル",d:"W ・ ↑ ・ アクセルペダル",td:"右下の「スロ ＋」",ic:"zap",ok:()=>K["w"]||K["arrowup"]||Input.gpThrottle>0.3},
+  {t:"ハンドル",d:"A D ・ ← → ・ ハンドルを左右に",td:"左下の ‹ › を左右とも",ic:"wheel",ok:()=>{ if(K["a"]||K["arrowleft"]||Input.gpSteer<-0.35) seen.l=true; if(K["d"]||K["arrowright"]||Input.gpSteer>0.35) seen.r=true; return seen.l&&seen.r; }},
+  {t:"ブレーキ",d:"スペース ・ ブレーキペダル",td:"右下の「ブレーキ」",ic:"stop",ok:()=>K[" "]||Input.gpBrake>0.3},
+  ...(hv?[]:[{t:"ウインカー",d:"Z (左) ・ C (右) ― 曲がる前に出す",td:"右の ← か → ― 曲がる前に出す",ic:"left",ok:()=>K["z"]||K["c"]||!!(Engine.st&&Engine.st.signal)}])];
+ const touch=document.body.classList.contains("touch-on");   // スマホ: 画面の上に小さく出し、下のボタンを押せるようにする
  let el=document.getElementById("ev-tut"); if(!el){ el=document.createElement("div"); el.id="ev-tut"; el.style.cssText="position:fixed;inset:0;z-index:61;display:flex;align-items:center;justify-content:center;background:rgba(5,5,6,.6)"; document.body.appendChild(el); }
- el.style.display="flex";
+ el.style.display="flex"; el.classList.toggle("tut-touch",touch);
+ if(touch){ el.style.cssText="position:fixed;left:50%;top:6px;transform:translateX(-50%);z-index:61;display:flex;pointer-events:none;width:min(440px,62vw)"; }
+ else el.style.cssText="position:fixed;inset:0;z-index:61;display:flex;align-items:center;justify-content:center;background:rgba(5,5,6,.6)";
  let i=0, t0=performance.now(), doneAt=0, raf=0;
- const finish=()=>{ cancelAnimationFrame(raf); el.style.display="none"; removeEventListener("keydown",skip,true); this.cardOpen=false; modalPause=false; lastT=performance.now(); const s=Engine.st; if(s){ s.signal=0; s.throttleSet=0; } for(const k in K) K[k]=false; done(); };
+ const finish=()=>{ this._tutSkip=null; cancelAnimationFrame(raf); el.style.display="none"; removeEventListener("keydown",skip,true); this.cardOpen=false; modalPause=false; lastT=performance.now(); const s=Engine.st; if(s){ s.signal=0; s.throttleSet=0; } for(const k in K) K[k]=false; done(); };
  const skip=(e)=>{ if(e.key==="Enter"||e.key==="Escape"){ e.preventDefault(); e.stopPropagation(); finish(); } };
- addEventListener("keydown",skip,true);
+ addEventListener("keydown",skip,true); this._tutSkip=finish;
  const draw=()=>{ const left=Math.max(0,8-(performance.now()-t0)/1000);
+  if(touch){ el.innerHTML=`<div class="card2 tut-mini" style="width:100%;padding:8px 12px">
+   ${i<steps.length?`<div style="display:flex;gap:10px;align-items:center;font-size:15px;font-weight:700"><span style="color:var(--acc)">${ic(steps[i].ic)}</span>${steps[i].t}<span style="font-weight:400;font-size:12px;color:var(--tx2)">${steps[i].td}</span></div>
+   <div class="bar" style="margin:6px 0 2px;height:3px"><i style="width:${left/8*100}%"></i></div>`:`<div style="color:var(--ok);font-weight:700">${ic("ok","ok")} 準備 OK</div>`}
+   <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;font-size:11px"><span style="color:var(--dim)">練習 ${Math.min(i+1,steps.length)} / ${steps.length}</span><button class="btn" style="pointer-events:auto;padding:2px 10px;font-size:11px" onpointerdown="event.stopPropagation();EventGame._tutSkip&&EventGame._tutSkip()">とばす</button></div></div>`; return; }
   el.innerHTML=`<div class="card2" style="width:min(620px,calc(100vw - 32px))">
    <div class="hd"><span class="lb">Practice ― 操作の練習</span><img src="assets/img/logo.svg" class="logo" width="56" alt=""></div>
    ${i<steps.length?`<h2 style="display:flex;gap:14px;align-items:center"><span style="color:var(--acc)">${ic(steps[i].ic)}</span>${steps[i].t}</h2>

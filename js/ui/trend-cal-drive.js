@@ -7,6 +7,8 @@
  記録や成績は残さない (走行のログ・ドライバー成績・結果画面を止める) */
 window.CalDrive={
  async run(o){ const sp=o.speed, onP=o.onProgress||(()=>{}), keep={fs:PRO.faultScale};
+  // 乱数 (突風・ほかのチーム・道の車など) を決まった種で: 同じ条件なら毎回同じ走りになり、合わせ込みの結果がぶれない (見えない枠の中だけ)
+  { let a=0x9e3779b9>>>0; Math.random=()=>{ a=(a+0x6D2B79F5)>>>0; let t=a; t=Math.imul(t^(t>>>15),t|1); t^=t+Math.imul(t^(t>>>7),t|61); return ((t^(t>>>14))>>>0)/4294967296; }; }
   window.pushChart=()=>{}; DrvRec.record=()=>{}; window.showResult=()=>{ running=false; };   // 成績・結果画面は出さない
   P.gfx="low"; P.mode="race"; P.event=false; P.crewProc=false; P.realWeather=true; P.fcErr="off"; P.tts="off"; P.raceStorm=false; PRO.faultScale=0;
   startGame(); running=false; const es=Engine.st; es.gridStartH=8; if(typeof StopMenu!=="undefined") StopMenu.active=false;
