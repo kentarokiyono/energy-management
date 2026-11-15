@@ -1,13 +1,13 @@
 const _WHITE=new THREE.Color(1,1,1);
 "use strict";
-/* キャノピーの窓 (実車の写真から): 前から横の前寄り (長さの約 2/3 まで) の下半分ほどが透明、屋根と後ろ寄りは黒。
+/* キャノピーの窓 (実車の写真から): 前から横の前寄り (長さの約 2/3 まで) の、高さの 16〜72 % が透明。屋根・下の縁・後ろ寄りは黒。
  同じ形を 2 回描く (材質 0 = 窓、材質 1 = 黒)。描く点ごとに、キャノピーの外枠 (前が -z) の中の位置で窓か黒かを決め、合わない方を描かない (境目がなめらか) */
 function canopyMask(mat,bb,win){ const m=mat.clone(), lo=bb.min.clone(), hi=bb.max.clone();
  m.onBeforeCompile=(sh)=>{ sh.uniforms.uCanLo={value:lo}; sh.uniforms.uCanHi={value:hi};
   sh.vertexShader=sh.vertexShader.replace("#include <common>","#include <common>\nvarying vec3 vCanP;").replace("#include <begin_vertex>","#include <begin_vertex>\nvCanP=position;");
   sh.fragmentShader=sh.fragmentShader.replace("#include <common>","#include <common>\nvarying vec3 vCanP; uniform vec3 uCanLo; uniform vec3 uCanHi;").replace("void main() {",`void main() {
    { float zN=(vCanP.z-uCanLo.z)/max(uCanHi.z-uCanLo.z,1e-4), hN=(vCanP.y-uCanLo.y)/max(uCanHi.y-uCanLo.y,1e-4);
-     float top= zN<0.5? 0.62 : 0.62*max(0.0,1.0-(zN-0.5)/0.18); bool w=hN<top;
+     float top= zN<0.5? 0.72 : 0.72*max(0.0,1.0-(zN-0.5)/0.22); bool w=hN<top&&hN>0.16;   // 窓: 高さ 16〜72 % (下は黒い縁。運転席からは窓の下に車体の内側だけが見える)
      if(w!=${win?"true":"false"}) discard; }`); };
  m.customProgramCacheKey=()=>"canwin"+(win?1:0)+(mat.type||""); m.userData.canopyMask=win; return m; }
 function canopyWindow(cm){ const g=cm&&cm.geometry; if(!g) return;
