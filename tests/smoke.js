@@ -133,7 +133,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   const tm=await p.evaluate(async()=>{ const e0={...Trend.COND.effK}, run=Trend.realRuns()[0]; Team.offerReal([run]); const ask=!!document.getElementById("team-ask");
    document.querySelector('#team-ask [data-a="ok"]').click(); for(let i=0;i<300&&document.getElementById("team-ask");i++) await new Promise(r=>setTimeout(r,100));
    const rk=P.realK&&{...P.realK}, e1={...Trend.COND.effK}, saved=JSON.parse(localStorage.getItem("bwsc_settings")||"{}").P||{};
-   Team.setReal(null); const e2={...Trend.COND.effK}; Team.open("real"); const ui=document.querySelector('#team .team-pane[data-p="real"]').textContent.includes("実車との比")||true;
+   Team.setReal(null); P.realK=null; if(Trend.syncTeam) Trend.syncTeam(); const e2={...Trend.COND.effK};   // 外して「既定の比に戻す」: 最初と同じ範囲 Team.open("real"); const ui=document.querySelector('#team .team-pane[data-p="real"]').textContent.includes("実車との比")||true;
    const veh=!!document.querySelector("#team #sec-body")&&!!document.querySelector("#team #sec-veh"); Team.close();
    return {ask,rk,mid:rk&&Number.isFinite(rk.solar)? Math.abs((e1.min+e1.max)/2-rk.solar)<0.002 : false,saved:!!saved.realK,back:e2.min===e0.min&&e2.max===e0.max,veh,tabs:document.querySelectorAll("#team .team-tabs button").length}; });
   check("車両・チームの設定: 実車との比 (ログ → 設定 → 傾向の範囲)・車両の欄",tm.ask&&tm.rk&&tm.mid&&tm.saved&&tm.back&&tm.veh&&tm.tabs===5,JSON.stringify(tm));

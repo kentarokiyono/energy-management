@@ -27,18 +27,22 @@ const Team={
  row(l,v,src,act){ return `<div class="team-row"><span class="lb">${l}</span><span class="num">${v}</span><span class="dim">${src||""}</span>${act||""}</div>`; },
  /* ---- 実車との比 ---- */
  real(){ const r=this.realK(), x=(k)=>k!=null&&Number.isFinite(k)? "×"+k.toFixed(3) : "なし";
-  const src=r? `${escHtml(r.src||"走行ログ")}${r.date?` (${escHtml(r.date)})`:""} から、${this.when(r.ts)}` : "";
+  const src=r? `${escHtml(r.src||"走行ログ")}${r.date?` (${escHtml(r.date)})`:""} から${r.builtin?" (非公開ファイルの既定)":"、"+this.when(r.ts)}` : "";
   const lk=Number.isFinite(P.lossK)&&Math.abs(P.lossK-1)>0.001, ok=Number.isFinite(P.ordersK)&&Math.abs(P.ordersK-1)>0.001;
   return `<div class="team-sec">傾向 (完走率の計算) が使う比</div>
    ${this.row("発電",r?x(r.solar):"なし",src)}${this.row("消費",r?x(r.load):"なし",src)}
-   <div class="team-act">${r?`<button class="btn ana-sm" onclick="Team.setReal(null)">${this.ic("x")}比を外す</button>`:""}<button class="btn ana-sm" onclick="Team.go('race')">${this.ic("upload")}走行ログを読み込む (振り返る)</button></div>
+   <div class="team-act">${r?`<button class="btn ana-sm" onclick="Team.setReal(null)">${this.ic("x")}比を外す</button>`:""}${P.realK&&P.realK.off&&VEH.active&&VEH.spec.realK?`<button class="btn ana-sm" onclick="P.realK=null;if(typeof Trend!=='undefined'&&Trend.syncTeam) Trend.syncTeam();Team.saved()">${this.ic("check")}既定の比に戻す</button>`:""}<button class="btn ana-sm" onclick="Team.go('race')">${this.ic("upload")}走行ログを読み込む (振り返る)</button></div>
    <div class="dim team-note">走行ログ (計測器の CSV・Excel) を読み込むと、その日の天気での計算と比べた比を入れるか聞きます。傾向では、この比を中心に ± 3 % の範囲を調べます。</div>
    <div class="team-sec">ゲームの車の補正 (分析画面の合わせ込み)</div>
    ${this.row("走行の消費のモデル",lk?"×"+P.lossK.toFixed(3):"なし","",lk?`<button class="btn ana-sm" onclick="P.lossK=1;Team.saved()">外す</button>`:"")}
    ${this.row("電流の指示",ok?"×"+(+P.ordersK).toFixed(3):"なし","",ok?`<button class="btn ana-sm" onclick="P.ordersK=1;Team.saved()">外す</button>`:"")}
    ${this.row("太陽の高さ別の発電",P.pvAltS?"ログから":"既定","",P.pvAltS?`<button class="btn ana-sm" onclick="P.pvAltS='';Team.saved()">外す</button>`:"")}`; },
- realK(){ const r=P.realK; return r&&typeof r==="object"&&(Number.isFinite(r.solar)||Number.isFinite(r.load))? r : null; },
+ /* 比: 設定で入れたもの → 無ければ非公開ファイル (vehicle-private.js の realK: 実車のログから出した既定の比)。「比を外す」と、この端末では使わない */
+ realK(){ const r=P.realK; if(r&&r.off) return null;
+  if(r&&typeof r==="object"&&(Number.isFinite(r.solar)||Number.isFinite(r.load))) return r;
+  const d=VEH.active&&VEH.spec.realK; return d&&(Number.isFinite(d.solar)||Number.isFinite(d.load))? {solar:d.solar,load:d.load,src:d.src||"実車の値 (非公開ファイル)",date:d.date||"",ts:0,builtin:true} : null; },
  setReal(r){ P.realK= r? {solar:Number.isFinite(r.solar)?+r.solar.toFixed(4):null,load:Number.isFinite(r.load)?+r.load.toFixed(4):null,src:String(r.src||"").slice(0,80),date:String(r.date||"").slice(0,40),ts:Date.now()} : null;
+  if(!r&&VEH.active&&VEH.spec.realK) P.realK={off:true};   // 非公開ファイルの既定の比も外す (この端末)
   if(typeof Trend!=="undefined"&&Trend.syncTeam) Trend.syncTeam(); this.saved(); },
  saved(){ Settings.save(); if(typeof Strategy!=="undefined") Strategy.last=null; if(!document.getElementById("team").classList.contains("hidden")) this.render(this.tab); },
  /* ---- 合わせ込み (傾向の速い計算をゲームのエンジンに) ---- */

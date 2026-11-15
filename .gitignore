@@ -11,3 +11,5 @@ tools/trend-out/
 assets/img/official-logo.png
 # 実車の外形データ (非公開・コミットしない)
 js/data/vehicle-mesh-private.*
+# 見た目チェックの基準画像 (この端末だけ)
+tests/visual-base/

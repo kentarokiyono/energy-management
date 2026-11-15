@@ -698,3 +698,7 @@ body.touch-on #event-timer{ font-size:18px!important; line-height:1.15; }
 body.touch-on #event-hud .hud-label{ font-size:10px; letter-spacing:.06em; }
 body.touch-on #event-hud #event-score{ font-size:12px!important; }
 body.touch-on #event-mission{ font-size:10px!important; margin:0!important; flex-basis:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* 実車のゴーストとの差 (本戦。この端末に実車のログがあるとき) */
+#ghost-tag{ position:absolute; left:50%; bottom:118px; transform:translateX(-50%); z-index:21; display:none; pointer-events:none; padding:3px 12px; border-radius:999px; font-size:12px; letter-spacing:.04em; color:#cdeeff; background:rgba(10,30,44,.62); border:1px solid rgba(159,227,255,.45); white-space:nowrap; }
+body.touch-on #ghost-tag{ bottom:96px; font-size:11px; }
