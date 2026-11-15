@@ -35,7 +35,7 @@ const Cockpit={
   box(Math.min(ow*1.8,.42),.008,.36,carbon,ex,hipY-.08,hipZ-.12);                           // 座面
   this.hip=[ex,hipY,hipZ]; this.half=ow;
   // ---- ハンドル ----
-  V.yokePivot=new THREE.Group(); V.yokePivot.position.set(ex,Math.max(E0[1]-.27,deckY+.03),ez-.42); V.yokePivot.rotation.x=-.35;
+  V.yokePivot=new THREE.Group(); V.yokePivot.position.set(ex,Math.min(E0[1]-.27,deckY-.15),ez-.42);   // ハンドルは液晶の庇までアッパーカウルの上面より下 (庇は中心から約 14 cm 上) V.yokePivot.rotation.x=-.35;
   const wheel=new THREE.Group();
   // カーボン板: 角の丸い長方形に、左右のグリップの内側を抜いた形
   const W=.29, H=.18, rr=(sh,x,y,w,h,r)=>{ sh.moveTo(x+r,y); sh.lineTo(x+w-r,y); sh.quadraticCurveTo(x+w,y,x+w,y+r); sh.lineTo(x+w,y+h-r); sh.quadraticCurveTo(x+w,y+h,x+w-r,y+h); sh.lineTo(x+r,y+h); sh.quadraticCurveTo(x,y+h,x,y+h-r); sh.lineTo(x,y+r); sh.quadraticCurveTo(x,y,x+r,y); };
