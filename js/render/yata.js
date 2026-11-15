@@ -68,19 +68,10 @@ const spl=a=>{ const n=a.length, X=a.map(p=>p[0]), Y=a.map(p=>p[1]); if(n<2) ret
   const t=(u-X[i])/h[i], t2=t*t, t3=t2*t;
   return (2*t3-3*t2+1)*Y[i]+(t3-2*t2+t)*h[i]*m[i]+(-2*t3+3*t2)*Y[i+1]+(t3-t2)*h[i]*m[i+1]; }; };
 const halfW=spl(PF.halfW||[[0,.001],[.05,.16],[.16,.44],[.30,.62],[.45,.85],[.60,.90],[.75,.86],[.90,.78],[1,.70]]);
-/* B 案 (BD.sections): 断面の形 [位置 u, 底の高さ, 上端の高さ, [底→上端を 16 等分した高さごとの半分の幅]]。あれば胴体はこれで作る */
-const SEC=Array.isArray(BD.sections)&&BD.sections.length>3? BD.sections : null;
-const SK=SEC? SEC[0][3].length-1 : 0;
-/* 2 cm 単位に丸めた値の段々で側面が波打たないよう、前後の位置・上下の高さの両方向に 1:2:1 でならしてからつなぐ */
-const smooth1=(a,n)=>{ let x=a.slice(); for(let p=0;p<n;p++){ const y=x.slice(); for(let i=1;i<x.length-1;i++) y[i]=(x[i-1]+2*x[i]+x[i+1])/4; x=y; } return x; };
-const SW=SEC&&(()=>{ let W=SEC.map(r=>smooth1(r[3],1)); for(let k=0;k<=SK;k++){ const c=smooth1(W.map(w=>w[k]),2); W.forEach((w,i)=>w[k]=c[i]); } return W; })();
-const secZB=SEC&&spl(SEC.map((r,i,A)=>[r[0],smooth1(A.map(q=>q[1]),2)[i]])), secZT=SEC&&spl(SEC.map((r,i,A)=>[r[0],smooth1(A.map(q=>q[2]),2)[i]])), secW=SEC&&SEC[0][3].map((_,k)=>spl(SEC.map((r,i)=>[r[0],Math.max(0.001,SW[i][k])])));
-const secWidth=(u,t)=>{ const f=clamp(t,0,1)*SK, k=Math.min(SK-1,Math.floor(f)), a=f-k; const w0=secW[Math.max(0,k-1)](u), w1=secW[k](u), w2=secW[k+1](u), w3=secW[Math.min(SK,k+2)](u);
- const m1=(w2-w0)/2, m2=(w3-w1)/2, a2=a*a, a3=a2*a; return Math.max(0.001,(2*a3-3*a2+1)*w1+(a3-2*a2+a)*m1+(-2*a3+3*a2)*w2+(a3-a2)*m2); };   // 高さ方向はなめらかに
-const hullW=SEC? (u=>secWidth(u,1)) : spl(PF.hullW||[[0,.001],[.06,.10],[.16,.30],[.30,.44],[.50,.58],[.70,.52],[.85,.40],[1,.26]]);
+const hullW=spl(PF.hullW||[[0,.001],[.06,.10],[.16,.30],[.30,.44],[.50,.58],[.70,.52],[.85,.40],[1,.26]]);
 const zPanel=spl(PF.zPanel||[[0,.30],[.10,.45],[.25,.60],[.50,.62],[.75,.60],[.90,.60],[1,.58]]);
-const zHull=SEC? secZT : spl(PF.zHull||[[0,.24],[.15,.38],[.35,.48],[.60,.50],[.80,.44],[1,.34]]);
-const zBell=SEC? secZB : spl(PF.zBell||[[0,O.noseTip],[.12,.20],[.30,.145],[.60,.15],[.80,.20],[1,.28]]);
+const zHull=spl(PF.zHull||[[0,.24],[.15,.38],[.35,.48],[.60,.50],[.80,.44],[1,.34]]);
+const zBell=spl(PF.zBell||[[0,O.noseTip],[.12,.20],[.30,.145],[.60,.15],[.80,.20],[1,.28]]);
 let ZB0=1e9; for(let k=0;k<=100;k++) ZB0=Math.min(ZB0,zBell(k/100));   // 塗り分けの高さの割合は車体全体の一番下から測る (後部で底が上がっても、ストライプが曲がらない)
 const HL=O.L/2;   // 車体中心 (z=0) から先端までの距離
 const DS=THREE.DoubleSide;
@@ -119,13 +110,13 @@ const u=i/O.seg,xl=u*O.L,wh=hullW(u),zb=zBell(u),hd=zHull(u),zPos=xl-HL;
 const pts=[],typ=[];
 pts.push(new THREE.Vector3(0,zb,zPos));
 for(let r=1;r<=O.side;r++){const t=r/O.side;
-pts.push(SEC? new THREE.Vector3(secWidth(u,(r-1)/(O.side-1)),zb+(hd-zb)*t,zPos) : BF!=null? new THREE.Vector3(wh*(bfAt(u)+(1-bfAt(u))*t),zb+(hd-zb)*t,zPos) : new THREE.Vector3(wh*Math.pow(Math.sin(t*Math.PI/2),.85),zb+(hd-zb)*Math.pow(t,1.25),zPos));typ.push("S");}
+pts.push(BF!=null? new THREE.Vector3(wh*(bfAt(u)+(1-bfAt(u))*t),zb+(hd-zb)*t,zPos) : new THREE.Vector3(wh*Math.pow(Math.sin(t*Math.PI/2),.85),zb+(hd-zb)*Math.pow(t,1.25),zPos));typ.push("S");}
 for(let d=1;d<=O.deckK;d++){const s2=d/O.deckK;
 pts.push(new THREE.Vector3(wh*(1-s2),hd,zPos));typ.push("K");}
 for(let d=O.deckK-1;d>=1;d--){const s2=d/O.deckK;
 pts.push(new THREE.Vector3(-wh*(1-s2),hd,zPos));typ.push("K");}
 for(let r=O.side-1;r>=1;r--){const t=r/O.side;
-pts.push(SEC? new THREE.Vector3(-secWidth(u,(r-1)/(O.side-1)),zb+(hd-zb)*t,zPos) : BF!=null? new THREE.Vector3(-wh*(bfAt(u)+(1-bfAt(u))*t),zb+(hd-zb)*t,zPos) : new THREE.Vector3(-wh*Math.pow(Math.sin(t*Math.PI/2),.85),zb+(hd-zb)*Math.pow(t,1.25),zPos));typ.push("S");}
+pts.push(BF!=null? new THREE.Vector3(-wh*(bfAt(u)+(1-bfAt(u))*t),zb+(hd-zb)*t,zPos) : new THREE.Vector3(-wh*Math.pow(Math.sin(t*Math.PI/2),.85),zb+(hd-zb)*Math.pow(t,1.25),zPos));typ.push("S");}
 typ.push("S");
 Pp.push(pts);Uv.push(LIV&&typeof YataMesh!=="undefined"? pts.map(p=>new THREE.Vector2(u,clamp((p.y-ZB0)/Math.max(.01,hd-ZB0),0,1))) : pts.map(p=>new THREE.Vector2(xl,p.x+.9)));TYP.push(typ);
 }
@@ -271,24 +262,6 @@ canopy=new THREE.Mesh(cg,[   // 外から見て黒 (スモーク) のキャノ�
 glassMat(0x1a1e22,new THREE.MeshPhysicalMaterial({color:0x040506,roughness:.3,clearcoat:.6,clearcoatRoughness:.25,envMapIntensity:.25,side:DS})),
 new THREE.MeshPhysicalMaterial({color:BD.canopyCol!=null?BD.canopyCol:0x040506,roughness:.35,clearcoat:.5,clearcoatRoughness:.3,envMapIntensity:.2,side:DS})]);
 canopy.castShadow=true;grp.add(canopy);
-}
-if(Array.isArray(BD.canopyProf)&&BD.canopyProf.length>4){ if(canopy){ grp.remove(canopy); canopy.geometry.dispose(); for(const c of [...canopy.children]) canopy.remove(c); }
- // B 案: 測ったキャノピーの形 [位置 u, 上面の高さ, 半分の幅] を、なめらかにつないで断面 (角の丸い四角) で作る
- const CP=BD.canopyProf, n=CP.length, sm=(k)=>smooth1(CP.map(r=>r[k]),1), Tp=sm(1), Wd=sm(2);
- const u0=CP[0][0]-(CP[1][0]-CP[0][0])*0.5, u1=CP[n-1][0]+(CP[n-1][0]-CP[n-2][0])*0.5;
- const topF=spl([[u0,0],...CP.map((r,i)=>[r[0],Tp[i]]),[u1,0]].map((p,i,A)=> i===0||i===A.length-1? [p[0],null] : p).filter(p=>p[1]!=null));
- const wF=spl(CP.map((r,i)=>[r[0],Wd[i]]));
- const NU=48, NT=28, pos=[], uv=[], idx=[], E=0.62;   // E: 断面の丸み (1 で楕円、小さいほど角張る)
- for(let iu=0;iu<=NU;iu++){ const u=u0+(u1-u0)*iu/NU, base=Math.max(zPanel(u),zHull(u)+PG)-0.01, f=Math.sin(Math.PI*Math.min(1,Math.min(iu,NU-iu)/(NU*0.07))/2);   // 両端はすぼめて閉じる
-  const top=Math.max(base+0.01,topF(clamp(u,CP[0][0],CP[n-1][0]))), h=(top-base)*(0.35+0.65*f), a=Math.max(0.01,wF(clamp(u,CP[0][0],CP[n-1][0]))*f), z=u*O.L-HL;
-  for(let it=0;it<=NT;it++){ const t=Math.PI*it/NT, c=Math.cos(t), sn=Math.sin(t);
-   pos.push(a*Math.sign(c)*Math.pow(Math.abs(c),E), base+h*Math.pow(sn,E), z); uv.push(iu/NU,it/NT); } }
- for(let iu=0;iu<NU;iu++) for(let it=0;it<NT;it++){ const a=iu*(NT+1)+it, b=a+1, c=a+NT+2, d=a+NT+1; idx.push(a,b,d,b,c,d); }
- for(const iu of [0,NU]){ const ci=pos.length/3; let zz=pos[(iu*(NT+1))*3+2]; pos.push(0,pos[(iu*(NT+1))*3+1],zz); uv.push(0,0); for(let it=0;it<NT;it++) idx.push(ci,iu*(NT+1)+it,iu*(NT+1)+it+1); }
- const cg=new THREE.BufferGeometry(); cg.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); cg.setAttribute("uv",new THREE.Float32BufferAttribute(uv,2)); cg.setIndex(idx); cg.computeVertexNormals();
- canopy=new THREE.Mesh(cg,[glassMat(0x1a1e22,new THREE.MeshPhysicalMaterial({color:0x040506,roughness:.3,clearcoat:.6,clearcoatRoughness:.25,envMapIntensity:.25,side:DS})),
-  new THREE.MeshPhysicalMaterial({color:0x040506,roughness:.35,clearcoat:.5,clearcoatRoughness:.3,envMapIntensity:.2,side:DS})]);
- cg.addGroup(0,idx.length,0); canopy.castShadow=true; grp.add(canopy);
 }
 /* ==== アッパーカウル: 充電のときはこれだけを傾ける (ロアカウル = 胴体は地面に置いたまま)。
  回転軸はパネル翼の右の縁 (+x)。軸の位置へ移した入れ物に入れ、中身は元の座標のまま ==== */
