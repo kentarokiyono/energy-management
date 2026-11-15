@@ -59,6 +59,10 @@ def main():
         y = round(round(x / step) * step, 4)
         while round(abs(y), 4) in priv: y = round(y + (step if y >= 0 else -step), 4)
         return y
+    def ru(x):   # 位置の割合 (0〜1): 小数 3 桁。非公開の値と同じなら少しずらす
+        y = round(x, 3)
+        while round(abs(y), 4) in priv: y = round(y + 0.001, 3)
+        return y
     prof = {k: [[round(r[0], 2), r2(r[j])] for r in good] for j, k in [(1, "halfW"), (2, "hullW"), (3, "zPanel"), (4, "zHull"), (5, "zBell")]}
     for k in ("halfW", "hullW"):   # 先端は細く (0 にはしない)
         prof[k][0][1] = max(prof[k][0][1], 0.001)
@@ -74,10 +78,34 @@ def main():
         for g in groups:
             if len(g) < 3: continue
             m = np.mean(g, 0); wheels.append([r2(m[0]), r2(m[1] - (z0 + z1) / 2), 0.26, 0.1])
-    body = {"L": r2(L), "wheels": wheels, "livery": True, "orangeU": 0.03, "hatches": True, "sectionBottom": 0.8, "noseTip": prof["zBell"][0][1],
+    # ---- B 案: 断面の形 (長さ方向 41 か所。鼻先と後端は細かく) ----
+    # 各位置で、底 (zBell) から胴体の上端 (zHull、パネルの下) までを 16 等分した高さごとに、胴体の半分の幅を測る (左右対称とみなす)
+    KS = 16; NS = 41
+    us = [0.5 - 0.5 * np.cos(np.pi * i / (NS - 1)) for i in range(NS)]   # 両端が細かい並び
+    secs = []
+    for u in us:
+        zc = z0 + min(max(u, 0.004), 0.996) * L; S = section(zc)
+        if len(S) < 6: continue
+        ax = np.abs(S[:, 0]); halfW = ax.max(); rim = S[ax >= halfW - 0.004, 1].mean()
+        yb = S[:, 1].min(); yt = rim - 0.03   # 胴体の上端: パネルの縁より 3 cm 下 (パネルの裏を拾わない)
+        hull = S[S[:, 1] < yt + 0.005]
+        if yt - yb < 0.04 or len(hull) < 4: continue
+        ws = []
+        for k in range(KS + 1):
+            y = yb + 0.008 + (yt - yb - 0.008) * k / KS
+            band = hull[np.abs(hull[:, 1] - y) < max(0.012, (yt - yb) / KS * 0.6)]
+            ws.append(float(np.abs(band[:, 0]).max()) if len(band) else (ws[-1] if ws else 0.0))
+        secs.append([ru(u), r2(yb + yg), r2(yt + yg), [r2(w) for w in ws]])
+    # キャノピー: 長さ方向 20 か所で、高さ (上面) と半分の幅
+    cz0, cz1 = can[:, 2].min(), can[:, 2].max(); cprof = []
+    for i in range(20):
+        zc = cz0 + (cz1 - cz0) * (i + 0.5) / 20; m = np.abs(can[:, 2] - zc) < (cz1 - cz0) / 40 + 0.01
+        if m.sum() < 3: continue
+        cprof.append([ru((zc - z0) / L), r2(can[m, 1].max() + yg), r2(np.abs(can[m, 0]).max())])
+    body = {"L": r2(L), "wheels": wheels, "sections": secs, "canopyProf": cprof, "livery": True, "orangeU": 0.03, "hatches": True, "sectionBottom": 0.8, "noseTip": prof["zBell"][0][1],
             "canopy": {"x": r2(can[:, 2].mean() - z0), "len": r2(can[:, 2].max() - can[:, 2].min()), "w": r2(2 * np.abs(can[:, 0]).max()), "top": r2(can[:, 1].max() + yg)},
             "profiles": prof}
-    print("車輪", wheels)
+    print("車輪", wheels, "断面", len(secs), "キャノピー", len(cprof))
     js = ('"use strict";\n/* ============ 公開用の車体の形 (実車の外形から測って %g cm 単位に丸めた値。tools/fit_public_body.py が作る) ============\n'
           ' 実車の値 (js/data/vehicle-private.js) が無い端末で、自分の車 (YATA) の形に使う。正確な寸法ではない */\n'
           'const YATA_PUBLIC_BODY=%s;\n') % (step * 100, json.dumps(body, separators=(",", ":")))
