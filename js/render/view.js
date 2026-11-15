@@ -1,13 +1,13 @@
 const _WHITE=new THREE.Color(1,1,1);
 "use strict";
-/* キャノピーの窓 (実車の写真から): 前から横の前寄り (長さの約 2/3 まで) の、高さの 72 % までが透明。屋根と後ろ寄りは黒。
+/* キャノピーの窓 (実車の写真から): 前から横の前寄り (長さの約 2/3 まで) の、高さの 61 % までが透明。屋根と後ろ寄りは黒。
  同じ形を 2 回描く (材質 0 = 窓、材質 1 = 黒)。描く点ごとに、キャノピーの外枠 (前が -z) の中の位置で窓か黒かを決め、合わない方を描かない (境目がなめらか) */
 function canopyMask(mat,bb,win){ const m=mat.clone(), lo=bb.min.clone(), hi=bb.max.clone();
  m.onBeforeCompile=(sh)=>{ sh.uniforms.uCanLo={value:lo}; sh.uniforms.uCanHi={value:hi};
   sh.vertexShader=sh.vertexShader.replace("#include <common>","#include <common>\nvarying vec3 vCanP;").replace("#include <begin_vertex>","#include <begin_vertex>\nvCanP=position;");
   sh.fragmentShader=sh.fragmentShader.replace("#include <common>","#include <common>\nvarying vec3 vCanP; uniform vec3 uCanLo; uniform vec3 uCanHi;").replace("void main() {",`void main() {
    { float zN=(vCanP.z-uCanLo.z)/max(uCanHi.z-uCanLo.z,1e-4), hN=(vCanP.y-uCanLo.y)/max(uCanHi.y-uCanLo.y,1e-4);
-     float top= zN<0.5? 0.72 : 0.72*max(0.0,1.0-(zN-0.5)/0.22); bool w=hN<top;   // 窓: 高さ 72 % まで (下の縁まで透明)
+     float top= zN<0.5? 0.61 : 0.61*max(0.0,1.0-(zN-0.5)/0.22); bool w=hN<top;   // 窓: 高さ 61 % まで (下の縁まで透明)。目線 10 cm 下げで、屋根の黒が見える広さを前と同じに
      if(w!=${win?"true":"false"}) discard; }`); };
  m.customProgramCacheKey=()=>"canwin"+(win?1:0)+(mat.type||""); m.userData.canopyMask=win; return m; }
 function canopyWindow(cm){ const g=cm&&cm.geometry; if(!g) return;
@@ -37,7 +37,7 @@ roadTrains:[], escortLead:null, escortChase:null,
 pitGroup:null, inPit:false, pitBlend:0,
 fireGroup:null, fireOn:false, speedLines:[],
 s:0, lateral:-2.4, cam:0, carSlope:0, upcomingGrade:0, redSignalKm:null,
-SEG:2.5, EYE_DROP:0.05, ROAD_W:5.0, SHOULDER:8.5, visOrigin:0, branches:[], junctions:[],
+SEG:2.5, EYE_DROP:0.10, ROAD_W:5.0, SHOULDER:8.5, visOrigin:0, branches:[], junctions:[],
 gen:{grade:0,targetGrade:0,gradeRemain:400,curv:0,targetCurv:0,curvRemain:600},
 init(){
 // 描画エンジンは最初の 1 回だけ作って使い回す (同じ canvas に作り直すと GL の状態がずれ、2 回目以降に車体が真っ白になる)
@@ -968,7 +968,7 @@ camPos=new THREE.Vector3(cx-Math.sin(hCar)*1.8, cy+1.45, cz+Math.cos(hCar)*1.8);
 lookAt=new THREE.Vector3(cx+Math.sin(hCar)*40, cy+1.0, cz-Math.cos(hCar)*40);
 } else if(this.cam===2){ // ドライバー: 頭を車体に固定(勾配ピッチ・オフロード揺れを継承)
 this.car.updateMatrixWorld();
-const E0=(this.cockE0||(VEH.active&&VEH.spec.eye)||[0,.84,-.45]).slice(); E0[1]-=this.EYE_DROP;   // 目線は少し低め (窓の上の縁より下から前を見る)
+const E0=(this.cockE0||(VEH.active&&VEH.spec.eye)||[0,.84,-.45]).slice(); E0[1]-=this.EYE_DROP;   // 目線は 10 cm 低め (窓の上の縁より下から前を見る)
 /* 頭の動き: 横 G で外へ・加減速で前後へ傾き、路面の細かい揺れ (速いほど) を拾う。曲がる先を少し見る */
  const gl=clamp(es.gLat||0,-1,1), gg=clamp(es.gLong||0,-1,1), t=performance.now()/1000, rv=clamp(vv/28,0,1)*(es.offroad?0.03:0.0035);
  this.headX=lerp(this.headX||0,-gl*0.07,clamp(dtR*5,0,1)); this.headZ=lerp(this.headZ||0,gg*0.05,clamp(dtR*4,0,1)); this.lookX=lerp(this.lookX||0,clamp(this.yawR||0,-0.6,0.6)*9,clamp(dtR*3,0,1));
