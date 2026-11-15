@@ -190,7 +190,7 @@ this.camera.position.copy(camPos);
 } else if(View.cam===2){
 this.car.updateMatrixWorld();
 const E0=View.cockE0||(VEH.active&&VEH.spec.eye)||[0,.84,-.45];   // 本戦と同じ目の位置 (違うと座席の背もたれの後ろに入る)
-camPos=new THREE.Vector3(E0[0],E0[1],E0[2]).applyMatrix4(this.car.matrixWorld);
+camPos=new THREE.Vector3(E0[0],E0[1]-View.EYE_DROP,E0[2]).applyMatrix4(this.car.matrixWorld);
 lookAt=new THREE.Vector3(0,.76,-30).applyMatrix4(this.car.matrixWorld);
 this.camera.position.copy(camPos);
 } else if(View.cam===4&&typeof Demo!=="undefined"&&Demo.on){ const R=Demo.hvCam(this,dtR); camPos=R.pos; lookAt=R.look; this.camera.position.copy(camPos);
@@ -200,7 +200,7 @@ camPos=new THREE.Vector3(cx+Math.sin(hCar)*0.3,cy+2.2,cz-Math.cos(hCar)*0.3);
 lookAt=new THREE.Vector3(cx-Math.sin(hCar)*60,cy+1.2,cz+Math.cos(hCar)*60);
 this.camera.position.copy(camPos);
 }
-if(this.canopy) this.canopy.visible=(View.cam!==2);
+if(this.canopy){ const cm=this.canopy; if(cm.userData.inMat){ cm.material= View.cam===2? cm.userData.inMat : cm.userData.extMat; cm.visible=true; } else cm.visible=(View.cam!==2); }   // 運転席からは窓越しに (黒い屋根は内側から見える)
 this.camera.lookAt(lookAt);
 Post.blur= View.cam===2||View.cam===0? clamp((this.v-14)/36,0,1) : 0; if(!(typeof Demo!=="undefined"&&Demo.on&&View.cam===4)) Post.dof=null;
 Post.render(View.renderer,this.scene,this.camera);

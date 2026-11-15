@@ -1,5 +1,24 @@
 const _WHITE=new THREE.Color(1,1,1);
 "use strict";
+/* キャノピーの窓 (実車の写真から): 前から横の前寄り (長さの約 2/3 まで) の下半分ほどが透明、屋根と後ろ寄りは黒。
+ 同じ形を 2 回描く (材質 0 = 窓、材質 1 = 黒)。描く点ごとに、キャノピーの外枠 (前が -z) の中の位置で窓か黒かを決め、合わない方を描かない (境目がなめらか) */
+function canopyMask(mat,bb,win){ const m=mat.clone(), lo=bb.min.clone(), hi=bb.max.clone();
+ m.onBeforeCompile=(sh)=>{ sh.uniforms.uCanLo={value:lo}; sh.uniforms.uCanHi={value:hi};
+  sh.vertexShader=sh.vertexShader.replace("#include <common>","#include <common>\nvarying vec3 vCanP;").replace("#include <begin_vertex>","#include <begin_vertex>\nvCanP=position;");
+  sh.fragmentShader=sh.fragmentShader.replace("#include <common>","#include <common>\nvarying vec3 vCanP; uniform vec3 uCanLo; uniform vec3 uCanHi;").replace("void main() {",`void main() {
+   { float zN=(vCanP.z-uCanLo.z)/max(uCanHi.z-uCanLo.z,1e-4), hN=(vCanP.y-uCanLo.y)/max(uCanHi.y-uCanLo.y,1e-4);
+     float top= zN<0.5? 0.62 : 0.62*max(0.0,1.0-(zN-0.5)/0.18); bool w=hN<top;
+     if(w!=${win?"true":"false"}) discard; }`); };
+ m.customProgramCacheKey=()=>"canwin"+(win?1:0)+(mat.type||""); m.userData.canopyMask=win; return m; }
+function canopyWindow(cm){ const g=cm&&cm.geometry; if(!g) return;
+ g.computeBoundingBox(); const bb=g.boundingBox, n=g.index? g.index.count : g.attributes.position.count;
+ g.clearGroups(); g.addGroup(0,n,0); g.addGroup(0,n,1);
+ const M=Array.isArray(cm.material)? cm.material : [cm.material];
+ const body=new THREE.MeshPhysicalMaterial({color:0x050607,roughness:.3,clearcoat:.7,clearcoatRoughness:.12,envMapIntensity:.35,side:THREE.DoubleSide});   // 黒い本体 (つや)
+ cm.material=[canopyMask(M[0],bb,true),canopyMask(body,bb,false)];
+ // 内側から (運転席視点): 窓はほぼ透明、黒い部分は見えない (写真と同じ視界)
+ const smoke=new THREE.MeshBasicMaterial({color:0x0a0f16,transparent:true,opacity:.16,depthWrite:false,side:THREE.DoubleSide}), dark=new THREE.MeshBasicMaterial({color:0x07080a,side:THREE.DoubleSide});
+ cm.userData.extMat=cm.material; cm.userData.inMat=[canopyMask(smoke,bb,true),canopyMask(dark,bb,false)]; }
 /* 前の場面の描画データ (形・材質・絵) を GPU から片付ける。場面を作り直すたびに呼ぶ (デモ映像のように何度も作り直すと、溜まって重くなる)。
  使い回している材質・形を片付けても、次に使うときに作り直されるので問題ない */
 function disposeScene(sc,renderer){ if(!sc) return; const seen=new Set();
@@ -18,7 +37,7 @@ roadTrains:[], escortLead:null, escortChase:null,
 pitGroup:null, inPit:false, pitBlend:0,
 fireGroup:null, fireOn:false, speedLines:[],
 s:0, lateral:-2.4, cam:0, carSlope:0, upcomingGrade:0, redSignalKm:null,
-SEG:2.5, ROAD_W:5.0, SHOULDER:8.5, visOrigin:0, branches:[], junctions:[],
+SEG:2.5, EYE_DROP:0.05, ROAD_W:5.0, SHOULDER:8.5, visOrigin:0, branches:[], junctions:[],
 gen:{grade:0,targetGrade:0,gradeRemain:400,curv:0,targetCurv:0,curvRemain:600},
 init(){
 // 描画エンジンは最初の 1 回だけ作って使い回す (同じ canvas に作り直すと GL の状態がずれ、2 回目以降に車体が真っ白になる)
@@ -118,6 +137,7 @@ if(P.shape==="wadai"){
 const SB=VEH.active?VEH.spec.body:(typeof YATA_PUBLIC_BODY!=="undefined"?YATA_PUBLIC_BODY:null);   // 実車の値が無い端末は公開用の形 (2 cm 単位に丸めた値)
 const Y=buildYATA(SB); this.cockOpening=Y.opening; g.userData.yMesh=Y.mesh? Y : null; g.userData.hatches=Y.group.userData.hatches||null;   // メンテナンスハッチ
 body.add(Y.group);
+if(Y.canopy) canopyWindow(Y.canopy);
 g.userData.canopy=Y.canopy; g.userData.upperTilt=Y.tilt;
 // 車輪 (諸元にある場合): [x, z(車体中心基準, 前方 -), 半径, 幅]
 if(SB&&SB.wheels){ const tm=new THREE.MeshStandardMaterial({color:0x111316,roughness:.85}), hm=new THREE.MeshStandardMaterial({color:0x8a8f96,roughness:.4,metalness:.6});
@@ -535,6 +555,7 @@ lighten(){
   if(m.isMeshPhysicalMaterial){ n=new THREE.MeshStandardMaterial({color:m.color,map:m.map,roughness:Math.max(0.35,m.roughness),metalness:Math.min(0.5,m.metalness),side:m.side,
     transparent:m.transparent||m.transmission>0,opacity:m.transmission>0?0.55:m.opacity,depthWrite:m.depthWrite,envMapIntensity:0.4,vertexColors:m.vertexColors}); }
   else if(m.isMeshStandardMaterial&&(m.normalMap||m.roughnessMap)){ m.normalMap=null; m.roughnessMap=null; m.needsUpdate=true; }
+  if(n!==m&&m.onBeforeCompile&&m.userData&&m.userData.canopyMask!=null){ n.onBeforeCompile=m.onBeforeCompile; n.customProgramCacheKey=m.customProgramCacheKey; n.userData.canopyMask=m.userData.canopyMask; }   // キャノピーの窓の切り分けを残す
   map.set(m,n); return n; };
  this.scene.traverse(o=>{ if(!o.isMesh||!o.material) return; o.material= Array.isArray(o.material)? o.material.map(lite) : lite(o.material); });
  const cm=this.canopyMesh; if(cm&&cm.userData.extMat) cm.userData.extMat= Array.isArray(cm.userData.extMat)? cm.userData.extMat.map(lite) : lite(cm.userData.extMat);
@@ -947,7 +968,7 @@ camPos=new THREE.Vector3(cx-Math.sin(hCar)*1.8, cy+1.45, cz+Math.cos(hCar)*1.8);
 lookAt=new THREE.Vector3(cx+Math.sin(hCar)*40, cy+1.0, cz-Math.cos(hCar)*40);
 } else if(this.cam===2){ // ドライバー: 頭を車体に固定(勾配ピッチ・オフロード揺れを継承)
 this.car.updateMatrixWorld();
-const E0=(VEH.active&&VEH.spec.eye)||[0,.84,-.45];
+const E0=(this.cockE0||(VEH.active&&VEH.spec.eye)||[0,.84,-.45]).slice(); E0[1]-=this.EYE_DROP;   // 目線は少し低め (窓の上の縁より下から前を見る)
 /* 頭の動き: 横 G で外へ・加減速で前後へ傾き、路面の細かい揺れ (速いほど) を拾う。曲がる先を少し見る */
  const gl=clamp(es.gLat||0,-1,1), gg=clamp(es.gLong||0,-1,1), t=performance.now()/1000, rv=clamp(vv/28,0,1)*(es.offroad?0.03:0.0035);
  this.headX=lerp(this.headX||0,-gl*0.07,clamp(dtR*5,0,1)); this.headZ=lerp(this.headZ||0,gg*0.05,clamp(dtR*4,0,1)); this.lookX=lerp(this.lookX||0,clamp(this.yawR||0,-0.6,0.6)*9,clamp(dtR*3,0,1));
@@ -964,8 +985,8 @@ lookAt=new THREE.Vector3(cx-Math.sin(hCar)*60, cy+1.2, cz+Math.cos(hCar)*60);
 if(this.canopyMesh){ // ドライバー視点: キャノピーを内側から見る (前窓はほぼ透明、屋根は濃いスモーク。照り返しなし)
  const inside=this.cam===2&&(typeof Crew==="undefined"||Crew.inCar()), cm=this.canopyMesh;
  if(!cm.userData.extMat){ cm.userData.extMat=cm.material;
-  const smoke=new THREE.MeshBasicMaterial({color:0x0a0f16,transparent:true,opacity:.22,depthWrite:false,side:THREE.DoubleSide});
-  cm.userData.inMat=[smoke,smoke]; }
+  const smoke=new THREE.MeshBasicMaterial({color:0x0a0f16,transparent:true,opacity:.16,depthWrite:false,side:THREE.DoubleSide}), dark=new THREE.MeshBasicMaterial({color:0x07080a,side:THREE.DoubleSide});
+  cm.userData.inMat=[smoke,dark]; }   // 内側から: 窓はほぼ透明、黒い部分は見えない (写真と同じ視界)
  cm.material= inside? cm.userData.inMat : cm.userData.extMat;
  cm.visible=true; }
 if(typeof Crew!=="undefined"){ Crew.update(dtR); }
