@@ -6,7 +6,7 @@ function startGame(){
 Snd.init();
 if(P.mode==="event") EventGame.prepare();   // イベント: 内部はレースモードで動かし、課題を重ねる
 Engine.init();
-if(typeof Crew!=="undefined"){ Crew.reset(); Crew.driverIdx=0; if(DRIVER_NAMES&&P.mode==="race"&&!P.event){ Crew.drivers[0].name=DRIVER_NAMES[0]; Crew.drivers[1].name=DRIVER_NAMES[1]; } }
+if(typeof Crew!=="undefined"){ Crew.reset(); Crew.driverIdx=0; if(DRIVER_NAMES&&P.mode==="race"&&!P.event) Crew.setDrivers(DRIVER_NAMES); }
 Test.active=false;
 if(P.mode==="test"){
 Engine.st.hour=12;
@@ -52,6 +52,7 @@ const scnId= !resumed&&P.mode==="race"&&!P.event? Scenario.pick() : null;
 if(resumed){}
 else if(scnId) Scenario.apply(scnId);   // 練習シナリオ (チャプターより優先)
 else if(chap>0) Engine.applyChapter(chap);   // チャプター: CS の 2 km 手前から
+if(typeof Coffee!=="undefined"){ if(!resumed) Coffee.reset(); if(!resumed&&!scnId&&!(chap>0)&&Coffee.on()) Engine.st.hour=7; }   // 本戦は 7:00 の朝の打ち合わせから
 if(!resumed&&typeof Storm!=="undefined") Storm.plan(Engine.st);   // レース中の暴風雨の予定 (シナリオでは入れない)
 RunLog.start(); Orders.start(); if(resumed) Save.applyRest(); DrvRec.start();
 View.init(); View.buildCar(); View.buildEscorts();
@@ -75,6 +76,7 @@ if(paused||modalPause){ Snd.silence(); FFB.update(null); return; }   // (読み�
 updateInput(dtR);
 if(typeof Demo!=="undefined"&&Demo.on) Demo.frame(dtR);   // デモ映像: 自動で運転・場面の切り替え
 if(P.event){ EventGame.frame(dtR); if(!running||modalPause) return; }
+if(typeof Coffee!=="undefined"&&(Coffee.active||Coffee.want(Engine.st))){ Coffee.frame(dtR); return; }   // 朝の打ち合わせ (7:00〜7:50)
 if(Test.active){ Test.frame(dtR); if(P.event) EventGame.postTest(); Perf.tick(dtR); if(P.event) EventGame.hud(); return; }
 if(P.mode==="event"&&Engine.st){
   if(performance.now()-(window._lastAct||0)>MODE_CFG.event.attractIdle*1000){
@@ -116,7 +118,7 @@ function quitToMenu(){
 if(running&&Engine.st&&!Test.active) DrvRec.record();   // ドライバー成績 (途中でやめた走行も)
 if(typeof EventGame!=="undefined") EventGame.end();
 if(typeof HVRec!=="undefined") HVRec.flush();   // ヒドゥンバレーの記録を保存
-running=false; paused=false; Test.active=false;
+running=false; paused=false; Test.active=false; if(typeof Coffee!=="undefined") Coffee.close();
 document.getElementById("game-container").classList.add("hidden");
 document.getElementById("test-hud").classList.add("hidden");
 show("result-screen",false); show("pause-overlay",false); show("stopmenu-overlay",false); show("test-result",false);

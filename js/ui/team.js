@@ -61,12 +61,11 @@ const Team={
    ${this.row("朝の充電","6:15〜8:00 (傾けて)")}${this.row("夕方の充電","17:00〜日没 (傾けて)")}${this.row("夜","19:15〜6:15 は電池を切り離す")}${this.row("スタート","毎朝 8:00")}`; },
  /* ---- ドライバー ---- */
  drv(){ const d=this.drivers();
-  return `<label class="drvf"><span class="lb">1 人目 (スタート時に乗る)</span><input id="team-d1" maxlength="20" value="${escHtml(d[0]||"")}" onchange="Team.setDrivers()"></label>
-   <label class="drvf"><span class="lb">2 人目 (交代で乗る)</span><input id="team-d2" maxlength="20" value="${escHtml(d[1]||"")}" onchange="Team.setDrivers()"></label>
-   <div class="dim team-note">走行ログ・分析画面・ドライバー成績で、ドライバーごとに分けて見るのに使います。レースの開始時にも変えられます。</div>`; },
+  return ["1 人目 (スタート時に乗る)","2 人目 (交代で乗る)","3 人目 (任意)","4 人目 (任意)"].map((lb,i)=>`<label class="drvf"><span class="lb">${lb}</span><input id="team-d${i+1}" maxlength="20" value="${escHtml(d[i]||"")}" onchange="Team.setDrivers()"></label>`).join("")+`
+   <div class="dim team-note">最大 4 人。走行ログ・分析画面・ドライバー成績で、ドライバーごとに分けて見るのに使います。朝の打ち合わせで、乗る順番と交代する CS を決めます。レースの開始時にも変えられます。</div>`; },
  clean(s,def){ return String(s||"").replace(/[<>&"'\\]/g,"").trim().slice(0,20)||def||""; },
  drivers(){ return Array.isArray(P.drivers)? P.drivers : []; },
- setDrivers(a){ if(!a) a=[document.getElementById("team-d1").value,document.getElementById("team-d2").value]; P.drivers=a.map(x=>this.clean(x)); Settings.save(); },
+ setDrivers(a){ if(!a) a=[1,2,3,4].map(i=>document.getElementById("team-d"+i).value); a=a.map(x=>this.clean(x)); while(a.length>2&&!a[a.length-1]) a.pop(); P.drivers=a.slice(0,4); Settings.save(); },
  /* 他の画面へ: 振り返る (分析) / 戦略を考える (傾向) */
  go(c){ this.close(); Fade.go(()=>Ana.open(c)); },
  /* ---- 走行ログを読み込んだあと: 実車との比を出して入れるか聞く ---- */

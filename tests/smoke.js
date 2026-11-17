@@ -17,6 +17,7 @@ async function newPage(b,base,opt={}){
  p.on("request",r=>{ const u=r.url(); if(!u.startsWith(base)&&!/^(data|blob):/.test(u)) p.ext.push(u); });
  await p.goto(base+"index.html"+(opt.q||"")); await p.waitForFunction(()=>typeof startGame==="function"&&typeof THREE!=="undefined");
  await p.waitForTimeout(500);
+ await p.evaluate(()=>{ P.coffee=false; });   // 朝の打ち合わせは別に確認
  if(!opt.gfx) await p.evaluate(()=>{ P.gfx="low"; });   // 速さを見る確認は軽い画質で (ソフトウェア描画は遅い)。高画質は別に確認
  return p; }
 const noErr=(p)=>p.errs.filter(e=>!/vehicle-private|404/.test(e));
@@ -32,6 +33,18 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   const g=await p.evaluate(()=>({post:!!Post.comp&&Post.want(),env:!!EnvLight.rt&&View.scene.environment===EnvLight.rt.texture,pbr:View.car.userData.upperTilt.children[0].children.some(m=>m.material&&m.material.isMeshPhysicalMaterial&&m.material.clearcoat>0.5)}));
   check("画質「高」: ブルーム・映り込み・塗装",g.post&&g.env&&g.pbr&&noErr(p).length===0,JSON.stringify(g)+" "+noErr(p).slice(0,2).join(" | "));
   await shot(p,"gfx-high"); await p.context().close(); }
+ // ---- 朝の打ち合わせ (7:00〜7:50): 場面・議題・走り方・ドライバー交代 ----
+ { const p=await newPage(b,base);
+  await p.evaluate(()=>{ P.coffee=true; P.coffeeSpeed=2; P.mode="race"; P.event=false; P.crewProc=false; DRIVER_NAMES=["A1","B2","C3","D4"]; startGame(); });
+  await p.waitForFunction(()=>Coffee.active&&Coffee.scene&&Coffee.est&&Coffee.est.def&&!Coffee.job,null,{timeout:120000}).catch(()=>{});
+  const r=await p.evaluate(async()=>{ const es=Engine.st, o={h:+es.hour.toFixed(3),act:Coffee.active,ui:!!document.querySelector("#coffee .cf-panel"),hud:getComputedStyle(document.getElementById("hud-top")).visibility,
+    drv:Crew.drivers.length,est:Coffee.est&&Object.values(Coffee.est).every(e=>e.kmToday>es.km),wx:Coffee.forecast().length};
+   for(let i=0;i<4;i++){ Coffee.step=i; Coffee.draw(); } o.steps=document.querySelectorAll("#coffee .cf-steps button").length;
+   const pl=Coffee.st().plan[es.day]; document.querySelector('#coffee [data-act="end"]'); pl.style="def"; pl.first=1; pl.swaps=[{n:1,to:3}]; const f0=Strategy.floor();
+   Coffee.finish(); await new Promise(r=>setTimeout(r,2600)); o.f=+(Strategy.floor()-f0).toFixed(3); o.first=Crew.driverIdx; o.after=!Coffee.active&&es.coffee.done===es.day;
+   o.hud2=getComputedStyle(document.getElementById("hud-top")).visibility; Engine.beginCS(RP_CS[0]); o.swap=Crew.drivers[Crew.driverIdx].name; return o; });
+  check("朝の打ち合わせ: 7:00 に場面と議題 4 つ・見込み・予報、決めた走り方とドライバー交代が走行に効く",r.h>=7&&r.h<7.5&&r.ui&&r.hud==="hidden"&&r.drv===4&&r.est&&r.wx>=2&&r.steps===4&&r.f===0.05&&r.first===1&&r.after&&r.hud2==="visible"&&r.swap==="D4"&&noErr(p).length===0,JSON.stringify(r)+" "+noErr(p).slice(0,2).join(" | "));
+  await p.context().close(); }
  // ---- 練習シナリオ (スコール) と無線の速度指示 ----
  { const p=await newPage(b,base);
   await p.click('#ent-practice'); await p.click('#ent-sub [data-sub="scn"]'); await p.click('#ent-scn button[data-v="squall"]');

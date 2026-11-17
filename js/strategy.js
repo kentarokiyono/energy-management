@@ -7,7 +7,8 @@
 const Strategy={
  FLOOR:0.05, SEG:2, last:null, lastT:-1e9,
  /* 電池の下限 (残しておく量): 天気予報のずれが大きいほど多めに残す (予報より悪い天気になっても尽きないように) */
- floor(){ const s=Engine.st; return (s&&s.scenario)||!(s&&s.fc)? this.FLOOR : ({off:0.05,low:0.08,mid:0.12,high:0.18,late:0.12})[P.fcErr]||this.FLOOR; },
+ floor(){ const s=Engine.st, b=(s&&s.scenario)||!(s&&s.fc)? this.FLOOR : ({off:0.05,low:0.08,mid:0.12,high:0.18,late:0.12})[P.fcErr]||this.FLOOR;
+  return (s&&s.scenario)||typeof Coffee==="undefined"? b : Math.max(0.02,b+Coffee.floorAdj()); },   // 朝の打ち合わせで決めた走り方 (攻め・守りで電池を残す量を増減)
  drivePower(vms,grade){   // [W] 巡航に必要な電力 (下りは回生 6 割)
   const m=massTotal(), F=Phys.crr(vms)*m*GRAV+0.5*1.17*P.Cd*P.frontal*vms*vms+m*GRAV*grade;
   if(F<=0) return F*vms*0.6*(P.regenStrength>0?1:0)+P.auxW;

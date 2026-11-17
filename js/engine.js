@@ -552,6 +552,7 @@ const s=this.st;
 s.passedCP.add(cp.km); s.cpPending=null;
 s.stopTimer=30*60; s.stopKind="cp"; s.cpName=`CS${cp.n} ${cp.name}`; s.v=0; s.throttleSet=0;
 if(typeof Crew!=="undefined"&&Crew.on()&&!missed){ s.stopHold=true; Crew.begin("cs",cp); }
+if(typeof Coffee!=="undefined") Coffee.onCS(cp);   // 朝に決めたドライバー交代
 Snd.chime();
 const abs=(s.day-1)*24+s.hour;
 if(missed){ toast("🚨 コントロールストップの敷地に入らず通過!その場で30分点検となります","#f59e0b");
@@ -567,6 +568,7 @@ const s=this.st;
 s.camp=true; s.v=0;
 Radio.push(`Day${s.day} 走行終了。その場でキャンプ設営、日没までティルト充電を行います。`);
 if(typeof Crew!=="undefined") Crew.onCamp();
+if(typeof Coffee!=="undefined") Coffee.onCamp(s);
 TiltDecide.open();
 },
 /* 当たり判定の結果 (View から): 軽い接触 = 警告 / 破損 = 停車して修理・空力悪化 / 大破 = リタイア */
