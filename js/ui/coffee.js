@@ -45,7 +45,7 @@ const Coffee={
    Radio.push(`夕方の話し合い: 明日は「${this.STYLES[p.style].name}」の予定。${D[p.first]?`最初は ${D[p.first].name}`:""}${sw?`、${sw} に交代`:""}。朝の予報で最終決定。`,this.label("tm"));
   }
   Fade.go(()=>this.close()); },
- close(quiet){ this.active=false; this.ending=false; this.job=null; document.body.classList.remove("coffee-on"); if(this.ui) this.ui.style.display="none";
+ close(quiet){ this.aiCache=null; this.active=false; this.ending=false; this.job=null; document.body.classList.remove("coffee-on"); if(this.ui) this.ui.style.display="none";
   if(this.scene){ disposeScene(this.scene,View.renderer); this.scene=null; } },
  /* ---------- 毎フレーム (main の loop から) ---------- */
  frame(dtR){ const s=Engine.st;
@@ -178,12 +178,31 @@ const Coffee={
  label(role){ if(role==="drv") return `ドライバー ${this.drvName()}`; const n=P.crewNames&&P.crewNames[role]; return this.ROLES[role]+(n?` ${n}`:""); },
  /* ---------- セリフ: 1 人ずつ。話す人にカメラが寄る ---------- */
  say(){ const s=Engine.st, c=this.st(), p=c.plan[this.tday()]; this.lines=(this.kind==="pm"? this.talkPm(s,c,p) : this.talkAm(s,c,p)).map(([role,text,wait])=>({role,text,wait}));
-  this.li=0; this.lt=0; this.drawTalk(); },
+  this.li=0; this.lt=0; this.ai=false; this.drawTalk();
+  /* AI (設定で ON の端末だけ): 同じ数値をもとにセリフを書き直す。届いたら差し替え (届かなければ固定のセリフのまま) */
+  if(typeof AI!=="undefined"&&AI.on()&&!this.lines.some(l=>l.wait)){ const tok=this.sayTok=(this.sayTok||0)+1, kind=this.kind, step=this.step, key=kind+step+":"+s.day;
+   const hit=this.aiCache&&this.aiCache[key]; if(hit){ this.useAi(hit); return; }
+   AI.talk(kind,step,this.facts(s,c,p)).then(L=>{ if(!L||tok!==this.sayTok||!this.active||this.ending) return; (this.aiCache||(this.aiCache={}))[key]=L; this.useAi(L); }); } },
+ useAi(L){ this.lines=L.map(([role,text])=>({role,text})); this.li=0; this.lt=0; this.ai=true; this.drawTalk(); },
+ /* AI に渡す事実: 相対的な値だけ (% ・ km ・ 時刻 ・ 順位 ・ 走り方の名前)。電力量・電費・速度・車両の値・名前は入れない */
+ facts(s,c,p){ const pc=(x)=>Math.round(x*100), hm=(h)=>h==null? null : fmtAbsH(h), S=this.STYLES, e=this.est, W=this.forecast(), base={day:s.day,soc_pct:pc(s.soc),place:this.place(s.km),km:Math.round(s.km)};
+  const est=()=>e? Object.fromEntries(Object.entries(e).map(([k,v])=>[S[k].name,{reach_km:Math.round(v.kmDay),cs:v.cs?`CS${v.cs.n} ${v.cs.name}`:null,min_soc_pct:pc(v.minSoc),finish:v.ok?hm(v.finish):"届かない"}])) : null;
+  const wx=()=>W.map(w=>({day:w.d,place:w.place,sun_pct:pc(w.k),err_pct:pc(w.err)}));
+  if(this.kind==="am"){
+   if(this.step===0){ if(s.day===1) return {...base,topic:"スタート前の段取り (予選とスタート順)",grid:`P${s.grid||"-"} / ${(s.teams||[]).length+1}`,first_cs:RP_CS[0].name};
+    const y=c.log[s.day-1]||{}, end=y.kmEnd!=null? y.kmEnd : s.km; return {...base,topic:"昨日の振り返り",yesterday_km:y.km0!=null?Math.round(end-y.km0):null,vs_plan_km:y.est?Math.round(end-y.est.km):null,style:y.style?S[y.style].name:null}; }
+   if(this.step===1) return {...base,topic:"天気予報 (8〜17 時の日射を快晴 100 % として)",forecast:wx()};
+   if(this.step===2) return {...base,topic:"今日の走り方を決める",recommended:S[this.recommend()].name,options:est()};
+   return {...base,topic:"ドライバーの順番と交代する CS",drivers:this.drivers().length,swaps:p.swaps.map(w=>`CS${w.n}`),reach:e&&e[p.style]?Math.round(e[p.style].kmDay):null}; }
+  if(this.step===0){ const o=this.today(); return {...base,topic:"今日の振り返り",today_km:Math.round(s.km-o.km0),vs_plan_km:o.est?Math.round(s.km-o.est.km):null,style:o.style?S[o.style].name:null,orders:o.ord}; }
+  if(this.step===1){ const r=this.rank(); return {...base,topic:"他チームとの差",rank:`P${r.r} / ${r.n}`,gap_to_leader_km:Math.round(r.lead),ahead:r.ahead?{team:r.ahead.name,km:Math.round(r.ahead.km-s.km)}:null,behind:r.behind?{team:r.behind.name,km:Math.round(s.km-r.behind.km)}:null,retired:r.dnf}; }
+  if(this.step===2) return {...base,topic:"明日の予定 (走り方とドライバーを仮決め。朝の予報で確定)",forecast:wx().slice(0,2),recommended:S[this.recommend()].name,options:est()};
+  const wh=this.morningWh(s.day+1,s.km); return {...base,topic:"夜の充電と明朝の段取り",battery_off:"19:15〜6:15",morning_charge_pct:Math.round(wh/Math.max(500,P.batteryWh)*100),tilt_deg:s.tiltDeg||40,start:fmtAbsH(s.day*24+Engine.raceStartHour()),penalty_min:s.morningPenaltyMin||0}; },
  talkTick(dtR){ const L=this.lines[this.li]; if(!L||L.done) return; this.lt+=dtR; if(this.lt>=Math.max(3.2,L.text.length*0.11)) this.nextLine(); },
  nextLine(){ const L=this.lines[this.li]; if(!L) return; if(this.li<this.lines.length-1){ this.li++; this.lt=0; } else L.done=true; this.drawTalk(); },
  drawTalk(){ const el=this.ui&&this.ui.querySelector(".cf-pop"); if(!el) return; const L=this.lines[this.li];
   if(!L||L.done){ el.classList.remove("on"); return; }
-  el.style.setProperty("--rc",this.ROLE_C[L.role]||"#fff"); el.innerHTML=`<b>${escHtml(this.label(L.role))}</b><p>${L.text}</p><span class="cf-cnt">${this.li+1} / ${this.lines.length}</span>`;
+  el.style.setProperty("--rc",this.ROLE_C[L.role]||"#fff"); el.innerHTML=`<b>${escHtml(this.label(L.role))}</b><p>${L.text}</p><span class="cf-cnt">${this.ai?"AI・":""}${this.li+1} / ${this.lines.length}</span>`;
   el.classList.remove("on"); void el.offsetWidth; el.classList.add("on"); },
  /* ---------- 画面 ---------- */
  showUI(on){ let u=this.ui; if(!u){ u=this.ui=document.createElement("div"); u.id="coffee"; document.getElementById("game-container").appendChild(u);
@@ -295,8 +314,15 @@ const Coffee={
   else if(t.dataset.to){ const w=p.swaps.find(x=>x.n===+t.dataset.to); if(w) w.to=+t.value; }
   this.draw(true); },
  /* ---------- 走行中 ---------- */
- onCS(cp){ const s=Engine.st; if(s&&s.coffee&&s.coffee.style==="flex") this.reflex(s,`CS${cp.n} で見直し。`); if(!s||!s.coffee||typeof Crew==="undefined") return; const p=s.coffee.plan[s.day]; if(!p||s.coffee.done!==s.day) return; const w=p.swaps.find(x=>x.n===cp.n); if(!w) return;
+ onCS(cp){ const s=Engine.st; if(s&&s.coffee&&s.coffee.style==="flex") this.reflex(s,`CS${cp.n} で見直し。`);
+  if(s&&typeof AI!=="undefined"&&AI.on()) this.csAi(s,cp); if(!s||!s.coffee||typeof Crew==="undefined") return; const p=s.coffee.plan[s.day]; if(!p||s.coffee.done!==s.day) return; const w=p.swaps.find(x=>x.n===cp.n); if(!w) return;
   const d=Crew.drivers[w.to]; if(!d) return; if(w.to!==Crew.driverIdx) Crew.setDriver(w.to);
   Radio.push(`CS${cp.n}: 朝の打ち合わせどおり、ここで ${d.name} に交代。`,this.label("tm")); toast(`ドライバー交代 → ${escHtml(d.name)}`,"#34d399"); },
+ /* CS に着いたとき: 戦略担当がこの先の見通しをひとこと (AI) */
+ csAi(s,cp){ const r=this.rank(), nx=RP_CS.find(c=>c.km>cp.km+0.2), pc=(x)=>Math.round(x*100), c=s.coffee||{}, pl=typeof Strategy!=="undefined"&&Strategy.last, rr=pl&&pl.r;
+  const f={cs:`CS${cp.n} ${cp.name}`,time:fmtAbsH((s.day-1)*24+s.hour),soc_pct:pc(s.soc),rank:`P${r.r} / ${r.n}`,ahead_km:r.ahead?Math.round(r.ahead.km-s.km):null,behind_km:r.behind?Math.round(s.km-r.behind.km):null,
+   style:c.style?(this.STYLES[c.style]||{}).name:null,rest_of_day_sun_pct:pc(this.sun(s.day,s.km,clamp(s.hour,8,16.5),17)),next_cs:nx?`CS${nx.n} ${nx.name} (${Math.round(nx.km-s.km)} km 先)`:"ゴール",
+   today_reach_km:rr?Math.round(rr.kmToday):null,min_soc_pct:rr?pc(rr.minSoc):null};
+  AI.csNote(f).then(t=>{ if(t&&Engine.st===s) Radio.push(t,this.label("strat")+" (AI)"); }); },
  onCamp(s){ if(!s.coffee) return; const l=s.coffee.log[s.day]; if(l){ l.kmEnd=s.km; l.socEnd=s.soc; } },
 };

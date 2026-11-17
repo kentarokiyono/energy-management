@@ -53,6 +53,22 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
    o.night=es.coffee.plan[d].night&&es.coffee.plan[d].night.style; o.done=es.coffee.pmDone===es.day&&!Coffee.active; return o; });
   check("夕方の話し合い: 18:30 に 4 つの議題と話す人、明日の予定を仮決め",pm.kind==="pm"&&pm.steps===4&&pm.pop&&pm.lines>=3&&pm.night==="def2"&&pm.done&&noErr(p).length===0,JSON.stringify(pm));
   await p.context().close(); }
+ // ---- AI (Gemini、擬似の返答): 話し合いのセリフが差し替わる・送る内容に名前や電力量が入らない・実車モデルでは使わない ----
+ { const ctx=await b.newContext({viewport:{width:1280,height:720}}), p=await ctx.newPage(), errs=[], bodies=[]; p.on("pageerror",e=>errs.push(e.message));
+  await p.route("**/*-private.*",r=>r.fulfill({status:404,body:""}));   // 公開モデルで確かめる
+  await p.route("https://generativelanguage.googleapis.com/**",async rt=>{ const body=rt.request().postData()||""; bodies.push(body); const sys=JSON.parse(body).systemInstruction.parts[0].text;
+   const text= sys.includes("JSON 配列")? JSON.stringify([{role:"tm",text:"AIテスト1"},{role:"elec",text:"AIテスト2"}]) : sys.includes("分析する")? "AI分析" : "AI戦略";
+   await rt.fulfill({status:200,contentType:"application/json",body:JSON.stringify({candidates:[{content:{parts:[{text}]}}],usageMetadata:{promptTokenCount:10,candidatesTokenCount:5}})}); });
+  await p.goto(base+"index.html"); await p.waitForFunction(()=>typeof startGame==="function"&&typeof AI!=="undefined"); await p.waitForTimeout(500);
+  const off=await p.evaluate(()=>{ AI.setKey(""); return AI.on(); });
+  await p.evaluate(()=>{ AI.setKey("dummy"); P.aiOn=true; P.coffee=true; P.gfx="low"; P.mode="race"; P.event=false; P.crewProc=false; DRIVER_NAMES=["名前テスト甲","名前テスト乙"]; startGame(); });
+  await p.waitForFunction(()=>Coffee.active&&Coffee.scene&&Coffee.est&&Coffee.est.flex&&!Coffee.job,null,{timeout:120000}).catch(()=>{});
+  const r=await p.evaluate(async()=>{ Coffee.step=2; Coffee.draw(); Coffee.say(); await new Promise(r=>setTimeout(r,1500)); const o={ai:Coffee.ai,line:Coffee.lines[0]&&Coffee.lines[0].text,on:AI.on()};
+   Coffee.finish(); await new Promise(r=>setTimeout(r,2600)); Engine.beginCS(RP_CS[0]); await new Promise(r=>setTimeout(r,1000)); o.cs=Radio.log.some(x=>String(x).includes("AI戦略"));
+   VEH.active=true; o.real=AI.on(); VEH.active=false; return o; });
+  const leak=bodies.filter(x=>/名前テスト|kWh|Wh\/km/.test(x)).length;
+  check("AI (擬似の返答): 話し合いのセリフ・CS のひとこと、名前や電力量は送らない、キーなし・実車モデルでは使わない",!off&&r.on&&r.ai&&r.line==="AIテスト1"&&r.cs&&r.real===false&&bodies.length>=2&&leak===0&&errs.length===0,JSON.stringify({off,...r,n:bodies.length,leak,errs:errs.slice(0,2)}));
+  await ctx.close(); }
  // ---- 練習シナリオ (スコール) と無線の速度指示 ----
  { const p=await newPage(b,base);
   await p.click('#ent-practice'); await p.click('#ent-sub [data-sub="scn"]'); await p.click('#ent-scn button[data-v="squall"]');

@@ -54,9 +54,16 @@ const Team={
    <div class="team-act"><button class="btn ana-sm" onclick="Team.go('trend')">${this.ic("play")}戦略を考える (傾向) で合わせ込む</button></div>
    <div class="dim team-note">傾向の速い計算を、ゲームのエンジンの走りに合わせる倍率です。車両の値を変えたら合わせ直してください。</div>`; },
  /* ---- 運用 ---- */
- ops(){ return `<label class="chk team-chk"><input type="checkbox" ${P.csTilt!==false?"checked":""} onchange="P.csTilt=this.checked;Team.saved();if(typeof Trend!=='undefined'&&Trend.left)Trend.left()"><i></i>CS (30 分の停車) で傾けて充電する</label>
+ ops(){ setTimeout(()=>this.aiState(),0); return `<label class="chk team-chk"><input type="checkbox" ${P.csTilt!==false?"checked":""} onchange="P.csTilt=this.checked;Team.saved();if(typeof Trend!=='undefined'&&Trend.left)Trend.left()"><i></i>CS (30 分の停車) で傾けて充電する</label>
    <div class="dim team-note">外すと、ゲーム本戦の CS では平置きのまま充電し、戦略・速度の指示・傾向もそれを前提に計算します (朝・夕方は傾ける)。</div>
    <label class="chk team-chk"><input type="checkbox" ${P.crewProc!==false?"checked":""} onchange="P.crewProc=this.checked;const c=document.getElementById('crew-proc');if(c)c.checked=this.checked;Team.saved()"><i></i>乗降手順を実践 (CS・17 時・朝)</label>
+   <div class="team-sec">AI (Google Gemini)</div>
+   <label class="chk team-chk"><input type="checkbox" ${P.aiOn===true?"checked":""} onchange="P.aiOn=this.checked;Team.saved();Team.aiState()"><i></i>AI を使う (この端末だけ)</label>
+   <label class="drvf"><span class="lb">API キー (Google AI Studio で発行。この端末のブラウザにだけ保存)</span><input type="password" id="team-aikey" autocomplete="off" placeholder="未設定" value="${AI.key()?"••••••••":""}" onchange="if(this.value!=='••••••••'){AI.setKey(this.value);this.value=AI.key()?'••••••••':'';}Team.aiState()"></label>
+   <label class="drvf"><span class="lb">モデル (空欄なら ${AI.MODEL})</span><input id="team-aimodel" maxlength="40" value="${escHtml(P.aiModel||"")}" onchange="P.aiModel=this.value.replace(/[^a-z0-9.\-]/gi,'');Team.saved()"></label>
+   <div class="team-act"><button class="btn ana-sm" onclick="Team.aiTest(this)">接続を確かめる</button><button class="btn ana-sm" onclick="AI.setKey('');document.getElementById('team-aikey').value='';Team.aiState()">キーを消す</button></div>
+   <div class="dim team-note" id="team-aist"></div>
+   <div class="dim team-note">朝・夕方の話し合いのセリフ、CS での戦略のひとこと、分析画面の「AI に聞く」に使います。送るのは % ・ km ・ 時刻 ・ 順位などの相対的な値だけで、電力量・車両の値・名前は送りません。実車モデルのときは使いません。使えないときは今までどおりの固定のセリフです。</div>
    <div class="team-sec">規則で決まっていること</div>
    ${this.row("朝の充電","6:15〜8:00 (傾けて)")}${this.row("夕方の充電","17:00〜日没 (傾けて)")}${this.row("夜","19:15〜6:15 は電池を切り離す")}${this.row("スタート","毎朝 8:00")}`; },
  /* ---- ドライバー ---- */
@@ -64,6 +71,8 @@ const Team={
   return ["1 人目 (スタート時に乗る)","2 人目 (交代で乗る)","3 人目 (任意)","4 人目 (任意)"].map((lb,i)=>`<label class="drvf"><span class="lb">${lb}</span><input id="team-d${i+1}" maxlength="20" value="${escHtml(d[i]||"")}" onchange="Team.setDrivers()"></label>`).join("")+`
    <div class="team-sec">チームの話し合い (朝・夕方) で話す人</div>${Object.entries(Coffee.ROLES).map(([k,lb])=>`<label class="drvf"><span class="lb">${lb}</span><input data-crew="${k}" maxlength="16" placeholder="名前 (空欄なら役職だけ)" value="${escHtml((P.crewNames||{})[k]||"")}" onchange="Team.setCrew(this)"></label>`).join("")}
    <div class="dim team-note">最大 4 人。走行ログ・分析画面・ドライバー成績で、ドライバーごとに分けて見るのに使います。朝の打ち合わせで、乗る順番と交代する CS を決めます。レースの開始時にも変えられます。</div>`; },
+ aiState(){ const el=document.getElementById("team-aist"); if(el){ const w=AI.why(); el.textContent=(w?`状態: ${w}`:"状態: 使えます")+"・"+AI.useText(); } },
+ async aiTest(b){ b.disabled=true; const el=document.getElementById("team-aist"); if(el) el.textContent="確かめています…"; const r=await AI.test(); b.disabled=false; if(el) el.textContent=r+"・"+AI.useText(); },
  setCrew(el){ P.crewNames={...(P.crewNames||{}),[el.dataset.crew]:this.clean(el.value)}; Settings.save(); },
  clean(s,def){ return String(s||"").replace(/[<>&"'\\]/g,"").trim().slice(0,20)||def||""; },
  drivers(){ return Array.isArray(P.drivers)? P.drivers : []; },
