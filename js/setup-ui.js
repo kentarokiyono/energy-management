@@ -144,7 +144,7 @@ function resetQuali(){ if(!confirm("予選のベストラップを消去しま�
 /* ---- 設定の保存 (この端末のブラウザ): 既定値から変えた項目だけを保存し、起動時に戻す ---- */
 const Settings={
  KEY:"bwsc_settings", PKEYS:null, def:null,
- keys(){ return this.PKEYS||(this.PKEYS=["shape","panel","infiniteBattery","crewProc","uiMode","logStepM","gfx","realWeather","ffb","ffbInv","ffbTune","orders","showFps","demo60","tts","fcErr","ordersK","pvAltS","pvTiltK","lossK","planLate","raceStorm","useTargets","targetCls","csTilt","realK","drivers",...SLIDERS.map(s=>s.id)]); },
+ keys(){ return this.PKEYS||(this.PKEYS=["shape","panel","infiniteBattery","crewProc","uiMode","logStepM","gfx","realWeather","ffb","ffbInv","ffbTune","orders","showFps","demo60","ghost","tts","fcErr","ordersK","pvAltS","pvTiltK","lossK","planLate","raceStorm","useTargets","targetCls","csTilt","realK","drivers","coffee","coffeeSpeed","crewNames","aiOn","aiModel",...SLIDERS.map(s=>s.id)]); },
  snapshot(){ const o={P:{},PRO:{}}; for(const k of this.keys()) o.P[k]=P[k]; for(const [k] of PRO_FIELDS) o.PRO[k]=PRO[k]; o.PRO.noSpeedCap=PRO.noSpeedCap;
   o.ts=document.getElementById("time-scale").value; o.evCourse=EventGame.course; o.evLevel=EventGame.level; o.evPractice=EventGame.practice; o.testKind=P.testKind; return o; },
  load(){
@@ -173,7 +173,7 @@ const Settings={
   { const pl=document.getElementById("plan-late"); if(pl) pl.checked=!!P.planLate; }
   { const rs=document.getElementById("race-storm"); if(rs) rs.checked=P.raceStorm!==false; }
   { const ut=document.getElementById("use-targets"); if(ut) ut.checked=!!P.useTargets; const tc=document.getElementById("target-cls"); if(tc) tc.value=P.targetCls||"all"; }
-  { const fp=document.getElementById("fps-on"); if(fp) fp.checked=!!P.showFps; const d6=document.getElementById("demo60-on"); if(d6) d6.checked=!!P.demo60; }
+  { const fp=document.getElementById("fps-on"); if(fp) fp.checked=!!P.showFps; const d6=document.getElementById("demo60-on"); if(d6) d6.checked=!!P.demo60; const gh=document.getElementById("ghost-on"); if(gh) gh.checked=P.ghost!==false; const cf=document.getElementById("coffee-on"); if(cf) cf.checked=P.coffee!==false; }
   document.getElementById("inf-batt").checked=!!P.infiniteBattery; document.getElementById("crew-proc").checked=!!P.crewProc;
   if(!Array.isArray(P.drivers)) P.drivers=[]; if(P.realK!=null&&(typeof P.realK!=="object"||Array.isArray(P.realK))) P.realK=null;
   if(P.testKind!=="circuit"){ document.getElementById("test-desc").textContent=TEST_DESC[P.testKind]; document.querySelectorAll("[data-test]").forEach(b=>b.classList.toggle("on",b.dataset.test===P.testKind)); }
@@ -193,11 +193,11 @@ let DRIVER_NAMES=null;
 const DrvDlg={
  open(){ if(P.mode!=="race"){ Fade.go(startGame); return; }
   const last=Array.isArray(P.drivers)? P.drivers : [];
-  document.getElementById("drv-n1").value=last[0]||""; document.getElementById("drv-n2").value=last[1]||"";
+  for(let i=1;i<=4;i++) document.getElementById("drv-n"+i).value=last[i-1]||"";
   show("drv-dlg",true); setTimeout(()=>document.getElementById("drv-n1").focus(),50); },
  close(){ show("drv-dlg",false); },
  ok(){ const clean=(id,def)=>(document.getElementById(id).value||"").replace(/[<>&"'\\]/g,"").trim().slice(0,20)||def;
-  DRIVER_NAMES=[clean("drv-n1","ドライバーA"),clean("drv-n2","ドライバーB")];
+  DRIVER_NAMES=[clean("drv-n1","ドライバーA"),clean("drv-n2","ドライバーB"),clean("drv-n3",""),clean("drv-n4","")].filter(Boolean);   // 3・4 人目は入れたときだけ
   P.drivers=[...DRIVER_NAMES]; Settings.save();
   this.close(); Fade.go(startGame); },
 };

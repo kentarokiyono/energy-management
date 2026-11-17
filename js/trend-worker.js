@@ -34,7 +34,7 @@ function solar(cd,W,km,abs,tilted,fc){
  const day=Math.floor(abs/24)+1, h=abs-(day-1)*24, th=abs+C.dayOff*24, s=C.segAt(km), lat=s.lat, lon=s.lon;
  const alt=sunPos(lat,lon,C.doy0+day-1,h); if(alt<=0) return 0;
  let k=cd.solarK*cd.dayK[Math.min(6,day-1)]; if(day>=4&&day<=6) k*=(1-cd.late);
- if(fc){ k=cd.solarK*cd.fcDayK[Math.min(6,day-1)]; }   // 予報 (後半の悪化は知らない)
+ if(fc){ const dd=Math.min(6,day-1), is=Math.min(6,Math.max(0,cd.fcIss||0)); k=cd.solarK*(cd.fcM? cd.fcM[is][dd] : cd.fcDayK[dd]); }   // 予報 (後半の悪化は知らない)。fcM[その朝の予報の日][対象の日]: 先の日ほどずれが大きい
  const dni=wx(W,"dni",km,th+0.5)*k, dhi=wx(W,"dhi",km,th+0.5)*(0.5+0.5*k), cz=Math.sin(alt);   /* 日射は「その前の 1 時間の平均」なので半時間ずらす (ゲームと同じ) */
  let G;
  if(tilted){ const tr=C.tilt*D2R, ci=Math.max(0,Math.cos(Math.PI/2-alt-tr)); G=dni*ci*iam(ci)+dhi*(1+Math.cos(tr))/2*0.95+C.albedo*(dni*cz+dhi)*(1-Math.cos(tr))/2*0.9; G*=C.tiltK; }
@@ -50,11 +50,11 @@ function airExtra(cd,W,km,abs,s,vk){ const th=abs+C.dayOff*24, vm=vk/3.6, ws=wx(
 const CAP=()=>C.cal&&C.cal.cap? C.cal.cap : 1,   /* 電池の電力量の倍率 */
  KL=(km)=>{ const c=C.cal; if(!c) return 1; const L=c.legs; if(L&&km!=null){ let j=0; while(j<C.cs.length&&km>=C.cs[j].km) j++; return c.load*(L[j]||1); } return c.load; },   /* 消費の倍率: 全体 × CS 間ごと */ KT=()=>C.cal&&C.cal.time? C.cal.time : 1, bat=(x)=>C.cal? x*(x<0? C.cal.batD : C.cal.batC) : x;
 /* 予報の発電 (見積もり用に 20 km × 15 分で丸めて覚えておく) */
-function fcSolar(cd,W,km,abs,tilted){ const kb=Math.round(km/20), hb=Math.round(abs*4), key=(kb*4000+hb)*2+(tilted?1:0); let v=cd._c.get(key); if(v===undefined){ v=solar(cd,W,Math.min(C.total,kb*20),hb/4,tilted,true); cd._c.set(key,v); } return v; }
+function fcSolar(cd,W,km,abs,tilted){ const kb=Math.round(km/20), hb=Math.round(abs*4), key=((kb*4000+hb)*2+(tilted?1:0))*8+Math.min(7,Math.max(0,cd.fcIss||0)); let v=cd._c.get(key); if(v===undefined){ v=solar(cd,W,Math.min(C.total,kb*20),hb/4,tilted,true); cd._c.set(key,v); } return v; }
 /* 実際の発電 (2 km × 3 分で丸めて覚えておく。同じ条件の方針どうしで使い回す) */
 function actSolar(cd,W,km,abs,tilted){ const kb=Math.round(km/2), hb=Math.round(abs*20), key=(kb*20000+hb)*2+(tilted?1:0); let v=cd._a.get(key); if(v===undefined){ v=solar(cd,W,Math.min(C.total,kb*2),hb/20,tilted,false); cd._a.set(key,v); } return v; }
 /* 方針: 今から一定速度 v で走ったときに、電池が下限を割らずに Day6 17 時までにゴールできるか (予報で、1 時間刻み) */
-function feasible(cd,pl,W,st,v){ const WhC=cd.Wh*CAP();
+function feasible(cd,pl,W,st,v){ const WhC=cd.Wh*CAP(); cd.fcIss=Math.floor(st.abs/24);   // 見積もりはその日の朝の予報で
  let abs=st.abs, km=st.km, e=st.soc*WhC, ci=st.csI||0, rem=0; const fl=pl.floor*WhC, late=(a)=>(Math.floor(a/24)+1>=4? 1-pl.lateBias : 1);
  for(let guard=0;guard<400&&km<C.total;guard++){ const day=Math.floor(abs/24), h=abs-day*24;
   if(abs>=8*24+17) return true;   // 電池の見積もりは締め切りを気にせず最後まで (間に合わないかは走った結果で判定)
@@ -100,7 +100,7 @@ function run(cd,pl,trace){
   if(!FX&&abs>=nextPlan){ vPlan=planSpeed(cd,pl,W,{abs,km,soc,csI},nextPlan>0?vPlan:0); nextPlan=abs+pl.replanH; }
   const s=C.seg[i], g=s.g;
   let v= FX? FX[Math.min(FX.length-1,i)] : vPlan*Math.max(0.6,Math.min(1.25,1-pl.gradeK*g*20));   // 登りは遅く・下りは速く (FX: 決まった速度でなぞる)
-  const pNow=actSolar(cd,W,km,abs,false), pFc=fcSolar(cd,W,km,abs,false);
+  cd.fcIss=Math.floor(abs/24); const pNow=actSolar(cd,W,km,abs,false), pFc=fcSolar(cd,W,km,abs,false);
   if(!FX&&pFc>200&&pNow<pFc*0.6) v*=1-pl.cloudSlow;   // 予報より暗い (雲): 減速
   if(!FX&&soc>0.97&&pNow>pDrive(v,g)) v*=1+pl.fullBoost;   // 満充電で発電が余る: 速く
   v=Math.max(15,Math.min(v,s.vlim,C.vTop));
@@ -130,10 +130,12 @@ function run(cd,pl,trace){
 /* 条件・方針の乱数 (傾向タブで決めた範囲から) */
 function sampleCond(r,R,years){ const u=(k)=>{ const x=R[k]; return x.fix!=null? x.fix : x.min+(x.max-x.min)*r(); };
  const year=years[Math.floor(r()*years.length)], fcLv=u("fcErr"), daySd=u("daySd");
- const dayK=[...Array(7)].map(()=>Math.max(0.5,1+gauss(r)*daySd)), fcDayK=dayK.map(k=>Math.max(0.5,k*(1+gauss(r)*fcLv)));
+ const dayK=[...Array(7)].map(()=>Math.max(0.5,1+gauss(r)*daySd));
+ /* 予報は毎朝出し直す。ずれの大きさは何日先かで変わる: 当日 0.5 倍、1 日先 0.8 倍、… 5 日先 2 倍 (fcLv は 2 日先あたりの大きさ) */
+ const leadK=(l)=>Math.min(2,0.5+0.3*l), fcM=[...Array(7)].map((_,c)=>dayK.map((k,d)=> d<c? k : Math.max(0.5,k*(1+gauss(r)*fcLv*leadK(d-c))))), fcDayK=fcM[0];
  const late=u("late"), stP=u("stormP"); let storm=null; if(r()<stP){ const d=3+Math.floor(r()*4); storm={start:(d-1)*24+12+r()*4.5,dur:0.4+r()*0.3,max:u("stormMax")}; }
  const Wh=C.Wh*u("batK"), gustK=R.gustK? u("gustK") : 1;
- return {year,daySd,fcLv,dayK,fcDayK,late,stormP:stP,storm,stormMax:storm?storm.max:0,solarK:u("solarK"),windK:u("windK"),tOff:u("tOff"),effK:u("effK"),lossK:u("lossK"),cdaK:u("cdaK"),batK:Wh/C.Wh,Wh,auxD:u("auxD"),auxW:C.auxW+u("auxD"),gustK,grid:Math.round(u("grid")),csWait:u("csWait")}; }
+ return {year,daySd,fcLv,dayK,fcDayK,fcM,late,stormP:stP,storm,stormMax:storm?storm.max:0,solarK:u("solarK"),windK:u("windK"),tOff:u("tOff"),effK:u("effK"),lossK:u("lossK"),cdaK:u("cdaK"),batK:Wh/C.Wh,Wh,auxD:u("auxD"),auxW:C.auxW+u("auxD"),gustK,grid:Math.round(u("grid")),csWait:u("csWait")}; }
 function samplePolicy(r,R){ const u=(k)=>{ const x=R[k]; return x.fix!=null? x.fix : x.min+(x.max-x.min)*r(); };
  return {vcap:u("vcap"),floor:u("floor"),fcBias:u("fcBias"),lateBias:u("lateBias"),gradeK:u("gradeK"),cloudSlow:u("cloudSlow"),fullBoost:u("fullBoost"),replanH:Math.round(u("replanH")),stormLead:Math.round(u("stormLead")),csExtra:Math.round(u("csExtra"))}; }
 /* 結果の 1 行: [方針, 完走, ゴール, 電池の最低, km, 平均速度, 使った電力量, 発電量, 理由, ...条件] */

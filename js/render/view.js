@@ -992,6 +992,7 @@ if(this.canopyMesh){ // ドライバー視点: キャノピーを内側から見
   cm.userData.inMat=[smoke,dark]; }   // 内側から: 窓はほぼ透明、黒い部分は見えない (写真と同じ視界)
  cm.material= inside? cm.userData.inMat : cm.userData.extMat;
  cm.visible=true; }
+if(typeof Ghost!=="undefined") Ghost.frame(this,es);   // 実車のゴースト (この端末に実車のログがあるとき)
 if(typeof Crew!=="undefined"){ Crew.update(dtR); }
 if(typeof Crew!=="undefined"&&Crew.camera(this)){}   // 乗降手順・車外歩行の視点
 else { if(this.cam>=2) this.camera.position.copy(camPos);
