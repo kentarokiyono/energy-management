@@ -286,10 +286,11 @@ const kbS=((k["a"]||k["arrowleft"])?-1:0)+((k["d"]||k["arrowright"])?1:0);
 if(Input.gamepadOK&&Math.abs(Input.gpSteer)>0.02){
  // ハンコン (ペダルを割り当て済み) はそのまま。スティックは中央付近を細かく (小さく倒すと少しだけ切れる)
  const g=Input.gpSteer, sIn= Input.map.accel? g : Math.sign(g)*Math.pow(Math.abs(g),1.6);
- Input.steer=lerp(Input.steer,clamp(sIn,-1,1),clamp(dt*(Input.map.accel?14:8),0,1)); Input.kbHold=0; return; }
+ Input.steer=lerp(Input.steer,clamp(sIn,-1,1),clamp(dt*(Input.map.accel?14:8),0,1)); Input.kbHold=0; Input.steerMode=Input.map.accel? "wheel" : "assist"; return; }
+Input.steerMode="assist";   // ハンコン: 前輪の舵角はハンドルの角度に比例。キーボード・スティック: 速いほど切れ方を抑える (Tire.steerAngle)
 /* キーボード: 人がハンドルを回す速さで切れていき、離すとタイヤの復元力で戻る。
  速いときは、押してすぐは車線変更くらいの切れ方 (横 G 約 0.3) まで。押し続けると限界まで切れる (緊急回避) */
-const inTest=typeof Test!=="undefined"&&Test.active, v=Math.abs((inTest?Test.v:es.v)||0), aFull= inTest? v*clamp(8.5/Math.max(v,3),0.15,1.2) : steerFullAccel(v);
+const inTest=typeof Test!=="undefined"&&Test.active, v=Math.abs((inTest?Test.v:es.v)||0), aFull=steerFullAccel(v);
 Input.kbHold= kbS!==0&&kbS===Input.kbDir? (Input.kbHold||0)+dt : 0; Input.kbDir=kbS;
 const base=clamp(lerp(6.0,3.0,clamp((v-8)/12,0,1))/Math.max(aFull,0.01),0.12,1), auth=lerp(base,1,clamp((Input.kbHold-0.6)/1.2,0,1));
 const tgt=kbS*auth, d=tgt-Input.steer, back=kbS===0||Math.sign(d)!==Math.sign(Input.steer)&&Input.steer!==0;
@@ -297,7 +298,7 @@ const rate= back? 2.2+clamp(v/12,0,2.2) : Math.max(0.5,auth*2.6);   // 戻りは
 Input.steer=clamp(Input.steer+clamp(d,-rate*dt,rate*dt),-1,1);
 }
 /* ハンドルをいっぱいに切ったときの横加速度 [m/s²] (その速さでの限界) */
-function steerFullAccel(v){ const vv=Math.max(v,0.5); return vv*Math.abs(typeof VEH!=="undefined"&&VEH.active&&VEH.spec.chassis&&typeof VehDyn!=="undefined"? VehDyn.yawRate(1,vv) : clamp(6.5/Math.max(vv,4),0.12,1.0)); }
+function steerFullAccel(v){ return typeof Tire!=="undefined"? Tire.fullAccel(Math.max(v,0.5)) : Math.max(v,0.5)*clamp(6.5/Math.max(v,4),0.12,1.0); }
 let calibrating=null;
 function openWheelConfig(){ show("wheel-config",true); refreshWheelLabels(); }
 function closeWheelConfig(){ show("wheel-config",false); }

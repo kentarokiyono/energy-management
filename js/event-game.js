@@ -444,7 +444,7 @@ replayFrame(){
  if(this.mt>last[1]+0.5){ this.scores[this.mi]=run.scores[this.mi]; this.next(); return; }
  let i=smp.findIndex(q=>q[1]>this.mt); if(i<0) i=smp.length-1; const a=smp[Math.max(0,i-1)], b=smp[i], t=clamp((this.mt-a[1])/((b[1]-a[1])||1),0,1);
  const km=lerp(a[2],b[2],t), lat=lerp(a[3],b[3],t), sv=View.sOfKm(km);
- if(sv>=0&&sv<View.road.builtS-1){ const p=View.roadPoint(sv); View.cx=p.x+Math.cos(p.h)*lat; View.cz=p.z+Math.sin(p.h)*lat; View.ch=p.h; }
+ if(sv>=0&&sv<View.road.builtS-1){ const p=View.roadPoint(sv); View.cx=p.x+Math.cos(p.h)*lat; View.cz=p.z+Math.sin(p.h)*lat; View.ch=p.h; View.tire=null; }
  s.v=0; this._rv=lerp(a[4],b[4],t); this.scores[this.mi]=run.scores[this.mi];
 },
 hvPose(smp,t){
