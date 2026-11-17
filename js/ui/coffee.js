@@ -147,8 +147,8 @@ const Coffee={
  /* 朝の充電 (6:15〜8:00、傾けて) の見込み [Wh] */
  morningWh(d,km){ const s=Engine.st, save={doy:s.dayOfYear,km:s.km,w:s.weather}, pr=profileAt(km); let wh=0;
   try{ Strategy.fcOn=true; s.dayOfYear=PRO.dayOfYear+d-1; s.km=km;
-   for(let h=6.25;h<8;h+=0.25){ const abs=(d-1)*24+h; s.weather= RealWx.on()? null : ((s.fc&&s.fc.plan)||s.weatherPlan||[]).find(w=>abs>=w.start&&abs<w.start+w.dur)||null;
-    const r=Engine.solarCalc(pr.lat,h,true,pr.lon,pr.elev); wh+=P.arrayArea*P.cellEff*P.mpptEff*r.G*PVLoss.k(r.alt,true)*PRO.solarScale*0.92*0.25; }
+   for(let h=6.25;h<8-Engine.FLAT_BEFORE_START-1e-6;h+=1/12){ const abs=(d-1)*24+h; s.weather= RealWx.on()? null : ((s.fc&&s.fc.plan)||s.weatherPlan||[]).find(w=>abs>=w.start&&abs<w.start+w.dur)||null;
+    const r=Engine.solarCalc(pr.lat,h,true,pr.lon,pr.elev); wh+=Model.pvSteady(r.G,r.alt,true,Model.ambient(pr.lat,pr.lon,s.dayOfYear,h),3)/12; }
   } finally{ Strategy.fcOn=false; s.dayOfYear=save.doy; s.km=save.km; s.weather=save.w; }
   return wh; },
  /* 臨機応変: 今日の残りの日射・明日の予報・電池で、攻め〜かなり守りを選ぶ (morning=true は朝の見込み用) */

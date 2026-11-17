@@ -70,7 +70,7 @@ uiMode:('ontouchstart' in window)?"mobile":"pc",
 const PRO={
 startSoc:1.0, vFull:107.5, vEmpty:75.0,
 kt:4.3, noLoadRpm:900, ktPower:3.35, rpmPower:1060, tireR:0.26,
-phaseMaxA:0 /* 0 = モーター最大電流の 2 倍 */, cAlpha:24000 /* N/rad, 3 輪合計 */, cdYawK:7,
+phaseMaxA:0 /* 0 = モーター最大電流の 2 倍 */, cAlpha:24000 /* N/rad, 3 輪合計 */, cdYawK:2.5, cdYaw0:10 /* 実測が無いときの汎用: 風の角度 cdYaw0 [°] までは増えず、そこから k·(β−β0)² (30° で約 1.3 倍) */,
 mRot:8, brakeMu:0.55, regenEff:0.92, airRho:0, rInternal:0.18,
 rWinding:0.12, ironK1:0.13, ironK2:0.00135, ctrlW:6, battCth:20000, battUA:4, albedo:0.28,
 tempOffset:0, windBase:6, solarScale:1.0, cloudFactor:1.0, dayOfYear:236,

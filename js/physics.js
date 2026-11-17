@@ -13,7 +13,7 @@ for(let i=1;i<OCV_TBL.length;i++){ const [s1,f1]=OCV_TBL[i]; if(soc<=s1){ const 
 return 1;
 }
 const VOC=soc=>PRO.vEmpty+(PRO.vFull-PRO.vEmpty)*ocvFrac(soc);
-const V_AVG=()=>{ let a=0; for(let i=0;i<20;i++) a+=VOC((i+0.5)/20); return a/20; };
+const V_AVG=(()=>{ let k0=NaN,k1=NaN,a=0; return ()=>{ if(PRO.vEmpty!==k0||PRO.vFull!==k1){ k0=PRO.vEmpty; k1=PRO.vFull; a=0; for(let i=0;i<20;i++) a+=VOC((i+0.5)/20); a/=20; } return a; }; })();   // 電圧の範囲が変わったときだけ計算し直す
 const CAP_AH=()=>P.batteryWh/V_AVG();
 // ---- 物理ヘルパ ----
 const Phys={
@@ -124,11 +124,11 @@ return {F,Pgen};
 }
 /* 旋回抵抗: タイヤのスリップ角 α = Fy/Cα による誘導抵抗 Fy·α (Cα: 全輪合計のコーナリングスティフネス) */
 function cornerDrag(m,gLat){ const Fy=m*GRAV*Math.abs(gLat||0); return Fy*Fy/Math.max(1000,PRO.cAlpha); }
-/* ヨー角 β [rad] での抗力係数倍率。諸元に表 (aero.cdYaw: [[deg, 倍率],...]) があれば補間、無ければ 1 + kβ² */
+/* ヨー角 β [rad] での抗力係数倍率。諸元に表 (aero.cdYaw: [[deg, 倍率],...]) があれば補間、無ければ 1 + k·(β−β0)² (β0 までは増えない) */
 function cdYawFactor(beta){
  const T=(typeof VEH!=="undefined"&&VEH.active&&VEH.spec.aero&&VEH.spec.aero.cdYaw)||null, d=Math.abs(beta)*180/Math.PI;
  if(T){ if(d<=T[0][0]) return T[0][1]; for(let i=1;i<T.length;i++) if(d<=T[i][0]){ const a=T[i-1],b=T[i]; return a[1]+(b[1]-a[1])*(d-a[0])/(b[0]-a[0]); } return T[T.length-1][1]; }
- return 1+PRO.cdYawK*beta*beta;
+ const b=Math.max(0,Math.abs(beta)-(PRO.cdYaw0||0)*Math.PI/180); return 1+PRO.cdYawK*b*b;
 }
 function csCloseAbs(km){ // Route Notes の公式クローズ時刻 (Day1=8/24 からの通算時間)
 const c=RP_CS.find(c=>Math.abs(c.km-km)<1); if(c) return Route.absHour(c.close);
