@@ -60,7 +60,7 @@ const Team={
    <div class="team-sec">AI (Google Gemini)</div>
    <label class="chk team-chk"><input type="checkbox" ${P.aiOn===true?"checked":""} onchange="P.aiOn=this.checked;Team.saved();Team.aiState()"><i></i>AI を使う (この端末だけ)</label>
    <label class="drvf"><span class="lb">API キー (Google AI Studio で発行。この端末のブラウザにだけ保存)</span><input type="password" id="team-aikey" autocomplete="off" placeholder="未設定" value="${AI.key()?"••••••••":""}" onchange="if(this.value!=='••••••••'){AI.setKey(this.value);this.value=AI.key()?'••••••••':'';}Team.aiState()"></label>
-   <label class="drvf"><span class="lb">モデル (空欄なら ${AI.MODEL})</span><input id="team-aimodel" maxlength="40" value="${escHtml(P.aiModel||"")}" onchange="P.aiModel=this.value.replace(/[^a-z0-9.\-]/gi,'');Team.saved()"></label>
+   <label class="drvf"><span class="lb">モデル (空欄なら ${AI.MODEL}。速くて安い Flash-Lite で十分。Pro 系は高い)</span><input id="team-aimodel" maxlength="40" value="${escHtml(P.aiModel||"")}" onchange="P.aiModel=this.value.replace(/[^a-z0-9.\-]/gi,'');Team.saved()"></label>
    <div class="team-act"><button class="btn ana-sm" onclick="Team.aiTest(this)">接続を確かめる</button><button class="btn ana-sm" onclick="AI.setKey('');document.getElementById('team-aikey').value='';Team.aiState()">キーを消す</button></div>
    <div class="dim team-note" id="team-aist"></div>
    <div class="dim team-note">朝・夕方の話し合いのセリフ、CS での戦略のひとこと、分析画面の「AI に聞く」に使います。送るのは % ・ km ・ 時刻 ・ 順位などの相対的な値だけで、電力量・車両の値・名前は送りません。実車モデルのときは使いません。使えないときは今までどおりの固定のセリフです。</div>
