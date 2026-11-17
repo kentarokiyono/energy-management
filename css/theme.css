@@ -774,6 +774,6 @@ body.coffee-on #game-container>*:not(#three-canvas):not(#coffee):not(#pause-over
 #crew-ui .crew-views button{ flex:1; padding:3px 0; font:12px var(--fn); color:var(--tx); background:#22262b; border:1px solid #3a3f46; cursor:pointer; }
 #crew-ui .crew-views button:hover{ border-color:var(--acc); }
 /* 運転席視点: ハンドルの液晶・バックビューを隠さないよう、指示の欄とゴーストの表示を画面の上へ */
-body.cam-drv #hud-order{ bottom:auto; top:calc(108px + clamp(200px,24vw,340px)*0.5625); }   /* 画面の上のバックビューの下 */
-body.cam-drv #ghost-tag{ bottom:auto; top:calc(158px + clamp(200px,24vw,340px)*0.5625); }
-body.touch-on.cam-drv #hud-order{ top:calc(84px + clamp(200px,24vw,340px)*0.5625); } body.touch-on.cam-drv #ghost-tag{ top:calc(128px + clamp(200px,24vw,340px)*0.5625); }
+body.cam-drv #hud-order{ bottom:auto; top:calc(108px + clamp(110px,12vw,170px)*0.5625); }   /* 画面の上のバックビューの下 */
+body.cam-drv #ghost-tag{ bottom:auto; top:calc(158px + clamp(110px,12vw,170px)*0.5625); }
+body.touch-on.cam-drv #hud-order{ top:calc(84px + clamp(110px,12vw,170px)*0.5625); } body.touch-on.cam-drv #ghost-tag{ top:calc(128px + clamp(110px,12vw,170px)*0.5625); }

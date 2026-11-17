@@ -127,7 +127,7 @@ const Cockpit={
    const img=new THREE.Mesh(g,new THREE.MeshBasicMaterial({map:V.rearRT.texture,depthTest:false,depthWrite:false,toneMapped:false}));
    sc.add(img); this._hud={sc,cam,img}; }
   const H=this._hud; H.img.material.map=V.rearRT.texture;
-  const r=V.renderer, w=Math.round(clamp(innerWidth*0.24,200,340)), h=Math.round(w*144/256), x=Math.round((innerWidth-w)/2), top=document.body.classList.contains("touch-on")? 76 : 100;   // 上の計器の帯の下
+  const r=V.renderer, w=Math.round(clamp(innerWidth*0.12,110,170)), h=Math.round(w*144/256), x=Math.round((innerWidth-w)/2), top=document.body.classList.contains("touch-on")? 76 : 100;   // 上の計器の帯の下
   const ac=r.autoClear; r.autoClear=false; r.setScissorTest(true); r.setViewport(x,innerHeight-top-h,w,h); r.setScissor(x,innerHeight-top-h,w,h);
   r.render(H.sc,H.cam);
   r.setScissorTest(false); r.setViewport(0,0,innerWidth,innerHeight); r.autoClear=ac;
