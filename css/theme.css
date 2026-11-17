@@ -747,3 +747,6 @@ body.coffee-on #game-container>*:not(#three-canvas):not(#coffee):not(#pause-over
  #coffee .cf-ttl{ padding:5px 10px; } #coffee .cf-clk{ font-size:20px; } #coffee .cf-kick{ font-size:11px; }
  #coffee .cf-sty button{ padding:7px 9px; } #coffee .cf-wxr{ grid-template-columns:92px 1fr 56px; font-size:12px; }
 }
+#coffee .cf-sty{ gap:6px; } #coffee .cf-sty button{ padding:8px 11px; gap:2px; }
+#coffee .cf-sty .cf-sn{ display:flex; align-items:baseline; gap:8px; } #coffee .cf-sty .cf-sn em{ font-style:normal; font-size:11px; font-weight:500; color:var(--tx2); }
+#coffee .cf-sty .cf-sn i{ margin-left:0; } #coffee .cf-sty .cf-sn b{ margin-left:auto; font-size:14px; font-variant-numeric:tabular-nums; }

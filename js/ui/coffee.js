@@ -2,11 +2,12 @@
 /* ============ 朝の打ち合わせ (コーヒータイム) 7:00〜7:50 ============
  本戦の毎朝 7:00 に、道ばたのキャンプでチームが集まる場面に切り替える。時間は 1 倍か 2 倍で流れる (P.coffeeSpeed)。
  議題: 1 昨日の振り返り (Day1 は予選とスタート順) / 2 天気予報 (今日〜先の日、先ほど外れの幅が大きい) /
-       3 今日の走り方 (攻め・標準・守り = 電池を残す量) / 4 ドライバー交代 (先に乗る人と交代する CS)
+       3 今日の走り方 (かなり攻め〜かなり守りの 5 段階 = 電池を残す量) / 4 ドライバー交代 (先に乗る人と交代する CS)
  「打ち合わせ終了」か 7:50 で終わり、乗り込み (7:50〜) へ。決めたことは Engine.st.coffee に残す (途中保存にも入る) */
 const Coffee={
  END:7+50/60, active:false, ending:false, step:0, scene:null, camera:null, t:0, est:null, job:null, wx:null, ui:null,
- STYLES:{atk:{name:"攻め",adj:-4,note:"電池を少なめに残して速く"},std:{name:"標準",adj:0,note:"予報のずれに合わせた残し方"},def:{name:"守り",adj:5,note:"電池を多めに残して慎重に"}},
+ STYLES:{atk2:{name:"かなり攻め",adj:-8,note:"電池をぎりぎりまで使って速く"},atk:{name:"攻め",adj:-4,note:"電池を少なめに残して速く"},std:{name:"普通",adj:0,note:"予報のずれに合わせた残し方"},
+  def:{name:"守り",adj:5,note:"電池を多めに残して慎重に"},def2:{name:"かなり守り",adj:10,note:"電池をたっぷり残して天気の急変に備える"}},
  STEPS:["昨日の振り返り","天気予報","今日の走り方","ドライバー交代"],
  on(){ const s=Engine.st; return P.coffee!==false&&P.mode==="race"&&!P.event&&!(typeof Demo!=="undefined"&&Demo.on)&&!!s&&!s.scenario&&!s.finished; },
  st(){ const s=Engine.st; if(!s.coffee) s.coffee={done:0,style:"std",plan:{},log:{}}; return s.coffee; },
@@ -105,7 +106,7 @@ const Coffee={
   } finally{ Strategy.fcOn=false; s.dayOfYear=save.doy; s.km=save.km; s.weather=save.w; }
   if(this.est&&this.est.std) this.wx=out; return out; },
  place(km){ const c=RP_CS.filter(q=>q.km<=km+40).pop(); return c? `${c.name} 付近` : "Darwin 付近"; },
- recommend(){ const w=this.forecast()[0], s=Engine.st; if(!w) return "std"; if(w.k<0.75) return "def"; if(w.k>=0.92&&s.soc>=0.85) return "atk"; return "std"; },
+ recommend(){ const w=this.forecast()[0], s=Engine.st; if(!w) return "std"; if(w.k<0.6) return "def2"; if(w.k<0.75) return "def"; if(w.k>=0.95&&s.soc>=0.95) return "atk2"; if(w.k>=0.92&&s.soc>=0.85) return "atk"; return "std"; },
  /* ---------- 画面 ---------- */
  showUI(on){ let u=this.ui; if(!u){ u=this.ui=document.createElement("div"); u.id="coffee"; document.getElementById("game-container").appendChild(u);
    u.addEventListener("click",e=>this.click(e)); u.addEventListener("change",e=>this.change(e)); }
@@ -139,9 +140,9 @@ const Coffee={
  /* 3: 今日の走り方 */
  s3(s,c,p){ const rec=this.recommend();
   return `<div class="cf-sty">${Object.entries(this.STYLES).map(([k,v])=>{ const e=this.est&&this.est[k];
-   return `<button data-style="${k}" class="${p.style===k?"on":""}"><span class="cf-sn">${v.name}${k===rec?`<i>おすすめ</i>`:""}</span><span class="dim">${v.note}</span>
-    ${e? `<span>今日は <b>${e.kmToday.toFixed(0)} km</b> まで${e.cs?` (CS${e.cs.n} ${e.cs.name} まで)`:""}</span><span class="dim">巡航 ${e.v} km/h・電池の最小 ${(e.minSoc*100).toFixed(0)} %・ゴール ${e.ok?fmtAbsH(e.finish):"届かない見込み"}</span>` : `<span class="dim">見込みを計算中…</span>`}</button>`; }).join("")}</div>
-   <div class="dim cf-note">選んだ走り方は推奨速度と無線の速度指示に使います。電池を残す量: 攻め −4 %・守り +5 % (標準に対して)。</div>`; },
+   return `<button data-style="${k}" class="${p.style===k?"on":""}" title="${v.note}"><span class="cf-sn">${v.name}<em>${v.adj>0?"+":v.adj<0?"−":"±"}${Math.abs(v.adj)} %</em>${k===rec?`<i>おすすめ</i>`:""}${e? `<b>${e.kmToday.toFixed(0)} km</b>` : ""}</span>
+    ${e? `<span class="dim">${e.cs?`CS${e.cs.n} ${e.cs.name} まで・`:""}巡航 ${e.v} km/h・電池の最小 ${(e.minSoc*100).toFixed(0)} %・ゴール ${e.ok?fmtAbsH(e.finish):"届かない見込み"}</span>` : `<span class="dim">見込みを計算中…</span>`}</button>`; }).join("")}</div>
+   <div class="dim cf-note">選んだ走り方は推奨速度と無線の速度指示に使います。% は電池を残す量 (普通に対して)、km は今日行けそうな距離。</div>`; },
  /* 4: ドライバー交代 */
  s4(s,c,p){ const D=this.drivers(), e=this.est&&(this.est[p.style]||this.est.std), lim=e? e.kmToday+0.1 : s.km+700;
   const cs=RP_CS.filter(q=>q.km>s.km-0.2&&q.km<=lim);
