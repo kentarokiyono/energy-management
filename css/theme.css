@@ -768,3 +768,12 @@ body.coffee-on #game-container>*:not(#three-canvas):not(#coffee):not(#pause-over
 #ana-aibox .aib-in{ display:flex; gap:8px; } #ana-aibox textarea{ flex:1; resize:vertical; padding:6px 8px; font:13px var(--fn); background:#0d0e10; color:var(--tx); border:1px solid var(--ln); }
 #ana-aibox .aib-out{ font-size:13px; line-height:1.75; white-space:normal; min-height:1em; }
 #ana-aibox .aib-note{ font-size:11.5px; line-height:1.6; }
+/* 乗降手順: 手順をクリックで視点を合わせる・視点ボタン (PC でも) */
+#crew-ui .crew-aim{ pointer-events:auto; cursor:pointer; text-decoration:underline; text-decoration-color:var(--acc); text-underline-offset:3px; }
+#crew-ui .crew-views{ display:flex; gap:4px; margin:2px 0 6px; pointer-events:auto; }
+#crew-ui .crew-views button{ flex:1; padding:3px 0; font:12px var(--fn); color:var(--tx); background:#22262b; border:1px solid #3a3f46; cursor:pointer; }
+#crew-ui .crew-views button:hover{ border-color:var(--acc); }
+/* 運転席視点: ハンドルの液晶・バックビューを隠さないよう、指示の欄とゴーストの表示を画面の上へ */
+body.cam-drv #hud-order{ bottom:auto; top:104px; }
+body.cam-drv #ghost-tag{ bottom:auto; top:150px; }
+body.touch-on.cam-drv #hud-order{ top:84px; } body.touch-on.cam-drv #ghost-tag{ top:124px; }

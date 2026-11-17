@@ -113,7 +113,7 @@ const Cockpit={
  /* 後ろ向きのカメラを車体の後端に置き、ドライバー視点のときだけ 3 フレームに 1 回描く */
  renderRear(V){
   if(!V.rearRT||!V.car||V.cam!==2||(typeof Crew!=="undefined"&&!Crew.inCar())) return;
-  if((V.rearFrame=(V.rearFrame+1)%3)!==0) return;
+  if((V.rearFrame=((V.rearFrame|0)+1)%3)!==0) return;
   if(!this._rearZ){ const bb=new THREE.Box3().setFromObject(V.carBody||V.car), inv=new THREE.Matrix4().copy(V.car.matrixWorld).invert(); bb.applyMatrix4(inv); this._rearZ=bb.max.z+.05; this._rearY=Math.max(.5,bb.max.y*.7); }
   const c=V.rearCam; c.position.copy(V.car.localToWorld(new THREE.Vector3(0,this._rearY,this._rearZ)));
   c.lookAt(V.car.localToWorld(new THREE.Vector3(0,this._rearY-.3,this._rearZ+30)));
