@@ -370,8 +370,10 @@ if(dtR>0) s.tireReq={drive:Ftrac,brake:FbFric,regen:Fr};
 let Fx=Ftrac-Fbrake;
 if(s.tireFx!=null&&Math.abs(s.tireFxReq)>1&&Math.sign(s.tireFxReq)===Math.sign(Fx)) Fx*=clamp(s.tireFx/s.tireFxReq,0,1);
 const Fnet=Fx-Froll-Fdrag-Fslope-Fcorner;
-s.v=Math.max(0,s.v+Fnet/mEff*dtR);
-if(dtR>0){ s.gLong=(Fnet/mEff)/GRAV; s.gPitch=((Fnet+Fslope)/mEff)/GRAV; }   // gPitch: 車体を前後に傾ける加減速 (坂の重力の成分は車体全体に効くので、前後の荷重移動には入れない)
+const v0=s.v; s.v=Math.max(0,s.v+Fnet/mEff*dtR);
+/* 加減速 [G] は実際の速度の変化から (止まっているときにブレーキを踏んでも 0。タイヤの荷重移動・車体の沈み込みに使う)。
+ gPitch: 路面に沿う力 (タイヤの前後の力) による沈み込み = 加速度 + 坂の重力の成分 (坂で止まっていても少し傾く) */
+if(dtR>0){ const a=(s.v-v0)/dtR; s.gLong=a/GRAV; s.gPitch=(a+Fslope/mEff)/GRAV; }
 // 速度は実時間 dtR で変わるが、電力量はゲーム内時間 dtS で積算する。加減速 (運動エネルギーの出入り) の分は
 // 実時間でしか起きないので dtR/dtS 倍する (×1 なら同じ)。一定速度を保つ分 (走行抵抗とつり合う力) はそのまま。
 const kT= dtS>0? dtR/dtS : 1;
@@ -399,7 +401,7 @@ else s.limitTimer=0;
 if(View.redSignalKm!=null && prev<View.redSignalKm && s.km>=View.redSignalKm && s.v*3.6>5){
 Snd.alarm(); toast("🚨 赤信号を通過しました!","#ef4444"); View.redSignalKm=null; if(P.event) EventGame.onRedRun();
 }
-} else { s.v=Math.max(0,s.v-3*dtR); I_cmd=0; Pmotor=0; }
+} else { const v0=s.v; s.v=Math.max(0,s.v-3*dtR); if(dtR>0){ s.gLong=(s.v-v0)/dtR/GRAV; s.gPitch=s.gLong; } I_cmd=0; Pmotor=0; }
 s.lastAmp=I_cmd; s.lastMotorW=Math.max(0,s.lastMotorNow!=null?s.lastMotorNow:Pmotor); s.lastMotorNow=null;
 let Paux = s.disconnected ? 0 : (s.camp?2:P.auxW);
 if(s.fault&&s.fault.type==="aux") Paux+=150;

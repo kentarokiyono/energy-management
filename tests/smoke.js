@@ -173,7 +173,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
    Team.setReal(null); P.realK=null; if(Trend.syncTeam) Trend.syncTeam(); const e2={...Trend.COND.effK};   // 外して「既定の比に戻す」: 最初と同じ範囲 Team.open("real"); const ui=document.querySelector('#team .team-pane[data-p="real"]').textContent.includes("実車との比")||true;
    const veh=!!document.querySelector("#team #sec-body")&&!!document.querySelector("#team #sec-veh"); Team.close();
    return {ask,rk,mid:rk&&Number.isFinite(rk.solar)? Math.abs((e1.min+e1.max)/2-rk.solar)<0.002 : false,saved:!!saved.realK,back:e2.min===e0.min&&e2.max===e0.max,veh,tabs:document.querySelectorAll("#team .team-tabs button").length}; });
-  check("車両・チームの設定: 実車との比 (ログ → 設定 → 傾向の範囲)・車両の欄",tm.ask&&tm.rk&&tm.mid&&tm.saved&&tm.back&&tm.veh&&tm.tabs===5,JSON.stringify(tm));
+  check("車両・チームの設定: 実車との比 (ログ → 設定 → 傾向の範囲)・車両の欄・タブ 6 つ (足回りを含む)",tm.ask&&tm.rk&&tm.mid&&tm.saved&&tm.back&&tm.veh&&tm.tabs===6,JSON.stringify(tm));
   // かんたん表示: 「調べる」で完走率・推奨の走り方 (言葉)・改善の候補 (同じ条件の並びで比べる)
   const ez=await p.evaluate(async()=>{ const keepCs=P.csTilt; P.csTilt=false; Trend.EASY_BUDGET=[400,1000]; Trend.EASY_N=120; Trend.setView("easy"); await Trend.easyRun(); const E=Trend.easy, ui=document.getElementById("tr-easy").textContent;
    P.csTilt=keepCs; Trend.setView("detail"); return E&&{rate:E.base.rate,n:E.base.n,words:E.words.length,lev:E.lev.map(l=>l.k).join(","),cs:(E.lev.find(l=>l.k==="cs")||{}).d,ui:ui.includes("完走率")&&ui.includes("推奨の走り方")&&ui.includes("一番効く改善"),years:Trend.cfg.years}; });
@@ -426,6 +426,22 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   await p.mouse.click(200,200); await p.waitForTimeout(200);
   const c=await p.evaluate(()=>({closed:!document.getElementById("standby"),q:location.search}));
   check("待機画面",o.open&&o.anim==="sbSpin"&&o.faces===2&&/radial-gradient/.test(o.bg)&&c.closed&&c.q==="",JSON.stringify([o,c]));
+  await p.context().close(); }
+ // ---- サスペンション: 止まってブレーキでは沈まない・走りながらのブレーキで前が沈む・曲がると外へ傾く・車体を透かすとアームが見える ----
+ { const p=await newPage(b,base);
+  const r=await p.evaluate(()=>{ P.mode="race"; P.event=false; P.crewProc=false; startGame(); running=false; modalPause=false;
+   const es=Engine.st, run=(sec,f)=>{ for(let t=0;t<sec;t+=1/60){ if(f) f(); Engine.step(1/60,1/60); View.update(1/60); } };
+   es.hour=Math.max(es.hour,es.gridStartH+0.01); es.stopTimer=0; es.gear="D";
+   es.v=0; run(1.5,()=>{ es.v=0; es.brakePhys=1; es.throttleSet=0; }); const rest={g:es.gPitch,th:View.susp.th};
+   es.brakePhys=0; es.v=20; run(1,()=>{ es.throttleSet=0.3; }); run(0.5,()=>{ es.brakePhys=1; }); const brake={g:es.gPitch,th:View.susp.th}; es.brakePhys=0;
+   es.v=20; run(1.5,()=>{ es.v=20; Input.steer=0.6; }); const turn={ph:View.susp.ph,gLat:es.gLat}; Input.steer=0;
+   P.xray=true; View.update(1/60); const U=View.car.userData.susp, x={vis:!!(U&&U.g.visible),parts:U?U.parts.length:0,tr:(()=>{ let t=false; View.car.userData.body.traverse(o=>{ if(o.isMesh&&o.material&&o.material.transparent&&o.material.opacity<0.2) t=true; }); return t; })()};
+   P.xray=false; View.update(1/60); x.off=!U.g.visible;
+   return {rest,brake,turn,x}; });
+  check("止まってブレーキを踏んでも車体は沈まない (加速度 0)",Math.abs(r.rest.g)<1e-6&&Math.abs(r.rest.th)<1e-4,`${r.rest.g.toFixed(4)} G・${(r.rest.th*57.3).toFixed(3)}°`);
+  check("走りながらブレーキで前が沈む",r.brake.g<-0.2&&r.brake.th<-0.001,`${r.brake.g.toFixed(2)} G・${(r.brake.th*57.3).toFixed(2)}°`);
+  check("右へ曲がると車体は外 (左) へ傾く",r.turn.gLat>0.1&&r.turn.ph<-0.002,`${r.turn.gLat.toFixed(2)} G・${(r.turn.ph*57.3).toFixed(2)}°`);
+  check("車体を透かすとサスペンションの部品が見える (戻すと隠れる)",r.x.vis&&r.x.parts>=3&&r.x.tr&&r.x.off,JSON.stringify(r.x));
   await p.context().close(); }
  // ---- 戦略の先読みと実際の走行 (Engine.step) が一致する・天気番号で同じ天気・空が描画距離の内側 ----
  { const p=await newPage(b,base);

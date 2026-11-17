@@ -245,6 +245,7 @@ if(e.key.toLowerCase()==="x") toggleSignal(2);
 if(e.key.toLowerCase()==="q"&&running) document.getElementById("ask-panel").classList.toggle("hidden");
 if(e.key.toLowerCase()==="b"&&running) boost();
 if(e.key.toLowerCase()==="n"&&running) toggleGear();
+if(e.key.toLowerCase()==="t"&&running){ P.xray=!P.xray; Settings.save(); toast(P.xray?"車体を透かす: サスペンションが見えます (T で戻す)":"車体を透かす: 切","#34d399"); }
 if(e.key==="Backspace"&&Test.active){ e.preventDefault(); Test.retry(); }
 });
 addEventListener("keyup",e=>Input.keys[e.key.toLowerCase()]=false);

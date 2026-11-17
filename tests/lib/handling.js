@@ -4,9 +4,10 @@
 module.exports=`globalThis.HT={
  /* o: {pts: 道筋の点 [[x,y],...] (無ければ舵角 delta を使う), delta: 舵角 [rad] または t→舵角, u: 速さ [m/s] (一定) または free (ブレーキ・駆動で変わる),
   u0, brake, drive [N], mu, Fside [N], tmax [s], stop: (状態)→true で終わり, dRate: 舵の速さ [rad/s], preview: 先読みの時間 [s], ffK・kE: 運転の強さ}
-  → {t, x, y, h, maxBeta, maxUse, lockF (前輪が最初にロックした時刻), lockR, path: 間引いた軌跡 [[x,y,h]], wheels: 車輪の軌跡の最大の半径用} */
+  susp: false でサスペンションなし (荷重は釣り合いの式)
+  → {t, x, y, h, maxRoll (車体の傾きの最大 [rad]), maxBeta, maxUse, lockF (前輪が最初にロックした時刻), lockR, path: 間引いた軌跡 [[x,y,h]], wheels: 車輪の軌跡の最大の半径用} */
  run(o){
-  const p=Tire.params(), st=Tire.init(), dt=0.01; let x=o.x0||0, y=o.y0||0, h=o.h0||0, u=o.u!=null? o.u : o.u0, t=0, dl=0, iN=0;
+  const p=Tire.params(), st=Tire.init(), sp=Susp.init(), dt=0.01; let fyT=0; let x=o.x0||0, y=o.y0||0, h=o.h0||0, u=o.u!=null? o.u : o.u0, t=0, dl=0, iN=0;
   const r={maxBeta:0,maxUse:0,lockF:null,lockR:null,path:[],slideT:0};
   while(t<(o.tmax||60)){
    let dc=0;
@@ -20,10 +21,12 @@ module.exports=`globalThis.HT={
     dc=Math.atan(p.L*kap)*(o.ffK||1.15)+eh+Math.atan2(-(o.kE||1.5)*e,Math.abs(u)+1); }
    else dc= typeof o.delta==="function"? o.delta(t) : (o.delta||0);
    dc=clamp(dc,-p.steerMax,p.steerMax); const dr=(o.dRate||1.2)*dt; dl+=clamp(dc-dl,-dr,dr);
-   const R=Tire.step(st,{u,delta:dl,brake:o.brake||0,drive:o.drive||0},{mu:o.mu==null?1:o.mu,Fside:typeof o.Fside==="function"? o.Fside(t) : (o.Fside||0)},dt);
+   const Fs=typeof o.Fside==="function"? o.Fside(t) : (o.Fside||0), env={mu:o.mu==null?1:o.mu,Fside:Fs};
+   if(o.susp!==false){ Susp.step(sp,{ax:st.ax||0,Fy:fyT,Fside:Fs},dt); env.Fz=sp.Fz; env.camber=sp.camber; }   // サスペンション (走行と同じ)。susp:false で釣り合いの式
+   const R=Tire.step(st,{u,delta:dl,brake:o.brake||0,drive:o.drive||0},env,dt); fyT=R.fy;
    if(o.u==null){ st.ax=R.fx/p.m; u=Math.max(0,u+R.fx/p.m*dt); }
    h+=st.r*dt; x+=(Math.cos(h)*u-Math.sin(h)*st.vy)*dt; y+=(Math.sin(h)*u+Math.cos(h)*st.vy)*dt; t+=dt;
-   r.maxBeta=Math.max(r.maxBeta,Math.abs(Tire.beta(st,u))); r.maxUse=Math.max(r.maxUse,st.use||0); if(st.slide) r.slideT+=dt;
+   r.maxBeta=Math.max(r.maxBeta,Math.abs(Tire.beta(st,u))); r.maxRoll=Math.max(r.maxRoll||0,Math.abs(sp.ph||0)); r.maxUse=Math.max(r.maxUse,st.use||0); if(st.slide) r.slideT+=dt;
    if(R.wheels){ if(r.lockF==null&&R.wheels.some(w=>w.front&&w.lock)) r.lockF=t; if(r.lockR==null&&R.wheels.some(w=>!w.front&&w.lock)) r.lockR=t; }
    if(o.wheelR){ for(const w of p.wh){ const wx=x+Math.cos(h)*w.px-Math.sin(h)*w.py, wy=y+Math.sin(h)*w.px+Math.cos(h)*w.py; r.wx=r.wx||[]; r.wx.push([wx,wy]); } }
    if(Math.round(t/dt)%10===0) r.path.push([x,y,h]);

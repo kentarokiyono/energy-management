@@ -5,12 +5,12 @@
  ・P.csTilt: CS (30 分の停車) で傾けて充電できるか。ゲーム本戦・戦略・傾向が共通で使う
  ・P.drivers: ドライバーの名前 (1 人目・2 人目) */
 const Team={
- tab:"veh", TABS:[["veh","車両","car"],["real","実車との比","activity"],["cal","合わせ込み","sliders"],["ops","運用","sun"],["drv","ドライバー","users"]],
+ tab:"veh", TABS:[["veh","車両","car"],["sus","足回り","sliders"],["real","実車との比","activity"],["cal","合わせ込み","sliders"],["ops","運用","sun"],["drv","ドライバー","users"]],
  el(){ let e=document.getElementById("team");
   if(!e){ e=document.createElement("div"); e.id="team"; e.className="fixed inset-0 z-50 hidden items-center justify-center";
    e.innerHTML=`<div class="card2 team-card"><div class="hd"><span class="lb">Vehicle &amp; Team</span><button class="btn ana-sm" onclick="Team.close()">${this.ic("x")}閉じる</button></div>
     <h2>車両・チームの設定</h2><div class="seg team-tabs">${this.TABS.map(([k,l,i])=>`<button type="button" data-t="${k}">${this.ic(i)}${l}</button>`).join("")}</div>
-    <div class="team-body"><div class="team-pane" data-p="veh"><div class="team-src" id="team-veh-src"></div><div id="team-veh"></div></div><div class="team-pane" data-p="real"></div><div class="team-pane" data-p="cal"></div><div class="team-pane" data-p="ops"></div><div class="team-pane" data-p="drv"></div></div></div>`;
+    <div class="team-body"><div class="team-pane" data-p="veh"><div class="team-src" id="team-veh-src"></div><div id="team-veh"></div></div><div class="team-pane" data-p="sus"></div><div class="team-pane" data-p="real"></div><div class="team-pane" data-p="cal"></div><div class="team-pane" data-p="ops"></div><div class="team-pane" data-p="drv"></div></div></div>`;
    document.body.appendChild(e);
    e.querySelector(".team-tabs").addEventListener("click",ev=>{ const b=ev.target.closest("button"); if(b) this.show(b.dataset.t); });
    e.addEventListener("click",ev=>{ if(ev.target===e) this.close(); });
@@ -53,6 +53,19 @@ const Team={
   return `${this.row("状態",st)}${o? this.row("発電 (走行中)",f(k.solar))+this.row("発電 (傾けて)",f(k.tilt))+this.row("消費",f(k.load))+this.row("電池の容量",f(k.cap))+(Number.isFinite(k.rms)?this.row("CS ごとの電池のずれ",k.rms.toFixed(1)+" %"):"") : ""}
    <div class="team-act"><button class="btn ana-sm" onclick="Team.go('trend')">${this.ic("play")}戦略を考える (傾向) で合わせ込む</button></div>
    <div class="dim team-note">傾向の速い計算を、ゲームのエンジンの走りに合わせる倍率です。車両の値を変えたら合わせ直してください。</div>`; },
+ /* ---- 足回り (サスペンション) ---- */
+ sus(){ const p=Susp.params(), f=(x,d)=>Number.isFinite(x)? x.toFixed(d) : "―", o=P.susp||{}, S=(VEH.active&&VEH.spec.susp)||{};
+  const rows=Susp.TUNE.map(([k,l,u,lo,hi,st])=>{ const v=Susp.val(k), src= o[k]!=null? "設定" : S[k]!=null? "実車の値" : "既定";
+   return `<div class="team-row"><span class="lb">${l}</span><span class="num"><input type="number" class="team-num" step="${st}" min="${lo}" max="${hi}" value="${v}" onchange="Susp.set('${k}',this.value);Team.render('sus')"> ${u}</span><span class="dim">${src}</span></div>`; }).join("");
+  const fw=p.wh.find(w=>w.front&&w.geo.tab), cam= fw? Susp.geoAt(fw,0.03).camber*180/Math.PI : NaN;
+  return `<label class="chk team-chk"><input type="checkbox" ${P.xray?"checked":""} onchange="P.xray=this.checked;Settings.save()"><i></i>車体を透かしてサスペンションを見る (走行中は T キー)</label>
+   <div class="team-sec">ばね・ダンパー・アーム</div>${rows}
+   <div class="team-act"><button class="btn ana-sm" onclick="Susp.reset();Team.render('sus')">${this.ic("x")}既定に戻す</button></div>
+   <div class="team-sec">計算した値</div>
+   ${this.row("ロールセンター (前)",f(p.hF*1000,0)+" mm","地面から")}${this.row("ロール軸 (重心の位置)",f(p.hRA*1000,0)+" mm","")}
+   ${this.row("30 mm 縮んだときのキャンバー (前)",f(cam,2)+" °","− = 上が内側")}
+   ${this.row("ばね (車輪の位置で)",p.wh.map(w=>`${w.front?"前":"後"} ${f(w.k/1000,1)}`).join(" / ")+" N/mm","")}
+   <div class="dim team-note">前はダブルウィッシュボーン (アッパーアーム・ロアアーム・アップライト)、後ろはスイングアーム。ばねの硬さは車体の揺れの周期 (Hz) で決めます。実車の値は非公開の諸元ファイル (susp) に入れると既定になります。</div>`; },
  /* ---- 運用 ---- */
  ops(){ setTimeout(()=>this.aiState(),0); return `<label class="chk team-chk"><input type="checkbox" ${P.csTilt!==false?"checked":""} onchange="P.csTilt=this.checked;Team.saved();if(typeof Trend!=='undefined'&&Trend.left)Trend.left()"><i></i>CS (30 分の停車) で傾けて充電する</label>
    <div class="dim team-note">外すと、ゲーム本戦の CS では平置きのまま充電し、戦略・速度の指示・傾向もそれを前提に計算します (朝・夕方は傾ける)。</div>
