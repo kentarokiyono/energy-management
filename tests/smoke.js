@@ -38,13 +38,20 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   await p.evaluate(()=>{ P.coffee=true; P.coffeeSpeed=2; P.mode="race"; P.event=false; P.crewProc=false; DRIVER_NAMES=["A1","B2","C3","D4"]; startGame(); });
   await p.waitForFunction(()=>Coffee.active&&Coffee.scene&&Coffee.est&&Coffee.est.def&&!Coffee.job,null,{timeout:120000}).catch(()=>{});
   const r=await p.evaluate(async()=>{ const es=Engine.st, o={h:+es.hour.toFixed(3),act:Coffee.active,ui:!!document.querySelector("#coffee .cf-panel"),hud:getComputedStyle(document.getElementById("hud-top")).visibility,
-    drv:Crew.drivers.length,est:Coffee.est&&Object.values(Coffee.est).every(e=>e.kmToday>es.km),wx:Coffee.forecast().length};
+    drv:Crew.drivers.length,est:Coffee.est&&Object.values(Coffee.est).every(e=>e.kmDay>es.km),wx:Coffee.forecast().length};
    for(let i=0;i<4;i++){ Coffee.step=i; Coffee.draw(); } o.steps=document.querySelectorAll("#coffee .cf-steps button").length;
    const pl=Coffee.st().plan[es.day]; document.querySelector('#coffee [data-act="end"]'); pl.style="def"; pl.first=1; pl.swaps=[{n:1,to:3}]; const f0=Strategy.floor();
    Coffee.finish(); await new Promise(r=>setTimeout(r,2600)); o.f=+(Strategy.floor()-f0).toFixed(3); o.first=Crew.driverIdx; o.after=!Coffee.active&&es.coffee.done===es.day;
    o.hud2=getComputedStyle(document.getElementById("hud-top")).visibility; Engine.beginCS(RP_CS[0]); o.swap=Crew.drivers[Crew.driverIdx].name;
    es.coffee.style="flex"; es.coffee.flexK="zz"; es.coffee.flexT=-9; es.camp=false; Coffee.tick(es); o.flex=es.coffee.flexK; es.coffee.style="bet"; o.bet=Strategy.simulate(60).ok!==undefined&&Coffee.bet(); return o; });
   check("朝の打ち合わせ: 7:00 に場面と議題 4 つ・見込み・予報、決めた走り方とドライバー交代が走行に効く",r.h>=7&&r.h<7.5&&r.ui&&r.hud==="hidden"&&r.drv===4&&r.est&&r.wx>=2&&r.steps===4&&r.f===0.08&&r.first===1&&r.after&&r.hud2==="visible"&&r.swap==="D4"&&["atk2","atk","std","def","def2"].includes(r.flex)&&r.bet&&noErr(p).length===0,JSON.stringify(r)+" "+noErr(p).slice(0,2).join(" | "));
+  // 夕方の話し合い (18:30〜19:15): 明日の予定の仮決めが翌朝の初期値になる
+  await p.evaluate(()=>{ const es=Engine.st; es.coffee.style="std"; es.stopTimer=0; es.stopKind=null; es.camp=true; es.finished=false; es.hour=18.49; modalPause=false; if(typeof StopMenu!=="undefined"&&StopMenu.active) StopMenu.close(); });
+  await p.waitForFunction(()=>Coffee.active&&Coffee.kind==="pm"&&Coffee.scene,null,{timeout:60000}).catch(()=>{});
+  const pm=await p.evaluate(async()=>{ const es=Engine.st, d=es.day+1, o={kind:Coffee.kind,steps:document.querySelectorAll("#coffee .cf-steps button").length,pop:!!document.querySelector("#coffee .cf-pop.on")};
+   for(let i=0;i<4;i++){ Coffee.step=i; Coffee.draw(); Coffee.say(); } o.lines=Coffee.lines.length; Coffee.st().plan[d].style="def2"; Coffee.finish(); await new Promise(r=>setTimeout(r,2600));
+   o.night=es.coffee.plan[d].night&&es.coffee.plan[d].night.style; o.done=es.coffee.pmDone===es.day&&!Coffee.active; return o; });
+  check("夕方の話し合い: 18:30 に 4 つの議題と話す人、明日の予定を仮決め",pm.kind==="pm"&&pm.steps===4&&pm.pop&&pm.lines>=3&&pm.night==="def2"&&pm.done&&noErr(p).length===0,JSON.stringify(pm));
   await p.context().close(); }
  // ---- 練習シナリオ (スコール) と無線の速度指示 ----
  { const p=await newPage(b,base);

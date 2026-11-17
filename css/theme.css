@@ -750,3 +750,14 @@ body.coffee-on #game-container>*:not(#three-canvas):not(#coffee):not(#pause-over
 #coffee .cf-sty{ gap:6px; } #coffee .cf-sty button{ padding:8px 11px; gap:2px; }
 #coffee .cf-sty .cf-sn{ display:flex; align-items:baseline; gap:8px; } #coffee .cf-sty .cf-sn em{ font-style:normal; font-size:11px; font-weight:500; color:var(--tx2); }
 #coffee .cf-sty .cf-sn i{ margin-left:0; } #coffee .cf-sty .cf-sn b{ margin-left:auto; font-size:14px; font-variant-numeric:tabular-nums; }
+/* 話す人: 左にふわっと出るセリフ + 頭の上の名札 */
+#coffee .cf-pop{ position:absolute; left:16px; top:110px; width:min(400px,calc(100vw - 500px)); padding:12px 16px 14px; background:rgba(13,14,16,.86); border-left:4px solid var(--rc,#f97316); backdrop-filter:blur(6px);
+ opacity:0; transform:translateX(-24px) scale(.97); transition:opacity .25s, transform .25s; cursor:pointer; pointer-events:none; }
+#coffee .cf-pop.on{ opacity:1; transform:none; pointer-events:auto; animation:cfPop .45s cubic-bezier(.2,1.4,.4,1) both; }
+@keyframes cfPop{ from{ opacity:0; transform:translateX(-30px) scale(.94); } to{ opacity:1; transform:none; } }
+#coffee .cf-pop b{ display:block; font-size:12px; letter-spacing:.12em; color:var(--rc,#f97316); margin-bottom:4px; }
+#coffee .cf-pop p{ margin:0; font-size:15px; line-height:1.7; }
+#coffee .cf-pop .cf-cnt{ position:absolute; right:10px; bottom:6px; font-size:10px; color:var(--dim); }
+#coffee .cf-tag{ position:absolute; transform:translate(-50%,-100%); padding:3px 9px; font-size:12px; white-space:nowrap; background:rgba(13,14,16,.8); border:1px solid #fff; border-radius:2px; pointer-events:none; opacity:0; transition:opacity .2s; }
+@media (max-width:900px){ #coffee .cf-pop{ top:64px; width:min(360px,46vw); } #coffee .cf-pop p{ font-size:13px; } }
+@media (max-height:520px){ #coffee .cf-pop{ top:60px; left:8px; width:min(330px,40vw); padding:8px 12px; } #coffee .cf-pop p{ font-size:12.5px; line-height:1.55; } }

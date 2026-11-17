@@ -62,7 +62,9 @@ const Team={
  /* ---- ドライバー ---- */
  drv(){ const d=this.drivers();
   return ["1 人目 (スタート時に乗る)","2 人目 (交代で乗る)","3 人目 (任意)","4 人目 (任意)"].map((lb,i)=>`<label class="drvf"><span class="lb">${lb}</span><input id="team-d${i+1}" maxlength="20" value="${escHtml(d[i]||"")}" onchange="Team.setDrivers()"></label>`).join("")+`
+   <div class="team-sec">チームの話し合い (朝・夕方) で話す人</div>${Object.entries(Coffee.ROLES).map(([k,lb])=>`<label class="drvf"><span class="lb">${lb}</span><input data-crew="${k}" maxlength="16" placeholder="名前 (空欄なら役職だけ)" value="${escHtml((P.crewNames||{})[k]||"")}" onchange="Team.setCrew(this)"></label>`).join("")}
    <div class="dim team-note">最大 4 人。走行ログ・分析画面・ドライバー成績で、ドライバーごとに分けて見るのに使います。朝の打ち合わせで、乗る順番と交代する CS を決めます。レースの開始時にも変えられます。</div>`; },
+ setCrew(el){ P.crewNames={...(P.crewNames||{}),[el.dataset.crew]:this.clean(el.value)}; Settings.save(); },
  clean(s,def){ return String(s||"").replace(/[<>&"'\\]/g,"").trim().slice(0,20)||def||""; },
  drivers(){ return Array.isArray(P.drivers)? P.drivers : []; },
  setDrivers(a){ if(!a) a=[1,2,3,4].map(i=>document.getElementById("team-d"+i).value); a=a.map(x=>this.clean(x)); while(a.length>2&&!a[a.length-1]) a.pop(); P.drivers=a.slice(0,4); Settings.save(); },
