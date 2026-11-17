@@ -21,7 +21,7 @@ function check(name,ok,info){ out.push(`${ok?"PASS":"FAIL"}  ${name}${info?"  ("
   await p.goto(base+"index.html"); await p.waitForFunction(()=>typeof startGame==="function"); await p.waitForTimeout(300);
   const r=await p.evaluate(async(real)=>{
    { let a=(real?0x51ED:0xC0FFEE)>>>0; Math.random=()=>{ a=(a+0x6D2B79F5)>>>0; let t=a; t=Math.imul(t^(t>>>15),t|1); t^=t+Math.imul(t^(t>>>7),t|61); return ((t^(t>>>14))>>>0)/4294967296; }; }   // 乱数を決まった種で (毎回同じ走りに)
-   window.pushChart=()=>{}; P.gfx="low"; P.mode="race"; P.event=false; P.crewProc=false; P.realWeather=real; P.fcErr="mid"; P.tts="off";
+   window.pushChart=()=>{}; P.gfx="low"; P.mode="race"; P.event=false; P.crewProc=false; P.coffee=false; P.realWeather=real; P.fcErr="mid"; P.tts="off";
    document.getElementById("time-scale").value="60"; startGame(); running=false;   // 描画のループを止めて、エンジンだけを回す
    const es=Engine.st; es.gridStartH=8; StopMenu.active=false;
    const bad=[], note=(m)=>{ if(bad.length<8) bad.push(m); };

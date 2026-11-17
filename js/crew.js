@@ -101,7 +101,7 @@ timeScale(es,ts){
  if(this.phase==="egress"||this.phase==="ingress") return 1;
  const c=this.ctx;
  if(c&&c.kind==="cs") return es.stopHold? 1 : 20;   // 計測中は ×20 (30 分 = 90 秒)
- if(c&&c.kind==="camp"){ const sH=Engine.raceStartHour(); if(es.hour>=sH-0.4&&es.hour<17) return 10; return es.disconnected?2400:300; }
+ if(c&&c.kind==="camp"){ const sH=Engine.raceStartHour(); if(es.hour>=sH-1/6&&es.hour<17) return 10; return es.disconnected?2400:300; }   // 7:50 から乗り込み (7:00〜7:50 は朝の打ち合わせ)
  return 1;
 },
 allDoneExcept(ids){ return this.INGRESS.every(s=>ids.includes(s.id)||s.done(this.st)); },
@@ -177,10 +177,12 @@ act(id){
   }
  }
 },
+/* ドライバーの名前 (1〜4 人)。体重は 2 人目だけ既定 62 kg、ほかは乗ったときの値を覚える */
+setDrivers(names){ const n=(names||[]).filter(Boolean).slice(0,4); if(!n.length) return; this.drivers=n.map((name,i)=>({name,kg:i===1?62:null})); this.driverIdx=0; },
+setDriver(i){ if(!this.drivers[i]||i===this.driverIdx) return; const cur=this.drivers[this.driverIdx]; if(cur&&cur.kg==null) cur.kg=P.massDriver;
+ this.driverIdx=i; const d=this.drivers[i]; if(d.kg==null) d.kg=P.massDriver; P.massDriver=d.kg; },
 swapDriver(){
- if(this.drivers[0].kg==null) this.drivers[0].kg=P.massDriver;
- this.driverIdx=(this.driverIdx+1)%this.drivers.length;
- const d=this.drivers[this.driverIdx]; P.massDriver=d.kg;
+ this.setDriver((this.driverIdx+1)%this.drivers.length); const d=this.drivers[this.driverIdx];
  this.prep={ballast:false,helmet:false,radio:false,water:false};
  toast(`🔁 ${d.name} (${d.kg} kg) に交代。乗車準備をやり直してください`,"#34d399");
 },

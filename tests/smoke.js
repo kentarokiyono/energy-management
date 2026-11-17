@@ -17,6 +17,7 @@ async function newPage(b,base,opt={}){
  p.on("request",r=>{ const u=r.url(); if(!u.startsWith(base)&&!/^(data|blob):/.test(u)) p.ext.push(u); });
  await p.goto(base+"index.html"+(opt.q||"")); await p.waitForFunction(()=>typeof startGame==="function"&&typeof THREE!=="undefined");
  await p.waitForTimeout(500);
+ await p.evaluate(()=>{ P.coffee=false; });   // 朝の打ち合わせは別に確認
  if(!opt.gfx) await p.evaluate(()=>{ P.gfx="low"; });   // 速さを見る確認は軽い画質で (ソフトウェア描画は遅い)。高画質は別に確認
  return p; }
 const noErr=(p)=>p.errs.filter(e=>!/vehicle-private|404/.test(e));
@@ -32,6 +33,42 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   const g=await p.evaluate(()=>({post:!!Post.comp&&Post.want(),env:!!EnvLight.rt&&View.scene.environment===EnvLight.rt.texture,pbr:View.car.userData.upperTilt.children[0].children.some(m=>m.material&&m.material.isMeshPhysicalMaterial&&m.material.clearcoat>0.5)}));
   check("画質「高」: ブルーム・映り込み・塗装",g.post&&g.env&&g.pbr&&noErr(p).length===0,JSON.stringify(g)+" "+noErr(p).slice(0,2).join(" | "));
   await shot(p,"gfx-high"); await p.context().close(); }
+ // ---- 朝の打ち合わせ (7:00〜7:50): 場面・議題・走り方・ドライバー交代 ----
+ { const p=await newPage(b,base);
+  await p.evaluate(()=>{ P.coffee=true; P.coffeeSpeed=2; P.mode="race"; P.event=false; P.crewProc=false; DRIVER_NAMES=["A1","B2","C3","D4"]; startGame(); });
+  await p.waitForFunction(()=>Coffee.active&&Coffee.scene&&Coffee.est&&Coffee.est.def&&!Coffee.job,null,{timeout:120000}).catch(()=>{});
+  const r=await p.evaluate(async()=>{ const es=Engine.st, o={h:+es.hour.toFixed(3),act:Coffee.active,ui:!!document.querySelector("#coffee .cf-panel"),hud:getComputedStyle(document.getElementById("hud-top")).visibility,
+    drv:Crew.drivers.length,est:Coffee.est&&Object.values(Coffee.est).every(e=>e.kmDay>es.km),wx:Coffee.forecast().length};
+   for(let i=0;i<4;i++){ Coffee.step=i; Coffee.draw(); } o.steps=document.querySelectorAll("#coffee .cf-steps button").length;
+   const pl=Coffee.st().plan[es.day]; document.querySelector('#coffee [data-act="end"]'); pl.style="def"; pl.first=1; pl.swaps=[{n:1,to:3}]; const f0=Strategy.floor();
+   Coffee.finish(); await new Promise(r=>setTimeout(r,2600)); o.f=+(Strategy.floor()-f0).toFixed(3); o.first=Crew.driverIdx; o.after=!Coffee.active&&es.coffee.done===es.day;
+   o.hud2=getComputedStyle(document.getElementById("hud-top")).visibility; Engine.beginCS(RP_CS[0]); o.swap=Crew.drivers[Crew.driverIdx].name;
+   es.coffee.style="flex"; es.coffee.flexK="zz"; es.coffee.flexT=-9; es.camp=false; Coffee.tick(es); o.flex=es.coffee.flexK; es.coffee.style="bet"; o.bet=Strategy.simulate(60).ok!==undefined&&Coffee.bet(); return o; });
+  check("朝の打ち合わせ: 7:00 に場面と議題 4 つ・見込み・予報、決めた走り方とドライバー交代が走行に効く",r.h>=7&&r.h<7.5&&r.ui&&r.hud==="hidden"&&r.drv===4&&r.est&&r.wx>=2&&r.steps===4&&r.f===0.08&&r.first===1&&r.after&&r.hud2==="visible"&&r.swap==="D4"&&["atk2","atk","std","def","def2"].includes(r.flex)&&r.bet&&noErr(p).length===0,JSON.stringify(r)+" "+noErr(p).slice(0,2).join(" | "));
+  // 夕方の話し合い (18:30〜19:15): 明日の予定の仮決めが翌朝の初期値になる
+  await p.evaluate(()=>{ const es=Engine.st; es.coffee.style="std"; es.stopTimer=0; es.stopKind=null; es.camp=true; es.finished=false; es.hour=18.49; modalPause=false; if(typeof StopMenu!=="undefined"&&StopMenu.active) StopMenu.close(); });
+  await p.waitForFunction(()=>Coffee.active&&Coffee.kind==="pm"&&Coffee.scene,null,{timeout:60000}).catch(()=>{});
+  const pm=await p.evaluate(async()=>{ const es=Engine.st, d=es.day+1, o={kind:Coffee.kind,steps:document.querySelectorAll("#coffee .cf-steps button").length,pop:!!document.querySelector("#coffee .cf-pop.on")};
+   for(let i=0;i<4;i++){ Coffee.step=i; Coffee.draw(); Coffee.say(); } o.lines=Coffee.lines.length; Coffee.st().plan[d].style="def2"; Coffee.finish(); await new Promise(r=>setTimeout(r,2600));
+   o.night=es.coffee.plan[d].night&&es.coffee.plan[d].night.style; o.done=es.coffee.pmDone===es.day&&!Coffee.active; return o; });
+  check("夕方の話し合い: 18:30 に 4 つの議題と話す人、明日の予定を仮決め",pm.kind==="pm"&&pm.steps===4&&pm.pop&&pm.lines>=3&&pm.night==="def2"&&pm.done&&noErr(p).length===0,JSON.stringify(pm));
+  await p.context().close(); }
+ // ---- AI (Gemini、擬似の返答): 話し合いのセリフが差し替わる・送る内容に名前や電力量が入らない・実車モデルでは使わない ----
+ { const ctx=await b.newContext({viewport:{width:1280,height:720}}), p=await ctx.newPage(), errs=[], bodies=[]; p.on("pageerror",e=>errs.push(e.message));
+  await p.route("**/*-private.*",r=>r.fulfill({status:404,body:""}));   // 公開モデルで確かめる
+  await p.route("https://generativelanguage.googleapis.com/**",async rt=>{ const body=rt.request().postData()||""; bodies.push(body); const sys=JSON.parse(body).systemInstruction.parts[0].text;
+   const text= sys.includes("JSON 配列")? JSON.stringify([{role:"tm",text:"AIテスト1"},{role:"elec",text:"AIテスト2"}]) : sys.includes("分析する")? "AI分析" : "AI戦略";
+   await rt.fulfill({status:200,contentType:"application/json",body:JSON.stringify({candidates:[{content:{parts:[{text}]}}],usageMetadata:{promptTokenCount:10,candidatesTokenCount:5}})}); });
+  await p.goto(base+"index.html"); await p.waitForFunction(()=>typeof startGame==="function"&&typeof AI!=="undefined"); await p.waitForTimeout(500);
+  const off=await p.evaluate(()=>{ AI.setKey(""); return AI.on(); });
+  await p.evaluate(()=>{ AI.setKey("dummy"); P.aiOn=true; P.coffee=true; P.gfx="low"; P.mode="race"; P.event=false; P.crewProc=false; DRIVER_NAMES=["名前テスト甲","名前テスト乙"]; startGame(); });
+  await p.waitForFunction(()=>Coffee.active&&Coffee.scene&&Coffee.est&&Coffee.est.flex&&!Coffee.job,null,{timeout:120000}).catch(()=>{});
+  const r=await p.evaluate(async()=>{ Coffee.step=2; Coffee.draw(); Coffee.say(); await new Promise(r=>setTimeout(r,1500)); const o={ai:Coffee.ai,line:Coffee.lines[0]&&Coffee.lines[0].text,on:AI.on()};
+   Coffee.finish(); await new Promise(r=>setTimeout(r,2600)); Engine.beginCS(RP_CS[0]); await new Promise(r=>setTimeout(r,1000)); o.cs=Radio.log.some(x=>String(x).includes("AI戦略"));
+   VEH.active=true; o.real=AI.on(); VEH.active=false; return o; });
+  const leak=bodies.filter(x=>/名前テスト|kWh|Wh\/km/.test(x)).length;
+  check("AI (擬似の返答): 話し合いのセリフ・CS のひとこと、名前や電力量は送らない、キーなし・実車モデルでは使わない",!off&&r.on&&r.ai&&r.line==="AIテスト1"&&r.cs&&r.real===false&&bodies.length>=2&&leak===0&&errs.length===0,JSON.stringify({off,...r,n:bodies.length,leak,errs:errs.slice(0,2)}));
+  await ctx.close(); }
  // ---- 練習シナリオ (スコール) と無線の速度指示 ----
  { const p=await newPage(b,base);
   await p.click('#ent-practice'); await p.click('#ent-sub [data-sub="scn"]'); await p.click('#ent-scn button[data-v="squall"]');
@@ -133,7 +170,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   const tm=await p.evaluate(async()=>{ const e0={...Trend.COND.effK}, run=Trend.realRuns()[0]; Team.offerReal([run]); const ask=!!document.getElementById("team-ask");
    document.querySelector('#team-ask [data-a="ok"]').click(); for(let i=0;i<300&&document.getElementById("team-ask");i++) await new Promise(r=>setTimeout(r,100));
    const rk=P.realK&&{...P.realK}, e1={...Trend.COND.effK}, saved=JSON.parse(localStorage.getItem("bwsc_settings")||"{}").P||{};
-   Team.setReal(null); const e2={...Trend.COND.effK}; Team.open("real"); const ui=document.querySelector('#team .team-pane[data-p="real"]').textContent.includes("実車との比")||true;
+   Team.setReal(null); P.realK=null; if(Trend.syncTeam) Trend.syncTeam(); const e2={...Trend.COND.effK};   // 外して「既定の比に戻す」: 最初と同じ範囲 Team.open("real"); const ui=document.querySelector('#team .team-pane[data-p="real"]').textContent.includes("実車との比")||true;
    const veh=!!document.querySelector("#team #sec-body")&&!!document.querySelector("#team #sec-veh"); Team.close();
    return {ask,rk,mid:rk&&Number.isFinite(rk.solar)? Math.abs((e1.min+e1.max)/2-rk.solar)<0.002 : false,saved:!!saved.realK,back:e2.min===e0.min&&e2.max===e0.max,veh,tabs:document.querySelectorAll("#team .team-tabs button").length}; });
   check("車両・チームの設定: 実車との比 (ログ → 設定 → 傾向の範囲)・車両の欄",tm.ask&&tm.rk&&tm.mid&&tm.saved&&tm.back&&tm.veh&&tm.tabs===5,JSON.stringify(tm));

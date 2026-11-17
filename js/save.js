@@ -34,7 +34,7 @@ const Save={
   if(typeof selectMode==="function") selectMode("race"); P.event=false;
   const ts=document.getElementById("time-scale"); if(r.tsSel&&[...ts.options].some(o=>o.value===r.tsSel)){ ts.value=r.tsSel; ts.dispatchEvent(new Event("change")); }
   const sc=document.getElementById("scenario"); if(sc) sc.value="";
-  if(r.info.drivers&&r.info.drivers.length===2) DRIVER_NAMES=r.info.drivers.slice();
+  if(r.info.drivers&&r.info.drivers.length>=1) DRIVER_NAMES=r.info.drivers.slice(0,4);
   this.pending=r; Fade.go(startGame);
  },
  /* startGame の中 (Engine.init と Route.build の後): レースの状態を戻す */

@@ -27,18 +27,22 @@ const Team={
  row(l,v,src,act){ return `<div class="team-row"><span class="lb">${l}</span><span class="num">${v}</span><span class="dim">${src||""}</span>${act||""}</div>`; },
  /* ---- 実車との比 ---- */
  real(){ const r=this.realK(), x=(k)=>k!=null&&Number.isFinite(k)? "×"+k.toFixed(3) : "なし";
-  const src=r? `${escHtml(r.src||"走行ログ")}${r.date?` (${escHtml(r.date)})`:""} から、${this.when(r.ts)}` : "";
+  const src=r? `${escHtml(r.src||"走行ログ")}${r.date?` (${escHtml(r.date)})`:""} から${r.builtin?" (非公開ファイルの既定)":"、"+this.when(r.ts)}` : "";
   const lk=Number.isFinite(P.lossK)&&Math.abs(P.lossK-1)>0.001, ok=Number.isFinite(P.ordersK)&&Math.abs(P.ordersK-1)>0.001;
   return `<div class="team-sec">傾向 (完走率の計算) が使う比</div>
    ${this.row("発電",r?x(r.solar):"なし",src)}${this.row("消費",r?x(r.load):"なし",src)}
-   <div class="team-act">${r?`<button class="btn ana-sm" onclick="Team.setReal(null)">${this.ic("x")}比を外す</button>`:""}<button class="btn ana-sm" onclick="Team.go('race')">${this.ic("upload")}走行ログを読み込む (振り返る)</button></div>
+   <div class="team-act">${r?`<button class="btn ana-sm" onclick="Team.setReal(null)">${this.ic("x")}比を外す</button>`:""}${P.realK&&P.realK.off&&VEH.active&&VEH.spec.realK?`<button class="btn ana-sm" onclick="P.realK=null;if(typeof Trend!=='undefined'&&Trend.syncTeam) Trend.syncTeam();Team.saved()">${this.ic("check")}既定の比に戻す</button>`:""}<button class="btn ana-sm" onclick="Team.go('race')">${this.ic("upload")}走行ログを読み込む (振り返る)</button></div>
    <div class="dim team-note">走行ログ (計測器の CSV・Excel) を読み込むと、その日の天気での計算と比べた比を入れるか聞きます。傾向では、この比を中心に ± 3 % の範囲を調べます。</div>
    <div class="team-sec">ゲームの車の補正 (分析画面の合わせ込み)</div>
    ${this.row("走行の消費のモデル",lk?"×"+P.lossK.toFixed(3):"なし","",lk?`<button class="btn ana-sm" onclick="P.lossK=1;Team.saved()">外す</button>`:"")}
    ${this.row("電流の指示",ok?"×"+(+P.ordersK).toFixed(3):"なし","",ok?`<button class="btn ana-sm" onclick="P.ordersK=1;Team.saved()">外す</button>`:"")}
    ${this.row("太陽の高さ別の発電",P.pvAltS?"ログから":"既定","",P.pvAltS?`<button class="btn ana-sm" onclick="P.pvAltS='';Team.saved()">外す</button>`:"")}`; },
- realK(){ const r=P.realK; return r&&typeof r==="object"&&(Number.isFinite(r.solar)||Number.isFinite(r.load))? r : null; },
+ /* 比: 設定で入れたもの → 無ければ非公開ファイル (vehicle-private.js の realK: 実車のログから出した既定の比)。「比を外す」と、この端末では使わない */
+ realK(){ const r=P.realK; if(r&&r.off) return null;
+  if(r&&typeof r==="object"&&(Number.isFinite(r.solar)||Number.isFinite(r.load))) return r;
+  const d=VEH.active&&VEH.spec.realK; return d&&(Number.isFinite(d.solar)||Number.isFinite(d.load))? {solar:d.solar,load:d.load,src:d.src||"実車の値 (非公開ファイル)",date:d.date||"",ts:0,builtin:true} : null; },
  setReal(r){ P.realK= r? {solar:Number.isFinite(r.solar)?+r.solar.toFixed(4):null,load:Number.isFinite(r.load)?+r.load.toFixed(4):null,src:String(r.src||"").slice(0,80),date:String(r.date||"").slice(0,40),ts:Date.now()} : null;
+  if(!r&&VEH.active&&VEH.spec.realK) P.realK={off:true};   // 非公開ファイルの既定の比も外す (この端末)
   if(typeof Trend!=="undefined"&&Trend.syncTeam) Trend.syncTeam(); this.saved(); },
  saved(){ Settings.save(); if(typeof Strategy!=="undefined") Strategy.last=null; if(!document.getElementById("team").classList.contains("hidden")) this.render(this.tab); },
  /* ---- 合わせ込み (傾向の速い計算をゲームのエンジンに) ---- */
@@ -50,19 +54,29 @@ const Team={
    <div class="team-act"><button class="btn ana-sm" onclick="Team.go('trend')">${this.ic("play")}戦略を考える (傾向) で合わせ込む</button></div>
    <div class="dim team-note">傾向の速い計算を、ゲームのエンジンの走りに合わせる倍率です。車両の値を変えたら合わせ直してください。</div>`; },
  /* ---- 運用 ---- */
- ops(){ return `<label class="chk team-chk"><input type="checkbox" ${P.csTilt!==false?"checked":""} onchange="P.csTilt=this.checked;Team.saved();if(typeof Trend!=='undefined'&&Trend.left)Trend.left()"><i></i>CS (30 分の停車) で傾けて充電する</label>
+ ops(){ setTimeout(()=>this.aiState(),0); return `<label class="chk team-chk"><input type="checkbox" ${P.csTilt!==false?"checked":""} onchange="P.csTilt=this.checked;Team.saved();if(typeof Trend!=='undefined'&&Trend.left)Trend.left()"><i></i>CS (30 分の停車) で傾けて充電する</label>
    <div class="dim team-note">外すと、ゲーム本戦の CS では平置きのまま充電し、戦略・速度の指示・傾向もそれを前提に計算します (朝・夕方は傾ける)。</div>
    <label class="chk team-chk"><input type="checkbox" ${P.crewProc!==false?"checked":""} onchange="P.crewProc=this.checked;const c=document.getElementById('crew-proc');if(c)c.checked=this.checked;Team.saved()"><i></i>乗降手順を実践 (CS・17 時・朝)</label>
+   <div class="team-sec">AI (Google Gemini)</div>
+   <label class="chk team-chk"><input type="checkbox" ${P.aiOn===true?"checked":""} onchange="P.aiOn=this.checked;Team.saved();Team.aiState()"><i></i>AI を使う (この端末だけ)</label>
+   <label class="drvf"><span class="lb">API キー (Google AI Studio で発行。この端末のブラウザにだけ保存)</span><input type="password" id="team-aikey" autocomplete="off" placeholder="未設定" value="${AI.key()?"••••••••":""}" onchange="if(this.value!=='••••••••'){AI.setKey(this.value);this.value=AI.key()?'••••••••':'';}Team.aiState()"></label>
+   <label class="drvf"><span class="lb">モデル (空欄なら ${AI.MODEL}。速くて安い Flash-Lite で十分。Pro 系は高い)</span><input id="team-aimodel" maxlength="40" value="${escHtml(P.aiModel||"")}" onchange="P.aiModel=this.value.replace(/[^a-z0-9.\-]/gi,'');Team.saved()"></label>
+   <div class="team-act"><button class="btn ana-sm" onclick="Team.aiTest(this)">接続を確かめる</button><button class="btn ana-sm" onclick="AI.setKey('');document.getElementById('team-aikey').value='';Team.aiState()">キーを消す</button></div>
+   <div class="dim team-note" id="team-aist"></div>
+   <div class="dim team-note">朝・夕方の話し合いのセリフ、CS での戦略のひとこと、分析画面の「AI に聞く」に使います。送るのは % ・ km ・ 時刻 ・ 順位などの相対的な値だけで、電力量・車両の値・名前は送りません。実車モデルのときは使いません。使えないときは今までどおりの固定のセリフです。</div>
    <div class="team-sec">規則で決まっていること</div>
    ${this.row("朝の充電","6:15〜8:00 (傾けて)")}${this.row("夕方の充電","17:00〜日没 (傾けて)")}${this.row("夜","19:15〜6:15 は電池を切り離す")}${this.row("スタート","毎朝 8:00")}`; },
  /* ---- ドライバー ---- */
  drv(){ const d=this.drivers();
-  return `<label class="drvf"><span class="lb">1 人目 (スタート時に乗る)</span><input id="team-d1" maxlength="20" value="${escHtml(d[0]||"")}" onchange="Team.setDrivers()"></label>
-   <label class="drvf"><span class="lb">2 人目 (交代で乗る)</span><input id="team-d2" maxlength="20" value="${escHtml(d[1]||"")}" onchange="Team.setDrivers()"></label>
-   <div class="dim team-note">走行ログ・分析画面・ドライバー成績で、ドライバーごとに分けて見るのに使います。レースの開始時にも変えられます。</div>`; },
+  return ["1 人目 (スタート時に乗る)","2 人目 (交代で乗る)","3 人目 (任意)","4 人目 (任意)"].map((lb,i)=>`<label class="drvf"><span class="lb">${lb}</span><input id="team-d${i+1}" maxlength="20" value="${escHtml(d[i]||"")}" onchange="Team.setDrivers()"></label>`).join("")+`
+   <div class="team-sec">チームの話し合い (朝・夕方) で話す人</div>${Object.entries(Coffee.ROLES).map(([k,lb])=>`<label class="drvf"><span class="lb">${lb}</span><input data-crew="${k}" maxlength="16" placeholder="名前 (空欄なら役職だけ)" value="${escHtml((P.crewNames||{})[k]||"")}" onchange="Team.setCrew(this)"></label>`).join("")}
+   <div class="dim team-note">最大 4 人。走行ログ・分析画面・ドライバー成績で、ドライバーごとに分けて見るのに使います。朝の打ち合わせで、乗る順番と交代する CS を決めます。レースの開始時にも変えられます。</div>`; },
+ aiState(){ const el=document.getElementById("team-aist"); if(el){ const w=AI.why(); el.textContent=(w?`状態: ${w}`:"状態: 使えます")+"・"+AI.useText(); } },
+ async aiTest(b){ b.disabled=true; const el=document.getElementById("team-aist"); if(el) el.textContent="確かめています…"; const r=await AI.test(); b.disabled=false; if(el) el.textContent=r+"・"+AI.useText(); },
+ setCrew(el){ P.crewNames={...(P.crewNames||{}),[el.dataset.crew]:this.clean(el.value)}; Settings.save(); },
  clean(s,def){ return String(s||"").replace(/[<>&"'\\]/g,"").trim().slice(0,20)||def||""; },
  drivers(){ return Array.isArray(P.drivers)? P.drivers : []; },
- setDrivers(a){ if(!a) a=[document.getElementById("team-d1").value,document.getElementById("team-d2").value]; P.drivers=a.map(x=>this.clean(x)); Settings.save(); },
+ setDrivers(a){ if(!a) a=[1,2,3,4].map(i=>document.getElementById("team-d"+i).value); a=a.map(x=>this.clean(x)); while(a.length>2&&!a[a.length-1]) a.pop(); P.drivers=a.slice(0,4); Settings.save(); },
  /* 他の画面へ: 振り返る (分析) / 戦略を考える (傾向) */
  go(c){ this.close(); Fade.go(()=>Ana.open(c)); },
  /* ---- 走行ログを読み込んだあと: 実車との比を出して入れるか聞く ---- */

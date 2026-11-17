@@ -38,15 +38,21 @@ FC_LEVEL:{off:null,low:{t:0.25,d:0.15,p:0},mid:{t:0.5,d:0.3,p:0.3},high:{t:1,d:0
 LATE_DROP:0.85,
 lateK(){ const s=this.st; if(!s||P.mode!=="race"||P.event||s.scenario) return 1; const d=s.dayOfYear-PRO.dayOfYear+1; if(d<4||d>6) return 1;
  const plan=typeof Strategy!=="undefined"&&Strategy.fcOn; return plan? (P.planLate? this.LATE_DROP : 1) : (P.fcErr==="late"? this.LATE_DROP : 1); },
-genForecast(plan){
- const L=this.FC_LEVEL[P.fcErr||"mid"]; if(!L) return null;
- const g=()=>Phys.gauss(), fc=[];
- for(const w of plan){ if(Math.random()<L.p*0.4) continue;   // 予報にない雲 (実際には来る)
-  fc.push({start:w.start+g()*L.t,dur:Math.max(0.2,w.dur*(1+g()*L.d)),type:w.type,factor:clamp(w.factor*(1+g()*L.d),0.05,0.9)}); }
- for(let day=1;day<=6;day++) if(Math.random()<L.p*0.4){ const sq=Math.random()<0.3;   // 予報だけの雲 (実際には来ない)
-  fc.push({start:(day-1)*24+9+Math.random()*7,dur:0.4+Math.random()*1.2,type:sq?"squall":"cloud",factor:sq?0.15:0.45}); }
- return {plan:fc.sort((a,b)=>a.start-b.start),shift:[...Array(7)].map(()=>g()*L.t),scale:[...Array(7)].map(()=>clamp(1+g()*L.d*0.5,0.6,1.4))};
+/* 予報は毎朝出し直す (issue = その朝の日、0 = Day1)。ずれの大きさは何日先かで変わる: 当日 0.5 倍、1 日先 0.8 倍、… 5 日先 2 倍 */
+FC_LEAD(l){ return Math.min(2,0.5+0.3*Math.max(0,l)); },
+genForecast(plan,issue){
+ const L=this.FC_LEVEL[P.fcErr||"mid"]; if(!L) return null; issue=issue||0;
+ const g=()=>Phys.gauss(), fc=[], kOf=(abs)=>this.FC_LEAD(Math.floor(abs/24)-issue);
+ for(const w of plan){ const k=kOf(w.start); if(w.start+w.dur<issue*24){ fc.push({...w}); continue; }   // 過ぎた日はそのまま
+  if(Math.random()<Math.min(0.9,L.p*0.4*k)) continue;   // 予報にない雲 (実際には来る)
+  fc.push({start:w.start+g()*L.t*k,dur:Math.max(0.2,w.dur*(1+g()*L.d*k)),type:w.type,factor:clamp(w.factor*(1+g()*L.d*k),0.05,0.9)}); }
+ for(let day=issue+1;day<=6;day++){ const k=this.FC_LEAD(day-1-issue); if(Math.random()<Math.min(0.9,L.p*0.4*k)){ const sq=Math.random()<0.3;   // 予報だけの雲 (実際には来ない)
+  fc.push({start:(day-1)*24+9+Math.random()*7,dur:0.4+Math.random()*1.2,type:sq?"squall":"cloud",factor:sq?0.15:0.45}); } }
+ return {issue,plan:fc.sort((a,b)=>a.start-b.start),shift:[...Array(7)].map((_,d)=>g()*L.t*this.FC_LEAD(d-issue)),scale:[...Array(7)].map((_,d)=>clamp(1+g()*L.d*0.5*this.FC_LEAD(d-issue),0.6,1.4))};
 },
+/* 毎朝 6 時に予報を出し直す (戦略も新しい予報で立て直す) */
+refreshForecast(){ const s=this.st; if(!s||!s.fc||s.scenario||P.mode!=="race") return; const di=s.dayOfYear-PRO.dayOfYear;
+ if(s.fc.issue===di||s.hour<6) return; s.fc=this.genForecast(s.weatherPlan,di); if(typeof Strategy!=="undefined") Strategy.last=null; },
 genWeatherPlan(){
 const plan=[];
 for(let day=1;day<=6;day++){
@@ -203,7 +209,7 @@ const sp=Phys.sunPos(lat,lon,s.dayOfYear,hour);
 const alt=sp.alt, az=sp.az;
 if(alt<=0) return {G:0,alt:0,az,ghi:0,dni:0};
 let {dni,dhi}=Phys.clearSky(alt,elev,s.dayOfYear);
-if(RealWx.on()){ let hh=hour, k=1; const fc=s.fc; if(fc&&typeof Strategy!=="undefined"&&Strategy.fcOn){ const di=clamp(s.dayOfYear-PRO.dayOfYear,0,6); hh+=fc.shift[di]; k=fc.scale[di]; }   // 予報 (戦略の先読み) は時刻と強さがずれる
+if(RealWx.on()){ let hh=hour, k=1; const fc=s.fc; if(fc&&typeof Strategy!=="undefined"&&Strategy.fcOn&&!Strategy.betNow){ const di=clamp(s.dayOfYear-PRO.dayOfYear,0,6); hh+=fc.shift[di]; k=fc.scale[di]; }   // 予報 (戦略の先読み) は時刻と強さがずれる
  const d=RealWx.at("dni",lat,lon,s.dayOfYear,hh+0.5), f=RealWx.at("dhi",lat,lon,s.dayOfYear,hh+0.5); if(d!=null&&f!=null){ dni=d*k; dhi=f*(0.5+0.5*k); } }
 else if(s.weather){ const wf=s.weather.factor; dni*=wf; dhi*=(2-wf)*(0.5+0.5*wf); }
 const cz=Math.sin(alt);
@@ -227,6 +233,7 @@ return (s.hour>=6.25&&s.hour<8) || (s.hour>=17&&s.hour<sunset) || (s.hour>=this.
 step(dtS,dtR){
 const s=this.st;
 if(s.finished||s.trailered) return;
+this.refreshForecast();   // 朝の予報の出し直し
 const prof=profileAt(s.km);
 { // 風: 気候値 + OU過程の突風/風向揺らぎ (時間刻み非依存)
 const wc=Phys.windClim(prof.lat,s.hour);
@@ -545,6 +552,7 @@ const s=this.st;
 s.passedCP.add(cp.km); s.cpPending=null;
 s.stopTimer=30*60; s.stopKind="cp"; s.cpName=`CS${cp.n} ${cp.name}`; s.v=0; s.throttleSet=0;
 if(typeof Crew!=="undefined"&&Crew.on()&&!missed){ s.stopHold=true; Crew.begin("cs",cp); }
+if(typeof Coffee!=="undefined") Coffee.onCS(cp);   // 朝に決めたドライバー交代
 Snd.chime();
 const abs=(s.day-1)*24+s.hour;
 if(missed){ toast("🚨 コントロールストップの敷地に入らず通過!その場で30分点検となります","#f59e0b");
@@ -560,6 +568,7 @@ const s=this.st;
 s.camp=true; s.v=0;
 Radio.push(`Day${s.day} 走行終了。その場でキャンプ設営、日没までティルト充電を行います。`);
 if(typeof Crew!=="undefined") Crew.onCamp();
+if(typeof Coffee!=="undefined") Coffee.onCamp(s);
 TiltDecide.open();
 },
 /* 当たり判定の結果 (View から): 軽い接触 = 警告 / 破損 = 停車して修理・空力悪化 / 大破 = リタイア */

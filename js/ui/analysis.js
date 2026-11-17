@@ -192,7 +192,7 @@ const Ana={
   <div class="ana-top"><img src="assets/img/logo.svg" class="logo" width="54" alt=""><span class="ana-ttl">RUN ANALYSIS</span><div class="seg ana-cat" id="ana-cat"><button data-c="race">本戦</button><button data-c="hv">ヒドゥンバレー</button><button data-c="trend">傾向</button></div>
    <span class="lb">走行</span><select id="ana-run"></select><button class="btn ana-sm ana-ico" id="ana-edit" title="名前・日付を編集">${ic("edit")}</button><button class="btn ana-sm ana-ico" id="ana-del" title="この走行を削除">${ic("trash")}</button>
    <span class="lb">比較</span><select id="ana-cmp"></select>
-   <button class="btn ana-sm" id="ana-demo" title="お試し用のデモ走行を追加">${ic("play")}デモ</button>
+   <button class="btn ana-sm" id="ana-demo" title="お試し用のデモ走行を追加">${ic("play")}デモ</button><button class="btn ana-sm" id="ana-ai" title="この走行について AI に質問 (設定で ON にした端末だけ)" onclick="Ana.aiOpen()">${ic("chat")}AI に聞く</button>
    <label class="btn ana-sm" title="CSV・Excel (.xlsx) を読み込む (複数可。計測器のログは日をまたいで距離をつなぐ)">${ic("upload")}CSV・Excel 読み込み<input type="file" id="ana-file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple hidden></label>
    <span class="lb">表示</span><div class="seg" id="ana-lay"><button data-v="A">地図</button><button data-v="B">グラフ</button></div>
    <span class="lb">地図</span><div class="seg" id="ana-mode"><button data-v="band">帯</button><button data-v="elev">標高</button></div>
@@ -344,6 +344,29 @@ const Ana={
   if(this.cmp>=0&&this.catOf(this.runs[this.cmp])!==c) this.cmp=-1;
   this.sel=null; this.xr=null; this.zoomDay=null; this.map&&(this.map.dirty=true); this.render(); },
  run(){ const r=this.runs[this.cur]; return r&&this.catOf(r)===this.cat? r : null; }, cmpRun(){ return this.cmp>=0&&this.cmp!==this.cur? this.runs[this.cmp] : null; },
+ /* ---------- AI に聞く (本戦の走行): 50 km ごとの要約 (相対値) を渡して質問に答えてもらう ---------- */
+ aiSummary(run){ const B=(run.bins||[]).filter(Boolean), A=[]; if(!B.length) return null;
+  const vAvg=B.reduce((m,b)=>m+b.v,0)/B.length, wAvg=B.filter(b=>Number.isFinite(b.whkm)&&b.whkm>0).reduce((m,b,_,a)=>m+b.whkm/a.length,0), gMax=B.reduce((m,b)=>Math.max(m,b.ghi||0),1);
+  const D=new Map(); (run.drivers||[]).forEach((d,i)=>D.set(d,"D"+(i+1)));   // 名前は送らない
+  for(let k=0;k<B[B.length-1].km;k+=50){ const S=B.filter(b=>b.km>=k&&b.km<k+50); if(!S.length) continue; const av=(f)=>S.reduce((m,b)=>m+f(b),0)/S.length, W=S.filter(b=>Number.isFinite(b.whkm)&&b.whkm>0);
+   const dc={}; S.forEach(b=>{ dc[b.drv]=(dc[b.drv]||0)+1; });
+   A.push({km:`${k}-${k+50}`,v:Math.round(av(b=>b.v)/vAvg*100),soc:Math.round(av(b=>b.soc)),use:W.length&&wAvg>0? Math.round(W.reduce((m,b)=>m+b.whkm,0)/W.length/wAvg*100) : null,
+    sun:Math.round(av(b=>b.ghi||0)/gMax*100),grade:+av(b=>b.gr||0).toFixed(2),el:Math.round(av(b=>b.el||0)),drv:D.get(Object.entries(dc).sort((x,y)=>y[1]-x[1])[0][0])||"-"}); }
+  return {note:"v は走行全体の平均速度を 100 とした指数",total_km:Math.round(run.kmMax||0),drivers:run.drivers?run.drivers.length:0,days:(run.days||[]).map(d=>({day:d.d,km:Math.round(d.b-d.a)})),seg:A}; },
+ aiOpen(){ let d=document.getElementById("ana-aibox"); if(d){ d.remove(); return; }
+  d=document.createElement("div"); d.id="ana-aibox"; const why=typeof AI!=="undefined"? AI.why() : "OFF", run=this.run();
+  const Q=["電池の減りが速かった区間と、その理由は？","日射の割に消費が多い区間はどこ？","ドライバーごとの走り方の違いは？","次に同じコースを走るときの改善点は？"];
+  d.innerHTML=`<div class="aib-hd"><b>AI に聞く</b><span class="dim">${run?escHtml(run.name):"走行なし"}</span><button class="btn ana-sm" onclick="Ana.aiOpen()">閉じる</button></div>
+   ${why? `<div class="dim aib-note">使えません: ${why}。「車両・チームの設定」→「運用」で ON にして、自分の Gemini API キーを入れてください。</div>` : ""}
+   <div class="aib-q">${Q.map(q=>`<button class="btn ana-sm" data-q="${q}">${q}</button>`).join("")}</div>
+   <div class="aib-in"><textarea id="ana-aiq" rows="2" maxlength="300" placeholder="この走行について質問"></textarea><button class="btn ana-sm pri" id="ana-aigo">聞く</button></div>
+   <div class="aib-out" id="ana-aiout"></div><div class="dim aib-note">送るのは 50 km ごとの相対値 (速度・消費・日射の指数、電池 %、勾配、標高) だけ。名前・電力量は送りません。</div>`;
+  document.getElementById("ana").appendChild(d);
+  const go=async(q)=>{ q=(q||"").trim(); if(!q) return; const out=document.getElementById("ana-aiout"), r=this.run(), sm=r&&r.kind!=="hv"&&this.aiSummary(r);
+   if(!sm){ out.textContent="本戦の走行を選んでください。"; return; } out.textContent="考えています…";
+   const t=await AI.analyze(q,sm); out.innerHTML= t? escHtml(t).replace(/\n/g,"<br>") : `答えられませんでした (${escHtml(AI.lastErr||AI.why()||"不明")})`; };
+  d.querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>{ document.getElementById("ana-aiq").value=b.dataset.q; go(b.dataset.q); });
+  document.getElementById("ana-aigo").onclick=()=>go(document.getElementById("ana-aiq").value); },
  render(){
   const run=this.run(), body=document.getElementById("ana-body");
   body.className="ana-body "+this.layout; document.getElementById("ana-empty").style.display=run?"none":"flex";
