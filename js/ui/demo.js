@@ -76,7 +76,7 @@ const Demo={
   if(Math.abs(V.lateral-lat)>4) this.fail+=dtR; else this.fail=Math.max(0,this.fail-dtR); },
  driveHV(dtR){ const T=HV.track(), es=Engine.st, t=Test, v=Math.max(t.v,1), n=T.n, i0=t.lastIdx;
   let j=i0, d=0; const look=clamp(v*0.9,8,26); while(d<look){ const a=T.pts[j], b=T.pts[(j+1)%n]; d+=Math.hypot(b.x-a.x,b.z-a.z); j=(j+1)%n; }
-  const yawFull=clamp(8.5/Math.max(v,3),0.15,1.2);
+  const yawFull=steerFullAccel(v)/v;
   Input.steer=this.steerTo(t.x,t.z,t.heading,T.pts[j].x,T.pts[j].z,v,yawFull);
   let kmax=0; d=0; for(let k=i0;d<Math.max(50,v*6);k=(k+1)%n){ const a=T.pts[k], b=T.pts[(k+1)%n]; d+=Math.hypot(b.x-a.x,b.z-a.z); kmax=Math.max(kmax,Math.abs(T.curv[k])); }
   es.gear="D"; this.speed(es,t.v,Math.min(105/3.6,Math.sqrt(4.5/Math.max(kmax,1e-4)))); },

@@ -1,6 +1,6 @@
 "use strict";
 /* ============ ドライバー成績 ============
- 走行ごと・ドライバーごとに、担当距離・平均速度・電費・無線の速度指示の評価 (A/B/C と指示どおりの割合)・練習シナリオの点数を、
+ 走行ごと・ドライバーごとに、担当距離・平均速度・電費・無線の速度指示の評価 (A/B/C と指示どおりの割合)・タイヤのロックとスリップ・練習シナリオの点数を、
  この端末のブラウザ (localStorage) に残す。メニューの「ドライバー成績」でドライバー別の合計とシナリオのベストを見る。
  記録するのは、レース (練習シナリオを含む) を終えたとき・メニューへ戻ったとき。続きから再開した走行は、再開後の分だけを数える */
 const DrvRec={
@@ -8,7 +8,17 @@ const DrvRec={
  all(){ try{ const a=JSON.parse(localStorage.getItem(this.KEY)||"[]"); return Array.isArray(a)? a : []; }catch(e){ return []; } },
  put(list){ try{ localStorage.setItem(this.KEY,JSON.stringify(list.slice(-this.MAX))); }catch(e){} },
  /* 走行の始め (再開を含む): ここから後の走行ログ・指示の評価を数える */
- start(){ this.from=RunLog.rows.length; this.oFrom=Orders.hist.length; this.done=false; },
+ start(){ this.from=RunLog.rows.length; this.oFrom=Orders.hist.length; this.done=false; this.tc=new Map(); this.tPrev={lock:false,slide:false}; },
+ /* 毎フレーム (レース): タイヤのロック・スリップ (横に滑る) の回数と時間をドライバーごとに数える */
+ tire(es,dt){
+  if(P.mode!=="race"||P.event||!this.tc||!(dt>0)) return;
+  const n=this.drv(); let o=this.tc.get(n); if(!o) this.tc.set(n,o={lockN:0,lockT:0,slideN:0,slideT:0});
+  const lk=!!es.tireLock, sl=!!es.tireSlide&&!lk, pv=this.tPrev;
+  if(lk){ o.lockT+=dt; if(!pv.lock) o.lockN++; }
+  if(sl){ o.slideT+=dt; if(!pv.slide) o.slideN++; }
+  pv.lock=lk; pv.slide=sl;
+ },
+ tireSum(){ const t={lockN:0,lockT:0,slideN:0,slideT:0}; if(this.tc) for(const o of this.tc.values()) for(const k in t) t[k]+=o[k]; return t; },
  drv(){ return typeof Crew!=="undefined"&&Crew.drivers? Crew.drivers[Crew.driverIdx].name : "―"; },
  /* 走行の終わり: ドライバーごとにまとめて追加 */
  record(){
@@ -21,8 +31,9 @@ const DrvRec={
    const o=g(p[iD]||"―"); o.dist+=dk; o.t+=dt; o.wh+=(Number.isFinite(r[iPm])?r[iPm]:0)*dt; }
   const H=Orders.hist.slice(this.oFrom), sc=Engine.st&&Engine.st.scenario, date=Date.now(), list=this.all();
   for(const h of H){ const o=g(h.drv||"―"); o.on=o.on||{n:0,pct:0,A:0,B:0,C:0}; o.on.n++; o.on.pct+=h.pct; if(h.grade) o.on[h.grade]++; }
-  for(const [name,o] of by){ if(o.dist<1&&!o.on) continue;
-   list.push({name,date,kind:sc?"scenario":"race",scn:sc||null,dist:o.dist,t:o.t,wh:o.wh,on:o.on||null}); }
+  if(this.tc) for(const [n,t] of this.tc) g(n).tire=t;
+  for(const [name,o] of by){ if(o.dist<1&&!o.on&&!o.tire) continue;
+   list.push({name,date,kind:sc?"scenario":"race",scn:sc||null,dist:o.dist,t:o.t,wh:o.wh,on:o.on||null,tire:o.tire||null}); }
   this.put(list);
  },
  /* 練習シナリオの点数 (採点の画面から) */
@@ -30,7 +41,8 @@ const DrvRec={
  /* ドライバー別の合計 */
  summary(){
   const m=new Map();
-  for(const r of this.all()){ const o=m.get(r.name)||{name:r.name,runs:0,dist:0,t:0,wh:0,on:{n:0,pct:0,A:0,B:0,C:0},best:{},last:0}; m.set(r.name,o); o.last=Math.max(o.last,r.date||0);
+  for(const r of this.all()){ const o=m.get(r.name)||{name:r.name,runs:0,dist:0,t:0,wh:0,on:{n:0,pct:0,A:0,B:0,C:0},tire:{lockN:0,lockT:0,slideN:0,slideT:0},best:{},last:0}; m.set(r.name,o); o.last=Math.max(o.last,r.date||0);
+   if(r.tire) for(const k in o.tire) o.tire[k]+=r.tire[k]||0;
    if(r.kind==="score"){ o.best[r.scn]=Math.max(o.best[r.scn]||0,r.score); continue; }
    o.runs++; o.dist+=r.dist||0; o.t+=r.t||0; o.wh+=r.wh||0;
    if(r.on){ o.on.n+=r.on.n; o.on.pct+=r.on.pct; o.on.A+=r.on.A; o.on.B+=r.on.B; o.on.C+=r.on.C; } }
@@ -41,9 +53,10 @@ const DrvRec={
   const el=document.getElementById("drvrec")||(()=>{ const d=document.createElement("div"); d.id="drvrec"; d.className="scn-res"; document.body.appendChild(d); return d; })();
   const rows=S.map(o=>`<tr><td><b>${escHtml(o.name)}</b></td><td>${f(o.dist,0)} km</td><td>${o.t>0?f(o.dist/o.t,1):"―"} km/h</td><td>${o.dist>0?f(o.wh/o.dist,1):"―"} Wh/km</td>
    <td>${o.on.n? `${f(o.on.pct/o.on.n*100,0)} % <span class="dim">(A ${o.on.A}・B ${o.on.B}・C ${o.on.C})</span>` : "―"}</td>
+   <td>${o.tire.lockN||o.tire.slideN? `ロック ${o.tire.lockN} 回 <span class="dim">(${f(o.tire.lockT,1)} 秒)</span><br>スリップ ${o.tire.slideN} 回 <span class="dim">(${f(o.tire.slideT,1)} 秒)</span>` : "なし"}</td>
    <td>${Object.keys(NAMES).map(k=>o.best[k]!=null?`${NAMES[k]} ${o.best[k]}`:"").filter(Boolean).join("<br>")||"―"}</td></tr>`).join("");
   el.innerHTML=`<div class="box" style="width:min(820px,calc(100vw - 24px))"><div class="lb">ドライバー成績 (この端末)</div><h3>ドライバー別の合計</h3>
-   ${S.length? `<div style="overflow-x:auto"><table class="drt"><tr><th>ドライバー</th><th>担当距離</th><th>平均速度</th><th>電費</th><th>速度指示 (指示どおりの割合)</th><th>練習シナリオ (ベスト)</th></tr>${rows}</table></div>`
+   ${S.length? `<div style="overflow-x:auto"><table class="drt"><tr><th>ドライバー</th><th>担当距離</th><th>平均速度</th><th>電費</th><th>速度指示 (指示どおりの割合)</th><th>タイヤのロック・スリップ</th><th>練習シナリオ (ベスト)</th></tr>${rows}</table></div>`
     : `<div class="why" style="color:var(--tx2)">まだ記録がありません。レースや練習シナリオを走ると、ここにたまります。</div>`}
    <div class="btns"><button class="btn" onclick="DrvRec.clear()">記録を消去</button><button class="btn pri" onclick="document.getElementById('drvrec').classList.remove('on')">閉じる</button></div></div>`;
   el.classList.add("on");

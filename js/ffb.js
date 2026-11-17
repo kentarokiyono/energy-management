@@ -15,7 +15,7 @@ const FFB={
  LV:{off:0,low:0.35,mid:0.65,high:1},
  gain(){ const g=this.LV[P.ffb]; return g==null? this.LV.mid : g; },
  /* 項目ごとの強さ (0〜2 倍。ハンコン割当の画面で調整) */
- TUNE:[["road","路面の細かい振動"],["offroad","路肩・道の外"],["train","ロードトレイン"],["brake","強いブレーキ"],["center","中央へ戻す力"],["damper","低速の重さ"],["wind","横風・突風"]],
+ TUNE:[["road","路面の細かい振動"],["offroad","路肩・道の外"],["train","ロードトレイン"],["brake","ロック・タイヤの滑り"],["center","中央へ戻す力"],["damper","低速の重さ"],["wind","横風・突風"]],
  T(k){ const o=P.ffbTune, v=o&&typeof o==="object"? +o[k] : 1; return Number.isFinite(v)? clamp(v,0,2) : 1; },
  setT(k,v){ P.ffbTune=Object.assign({},P.ffbTune&&typeof P.ffbTune==="object"?P.ffbTune:{},{[k]:clamp(+v,0,2)}); Settings.save(); this.tuneUI(); },
  resetT(){ P.ffbTune={}; Settings.save(); this.tuneUI(); },
@@ -39,7 +39,8 @@ const FFB={
   this.kickS=Math.max(this.kickS*(performance.now()<this.kickUntil?1:0),strong*g); this.kickW=Math.max(this.kickW*(performance.now()<this.kickUntil?1:0),(weak==null?strong:weak)*g); this.kickUntil=Math.max(this.kickUntil,until);
   this.hidKick=(this.hidKick||0)+(Math.random()<0.5?-1:1)*strong*0.5; },
  stop(){ this.rumble(0,0,1); this.kickUntil=0; this.torque(0,true); },
- /* 毎フレーム。d = {v [m/s], steer (-1〜1, ハンドルの位置), offroad, shoulder, rough (0〜1), cross [m/s], trainRel [m] (null = 近くにいない), trainV [m/s], brake (0〜1), gLat, dt} */
+ /* 毎フレーム。d = {v [m/s], steer (-1〜1, ハンドルの位置), offroad, shoulder, rough (0〜1), cross [m/s], trainRel [m] (null = 近くにいない), trainV [m/s], brake (0〜1), gLat, dt,
+  タイヤの計算があるとき: sat・satRef (ハンドルを戻すモーメントとその目安)・use (グリップの使い方 0〜1)・slide・lock} */
  update(d){
   const G=this.gain(), now=performance.now();
   if(!G||!d){ if(this.on){ this.on=false; this.stop(); } return; }
@@ -58,10 +59,18 @@ const FFB={
    strong=Math.max(strong,s*0.75*rv*tT); weak=Math.max(weak,s*0.6*tT);
    if(this.trainPrev!=null&&Math.sign(this.trainPrev)!==Math.sign(d.trainRel)&&a<30&&tT>0){ this.kick(0.95*rv*tT,0.8*tT,300); this.hidKick=(this.hidKick||0)-0.6*rv*tT; }   // 風圧で道の外側 (左) へ
    this.trainPrev=d.trainRel; } else this.trainPrev=null;
-  // 強いブレーキ: 滑り出す強さ (速度があり、ブレーキが強い) では断続的に震える
-  if((d.brake||0)>0.75&&kmh>25){ const on=(now%110)<55; strong=Math.max(strong,(on?0.55:0.1)*tB); weak=Math.max(weak,(on?0.5:0.15)*tB); }
-  // 大きい横 G: タイヤが鳴るような細かい震え
-  if(Math.abs(d.gLat||0)>0.45) weak=Math.max(weak,clamp((Math.abs(d.gLat)-0.45)*1.2,0,0.5));
+  const tire=d.use!=null;   // タイヤの計算がある (レース・試験)
+  if(tire){
+   // ロック・空転: 断続的に強く震える。グリップの限界が近い / 横に滑っている: 細かい震え (タイヤが鳴る感じ)
+   if(d.lock&&kmh>3){ const on=(now%90)<45; strong=Math.max(strong,(on?0.65:0.15)*tB); weak=Math.max(weak,(on?0.55:0.2)*tB); }
+   if(d.slide&&kmh>5) weak=Math.max(weak,(0.35+0.15*R())*tB);
+   else if(d.use>0.8&&kmh>10) weak=Math.max(weak,clamp((d.use-0.8)*2,0,0.4)*tB);
+  } else {
+   // 強いブレーキ: 滑り出す強さ (速度があり、ブレーキが強い) では断続的に震える
+   if((d.brake||0)>0.75&&kmh>25){ const on=(now%110)<55; strong=Math.max(strong,(on?0.55:0.1)*tB); weak=Math.max(weak,(on?0.5:0.15)*tB); }
+   // 大きい横 G: タイヤが鳴るような細かい震え
+   if(Math.abs(d.gLat||0)>0.45) weak=Math.max(weak,clamp((Math.abs(d.gLat)-0.45)*1.2,0,0.5));
+  }
   // 突風: 横風が急に強まった瞬間
   const cross=d.cross||0, dc=(cross-this.crossPrev)/Math.max(dt,1e-3); this.crossPrev=cross;
   if(Math.abs(dc)>4&&kmh>20){ this.crossKick=clamp(dc/20,-1,1)*tW; this.crossKickT=now+250; strong=Math.max(strong,Math.min(0.4,Math.abs(dc)/30)*tW); }
@@ -71,11 +80,18 @@ const FFB={
   // ---- 段階 2: ハンドルの反力 ----
   if(this.hid){
    const ang=clamp(d.steer||0,-1,1), w=(ang-this.steerPrev)/Math.max(dt,1e-3); this.steerPrev=ang;
-   const kS=(0.12+0.55*Math.min(kmh/80,1))*this.T("center");   // 中央へ戻す力 (キャスター): 速いほど強い
    const cD=(0.05+0.25*(1-Math.min(kmh/25,1)))*this.T("damper"); // 低速で切るときの重さ (タイヤの摩擦)
-   let T=-ang*kS - clamp(w,-4,4)*cD*0.12;
-   T+=clamp(cross/12,-1,1)*0.18*Math.min(kmh/40,1)*tW;          // 横風: 風下側へ取られる
-   if(now<this.crossKickT) T+=this.crossKick*0.35;               // 突風の瞬間
+   let T=-clamp(w,-4,4)*cD*0.12;
+   if(tire){
+    /* 前輪のタイヤが向きを戻そうとするモーメント (横力 × トレール)。限界に近づくとトレールが短くなり軽くなる。
+     横風で流されたときも、タイヤの横すべりからハンドルが風下へ取られる。低速では機構の戻り (キャスター) だけ */
+    T+=-clamp((d.sat||0)/(d.satRef||1),-1.2,1.2)*0.6*this.T("center") - ang*0.12*this.T("center");
+   } else {
+    const kS=(0.12+0.55*Math.min(kmh/80,1))*this.T("center");   // 中央へ戻す力 (キャスター): 速いほど強い
+    T+=-ang*kS;
+    T+=clamp(cross/12,-1,1)*0.18*Math.min(kmh/40,1)*tW;          // 横風: 風下側へ取られる
+    if(now<this.crossKickT) T+=this.crossKick*0.35;               // 突風の瞬間
+   }
    if(d.offroad&&v>0.5) T+=(R()-0.5)*0.35*Math.min(1,kmh/40);    // 道の外のがたつき
    if(this.hidKick){ T+=this.hidKick; this.hidKick*=Math.pow(0.02,dt); if(Math.abs(this.hidKick)<0.01) this.hidKick=0; }
    this.torque(clamp(T,-1,1)*G);
@@ -132,6 +148,8 @@ const FFB={
   try{ if(typeof View!=="undefined"&&View.road){ const p=View.roadPoint(View.s); shoulder=View.lateral<-(p.L+0.3)||View.lateral>p.R+0.3;
    rough= (typeof isCity==="function"&&(isCity(es.km)||townProx(es.km)<2.5))? 0.25 : 0.65;
    let best=1e9; for(const rt of View.roadTrains||[]){ const rel=rt.sVis-View.s; if(Math.abs(rel)<Math.abs(best)) best=rel; } if(Math.abs(best)<60) trainRel=best; } }catch(e){}
-  return {v:es.v,steer:Input.gamepadOK?Input.gpSteer:Input.steer,offroad:!!es.offroad,shoulder,rough,cross:es.lastCross||0,trainRel,trainV,brake:es.brakePhys||0,gLat:es.gLat||0,dt};
+  return Object.assign({v:es.v,steer:Input.gamepadOK?Input.gpSteer:Input.steer,offroad:!!es.offroad,shoulder,rough,cross:es.lastCross||0,trainRel,trainV,brake:es.brakePhys||0,gLat:es.gLat||0,dt},this.tireIn(es)); },
+ /* タイヤの状態 (Tire): sat ハンドルを戻すモーメント・use グリップの使い方・slide 横に滑っている・lock ロック / 空転 */
+ tireIn(es){ return typeof Tire==="undefined"? {} : {sat:es.tireSat||0,satRef:Tire.satRef(),use:es.tireUse||0,slide:!!es.tireSlide,lock:!!es.tireLock};
  },
 };

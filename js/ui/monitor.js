@@ -112,7 +112,7 @@ const Monitor={
    +row("次の右左折",A.man? `${A.man.d<1? Math.round(A.man.d*1000)+" m" : A.man.d.toFixed(1)+" km"} 先 ${escHtml(A.man.act)} ― ${escHtml(A.man.name)}` : "30 km 先までなし")
    +row("次の CS",A.cs? `CS${A.cs.n} ${escHtml(A.cs.name)} まで ${f(A.cs.d,1)} km` : "なし")+row("ゴールまで",`${f(A.fin,1)} km`)
    +(A.storm? row("暴風雨",A.storm.min>0? `前縁まで あと約 ${A.storm.min} 分` : "暴風域の中",(A.storm.min<15)?"bad":"") : "")
-   +row("横風・横転",`${f(Math.abs(s.cross||0),1)} m/s ・ 危険度 ${f((s.tip||0)*100,0)} %${s.shield?" (風よけ中)":""}`,(s.tip||0)>=0.6?"bad":"")+row("この先の天気",h); },
+   +row("横風・横転",`${f(Math.abs(s.cross||0),1)} m/s ・ 危険度 ${f((s.tip||0)*100,0)} %${s.shield?" (風よけ中)":""}`,(s.tip||0)>=0.6?"bad":"")+(s.tire? row("タイヤ",`グリップ ${f((s.tire.use||0)*100,0)} %${s.tire.lock?" ・ロック中":s.tire.slide?" ・スリップ中":""} ・ ロック ${s.tire.lockN} 回・スリップ ${s.tire.slideN} 回`,(s.tire.lock||s.tire.slide)?"bad":"") : "")+row("この先の天気",h); },
  state(m){ const e=document.getElementById("mon-state"); if(e) e.textContent=m; },
  top(){
   const s=this.snap, f=(x,d)=>Number.isFinite(x)?x.toFixed(d):"―", kpi=(k,v,u,cls)=>`<div class="k ${cls||""}"><span>${k}</span><b>${v}</b><i>${u}</i></div>`;

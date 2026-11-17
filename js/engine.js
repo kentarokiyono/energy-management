@@ -362,9 +362,14 @@ let Ftrac=mm.F;
 if(s.gear==="R"&&s.v>REVERSE.maxV) Ftrac=0;   // 後退の上限速度
 let Fbrake=0, Pregen=0;
 if(s.brakePhys>0) Fbrake += s.brakePhys*PRO.brakeMu*m*GRAV;
+const FbFric=Fbrake;
 let Fr=0;
 if(s.brakeRegen>0){ const rg=regenModel(s.brakeRegen,s.v,s.soc,s.powerMode); Fr=rg.F; Fbrake+=Fr; Pregen=rg.Pgen; }
-const Fnet=Ftrac-Froll-Fdrag-Fslope-Fbrake-Fcorner;
+/* タイヤが路面へ伝えられる分だけ効く: ロック・空転した車輪は滑る摩擦だけ (View の Tire.step が前のフレームで計算した割合) */
+if(dtR>0) s.tireReq={drive:Ftrac,brake:FbFric,regen:Fr};
+let Fx=Ftrac-Fbrake;
+if(s.tireFx!=null&&Math.abs(s.tireFxReq)>1&&Math.sign(s.tireFxReq)===Math.sign(Fx)) Fx*=clamp(s.tireFx/s.tireFxReq,0,1);
+const Fnet=Fx-Froll-Fdrag-Fslope-Fcorner;
 s.v=Math.max(0,s.v+Fnet/mEff*dtR);
 if(dtR>0){ s.gLong=(Fnet/mEff)/GRAV; s.gPitch=((Fnet+Fslope)/mEff)/GRAV; }   // gPitch: 車体を前後に傾ける加減速 (坂の重力の成分は車体全体に効くので、前後の荷重移動には入れない)
 // 速度は実時間 dtR で変わるが、電力量はゲーム内時間 dtS で積算する。加減速 (運動エネルギーの出入り) の分は

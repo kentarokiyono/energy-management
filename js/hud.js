@@ -19,6 +19,18 @@ ctx.fillStyle="#f5b51c"; ctx.beginPath(); ctx.arc(C+gx,C+gy,3.5,0,7); ctx.fill()
 ctx.fillStyle="#8b9097"; ctx.font="500 9px 'Chakra Petch',sans-serif";
 ctx.fillText("1G",C+R-13,C-3);
 ctx.fillText(((es.gLat||0)).toFixed(2)+"G",3,80);
+drawTireUse(ctx,es,C);
+}
+/* 車輪ごとのグリップの使い方 (上から見た車輪の位置に四角。緑 → 黄 → 赤、ロック・滑りは点滅)。
+ 前後の力と横の力の合計が μ·荷重の何割か (1 = 限界) */
+function drawTireUse(ctx,es,C){
+ const W=es.tireW; if(!W||!W.length) return;
+ const blink=(performance.now()%240)<120, k=11;
+ for(const w of W){ const x=C+w.py*k*1.6, y=C-w.px*k, u=clamp(w.use,0,1);
+  const col= w.lock? (blink?"#ef4444":"#7f1d1d") : w.slide? (blink?"#f97316":"#7c2d12") : u<0.6? "#34d399" : u<0.85? "#fbbf24" : "#f87171";
+  ctx.fillStyle=col; ctx.globalAlpha=0.35+0.65*Math.max(u,w.lock||w.slide?1:0); ctx.fillRect(x-2.5,y-4,5,8); }
+ ctx.globalAlpha=1;
+ if(es.tireLock||es.tireSlide){ ctx.fillStyle="#f87171"; ctx.font="600 9px 'Chakra Petch',sans-serif"; ctx.fillText(es.tireLock?"ロック":"スリップ",C+6,80); }
 }
 function drawWind(){
 const es=Engine.st; if(!es) return;

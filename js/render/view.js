@@ -814,7 +814,7 @@ resetRoad(){
  for(const [,e] of this.lmMap) this.scene.remove(e.mesh); this.lmMap.clear();
  this.ensureRoad(this.s+1500); Horizon.lastKm=-1e9;
  const p=this.roadPoint(this.s);
- this.cx=p.x+Math.cos(p.h)*this.lateral; this.cz=p.z+Math.sin(p.h)*this.lateral; this.ch=p.h; this.iProj=Math.floor(this.s/this.SEG);
+ this.cx=p.x+Math.cos(p.h)*this.lateral; this.cz=p.z+Math.sin(p.h)*this.lateral; this.ch=p.h; this.tire=null; this.iProj=Math.floor(this.s/this.SEG);
  this.onBranch=null;
 },
 /* 本線への射影 (直前インデックス近傍のみ探索: 折り返しで反対側に飛ばない) */
@@ -850,28 +850,35 @@ branchAt(x,z){
   for(const f of b.fillets||[]){ if(Math.hypot(f.C[0]-x,f.C[1]-z)<8.5) return {b,i:0,t:0,d:0,y:b.pts[0].y,along:0}; } }
  return null;
 },
+/* 車輪ごとの路面の μ の倍率 (乾いた舗装 = 1): 雨で濡れる・路肩の砂利・道の外の土。位置は前のフレームの値 */
+wheelMu(es){
+ const p=Tire.params(), S=Tire.SURF, wet= typeof Rain!=="undefined"? (Rain.wet||0) : 0, road=1-S.wetK*wet;
+ if(this.onBranch||this.lastSite||!this.road||this.cx===undefined) return road;
+ const q=this.roadPoint(this.s), rh=this.relHeading||0, sn=Math.sin(rh), cs=Math.cos(rh), L=q.L||3.5, Rr=q.R||3.5;
+ return p.wh.map(w=>{ const lat=(this.lateral||0)+w.px*sn+w.py*cs;
+  if(lat>=-L&&lat<=Rr) return road;
+  const out= lat<-L? -L-lat : lat-Rr;
+  return (out<2? S.shoulder : S.dirt)*(1-0.2*wet); });
+},
 update(dtR){
 const es=Engine.st; if(!es) return;
 if(this.cx===undefined) this.resetRoad();
 const vv=es.v;
 // ---- ワールド座標での運動 (分岐/Uターンに対応) ----
-if(vv>0.3){
- const yawRate=gearDir()*(VEH.active&&VEH.spec.chassis? VehDyn.yawRate(Input.steer,vv) : Input.steer*clamp(6.5/Math.max(vv,4),0.12,1.0));   // 後退では向きの変わり方が逆
- /* 車は切った瞬間には向きが変わらない (タイヤがたわんで横力が立ち上がるまでの遅れ・車体の回りにくさ)。速いほど遅れが目立つ */
- const tau=0.06+0.10*clamp(vv/25,0,1); this.yawR=lerp(Number.isFinite(this.yawR)?this.yawR:0,yawRate,clamp(dtR/tau,0,1));
- this.ch+=this.yawR*dtR;
- es.gLat=(this.yawR*vv)/GRAV;
-} else { es.gLat=0; this.yawR=0; }
+/* 横の動きはタイヤの計算 (Tire): 前後の速さは Engine、横すべり・向きの変わり方は車輪ごとのタイヤの力と横風から */
+const T=this.tire||(this.tire=Tire.init()), u=vv*gearDir();
+if(vv>0.05){
+ const rq=es.tireReq||{}, wind=P.mode==="race"&&!P.event&&vv>1? VehDyn.aeroSide(-(es.lastCross||0),vv,es.lastRho||1.17) : null;
+ T.ax=(es.gLong||0)*GRAV;
+ const R=Tire.step(T,{u,delta:Tire.steerAngle(Input.steer,vv,Input.steerMode),drive:rq.drive,brake:rq.brake,regen:rq.regen},
+  {mu:this.wheelMu(es),Fside:wind?wind.Fy:0,lift:wind?wind.L:0},dtR);
+ es.tireFx=R.fx; es.tireFxReq=R.fxReq; es.tireW=R.wheels; es.tireUse=T.use; es.tireSlide=T.slide; es.tireLock=T.lockAny; es.tireSat=T.sat;
+ if(typeof DrvRec!=="undefined") DrvRec.tire(es,dtR);
+ this.yawR=T.r; this.ch+=T.r*dtR;
+ es.gLat=T.ay/GRAV;
+} else { es.gLat=0; this.yawR=0; T.vy=0; T.r=0; T.ay=0; es.tireFx=null; es.tireW=null; es.tireUse=0; es.tireSlide=false; es.tireLock=false; es.tireSat=0; }
 const cx0=this.cx, cz0=this.cz;   // 当たり判定の掃引用
-this.cx+=Math.sin(this.ch)*vv*gearDir()*dtR; this.cz-=Math.cos(this.ch)*vv*gearDir()*dtR;
-// 横風: 横方向に押される。タイヤの横すべりで遅れて効く (諸元が無いときは一般的な側面積・横力係数)
-if(P.mode==="race"&&!P.event){
- const aY= vv>1? VehDyn.sideAccel(-(es.lastCross||0),es.lastRho||1.17,massTotal()) : 0;
- this.vyWind=lerp(this.vyWind||0,aY*0.35,clamp(dtR*3,0,1));
- /* 突風: 風が急に変わると鼻先が振られる (当て舵が要る)。風が一定になれば収まる */
- this.aYs=lerp(Number.isFinite(this.aYs)?this.aYs:aY,aY,clamp(dtR/1.2,0,1)); this.aYw=aY; if(vv>3) this.ch+=clamp((aY-this.aYs)*0.018,-0.05,0.05)*dtR;
- this.cx+=Math.cos(this.ch)*this.vyWind*dtR; this.cz+=Math.sin(this.ch)*this.vyWind*dtR;
-}
+this.cx+=(Math.sin(this.ch)*u+Math.cos(this.ch)*T.vy)*dtR; this.cz+=(-Math.cos(this.ch)*u+Math.sin(this.ch)*T.vy)*dtR;
 // 横転の危険度 (レース): 横風・浮き上がり・旋回・加減速。0.6 で後方追走車が警告、0.85 で警報、1 を 0.25 秒超えると横転
 if(P.mode==="race"&&!P.event&&!es.crashed&&!es.camp){
  this.stillT= vv<0.5&&!(es.gear==="R")? (this.stillT||0)+dtR : 0;   // 停車して約 8 秒: 誘導車・追走車が風上で風よけ、クルーが車体を押さえる
@@ -893,7 +900,7 @@ if(P.mode==="race"&&!P.event&&!es.crashed&&!es.camp){
 if(P.mode==="race"&&typeof Collide!=="undefined"&&Collide.enabled&&!es.fire&&!(typeof Crew!=="undefined"&&Crew.busy()&&Crew.phase==="outside")){
  const st={x:this.cx,z:this.cz,h:this.ch,v:es.v*gearDir()}, [L,W]=carDims();
  const hit=Collide.sweep(cx0,cz0,st,L,W,this.dynColliders(es));
- if(hit){ this.cx=st.x; this.cz=st.z; es.v=Math.abs(st.v); Engine.collision(hit); }
+ if(hit){ this.cx=st.x; this.cz=st.z; es.v=Math.abs(st.v); Engine.collision(hit); if(this.tire){ this.tire.vy*=0.2; this.tire.r*=0.3; } }
 }
 const sPrev=this.s;
 const pr=this.project(this.cx,this.cz);
@@ -917,7 +924,7 @@ es.offRoute=!!this.onBranch;
 this.carSlope=Math.atan(pHere.g);
 const ahead=this.roadPoint(this.s+300);
 this.upcomingGrade= Math.abs(ahead.g)>0.02 ? Math.sign(ahead.g) : 0;
-const site=Scenery.pavedSite(this,this.s,this.lateral);
+const site=Scenery.pavedSite(this,this.s,this.lateral); this.lastSite=site;
 es.offroad=!onMain && !br && !site && !es.camp && es.stopTimer<=0;
 if(es.offroad&&es.v>1) es.v=Math.max(0,es.v-clamp(es.v*0.12,0.2,2.5)*dtR);
 let carY= br? br.y : site? pHere.y+(site.y||0) : pHere.y;

@@ -117,6 +117,41 @@ const T0=Date.now();
  check("最低速度: 1 回目は警告、続くと競技外。故障中・止まっている時間は数えない",JSON.stringify(m)===JSON.stringify([true,1,0,true,false,true,0]),JSON.stringify(m));
 }
 
+{ // ---- タイヤの滑り・操縦 (規則 2.18.6 回転半径・2.19 8 の字とスラローム・2.20.7〜8 ブレーキ) ----
+ const C=load(), R=C.run; R(require("./lib/handling"));
+ const tr=R(`(()=>{ const p=Tire.params(), r=HT.run({u:2,delta:p.steerMax,tmax:40,wheelR:true,dRate:5}), W=r.wx.slice(r.wx.length/2); let cx=0,cy=0,mx=0;
+  for(const q of W){ cx+=q[0]; cy+=q[1]; } cx/=W.length; cy/=W.length; for(const q of W) mx=Math.max(mx,Math.hypot(q[0]-cx,q[1]-cy)); return mx+0.06; })()`);
+ check("最小回転半径 (外側のタイヤの外縁) が 7.5 m 以内 (規則 2.18.6)",tr<=7.5,tr.toFixed(2)+" m");
+ const f8=R(`(()=>{ const Rr=8.5, pts=[]; for(let x=-20;x<0;x+=0.25) pts.push([x,0]);
+  for(let k=0;k<=720;k++){ const a=(k%360)*Math.PI/180, sd=k<360?-1:1; pts.push([Rr*Math.sin(a),sd*(Rr-Rr*Math.cos(a))]); } for(let x=0.25;x<20;x+=0.25) pts.push([x,0]);
+  let t0=null,t1=null,t2=null,ph=0,dev=0;
+  const r=HT.run({pts,u:6.2,x0:-15,stop:s=>{ if(t0==null&&s.x>=0){ t0=s.t; ph=1; } if(ph===1&&s.t-t0>3&&s.x>=0&&s.y>-3){ t1=s.t; ph=2; } if(ph===2&&s.t-t1>3&&s.x>=0&&s.y<3){ t2=s.t; return true; }
+   if(ph>=1){ const ts=s.t-(ph===1?t0:t1); if(ts>0.5&&ts<7) dev=Math.max(dev,Math.abs(Math.hypot(s.x,s.y+(ph===1?Rr:-Rr))-Rr)); } return false; }});
+  return {a:t1-t0,b:t2-t1,dev,use:r.maxUse,slide:r.slideT}; })()`);
+ check("8 の字: 片側 9 秒未満・合計 18 秒未満、レーン (幅 5 m) の中、滑らない (規則 2.19.1)",f8.a<9&&f8.b<9&&f8.a+f8.b<18&&f8.dev<2.5&&f8.slide===0,`${f8.a.toFixed(2)} + ${f8.b.toFixed(2)} 秒・ずれ ${f8.dev.toFixed(2)} m・グリップ ${(f8.use*100).toFixed(0)} %`);
+ const sl=R(`(()=>{ const A=2.3, pts=[]; for(let x=-60;x<=160;x+=0.25){ const xx=clamp(x,-9,135); pts.push([x,-A*Math.cos(Math.PI*(xx-9)/18)*clamp((x+45)/25,0,1)]); }
+  let hit=false,out=false,t0=null; const r=HT.run({pts,u:11.4,preview:0.3,x0:-40,stop:s=>{ if(t0==null&&s.x>=0) t0=s.t; for(let i=0;i<7;i++) if(Math.hypot(9+18*i-s.x,s.y)<1.5) hit=true; if(Math.abs(s.y)>6.7) out=true; return s.x>=126; }});
+  return {t:r.t-t0,hit,out,use:r.maxUse,slide:r.slideT}; })()`);
+ check("スラローム (パイロン 7 本・18 m 間隔): 11.5 秒未満で接触なし・滑らない (規則 2.19.2)",sl.t<11.5&&!sl.hit&&!sl.out&&sl.slide===0,`${sl.t.toFixed(2)} 秒・グリップ ${(sl.use*100).toFixed(0)} %`);
+ const br=R(`[1,0.65,0.55].map(mu=>{ const r=HT.run({u0:25,brake:PRO.brakeMu*massTotal()*GRAV,mu,tmax:15}); return {mu,h:r.h*180/Math.PI,y:r.y,F:r.lockF,R:r.lockR,d:r.x}; })`);
+ check("まっすぐフルブレーキで向きが変わらない (規則 2.20.7)",br.every(b=>Math.abs(b.h)<0.5&&Math.abs(b.y)<0.1),br.map(b=>`μ${b.mu}: ${b.h.toFixed(2)}°`).join("・"));
+ check("ロックするなら前輪が先 (後輪はロックしない、規則 2.20.8)",br.every(b=>b.R==null)&&br.some(b=>b.F!=null),br.map(b=>`μ${b.mu}: 前 ${b.F==null?"なし":b.F.toFixed(2)+" 秒"}`).join("・"));
+ check("濡れた路面ではブレーキの距離が延びる",br[1].d>br[0].d*1.1,br.map(b=>b.d.toFixed(1)+" m").join(" / "));
+ const us=R(`(()=>{ const p=Tire.params(), st=Tire.init(), v=25; let d=0; for(let t=0;t<20;t+=0.01){ d=Math.min(0.03,t*0.002); Tire.step(st,{u:v,delta:d},{mu:1},0.01); } return {d, k:Math.atan(st.ay*p.L/(v*v)), ay:st.ay/GRAV}; })()`);
+ check("弱いアンダーステア (同じ曲がり方に要る舵角が、滑らないときより大きい)",us.d>us.k*1.01&&us.d<us.k*1.6,`舵角 ${(us.d*57.3).toFixed(2)}° / 滑らないとき ${(us.k*57.3).toFixed(2)}°・${us.ay.toFixed(2)} G`);
+ const lim=R(`[1,0.65].map(mu=>{ const st=Tire.init(); let r; for(let t=0;t<25;t+=0.01){ r=Tire.step(st,{u:22,delta:Math.min(0.12,t*0.006)},{mu},0.01); } return {beta:Math.abs(Tire.beta(st,22))*180/Math.PI, ay:Math.abs(st.ay)/GRAV, f:Math.max(...r.wheels.filter(w=>w.front).map(w=>w.use)), r:Math.max(...r.wheels.filter(w=>!w.front).map(w=>w.use))}; })`);
+ check("限界まで切ると前輪が先に滑ってまっすぐ進む (スピンしない、乾いた・濡れた路面)",lim.every(o=>o.beta<10&&o.f>=o.r),lim.map(o=>`${o.ay.toFixed(2)} G・横すべり ${o.beta.toFixed(1)}°・前 ${(o.f*100).toFixed(0)} / 後 ${(o.r*100).toFixed(0)} %`).join("・"));
+ const bt=R(`(()=>{ const r=HT.run({u0:22,delta:0.05,brake:PRO.brakeMu*massTotal()*GRAV,mu:0.6,tmax:10}); return {beta:r.maxBeta*180/Math.PI, F:r.lockF, R:r.lockR}; })()`);
+ check("濡れた路面で曲がりながらフルブレーキ: 前輪がロックしてもスピンしない",bt.beta<12&&bt.R==null,`横すべり 最大 ${bt.beta.toFixed(1)}°`);
+ const cw=R(`(()=>{ const a=HT.run({u:22,delta:0,Fside:300,tmax:2}), pts=[]; for(let x=-10;x<400;x+=0.5) pts.push([x,0]); const b=HT.run({pts,u:22,Fside:t=>t>2&&t<6?300:0,tmax:10});
+  let dev=0; for(const q of b.path) dev=Math.max(dev,Math.abs(q[1])); return {y:a.y,h:a.h*180/Math.PI,dev}; })()`);
+ check("横風 (右へ 300 N): 何もしないと風下へ流され鼻先も風下へ。当て舵で車線の中 (0.5 m 以内)",cw.y>0.05&&cw.h>0&&cw.dev<0.5,`2 秒で ${cw.y.toFixed(2)} m・向き ${cw.h.toFixed(2)}°・当て舵 ${cw.dev.toFixed(2)} m`);
+ const sp=R(`(()=>{ const F=motorModel(motorMaxA(false)*1.25,3,0.9,false).F; return [1,0.65,0.5].map(mu=>HT.run({u0:3,drive:F,mu,tmax:3}).lockR); })()`);
+ check("後輪の空転: 舗装 (乾いた・濡れた) では全開でも空転しない。土の上では起きうる",sp[0]==null&&sp[1]==null,sp.map(x=>x==null?"なし":"あり").join(" / "));
+ const ks=R(`(()=>{ const p=Tire.params(), st=Tire.init(); Tire.step(st,{u:1,delta:0.2},{mu:1},0.1); return {r:st.r, k:1*Math.tan(0.2)/p.L}; })()`);
+ check("止まる直前 (1 m/s) は前輪の向きどおりに曲がる",near(ks.r,ks.k,1e-9),ks.r.toFixed(4)+" rad/s");
+}
+
 console.log(results.join("\n"));
 console.log(`\n${results.length-failed}/${results.length} 件成功 (${((Date.now()-T0)/1000).toFixed(1)} 秒)`);
 process.exit(failed?1:0);

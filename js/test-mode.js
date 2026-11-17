@@ -65,7 +65,7 @@ retry(){
 show("test-result",false);
 const es=Engine.st;
 es.throttleSet=0; es.brakePhys=0; es.brakeRegen=0;
-this.v=0; this.t=0; this.tSide=0; this.dmgAero=0; this.state="ready"; this.progress=0; this.prevLapIdx=undefined; this.lapPit=false; this.lapStartPit=false; this.inPit=false;
+this.v=0; this.tire=null; this.tireFx=null; this.t=0; this.tSide=0; this.dmgAero=0; this.state="ready"; this.progress=0; this.prevLapIdx=undefined; this.lapPit=false; this.lapStartPit=false; this.inPit=false;
 this.coneHit=false; this.brakeEntry=null; this.brakeDist=null; this.slalomT=null; this.slalomOK=null;
 this.cones.forEach(c=>{c.userData.hit=false;c.rotation.set(0,0,0);c.position.y=0.38;});
 this.f8={accA:0,accB:0,prevA:null,prevB:null,moved:0,sides:[],done:[],count:0,best8:null};
@@ -125,11 +125,16 @@ if(es.brakePhys>0.05||es.brakeRegen>0.05){ thr=0; es.throttleSet=0; }
 const I_cmd=thr*(es.gear==="R"? Math.min(REVERSE.maxA,motorMaxA(es.powerMode)) : motorMaxA(es.powerMode));
 const mmT=motorModel(I_cmd,this.v,es.soc,es.powerMode);
 const Ftrac= es.gear==="R"&&this.v>REVERSE.maxV? 0 : mmT.F;
-let Fbrake=0,Pregen=0;
+let Fbrake=0,Pregen=0,Fr=0;
 if(es.brakePhys>0) Fbrake+=es.brakePhys*PRO.brakeMu*m*GRAV;
-if(es.brakeRegen>0){ const rg=regenModel(es.brakeRegen,this.v,es.soc,es.powerMode); Fbrake+=rg.F; Pregen=rg.Pgen; }
-if(offTrack&&this.v>1) Fbrake+=m*clamp(this.v*0.12,0.2,2.5);
-const FnetT=Ftrac-Froll-Fdrag-Fslope-Fbrake-Fcorner;
+const FbFric=Fbrake;
+if(es.brakeRegen>0){ const rg=regenModel(es.brakeRegen,this.v,es.soc,es.powerMode); Fr=rg.F; Fbrake+=Fr; Pregen=rg.Pgen; }
+// タイヤが伝えられる分だけ効く (ロック・空転)。前のフレームの割合
+const T=this.tire||(this.tire=Tire.init()), u=this.v*gearDir();
+let FxT=Ftrac-Fbrake;
+if(this.tireFx!=null&&Math.abs(this.tireFxReq)>1&&Math.sign(this.tireFxReq)===Math.sign(FxT)) FxT*=clamp(this.tireFx/this.tireFxReq,0,1);
+const Foff= offTrack&&this.v>1? m*clamp(this.v*0.12,0.2,2.5) : 0;
+const FnetT=FxT-Froll-Fdrag-Fslope-Fcorner-Foff;
 this.v=Math.max(0,this.v+FnetT/mEff*dtR);
 es.gLong=(FnetT/mEff)/GRAV; es.gPitch=((FnetT+Fslope)/mEff)/GRAV;
 const Pmotor=Math.max(0,mmT.Pelec-Pregen);
@@ -143,14 +148,17 @@ else es.soc=clamp(es.soc-(Ibat*dtR)/(CAP_AH()*3600),0,1);
 es.lastIbat=Ibat; es.lastNet=Pnet;
 if(Ibat>0) es.ahUsed+=Ibat*dtR/3600;
 es.v=this.v;
-if(this.v>0.3){
-const yawRate=gearDir()*Input.steer*clamp(8.5/Math.max(this.v,3),0.15,1.2);
-this.heading+=yawRate*dtR;
-es.gLat=(yawRate*this.v)/GRAV;
-} else es.gLat=0;
+// 横の動き: タイヤの計算 (レースと同じ Tire)。コースの外は土
+if(this.v>0.05){
+ T.ax=(es.gLong||0)*GRAV;
+ const wet=typeof Rain!=="undefined"? (Rain.wet||0) : 0, mu= offTrack? Tire.SURF.dirt : 1-Tire.SURF.wetK*wet;
+ const R=Tire.step(T,{u,delta:Tire.steerAngle(Input.steer,this.v,Input.steerMode),drive:Ftrac,brake:FbFric,regen:Fr},{mu},dtR);
+ this.tireFx=R.fx; this.tireFxReq=R.fxReq; es.tireW=R.wheels; es.tireUse=T.use; es.tireSlide=T.slide; es.tireLock=T.lockAny; es.tireSat=T.sat;
+ this.heading+=T.r*dtR; es.gLat=T.ay/GRAV;
+} else { es.gLat=0; T.vy=0; T.r=0; T.ay=0; this.tireFx=null; es.tireW=null; es.tireUse=0; es.tireSlide=false; es.tireLock=false; es.tireSat=0; }
 const x0=this.x, z0=this.z;
-this.x+=Math.sin(this.heading)*this.v*gearDir()*dtR;
-this.z-=Math.cos(this.heading)*this.v*gearDir()*dtR;
+this.x+=(Math.sin(this.heading)*u+Math.cos(this.heading)*T.vy)*dtR;
+this.z+=(-Math.cos(this.heading)*u+Math.sin(this.heading)*T.vy)*dtR;
 this.collide(x0,z0);
 if(this.state!=="done") this.judge(dtR);
 let carY=0;
@@ -211,7 +219,7 @@ setT("hud-nextcp",{circuit:"目標 2:20台",slalom:"目標 <11.5s",brake:"40km/h
 document.getElementById("hud-limit").textContent="―";
 this.updateTestHud(); drawG();
 Snd.update(this.v, es.lastAmp/Math.max(motorMaxA(es.powerMode),1), false);
-FFB.update({v:this.v,steer:Input.gamepadOK?Input.gpSteer:Input.steer,offroad:!!this.offTrack,shoulder:false,rough:0.3,cross:0,trainRel:null,brake:es.brakePhys||0,gLat:es.gLat||0,dt:dtR});   // サーキット: 旋回の横 G・コース外
+FFB.update(Object.assign({v:this.v,steer:Input.gamepadOK?Input.gpSteer:Input.steer,offroad:!!this.offTrack,shoulder:false,rough:0.3,cross:0,trainRel:null,brake:es.brakePhys||0,gLat:es.gLat||0,dt:dtR},FFB.tireIn(es)));   // サーキット: 旋回の横 G・コース外
 if(typeof HVRec!=="undefined") HVRec.frame(dtR);
 },
 judge(dtR){
@@ -366,7 +374,7 @@ collide(x0,z0){
  const hit=Collide.sweep(ux,uz,st,L,W,null); Collide.world="race";
  if(!hit) return;
  const dx=st.x-vx, dz=st.z-vz;                    // 押し出し量を試験の座標へ (回転の転置)
- this.x+=e[0]*dx+e[2]*dz; this.z+=e[8]*dx+e[10]*dz; this.v=Math.abs(st.v); Engine.st.v=this.v;
+ this.x+=e[0]*dx+e[2]*dz; this.z+=e[8]*dx+e[10]*dz; this.v=Math.abs(st.v); Engine.st.v=this.v; if(this.tire){ this.tire.vy*=0.2; this.tire.r*=0.3; }
  if(hit.level==="touch") return;
  const what=COLLIDE_WHAT[hit.kind]||"障害物", kmh=(hit.vn*3.6).toFixed(0), now=performance.now();
  if(hit.level==="light"){ if(now>(this.hitCd||0)){ this.hitCd=now+2500; Snd.alarm(); toast(`⚠ ${what}に接触 (${kmh} km/h)`,"#f59e0b"); } return; }
