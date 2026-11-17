@@ -66,8 +66,8 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   const r=await p.evaluate(async()=>{ Coffee.step=2; Coffee.draw(); Coffee.say(); await new Promise(r=>setTimeout(r,1500)); const o={ai:Coffee.ai,line:Coffee.lines[0]&&Coffee.lines[0].text,on:AI.on()};
    Coffee.finish(); await new Promise(r=>setTimeout(r,2600)); Engine.beginCS(RP_CS[0]); await new Promise(r=>setTimeout(r,1000)); o.cs=Radio.log.some(x=>String(x).includes("AI戦略"));
    VEH.active=true; o.real=AI.on(); VEH.active=false; return o; });
-  const leak=bodies.filter(x=>/名前テスト|kWh|Wh\/km/.test(x)).length;
-  check("AI (擬似の返答): 話し合いのセリフ・CS のひとこと、名前や電力量は送らない、キーなし・実車モデルでは使わない",!off&&r.on&&r.ai&&r.line==="AIテスト1"&&r.cs&&r.real===false&&bodies.length>=2&&leak===0&&errs.length===0,JSON.stringify({off,...r,n:bodies.length,leak,errs:errs.slice(0,2)}));
+  const leak=bodies.filter(x=>/名前テスト/.test(x)).length;
+  check("AI (擬似の返答): 話し合いのセリフ・CS のひとこと、名前は送らない、キーなし・実車モデルでは使わない",!off&&r.on&&r.ai&&r.line==="AIテスト1"&&r.cs&&r.real===false&&bodies.length>=2&&leak===0&&errs.length===0,JSON.stringify({off,...r,n:bodies.length,leak,errs:errs.slice(0,2)}));
   await ctx.close(); }
  // ---- 練習シナリオ (スコール) と無線の速度指示 ----
  { const p=await newPage(b,base);

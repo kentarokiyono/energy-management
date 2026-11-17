@@ -14,7 +14,14 @@ const Ghost={
    this.A=new Float64Array(pts.length); this.K=new Float64Array(pts.length); pts.forEach((p,i)=>{ this.A[i]=p[0]; this.K[i]=p[1]; }); })().catch(()=>{});
   return this.loading; },
  /* 時刻 abs [h] に実車がいた位置 [km] (ログの時間の外は null) */
- kmAt(abs){ const A=this.A, K=this.K; if(!A||abs<A[0]||abs>A[A.length-1]) return null;
+ GRID:18,   // 2025 年の実車のスタート順 (P18)
+ /* Day1 の発進: ログで動き出した時刻を、ゲームのスタート順 (P18 の発進時刻) に合わせる。それまではスタート地点で待つ */
+ dep(){ if(this._dep!==undefined) return this._dep; const A=this.A, K=this.K; let t0=null; for(let i=0;i<A.length&&A[i]<24;i++) if(K[i]>0.1){ t0=A[i]; break; }
+  const s=Engine.st, tot=(s&&s.teams?s.teams.length:25)+1, gap=Math.min(1.5,30/Math.max(1,tot-1))/60, tD=8+(this.GRID-1)*gap;
+  return this._dep= t0==null? null : {t0,tD,off:tD-t0}; },
+ kmAt(abs){ const A=this.A, K=this.K; if(!A) return null;
+  if(abs<24){ const d=this.dep(); if(d){ if(abs>=7&&abs<d.tD) return 0; abs-=d.off; } }   // Day1: P18 の発進時刻まではスタート地点
+  if(abs<A[0]||abs>A[A.length-1]) return null;
   let lo=0, hi=A.length-1; while(hi-lo>1){ const m=(lo+hi)>>1; if(A[m]<=abs) lo=m; else hi=m; }
   if(A[hi]-A[lo]>0.5) return null;   // ログの抜け (夜など): 出さない
   const f=(abs-A[lo])/Math.max(1e-9,A[hi]-A[lo]); return K[lo]+(K[hi]-K[lo])*f; },
@@ -35,5 +42,5 @@ const Ghost={
   const s=V.sOfKm(km); if(s<0||s>V.road.builtS-V.SEG){ this.mesh.visible=false; return; }
   const rp=V.roadPoint(s), lat=-2.4, nx=Math.cos(rp.h), nz=Math.sin(rp.h);
   this.mesh.position.set(rp.x+nx*lat,rp.y,rp.z+nz*lat); this.mesh.rotation.y=-rp.h; this.mesh.visible=Math.abs(d)<3; },   // 3 km 以内だけ車を出す (遠いと見えない)
- reset(){ this.mesh=null; }
+ reset(){ this.mesh=null; this._dep=undefined; }
 };

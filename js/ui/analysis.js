@@ -23,7 +23,7 @@ const Ana={
   for(const o of await this.DB.all()){ if(!o||!o.id||!Array.isArray(o.rows)||this.runs.some(r=>r.id===o.id)) continue;
    if(o.kind==="trend") continue;   // 傾向の結果 (傾向タブで読む)
    if(o.kind==="hv"){ if(o.hv&&o.hv.S) this.runs.push(this.hvRun(o)); continue; }
-   try{ const run=this.prep({id:String(o.id),name:String(o.name||"走行"),date:String(o.date||""),demo:!!o.demo,live:false,wasLive:!!o.live,socEst:!!o.socEst,rows:o.rows}); run.stored=true; this.runs.push(run); }catch(e){} } },
+   try{ const run=this.prep({id:String(o.id),name:String(o.name||"走行"),date:String(o.date||""),demo:!!o.demo,live:false,wasLive:!!o.live,logger:String(o.id).startsWith("log-"),socEst:!!o.socEst,rows:o.rows}); run.stored=true; this.runs.push(run); }catch(e){} } },
  label(r){ return r.name+(r.date?` ・ ${r.date}`:""); },
  COLMAP:{"日":"day","経過h":"eh","km":"km","状態":"st","速度km/h":"v","制限km/h":"lim","SOC%":"soc","発電W":"ps","モーターW":"pm","収支W":"net",
   "日射W/m²":"ghi","気温°C":"ta","セル温度°C":"tc","風速m/s":"wind","向かい風m/s":"head","勾配%":"gr","標高m":"el","スロットル%":"thr",
@@ -348,10 +348,12 @@ const Ana={
  aiSummary(run){ const B=(run.bins||[]).filter(Boolean), A=[]; if(!B.length) return null;
   const vAvg=B.reduce((m,b)=>m+b.v,0)/B.length, wAvg=B.filter(b=>Number.isFinite(b.whkm)&&b.whkm>0).reduce((m,b,_,a)=>m+b.whkm/a.length,0), gMax=B.reduce((m,b)=>Math.max(m,b.ghi||0),1);
   const D=new Map(); (run.drivers||[]).forEach((d,i)=>D.set(d,"D"+(i+1)));   // 名前は送らない
+  const pw=!!(run.demo||run.live||run.wasLive)&&!run.logger;   // 電力は、このゲームで走った走行とデモだけ。読み込んだログ (実車の計測器・CSV) は相対値だけ
   for(let k=0;k<B[B.length-1].km;k+=50){ const S=B.filter(b=>b.km>=k&&b.km<k+50); if(!S.length) continue; const av=(f)=>S.reduce((m,b)=>m+f(b),0)/S.length, W=S.filter(b=>Number.isFinite(b.whkm)&&b.whkm>0);
    const dc={}; S.forEach(b=>{ dc[b.drv]=(dc[b.drv]||0)+1; });
    A.push({km:`${k}-${k+50}`,v:Math.round(av(b=>b.v)/vAvg*100),soc:Math.round(av(b=>b.soc)),use:W.length&&wAvg>0? Math.round(W.reduce((m,b)=>m+b.whkm,0)/W.length/wAvg*100) : null,
-    sun:Math.round(av(b=>b.ghi||0)/gMax*100),grade:+av(b=>b.gr||0).toFixed(2),el:Math.round(av(b=>b.el||0)),drv:D.get(Object.entries(dc).sort((x,y)=>y[1]-x[1])[0][0])||"-"}); }
+    sun:Math.round(av(b=>b.ghi||0)/gMax*100),grade:+av(b=>b.gr||0).toFixed(2),el:Math.round(av(b=>b.el||0)),drv:D.get(Object.entries(dc).sort((x,y)=>y[1]-x[1])[0][0])||"-",
+    ...(pw? {kmh:Math.round(av(b=>b.v)),whkm:W.length? +(W.reduce((m,b)=>m+b.whkm,0)/W.length).toFixed(1) : null,net_w:Math.round(av(b=>b.net||0))} : {})}); }
   return {note:"v は走行全体の平均速度を 100 とした指数",total_km:Math.round(run.kmMax||0),drivers:run.drivers?run.drivers.length:0,days:(run.days||[]).map(d=>({day:d.d,km:Math.round(d.b-d.a)})),seg:A}; },
  aiOpen(){ let d=document.getElementById("ana-aibox"); if(d){ d.remove(); return; }
   d=document.createElement("div"); d.id="ana-aibox"; const why=typeof AI!=="undefined"? AI.why() : "OFF", run=this.run();
@@ -360,7 +362,7 @@ const Ana={
    ${why? `<div class="dim aib-note">使えません: ${why}。「車両・チームの設定」→「運用」で ON にして、自分の Gemini API キーを入れてください。</div>` : ""}
    <div class="aib-q">${Q.map(q=>`<button class="btn ana-sm" data-q="${q}">${q}</button>`).join("")}</div>
    <div class="aib-in"><textarea id="ana-aiq" rows="2" maxlength="300" placeholder="この走行について質問"></textarea><button class="btn ana-sm pri" id="ana-aigo">聞く</button></div>
-   <div class="aib-out" id="ana-aiout"></div><div class="dim aib-note">送るのは 50 km ごとの相対値 (速度・消費・日射の指数、電池 %、勾配、標高) だけ。名前・電力量は送りません。</div>`;
+   <div class="aib-out" id="ana-aiout"></div><div class="dim aib-note">送るのは 50 km ごとの要約 (速度・消費・日射の指数、電池 %、勾配、標高。このゲームの走行なら速度・電費・収支も)。読み込んだ実車のログでは電力は送りません。名前は送りません。</div>`;
   document.getElementById("ana").appendChild(d);
   const go=async(q)=>{ q=(q||"").trim(); if(!q) return; const out=document.getElementById("ana-aiout"), r=this.run(), sm=r&&r.kind!=="hv"&&this.aiSummary(r);
    if(!sm){ out.textContent="本戦の走行を選んでください。"; return; } out.textContent="考えています…";

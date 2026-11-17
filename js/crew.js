@@ -23,7 +23,7 @@ reset(){
  this.prep={ballast:true,helmet:true,radio:true,water:true};
  this.check=null; this.timing=null;
  this.clearSite(); this.built=false; this.syncVisual();
- if(this.ui) this.ui.root.style.display="none";
+ this.hideUI();
 },
 /* ---------- 手順の定義 ---------- */
 EGRESS:[
@@ -122,7 +122,7 @@ permitOK(){
 finish(){ // 走行へ戻る
  this.phase="drive"; this.ctx=null; this.timing=null; this.check=null;
  if(this.prevCam!=null){ View.cam=this.prevCam; this.prevCam=null; }
- this.clearSite(); if(this.ui) this.ui.root.style.display="none";
+ this.clearSite(); this.hideUI();
 },
 goOutside(){
  this.phase="outside";
@@ -333,18 +333,21 @@ pick(){
  if(hit&&hit.distance<=maxD){ this.hover=hit.object.userData.hot; for(const o of list) if(hl(o)&&o.userData.hot&&o.userData.hot.id===this.hover.id) o.material.emissive.setHex(0x444400); }
 },
 /* ---------- 画面表示 ---------- */
+hideUI(){ if(!this.ui) return; this.ui.root.style.display="none"; this.ui.cross.style.display="none"; this.ui.prompt.style.display="none"; this.ui.prompt.textContent=""; },   // 手順の欄・照準・「E: …」をまとめて隠す
 showUI(){
  if(!this.ui){
   const root=document.createElement("div"); root.id="crew-ui";
-  root.id="crew-ui"; root.addEventListener("click",e=>{ const a=e.target.closest&&e.target.closest("[data-aim]"); if(a) Crew.aim(a.dataset.aim); }); root.style.cssText="position:fixed;right:16px;top:100px;z-index:40;max-width:340px;font-size:13px;line-height:1.7;color:#e6e6e3;background:rgba(21,23,26,.92);border:1px solid #2a2d32;border-top:2px solid #f5b51c;padding:12px 16px;pointer-events:none";
+  root.id="crew-ui"; root.addEventListener("click",e=>{ const a=e.target.closest&&e.target.closest("[data-aim]"); if(a) Crew.aim(a.dataset.aim); const l=e.target.closest&&e.target.closest("[data-look]"); if(l) Crew.lookAt(l.dataset.look); }); root.style.cssText="position:fixed;right:16px;top:100px;z-index:40;max-width:340px;font-size:13px;line-height:1.7;color:#e6e6e3;background:rgba(21,23,26,.92);border:1px solid #2a2d32;border-top:2px solid #f5b51c;padding:12px 16px;pointer-events:none";
   const cross=document.createElement("div"); cross.style.cssText="position:fixed;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border:2px solid rgba(255,255,255,.8);border-radius:50%;z-index:40;pointer-events:none";
   const prompt=document.createElement("div"); prompt.style.cssText="position:fixed;left:50%;top:56%;transform:translateX(-50%);z-index:40;color:#fff;font:bold 14px sans-serif;text-shadow:0 0 4px #000;pointer-events:none";
   document.body.appendChild(root); document.body.appendChild(cross); document.body.appendChild(prompt);
   this.ui={root,cross,prompt};
  }
- this.ui.root.style.display="block";
+ this.ui.root.style.display="block"; this.ui.cross.style.display=""; this.ui.prompt.style.display="";
 },
-/* 手順の対象へ視点を向ける (タッチ操作: 一覧の次の手順をタップ) */
+/* 視点ボタン (車内): 正面・足元・左・右 */
+lookAt(k){ const L={front:[0,-0.35],down:[0,-1.15],left:[0.95,-0.75],right:[-0.95,-0.75]}[k]; if(L&&this.look){ this.look.yaw=L[0]; this.look.pitch=L[1]; } },
+/* 手順の対象へ視点を向ける (一覧の次の手順をクリック / タップ) */
 aim(stepId){
  if(this.phase!=="egress"&&this.phase!=="ingress") return;
  let want=stepId;
@@ -364,7 +367,7 @@ drawUI(){
  let h="";
  const es=Engine.st, mm=(x)=>`${Math.floor(x/60)}:${String(Math.floor(x%60)).padStart(2,"0")}`;
  const touch=document.body.classList.contains("touch-on");
- if(touch&&(this.phase==="egress"||this.phase==="ingress")) h+=`<div style="color:#8b9097;margin-bottom:4px">対象をタップで操作 / ドラッグで見回す / 下線の手順をタップで視点を合わせる</div>`;
+ if(this.phase==="egress"||this.phase==="ingress") h+=`<div style="color:#8b9097;margin-bottom:4px">${touch?"対象をタップで操作 / ドラッグで見回す / 下線の手順をタップで視点を合わせる":"対象を照準に合わせて E / ドラッグ・矢印で見回す / 下線の手順をクリックで視点を合わせる"}</div><div class="crew-views">${[["front","正面"],["down","足元"],["left","左"],["right","右"]].map(([k,t])=>`<button data-look="${k}">${t}</button>`).join("")}</div>`;
  if(this.phase==="egress"){ h+=`<b>降車手順</b>`; const nx=this.nextStep(this.EGRESS); for(const s of this.EGRESS) h+=li(s!==nx&&s.done(this.st),s.t,s===nx,s.id); }
  else if(this.phase==="ingress"){ h+=`<b>乗車手順</b>`; const nx=this.nextStep(this.INGRESS); for(const s of this.INGRESS) h+=li(s!==nx&&s.done(this.st),s.t,s===nx,s.id);
   if(this.ctx&&this.ctx.kind==="cs") h+=`<div style="margin-top:4px">発車まで ${mm(Math.max(0,es.stopTimer))}</div>`; }

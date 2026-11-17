@@ -119,7 +119,7 @@ function quitToMenu(){
 if(running&&Engine.st&&!Test.active) DrvRec.record();   // ドライバー成績 (途中でやめた走行も)
 if(typeof EventGame!=="undefined") EventGame.end();
 if(typeof HVRec!=="undefined") HVRec.flush();   // ヒドゥンバレーの記録を保存
-running=false; paused=false; Test.active=false; if(typeof Coffee!=="undefined") Coffee.close();
+running=false; paused=false; Test.active=false; if(typeof Coffee!=="undefined") Coffee.close(); document.body.classList.remove("cam-drv"); if(View) View._camCls=null; if(typeof Crew!=="undefined"){ Crew.hideUI(); Crew.phase="drive"; document.body.classList.remove("walking"); }
 document.getElementById("game-container").classList.add("hidden");
 document.getElementById("test-hud").classList.add("hidden");
 show("result-screen",false); show("pause-overlay",false); show("stopmenu-overlay",false); show("test-result",false);

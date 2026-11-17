@@ -113,11 +113,24 @@ const Cockpit={
  /* 後ろ向きのカメラを車体の後端に置き、ドライバー視点のときだけ 3 フレームに 1 回描く */
  renderRear(V){
   if(!V.rearRT||!V.car||V.cam!==2||(typeof Crew!=="undefined"&&!Crew.inCar())) return;
-  if((V.rearFrame=(V.rearFrame+1)%3)!==0) return;
+  if((V.rearFrame=((V.rearFrame|0)+1)%3)!==0) return;
   if(!this._rearZ){ const bb=new THREE.Box3().setFromObject(V.carBody||V.car), inv=new THREE.Matrix4().copy(V.car.matrixWorld).invert(); bb.applyMatrix4(inv); this._rearZ=bb.max.z+.05; this._rearY=Math.max(.5,bb.max.y*.7); }
   const c=V.rearCam; c.position.copy(V.car.localToWorld(new THREE.Vector3(0,this._rearY,this._rearZ)));
   c.lookAt(V.car.localToWorld(new THREE.Vector3(0,this._rearY-.3,this._rearZ+30)));
   const r=V.renderer, prev=r.getRenderTarget(); r.setRenderTarget(V.rearRT); r.render(V.scene,c); r.setRenderTarget(prev);
+ },
+ /* 運転席視点: バックビューの映像を画面の上 (視界の上端の中央) にも重ねる。車内のモニター (頭上) と同じ映像 */
+ rearHud(V){
+  const es=Engine.st; if(P.rearHud===false||!V.rearRT||V.cam!==2||(typeof Crew!=="undefined"&&!Crew.inCar())||!es||es.stopTimer>0||es.camp) return;   // 止まっている間 (CS・停車の表示が上に出る) は出さない
+  if(!this._hud){ const sc=new THREE.Scene(), cam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+   const g=new THREE.PlaneGeometry(2,2), uv=g.attributes.uv; for(let i=0;i<uv.count;i++) uv.setX(i,1-uv.getX(i));   // ミラーと同じ向き
+   const img=new THREE.Mesh(g,new THREE.MeshBasicMaterial({map:V.rearRT.texture,depthTest:false,depthWrite:false,toneMapped:false}));
+   sc.add(img); this._hud={sc,cam,img}; }
+  const H=this._hud; H.img.material.map=V.rearRT.texture;
+  const r=V.renderer, w=Math.round(clamp(innerWidth*0.12,110,170)), h=Math.round(w*144/256), x=Math.round((innerWidth-w)/2), top=document.body.classList.contains("touch-on")? 76 : 100;   // 上の計器の帯の下
+  const ac=r.autoClear; r.autoClear=false; r.setScissorTest(true); r.setViewport(x,innerHeight-top-h,w,h); r.setScissor(x,innerHeight-top-h,w,h);
+  r.render(H.sc,H.cam);
+  r.setScissorTest(false); r.setViewport(0,0,innerWidth,innerHeight); r.autoClear=ac;
  },
  /* 毎フレーム: 操作部品の向き・ランプ */
  sync(V,es){

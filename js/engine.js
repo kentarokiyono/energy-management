@@ -185,9 +185,12 @@ let spd=Math.max(0,(tm.vSet||0)*(tm.boost?1.15:1));
 // 自車に後ろから追いついたら、追い越しの許可が出るまで車間 (約 35 m) をとって自車の速さで付いて走る。
 // 自車が止まっているとき (停車・CS・夜) は横を抜ける。距離は画面の距離 (早送りの区間も同じ尺度)
 if(P.mode==="race"&&!tm.passing&&s.v>=1&&s.stopTimer<=0&&!s.camp&&!s.finished){
- const gap=Route.visDist(tm.km,s.km);   // > 0: 自車が前
+ const gap=-Route.relDist(s.km,tm.km,typeof View!=="undefined"? View.relK : 0);   // > 0: 自車が前 (画面と同じ尺度)
  if(gap>-3&&gap<400) spd=Math.min(spd,Math.max(0,s.v*3.6+(gap-35)*0.5));
 }
+if(tm.sigHold) spd=0;   // 赤信号 (画面に出ているときだけ。View が決める)
+// 加速 1.2 m/s²・減速 4 m/s² まで (止まっている車が急に走り出さない)。自車の後ろで車間を詰めすぎるときだけ強めに減速
+{ const v0=tm.vNow||0, up=1.2*3.6*dtS, dn=(spd<v0-20? 7 : 4)*3.6*dtS; spd= spd>v0? Math.min(spd,v0+up) : Math.max(spd,v0-dn); }
 tm.vNow=spd;
 tm.km+=spd*dtS/3600;
 tm.soc=clamp(tm.soc+(tm.psol-this.aiDrivePower(tm,spd/3.6))*dtS/3600/Wh,0,1);

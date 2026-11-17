@@ -48,6 +48,9 @@ kmAtVis(v){
  return K[lo]+(K[hi]-K[lo])*(v-V[lo])/(V[hi]-V[lo]);
 },
 visDist(k1,k2){ return this.vis(k2)-this.vis(k1); },
+/* 他チームの車までの画面上の距離 [m]: 自車のいる所の縮尺 k (画面 1 m あたりの実距離の倍率) で測る。
+ 道の縮尺 (vis) で測ると、等倍ゾーンにいる自車から見て早送りの区間を走る車がほぼ止まって見え、自車がその区間に入ったとたん急に走り出して見えるため */
+relDist(kSelf,kOther,k){ return (kOther-kSelf)*1000/Math.max(1,k||this.scaleAt(kSelf)); },
 /* ---- ノート由来 ---- */
 _limits:null,
 limits(){
