@@ -241,5 +241,7 @@ rows.push(["総発電", (es.whGen/1000).toFixed(1)+" kWh"]);
 rows.push(["電費", (es.whUsed/TOTAL_KM).toFixed(1)+" Wh/km"]);
 }
 { const o=typeof Orders!=="undefined"&&Orders.summary(); if(o&&P.mode==="race") rows.push(["無線の速度指示",`${o.n} 区間 (A ${o.A}・B ${o.B}・C ${o.C})・幅に入っていた時間 平均 ${(o.pct*100).toFixed(0)} %・平均のずれ ${o.dev.toFixed(1)} km/h${o.react!=null?`・合わせるまで 平均 ${o.react.toFixed(0)} 秒`:""}`]); }
+if(P.mode==="race"&&!P.event&&!es.scenario&&es.seed) rows.push(["天気番号",`${es.seed} <span class="dim" style="font-size:11px">(詳しい設定に入れると同じ天気で走れる)</span>`]);
+{ const rb=document.getElementById("replay-btn"); if(rb) rb.style.display= P.mode==="race"&&!P.event&&!es.scenario&&es.seed? "" : "none"; }
 body.innerHTML=rows.map(r=>`<div class="kv"><span>${r[0]}</span><span>${r[1]}</span></div>`).join("");
 }

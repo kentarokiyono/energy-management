@@ -1,6 +1,6 @@
 "use strict";
 /* ============ スカイドーム(グラデ+太陽+雲+星 / ドローコール1) ============ */
-function makeSkyDome(){
+function makeSkyDome(R=2200){   // R: 半径 [m]。カメラの描画距離 (far) より内側に置く (外に出ると空が描かれず黒くなる)
 const mat=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,
 uniforms:{uTop:{value:new THREE.Color(0x2f7fc4)},uHor:{value:new THREE.Color(0xbdd7ea)},
 uSunDir:{value:new THREE.Vector3(0,1,0)},uSunCol:{value:new THREE.Color(1.0,0.95,0.8)},
@@ -31,7 +31,7 @@ fragmentShader:[
 "if(uNight>0.01&&d.y>0.0){float st=step(0.998,hash(floor(d.xz/(d.y+0.25)*300.0)));col+=vec3(0.8,0.9,1.0)*st*uNight*0.7;}",
 "gl_FragColor=vec4(max(col,vec3(0.0)),1.0);}"
 ].join("\n")});
-return new THREE.Mesh(new THREE.SphereGeometry(2200,32,15),mat);
+return new THREE.Mesh(new THREE.SphereGeometry(R,32,15),mat);
 }
 /* ============ 遠くの山並み (地平線の上の稜線。もやで霞む) ============
  視点のまわりの円筒。稜線の形は方角で決まり、走ると少しずつ変わる。高さは土地の起伏 (uHill) に合わせる */

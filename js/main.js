@@ -115,6 +115,8 @@ paused=!paused;
 show("pause-overlay",paused);
 if(!paused) lastT=performance.now();
 }
+/* 結果画面: 同じ天気番号で最初から走り直す */
+function replaySameWeather(){ const seed=Engine.st&&Engine.st.seed; if(!seed) return; Fade.go(()=>{ quitToMenu(); Rng.next=seed; startGame(); }); }
 function quitToMenu(){
 if(running&&Engine.st&&!Test.active) DrvRec.record();   // ドライバー成績 (途中でやめた走行も)
 if(typeof EventGame!=="undefined") EventGame.end();

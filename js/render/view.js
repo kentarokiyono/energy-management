@@ -49,7 +49,7 @@ disposeScene(this.scene,this.renderer); if(typeof Test!=="undefined"&&Test.scene
 this.scene=new THREE.Scene();
 this.scene.background=null;
 setupRenderQuality(this.renderer,this.scene); EnvLight.reset();
-this.skyDome=makeSkyDome(); this.skyDome.frustumCulled=false; this.scene.add(this.skyDome);
+this.skyDome=makeSkyDome(GFX.cur().far*0.95); this.skyDome.frustumCulled=false; this.scene.add(this.skyDome);
 this.farRidge=makeFarRidge(GFX.cur().far*0.9); this.scene.add(this.farRidge);
 this.camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,GFX.cur().far);
 this.hemiLight=new THREE.HemisphereLight(0xbfe6ff,0x8a5a33,0.9);
@@ -862,8 +862,8 @@ if(vv>0.3){
 } else { es.gLat=0; this.yawR=0; }
 const cx0=this.cx, cz0=this.cz;   // 当たり判定の掃引用
 this.cx+=Math.sin(this.ch)*vv*gearDir()*dtR; this.cz-=Math.cos(this.ch)*vv*gearDir()*dtR;
-// 横風 (諸元があるとき): 横方向に押される。タイヤの横すべりで遅れて効く
-if(VEH.active&&VEH.spec.chassis&&P.mode==="race"){
+// 横風: 横方向に押される。タイヤの横すべりで遅れて効く (諸元が無いときは一般的な側面積・横力係数)
+if(P.mode==="race"&&!P.event){
  const aY= vv>1? VehDyn.sideAccel(-(es.lastCross||0),es.lastRho||1.17,massTotal()) : 0;
  this.vyWind=lerp(this.vyWind||0,aY*0.35,clamp(dtR*3,0,1));
  /* 突風: 風が急に変わると鼻先が振られる (当て舵が要る)。風が一定になれば収まる */
@@ -948,7 +948,7 @@ this.car.rotation.order="YXZ";
   // 横転したら風下へ転がりながら滑り、路肩で止まる (2025 年の映像のように)
   if(es.rolledOver){ const p0=this.roadPoint(this.s), edge=(es.tipDir||1)>0? p0.R+1.2 : -(p0.L+1.2), dl=edge-this.lateral; this.rollSlide=(this.rollSlide||0)+dtR;
    if(this.rollSlide<3&&Math.abs(dl)>0.05){ const st=clamp(dl,-3*dtR,3*dtR); this.lateral+=st; this.cx+=Math.cos(this.ch)*st; this.cz+=Math.sin(this.ch)*st; this.car.rotation.y+=(es.tipDir||1)*0.25*Math.min(1,this.rollSlide); } } else this.rollSlide=0; }
-let wantTilt=(es.camp||es.stopTimer>0||StopMenu.mode==="charge")&&!es.disconnected;
+let wantTilt=(es.camp||es.stopTimer>0||StopMenu.mode==="charge"||Engine.gridWait())&&!es.disconnected&&!Engine.preStartFlat();
 if(typeof Crew!=="undefined"&&Crew.busy()&&Crew.phase!=="outside") wantTilt=false;   // ドライバーが乗っている間は傾けない
 const targetRoll=wantTilt? -es.tiltDeg*Math.PI/180*0.85 : 0;
 const UT=this.car.userData.upperTilt;   // 和大型: アッパーカウルだけを傾ける

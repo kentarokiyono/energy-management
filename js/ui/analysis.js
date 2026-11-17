@@ -246,7 +246,7 @@ const Ana={
   try{
    for(let guard=0;guard<40000&&km<TOTAL_KM;guard++){
     const day=Math.floor(abs/24), h=abs-day*24;
-    if(h>=17){ const pr=profileAt(km), ss=Engine.sunsetHour(pr.lat,pr.lon); charge(Math.max(0,ss-h),"夜営"); abs=(day+1)*24+6.25; charge(1.75,"夜営"); drv=(drv+1)%2; continue; }
+    if(h>=17){ const pr=profileAt(km), ss=Engine.sunsetHour(pr.lat,pr.lon); charge(Math.max(0,ss-h),"夜営"); abs=(day+1)*24+6.25; charge(1.75-Engine.FLAT_BEFORE_START,"夜営"); abs+=Engine.FLAT_BEFORE_START; drv=(drv+1)%2; continue; }
     const style=drv?1.04:1.0, noise=(rnd()-0.5)*(drv?6:3);
     sp+=(rnd()-0.5)*0.6; sp*=0.92;
     let v=Math.min(speedLimitAt(km+STEP/2), V0*style*(1+0.03*Math.sin(km/9))+sp*4+noise);

@@ -427,6 +427,24 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   const c=await p.evaluate(()=>({closed:!document.getElementById("standby"),q:location.search}));
   check("待機画面",o.open&&o.anim==="sbSpin"&&o.faces===2&&/radial-gradient/.test(o.bg)&&c.closed&&c.q==="",JSON.stringify([o,c]));
   await p.context().close(); }
+ // ---- 戦略の先読みと実際の走行 (Engine.step) が一致する・天気番号で同じ天気・空が描画距離の内側 ----
+ { const p=await newPage(b,base);
+  const r=await p.evaluate(()=>{ P.mode="race"; P.event=false; P.fcErr="off"; P.crewProc=false; startGame(); View.update=()=>{};
+   const es=Engine.st; es.weatherPlan=[]; es.stormPlan=null; es.hour=es.gridStartH+0.001; const V=70, out=[];
+   const sim=Strategy.simulate(V,{abs:(es.day-1)*24+es.hour,km:0,soc:es.soc,floor:-9,trace:true}), at=(km)=>sim.trace.find(t=>t[0]>=km);
+   let n=0, next=50; while(es.km<150&&n<100000){ n++; const tgt=Math.min(V,speedLimitAt(es.km))/3.6;
+    es.throttleSet=clamp(es.throttleSet+(tgt-es.v)*0.08,0,1); es.brakeRegen=es.v>tgt+1.5?0.3:0; Engine.step(2,2);
+    if(es.km>=next){ out.push([next,es.soc,at(next)[2]]); next+=50; } }
+   return {out,sky:View.skyDome.geometry.parameters.radius<View.camera.far}; });
+  const d=Math.max(...r.out.map(x=>Math.abs(x[1]-x[2])));
+  check("戦略の先読み = 実際の走行 (70 km/h・150 km で電池の差 1 % 未満)",r.out.length===3&&d<0.01,r.out.map(x=>`${x[0]}km ${(x[1]*100).toFixed(1)}/${(x[2]*100).toFixed(1)}`).join(" "));
+  check("空のドームが描画距離の内側",r.sky);
+  const w=await p.evaluate(()=>{ const a=(n)=>{ P.wxSeed=n; P.realWeather=false; P.fcErr="mid"; startGame(); const s=Engine.st; return JSON.stringify([s.seed,s.weatherPlan,s.fc&&s.fc.plan,s.teams.map(t=>t.spd)]); };
+   const x=a(4321), y=a(4321), z=a(4322); P.wxSeed=0; startGame(); const seed=Engine.st.seed; Rng.next=seed; startGame(); const re=Engine.st.seed===seed;
+   showResult(); const shown=/天気番号/.test(document.getElementById("result-body").textContent)&&document.getElementById("replay-btn").style.display!=="none";
+   P.realWeather=true; return {same:x===y,diff:x!==z,re,shown}; });
+  check("天気番号: 同じ番号で同じ天気・予報・他チーム、結果画面に番号と「同じ天気でもう一度」",w.same&&w.diff&&w.re&&w.shown,JSON.stringify(w));
+  await p.context().close(); }
  // ---- オフライン: 一度開いたら回線なしで起動できる ----
  { const p=await newPage(b,base);
   await p.waitForFunction(()=>/OFFLINE READY/.test(document.querySelector(".menu .build").textContent),null,{timeout:30000});

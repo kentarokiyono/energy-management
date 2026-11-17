@@ -24,8 +24,11 @@ const RealWx={
  on(){ return this.ok&&P.realWeather!==false&&P.mode==="race"&&!P.event&&!(typeof Engine!=="undefined"&&Engine.st&&Engine.st.scenario); },   // 練習シナリオは決めた天気
  /* 場所 (緯度経度) と 通日・時刻 → 補間の重み。地点はルート上 100 km ごと: 近い 2 地点を距離で、前後の 1 時間を時刻で */
  wts(lat,lon,doy,hour){
-  const W=this.W, L=W.loc, c=Math.cos(lat*Math.PI/180); let i0=0,d0=1e9,i1=0,d1=1e9;
-  for(let i=0;i<L.length;i++){ const d=Math.hypot(L[i][1]-lat,(L[i][2]-lon)*c); if(d<d0){ d1=d0; i1=i0; d0=d; i0=i; } else if(d<d1){ d1=d; i1=i; } }
+  const W=this.W, L=W.loc, key=lat*1e4+lon; let i0,d0,i1,d1;
+  if(this._nk===key){ [i0,d0,i1,d1]=this._nv; }   // 同じ場所が続く (戦略の先読み) ので、近い 2 地点を覚えておく
+  else { const c=Math.cos(lat*Math.PI/180); i0=0; d0=1e9; i1=0; d1=1e9;
+   for(let i=0;i<L.length;i++){ const d=Math.hypot(L[i][1]-lat,(L[i][2]-lon)*c); if(d<d0){ d1=d0; i1=i0; d0=d; i0=i; } else if(d<d1){ d1=d; i1=i; } }
+   this._nk=key; this._nv=[i0,d0,i1,d1]; }
   const h=(doy-this.DOY0)*24+hour; if(!(h>=0&&h<=W.hours-1)) return null;   // データの期間外 → 呼び出し側で従来の計算
   const k=clamp(Math.floor(h),0,W.hours-2), t=clamp(h-k,0,1), w0=(d0+d1)>0? d1/(d0+d1) : 1;
   return [[i0,k,w0*(1-t)],[i0,k+1,w0*t],[i1,k,(1-w0)*(1-t)],[i1,k+1,(1-w0)*t]];

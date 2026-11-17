@@ -20,7 +20,7 @@ const Storm={
  plan(s){
   s.stormPlan=[]; if(P.mode!=="race"||P.event||s.scenario||P.raceStorm===false) return;
   if(P.realWeather!==false&&typeof RealWx!=="undefined"&&RealWx.ok) s.stormPlan.push({start:5*24+14.8,dur:0.55,mean:17,max:39,to:Math.PI/2,real:true});   // 2025 年 Day6
-  else if(Math.random()<0.3){ const d=3+Math.floor(Math.random()*4); s.stormPlan.push({start:(d-1)*24+12+Math.random()*4.5,dur:0.4+Math.random()*0.3,mean:13+Math.random()*3,max:26+Math.random()*8,to:Math.PI*(0.35+0.3*Math.random())}); }
+  else if(Rng.r("wx")<0.3){ const d=3+Math.floor(Rng.r("wx")*4); s.stormPlan.push({start:(d-1)*24+12+Rng.r("wx")*4.5,dur:0.4+Rng.r("wx")*0.3,mean:13+Rng.r("wx")*3,max:26+Rng.r("wx")*8,to:Math.PI*(0.35+0.3*Rng.r("wx"))}); }
   for(const e of s.stormPlan){ e.g=this.gusts(e); e.said={}; }
  },
  abs(s){ return (s.day-1)*24+s.hour; },
