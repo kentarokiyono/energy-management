@@ -745,6 +745,7 @@ const r=this.road, CHUNK=200;
 let ahead=upTo+CHUNK+900;
 if(P.mode==="race"){ const kA=this.kmOfS(upTo), kB=this.kmOfS(ahead+300);
  for(const t of OsmRoute.towns) if(t.km1>kA&&t.km0<kB&&Route.real(Math.max(t.km0,kA))) ahead=Math.max(ahead,Math.min(this.sOfKm(t.km1)+60,upTo+12000)); }
+const nOld=r.pts.length;
 while(r.builtS<ahead){
 const last=r.pts[r.pts.length-1];
 const sN=r.builtS+this.SEG;
@@ -764,6 +765,7 @@ const wt= P.mode==="race"&&Route.real(km)? OsmRoute.waterAt(km) : null;
 r.pts.push({x,z,y,h,g:grade,c:gen.curv,L:pr.L,m1:pr.m1,R:pr.R,ow:pr.ow,dual:pr.dual,yb,bh,deck:!!(bm&&bm.deck)||!!wt,wd:wt?wt.depth*wt.edge:0});
 r.builtS=sN;
 }
+if(r.pts.length>nOld&&typeof Scenery!=="undefined"&&Scenery.capOldGround) Scenery.capOldGround(this,nOld);   // 新しくできた本線の上に、前に作った地面がかぶらないように
 while(true){
 const lastEnd=r.chunks.length? r.chunks[r.chunks.length-1].endS:0;
 if(lastEnd>=upTo || lastEnd+CHUNK>r.builtS) break;

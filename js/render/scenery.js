@@ -48,6 +48,43 @@ groundRel(x,z,off,bio,km){
  const h=-0.18+terrainH(x,z,a,bio.hill*urb*zf);
  return Math.min(h,this.branchCap(x,z));
 },
+/* ---- 本線のほかの区間 (町で曲がって戻ってくる道・カーブの内側・往復) の上に地面がかぶらないように ----
+ 地形は道の横へ 900 m まで広がり、遠いほど頂点の間隔が広い (最大 260 m)。道が頂点の間を通っても面が路面より上に来ないよう、
+ 頂点の上限 = 路面 − 0.15 m + 傾き CAP_SLOPE × (距離 − 道の半幅 − 3 m − その頂点のまわりの間隔) */
+CAP_SELF:40, CAP_SLOPE:0.06,
+/* 区間 [s0, s1] の地面にかかりうる本線の点 (その区間と前後 CAP_SELF m は除く。5 m おき) */
+capList(view,s0,s1,i0){
+ const P=view.road.pts, SEG=view.SEG, a=Math.max(0,Math.floor(s0/SEG)), b=Math.min(P.length-1,Math.ceil(s1/SEG));
+ let x0=Infinity,x1=-Infinity,z0=Infinity,z1=-Infinity; for(let n=a;n<=b;n++){ const q=P[n]; if(q.x<x0) x0=q.x; if(q.x>x1) x1=q.x; if(q.z<z0) z0=q.z; if(q.z>z1) z1=q.z; }
+ const M=SKIRT_OFF, out=[], st=Math.max(1,Math.round(5/SEG));
+ for(let n=i0||0;n<P.length;n+=st){ const sn=n*SEG; if(sn>s0-this.CAP_SELF&&sn<s1+this.CAP_SELF) continue; const q=P[n];
+  if((q.bh||0)>0.5||q.deck) continue;   // 橋・立体交差の上の路面は下の地面と関係ない
+  if(q.x<x0-M||q.x>x1+M||q.z<z0-M||q.z>z1+M) continue; out.push({x:q.x,z:q.z,y:q.y,r:Math.max(q.L||5,q.R||5)+3}); }
+ return out;
+},
+/* 頂点 (x, y, z) の高さを list の路面で抑える。sp: その頂点から隣の頂点までの最大の距離 [m]
+ (道が三角形の中を通るなら、その 3 頂点とも道から sp 以内にある → 3 頂点とも路面より下になり、面も路面より下) */
+capY(list,x,y,z,sp){
+ for(const q of list){ const R=q.r+sp+Math.max(0,y-q.y+0.15)/this.CAP_SLOPE, dx=q.x-x, dz=q.z-z; if(dx>R||dx<-R||dz>R||dz<-R) continue;
+  const d=Math.sqrt(dx*dx+dz*dz), cap=q.y-0.15+Math.max(0,d-q.r-sp)*this.CAP_SLOPE; if(cap<y) y=cap; }
+ return y;
+},
+/* 地形の帯 (行 × nc 列の格子) の頂点を list の路面より下へ。変えたら true */
+capMesh(o,list){
+ if(!list.length) return false;
+ const ps=o.geometry.attributes.position, nc=o.userData.nc, n=ps.count, skirt=o.userData.skirtCol; let ch=false;
+ const dist=(a,b)=>Math.hypot(ps.getX(a)-ps.getX(b),ps.getZ(a)-ps.getZ(b));
+ for(let k=0;k<n;k++){ const col=k%nc; if(col===skirt) continue;
+  let sp=0; for(const m of [k-1,k+1,k-nc,k+nc,k-nc+1,k+nc-1]){ if(m<0||m>=n) continue; const cm=m%nc; if(Math.abs(cm-col)>1||cm===skirt) continue; sp=Math.max(sp,dist(k,m)); }
+  const y=ps.getY(k), y2=this.capY(list,ps.getX(k),y,ps.getZ(k),sp); if(y2<y){ ps.setY(k,y2); ch=true; } }
+ if(ch){ ps.needsUpdate=true; o.geometry.computeVertexNormals(); o.geometry.computeBoundingSphere(); }
+ return ch;
+},
+/* 本線の点 i0 以降が新しくできたとき: 前に作った地面 (場面にあるチャンク) をその路面より下へ */
+capOldGround(view,i0){
+ for(const c of view.road.chunks){ const list=this.capList(view,c.startS,c.endS,i0); if(!list.length) continue;
+  c.mesh.traverse(o=>{ if(o.isMesh&&o.userData.terrain) this.capMesh(o,list); }); }
+},
 /* 分岐道路の周囲は道路面より下へ (地形が脇道を埋めないように) — 戻り値は本線行の高さ基準 */
 branchCap(x,z){
  const brs=this._capBr; if(!brs||!brs.length) return Infinity;
@@ -182,17 +219,19 @@ buildChunk(view,s0,s1){
   }));
  }
  // ---- 周辺地形 ----
+ const capL=this.capList(view,s0,s1);   // 近くを通る本線のほかの区間
  for(const sd of [-1,1]){
   let cols=TERRAIN_OFFS.map(o=>({off:sd*(SH+o)})).concat([{off:sd*SKIRT_OFF,skirt:true}]);
   if(sd<0) cols=cols.slice().reverse();
-  grp.add(this.ribbon(view,s0,s1,cols,gmat,(s)=>{
+  const tm=this.ribbon(view,s0,s1,cols,gmat,(s)=>{
    const km=this.kmOfS(view,s), bio=biomeAt(km);
    return {at:(c,x,z)=>{
-    const y= c.skirt? -38 : (Math.abs(c.off0)<SH+0.1&&!this._rowDeck? Math.min(bio.urban?0.15:-0.05,this.branchCap(x,z)) : this.groundRel(x,z,c.off0,bio,km));
+    let y= c.skirt? -38 : (Math.abs(c.off0)<SH+0.1&&!this._rowDeck? Math.min(bio.urban?0.15:-0.05,this.branchCap(x,z)) : this.groundRel(x,z,c.off0,bio,km));
     const a=this.groundAttrs(bio,c.off0,km,!bio.urban);
     return {y,c:a.c,veg:a.veg,misc:a.misc};
    }};
-  }));
+  }); tm.userData.terrain=true; tm.userData.nc=cols.length; tm.userData.skirtCol=cols.findIndex(c=>c.skirt);
+  this.capMesh(tm,capL); grp.add(tm);   // 近くを通る本線のほかの区間の上にかぶらない
  }
  // ---- 景観オブジェクト ----
  this.buildOcc(ctx); this._ctxOcc=ctx.occ;
