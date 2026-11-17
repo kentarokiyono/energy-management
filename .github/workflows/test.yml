@@ -6,13 +6,13 @@ permissions:
   contents: read
 jobs:
   smoke:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    runs-on: ubuntu-24.04   # Playwright 1.56 は ubuntu-latest (26.04) にブラウザを入れられない
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - if: github.event_name == 'pull_request'
         run: git fetch --depth=1 origin ${{ github.base_ref }} && node tests/build-check.js origin/${{ github.base_ref }}
       - run: npm install --no-audit --no-fund
