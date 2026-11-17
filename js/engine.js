@@ -209,7 +209,7 @@ const sp=Phys.sunPos(lat,lon,s.dayOfYear,hour);
 const alt=sp.alt, az=sp.az;
 if(alt<=0) return {G:0,alt:0,az,ghi:0,dni:0};
 let {dni,dhi}=Phys.clearSky(alt,elev,s.dayOfYear);
-if(RealWx.on()){ let hh=hour, k=1; const fc=s.fc; if(fc&&typeof Strategy!=="undefined"&&Strategy.fcOn){ const di=clamp(s.dayOfYear-PRO.dayOfYear,0,6); hh+=fc.shift[di]; k=fc.scale[di]; }   // 予報 (戦略の先読み) は時刻と強さがずれる
+if(RealWx.on()){ let hh=hour, k=1; const fc=s.fc; if(fc&&typeof Strategy!=="undefined"&&Strategy.fcOn&&!Strategy.betNow){ const di=clamp(s.dayOfYear-PRO.dayOfYear,0,6); hh+=fc.shift[di]; k=fc.scale[di]; }   // 予報 (戦略の先読み) は時刻と強さがずれる
  const d=RealWx.at("dni",lat,lon,s.dayOfYear,hh+0.5), f=RealWx.at("dhi",lat,lon,s.dayOfYear,hh+0.5); if(d!=null&&f!=null){ dni=d*k; dhi=f*(0.5+0.5*k); } }
 else if(s.weather){ const wf=s.weather.factor; dni*=wf; dhi*=(2-wf)*(0.5+0.5*wf); }
 const cz=Math.sin(alt);

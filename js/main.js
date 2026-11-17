@@ -101,6 +101,7 @@ if(eventElapsed>=EVENT_DURATION&&!es.finished){ es.finished=true; showResult(); 
 View.update(dtR);
 if(P.event) EventGame.post();
 Scenario.frame(es,dtR); Orders.frame(es,dtR); Tele.frame(es); Strategy.tick(4);   // 戦略を裏で少しずつ
+if(typeof Coffee!=="undefined") Coffee.tick(es);   // 臨機応変: 1 時間ごと・CS で走り方を見直す
 if(P.mode==="race"&&!es.finished&&!es.trailering) es.km=View.kmOfS(View.s);   // 走行位置(本線への射影)を正とする
 Snd.update(es.v, es.lastAmp/Math.max(motorMaxA(es.powerMode),1), es.fire);
 if(typeof Crew!=="undefined"&&Crew.phase==="outside") FFB.update(null); else FFB.update(FFB.fromRace(es,dtR));   // 振動・反力 (車外を歩いている間は止める)

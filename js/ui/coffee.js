@@ -6,14 +6,18 @@
  「打ち合わせ終了」か 7:50 で終わり、乗り込み (7:50〜) へ。決めたことは Engine.st.coffee に残す (途中保存にも入る) */
 const Coffee={
  END:7+50/60, active:false, ending:false, step:0, scene:null, camera:null, t:0, est:null, job:null, wx:null, ui:null,
- STYLES:{atk2:{name:"かなり攻め",adj:-8,note:"電池をぎりぎりまで使って速く"},atk:{name:"攻め",adj:-4,note:"電池を少なめに残して速く"},std:{name:"普通",adj:0,note:"予報のずれに合わせた残し方"},
-  def:{name:"守り",adj:5,note:"電池を多めに残して慎重に"},def2:{name:"かなり守り",adj:10,note:"電池をたっぷり残して天気の急変に備える"}},
+ STYLES:{atk2:{name:"かなり攻め",adj:-10,note:"電池をぎりぎりまで使って速く"},atk:{name:"攻め",adj:-5,note:"電池を少なめに残して速く"},std:{name:"普通",adj:0,note:"予報のずれに合わせた残し方"},
+  def:{name:"守り",adj:8,note:"電池を多めに残して慎重に"},def2:{name:"かなり守り",adj:16,note:"電池をたっぷり残して天気の急変に備える"},
+  bet:{name:"賭け",adj:-10,bet:true,note:"明日から先は快晴と見込んで今日飛ばす。後半の日射が悪いと苦しい"},
+  flex:{name:"臨機応変",adj:0,flex:true,note:"走りながら、残りの日射・明日の予報・電池を見て、攻め〜かなり守りを切り替える"}},
  STEPS:["昨日の振り返り","天気予報","今日の走り方","ドライバー交代"],
  on(){ const s=Engine.st; return P.coffee!==false&&P.mode==="race"&&!P.event&&!(typeof Demo!=="undefined"&&Demo.on)&&!!s&&!s.scenario&&!s.finished; },
  st(){ const s=Engine.st; if(!s.coffee) s.coffee={done:0,style:"std",plan:{},log:{}}; return s.coffee; },
  reset(){ if(Engine.st) Engine.st.coffee={done:0,style:"std",plan:{},log:{}}; this.close(true); },
  want(es){ return !!es&&running&&this.on()&&es.camp&&es.hour>=7&&es.hour<this.END&&this.st().done!==es.day; },
- floorAdj(){ const s=Engine.st; if(!s||!s.coffee) return 0; return (this.STYLES[s.coffee.style]||this.STYLES.std).adj/100; },   // adj は % (電池を残す量の増減)
+ floorAdj(){ const s=Engine.st; if(!s||!s.coffee) return 0; return this.adjOf(s.coffee.style,s.coffee.flexK)/100; },   // adj は % (電池を残す量の増減)
+ adjOf(k,fk){ const v=this.STYLES[k]||this.STYLES.std; return v.flex? (this.STYLES[fk]||this.STYLES.std).adj : v.adj; },
+ bet(){ const s=Engine.st; return !!(s&&s.coffee&&!s.scenario&&s.coffee.style==="bet"); },   // 賭け: 戦略の先読みで明日から先を快晴と見る
  /* ---------- 始める・終える ---------- */
  begin(){ const s=Engine.st, c=this.st(); this.active=true; this.ending=false; this.step=s.day===1? 1 : 0; this.t=0; this.est=null; this.wx=null;
   const d=s.day; if(!c.plan[d]) c.plan[d]={style:c.style||"std",first:typeof Crew!=="undefined"? Crew.driverIdx : 0,swaps:[],decided:false};
@@ -21,7 +25,7 @@ const Coffee={
   Fade.go(()=>{ this.build(); this.showUI(true); this.startEst(); });
   Snd.silence&&Snd.silence(); },
  finish(){ if(this.ending) return; this.ending=true; const s=Engine.st, c=this.st(), d=s.day, p=c.plan[d];
-  c.done=d; c.style=p.style; c.log[d].style=p.style; const e=this.est&&this.est[p.style]; if(e) c.log[d].est={km:e.kmToday,cs:e.cs?e.cs.n:null};
+  c.done=d; c.style=p.style; c.flexK=p.style==="flex"? this.flexPick(true) : null; c.flexT=(d-1)*24+s.hour; c.log[d].style=p.style; const e=this.est&&this.est[p.style]; if(e) c.log[d].est={km:e.kmToday,cs:e.cs?e.cs.n:null};
   if(typeof Crew!=="undefined"&&Crew.drivers[p.first]) Crew.setDriver(p.first);
   if(typeof Strategy!=="undefined") Strategy.last=null;
   const D=typeof Crew!=="undefined"? Crew.drivers : [], sw=p.swaps.map(w=>`CS${w.n} で ${D[w.to]?D[w.to].name:"―"}`).join("・");
@@ -85,7 +89,7 @@ const Coffee={
  startEst(){ const s=Engine.st, o={abs:(s.day-1)*24+Math.max(8,s.day===1&&s.gridStartH?s.gridStartH:8),km:s.km,soc:s.soc,trace:true}, base=Strategy.floor()-this.floorAdj();
   const keys=Object.keys(this.STYLES); this.est={}; this.job={keys,i:0,g:null,o,base}; },
  tickEst(ms){ const j=this.job, t=performance.now(); try{
-  while(j&&performance.now()-t<ms){ if(!j.g){ const k=j.keys[j.i]; j.g=Strategy.bestProfileGen({...j.o,floor:Math.max(0.02,j.base+this.STYLES[k].adj/100)}); }
+  while(j&&performance.now()-t<ms){ if(!j.g){ const k=j.keys[j.i]; j.g=Strategy.bestProfileGen({...j.o,floor:Math.max(0.02,j.base+this.adjOf(k,this.flexPick(true))/100),bet:!!this.STYLES[k].bet}); }
    const r=j.g.next(); if(!r.done) continue; const k=j.keys[j.i], v=r.value, rr=v&&v.r; j.g=null; j.i++;
    if(rr){ const tr=rr.trace||[], kmT=rr.kmToday, cs=RP_CS.filter(c=>c.km>j.o.km-0.2&&c.km<=kmT).pop()||null;
     const eta=(km)=>{ const p=tr.find(q=>q[0]>=km); return p? p[1] : null; };
@@ -93,18 +97,30 @@ const Coffee={
    if(this.ui) this.draw();   // 1 通り終わるごとに表示を更新
    if(j.i>=j.keys.length){ this.job=null; break; } } }catch(e){ console.error(e); this.job=null; } },
  /* 予報の日射 (晴れの日に対する割合) と外れの幅 */
- forecast(){ if(this.wx) return this.wx; const s=Engine.st, save={doy:s.dayOfYear,km:s.km,w:s.weather}, L=Engine.FC_LEVEL[P.fcErr||"mid"], out=[], e=this.est&&this.est.std;
-  try{ Strategy.fcOn=true;
+ forecast(){ if(this.wx) return this.wx; const s=Engine.st, L=Engine.FC_LEVEL[P.fcErr||"mid"], out=[], e=this.est&&this.est.std;
+  {
    for(let d=s.day;d<=Math.min(s.day+3,6);d++){ const km=d===s.day? s.km : (e&&e.noon(d))!=null? e.noon(d) : null; if(km==null&&d>s.day) break;
-    const pr=profileAt(km), doy=PRO.dayOfYear+d-1; let fc=0, cl=0;
-    for(let h=8;h<17;h+=0.5){ const abs=(d-1)*24+h; s.dayOfYear=doy; s.km=km;
-     s.weather= RealWx.on()? null : ((s.fc&&s.fc.plan)||s.weatherPlan||[]).find(w=>abs>=w.start&&abs<w.start+w.dur)||null;
-     const r=Engine.solarCalc(pr.lat,h,false,pr.lon,pr.elev); fc+=r.ghi||0;
-     const sp=Phys.sunPos(pr.lat,pr.lon,doy,h); if(sp.alt>0){ const c=Phys.clearSky(sp.alt,pr.elev,doy); cl+=c.dni*Math.sin(sp.alt)+c.dhi; } }
-    const k=cl>0? clamp(fc/cl,0,1) : 1, err=L&&s.fc? L.d*0.6*Engine.FC_LEAD(d-s.day) : 0;
+    const k=this.sun(d,km,8,17), err=L&&s.fc? L.d*0.6*Engine.FC_LEAD(d-s.day) : 0;
     out.push({d,km,k,err,place:this.place(km)}); }
-  } finally{ Strategy.fcOn=false; s.dayOfYear=save.doy; s.km=save.km; s.weather=save.w; }
+  }
   if(this.est&&this.est.std) this.wx=out; return out; },
+ /* 日射の割合 (予報): 日 d・位置 km・h0〜h1 時 */
+ sun(d,km,h0,h1){ const s=Engine.st, save={doy:s.dayOfYear,km:s.km,w:s.weather}, pr=profileAt(km), doy=PRO.dayOfYear+d-1; let fc=0, cl=0;
+  try{ Strategy.fcOn=true;
+   for(let h=h0;h<h1;h+=0.5){ const abs=(d-1)*24+h; s.dayOfYear=doy; s.km=km;
+    s.weather= RealWx.on()? null : ((s.fc&&s.fc.plan)||s.weatherPlan||[]).find(w=>abs>=w.start&&abs<w.start+w.dur)||null;
+    const r=Engine.solarCalc(pr.lat,h,false,pr.lon,pr.elev); fc+=r.ghi||0;
+    const sp=Phys.sunPos(pr.lat,pr.lon,doy,h); if(sp.alt>0){ const c=Phys.clearSky(sp.alt,pr.elev,doy); cl+=c.dni*Math.sin(sp.alt)+c.dhi; } }
+  } finally{ Strategy.fcOn=false; s.dayOfYear=save.doy; s.km=save.km; s.weather=save.w; }
+  return cl>0? clamp(fc/cl,0,1) : 1; },
+ /* 臨機応変: 今日の残りの日射・明日の予報・電池で、攻め〜かなり守りを選ぶ (morning=true は朝の見込み用) */
+ flexPick(morning){ const s=Engine.st; if(!s) return "std"; const h=morning? 8 : clamp(s.hour,8,16.5), now=this.sun(s.day,s.km,h,17), tmr=s.day<6? this.sun(s.day+1,s.km+(morning?500:250),8,17) : 1, soc=s.soc;
+  if(now<0.6||tmr<0.6) return "def2"; if(now<0.75||tmr<0.72) return "def";
+  if(now>=0.95&&soc>=0.95&&tmr>=0.85) return "atk2"; if(now>=0.9&&soc>=0.8&&tmr>=0.8) return "atk"; return "std"; },
+ /* 走行中 (main の loop から): 臨機応変なら 1 時間ごとに見直す */
+ tick(es){ const c=es&&es.coffee; if(!c||c.style!=="flex"||es.camp||es.finished||!this.on()) return; const abs=(es.day-1)*24+es.hour; if(c.flexT!=null&&abs-c.flexT<1) return; this.reflex(es,"");},
+ reflex(es,why){ const c=es.coffee; c.flexT=(es.day-1)*24+es.hour; const k=this.flexPick(false); if(k===c.flexK) return;
+  c.flexK=k; if(typeof Strategy!=="undefined") Strategy.last=null; Radio.push(`臨機応変: ${why}ここからは「${this.STYLES[k].name}」で行きます (電池 ${(es.soc*100).toFixed(0)} %)。`,"戦略班"); },
  place(km){ const c=RP_CS.filter(q=>q.km<=km+40).pop(); return c? `${c.name} 付近` : "Darwin 付近"; },
  recommend(){ const w=this.forecast()[0], s=Engine.st; if(!w) return "std"; if(w.k<0.6) return "def2"; if(w.k<0.75) return "def"; if(w.k>=0.95&&s.soc>=0.95) return "atk2"; if(w.k>=0.92&&s.soc>=0.85) return "atk"; return "std"; },
  /* ---------- 画面 ---------- */
@@ -140,8 +156,8 @@ const Coffee={
  /* 3: 今日の走り方 */
  s3(s,c,p){ const rec=this.recommend();
   return `<div class="cf-sty">${Object.entries(this.STYLES).map(([k,v])=>{ const e=this.est&&this.est[k];
-   return `<button data-style="${k}" class="${p.style===k?"on":""}" title="${v.note}"><span class="cf-sn">${v.name}<em>${v.adj>0?"+":v.adj<0?"−":"±"}${Math.abs(v.adj)} %</em>${k===rec?`<i>おすすめ</i>`:""}${e? `<b>${e.kmToday.toFixed(0)} km</b>` : ""}</span>
-    ${e? `<span class="dim">${e.cs?`CS${e.cs.n} ${e.cs.name} まで・`:""}巡航 ${e.v} km/h・電池の最小 ${(e.minSoc*100).toFixed(0)} %・ゴール ${e.ok?fmtAbsH(e.finish):"届かない見込み"}</span>` : `<span class="dim">見込みを計算中…</span>`}</button>`; }).join("")}</div>
+   return `<button data-style="${k}" class="${p.style===k?"on":""}" title="${v.note}"><span class="cf-sn">${v.name}<em>${v.flex? "攻め〜かなり守り" : `${v.adj>0?"+":v.adj<0?"−":"±"}${Math.abs(v.adj)} %${v.bet?"・後半は快晴の見込み":""}`}</em>${k===rec?`<i>おすすめ</i>`:""}${e? `<b>${e.kmToday.toFixed(0)} km</b>` : ""}</span>
+    ${e? `<span class="dim">${v.flex?`今朝は「${this.STYLES[this.flexPick(true)].name}」・`:""}${e.cs?`CS${e.cs.n} ${e.cs.name} まで・`:""}巡航 ${e.v} km/h・電池の最小 ${(e.minSoc*100).toFixed(0)} %・ゴール ${e.ok?fmtAbsH(e.finish):"届かない見込み"}</span>` : `<span class="dim">見込みを計算中…</span>`}</button>`; }).join("")}</div>
    <div class="dim cf-note">選んだ走り方は推奨速度と無線の速度指示に使います。% は電池を残す量 (普通に対して)、km は今日行けそうな距離。</div>`; },
  /* 4: ドライバー交代 */
  s4(s,c,p){ const D=this.drivers(), e=this.est&&(this.est[p.style]||this.est.std), lim=e? e.kmToday+0.1 : s.km+700;
@@ -177,7 +193,7 @@ const Coffee={
   else if(t.dataset.to){ const w=p.swaps.find(x=>x.n===+t.dataset.to); if(w) w.to=+t.value; }
   this.draw(); },
  /* ---------- 走行中 ---------- */
- onCS(cp){ const s=Engine.st; if(!s||!s.coffee||typeof Crew==="undefined") return; const p=s.coffee.plan[s.day]; if(!p) return; const w=p.swaps.find(x=>x.n===cp.n); if(!w) return;
+ onCS(cp){ const s=Engine.st; if(s&&s.coffee&&s.coffee.style==="flex") this.reflex(s,`CS${cp.n} で見直し。`); if(!s||!s.coffee||typeof Crew==="undefined") return; const p=s.coffee.plan[s.day]; if(!p) return; const w=p.swaps.find(x=>x.n===cp.n); if(!w) return;
   const d=Crew.drivers[w.to]; if(!d) return; if(w.to!==Crew.driverIdx) Crew.setDriver(w.to);
   Radio.push(`CS${cp.n}: 朝の打ち合わせどおり、ここで ${d.name} に交代。`,"監督"); toast(`ドライバー交代 → ${escHtml(d.name)}`,"#34d399"); },
  onCamp(s){ if(!s.coffee) return; const l=s.coffee.log[s.day]; if(l){ l.kmEnd=s.km; l.socEnd=s.soc; } },
