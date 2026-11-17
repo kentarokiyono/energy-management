@@ -86,7 +86,8 @@ for(let i=0;i<12;i++){
   pl.visible=false;pl.frustumCulled=false;this.scene.add(pl);this.speedLines.push(pl);
 }
 this.aiPool=[]; this.aiMeshes=new Map();   // 表示枠 10 台。車の形はチームごとに作って使い回す
-for(let i=0;i<10;i++) this.aiPool.push({mesh:null,team:null});
+for(let i=0;i<10;i++) this.aiPool.push({mesh:null,team:null,lead:null,chase:null});
+this.relK=0;
 this.roadTrains.length=0; this.rollT=0; if(typeof Rain!=="undefined") Rain.reset();
 this.lmMap.clear(); this.redSignalKm=null; this.inPit=false; this.pitBlend=0; this.fireOn=false;
 this.resetRoad();
@@ -118,6 +119,11 @@ const m=this.buildCarModelImpl();
 this.car=m.group; this.carBody=m.body; this.canopyMesh=m.canopy; if(typeof Cockpit!=="undefined") Cockpit.attachRearView(this);
 this.scene.add(this.car);
 },
+/* 自車とは別の場面に置く車 (朝・夕方の話し合いなど)。作るときに運転席の部品 (ハンドル・液晶・バックビュー・スイッチ) の参照が
+ その車に置き換わらないよう、前後で戻す (置き換わると、走行中のハンドル・液晶が止まり、パーキングブレーキなどが操作できなくなる) */
+buildCarModelCopy(){ const K=["dashCanvas","dashTex","rearCam","rearFrame","rearMon","rearRT","rearScreen","yokeMesh","yokePivot","cockDeckY","cockE0","cockOpening"], sv={};
+ for(const k of K) sv[k]=this[k]; const ck=typeof Cockpit!=="undefined"? Object.assign({},Cockpit) : null;
+ try{ return this.buildCarModelImpl(); } finally{ for(const k of K) this[k]=sv[k]; if(ck) for(const k in ck) if(typeof ck[k]!=="function") Cockpit[k]=ck[k]; } },
 buildCarModelImpl(){
 const g=new THREE.Group();
 const body=new THREE.Group();
@@ -320,6 +326,7 @@ const mkBanner=(txt,z,flip)=>{ const g=new THREE.Group();
 this.escortLead.add(mkBanner("CAUTION\nSOLAR CAR AHEAD",-0.9,true));
 this.escortChase=this.mkVan(0x3b82f6);
 this.escortChase.add(mkBanner("CAUTION\nSOLAR CAR AHEAD",1.6,false));
+this.escortChase.traverse(m=>{ if(m.isMesh) m.castShadow=false; });   // 後方車はカメラの真後ろ (画面の外) にいることが多く、影だけが道に暗い四角として見えていた
 this.scene.add(this.escortLead,this.escortChase);
 },
 mkRoadTrain(){ // ボンネット型トラクタ+ブルバー+3連トレーラ(全長約53m)
@@ -567,21 +574,27 @@ lighten(){
 /* チームの車 (一度作ったら使い回す) */
 aiMesh(tm){ let m=this.aiMeshes.get(tm); if(!m){ m=this.mkAICar(tm); m.visible=false; this.scene.add(m); this.aiMeshes.set(tm,m); } return m; },
 updateAITeams(es,dtR){
-if(P.mode!=="race"||!es.teams||!this.aiPool){ if(this.aiPool) this.aiPool.forEach(sl=>{ if(sl.mesh) sl.mesh.visible=false; }); return; }
+if(P.mode!=="race"||!es.teams||!this.aiPool){ if(this.aiPool) this.aiPool.forEach(sl=>{ if(sl.mesh) sl.mesh.visible=false; if(sl.lead){ sl.lead.visible=false; sl.chase.visible=false; } }); return; }
+this.relK= this.relK? this.relK+(Route.scaleAt(es.km)-this.relK)*clamp(dtR*1.2,0,1) : Route.scaleAt(es.km);   // 縮尺の切り替わりで他チームの車が跳ばないよう、ゆっくり変える
 const near=[];
 for(const tm of es.teams){
+tm.sigHold=false;
 if(tm.status==="pre") continue;
-const rel=Route.visDist(es.km,tm.km), keep=this.aiPool.some(sl=>sl.team===tm);
+const rel=Route.relDist(es.km,tm.km,this.relK), keep=this.aiPool.some(sl=>sl.team===tm);
 if(Math.abs(rel)<(keep?1400:1150)) near.push({tm,rel,keep});   // 出す距離と消す距離に差をつけて、境目で出たり消えたりしない
 }
 near.sort((a,b)=>(b.keep-a.keep)||Math.abs(a.rel)-Math.abs(b.rel));   // いま出ている車を優先 (入れ替わりで消えない)
 const shown=near.slice(0,this.aiPool.length);
-for(const sl of this.aiPool){ if(!shown.some(o=>o.tm===sl.team)){ sl.team=null; if(sl.mesh) sl.mesh.visible=false; sl.mesh=null; } }
+for(const sl of this.aiPool){ if(!shown.some(o=>o.tm===sl.team)){ sl.team=null; if(sl.mesh) sl.mesh.visible=false; sl.mesh=null; if(sl.lead){ sl.lead.visible=false; sl.chase.visible=false; } } }
 for(const o of shown){
 let sl=this.aiPool.find(x=>x.team===o.tm)||this.aiPool.find(x=>!x.team);
 if(!sl) break;
 if(sl.team!==o.tm){ sl.team=o.tm; sl.mesh=this.aiMesh(o.tm); }
 sl.mesh.visible=true;
+// 赤信号: 画面の中で信号の手前にいる他チームの車は止まる (Engine が tm.sigHold を見る)
+{ const sA=this.s+o.rel; let hold=false; for(const [,ent] of this.lmMap){ if(ent.lm.t!=="signal"||!ent.red) continue; const sg=this.sOfKm(ent.lm.km); if(sg>sA+2&&sg<sA+40) hold=true; } o.tm.sigHold=hold; }
+// 自車の真後ろに詰めて見えない (追い越し中でなければ 7 m より近づけない)
+if(o.rel<0&&o.rel>-7&&!o.tm.passing&&Math.abs(this.lateral-(o.tm.latV||-2.4))<1.8) o.rel=-7;
 const rp=this.roadPoint(clamp(this.s+o.rel,0,this.road.builtS-this.SEG));
 let latT=-2.4;
 const multi=rp.m1>0.3||rp.ow||rp.L>6;   // 片側2車線以上・分離帯あり: 追い越しは自分側の空いている車線
@@ -595,6 +608,14 @@ o.tm.latV=lerp(o.tm.latV,latT,clamp(dtR*1.5,0,1));
 const nx=Math.cos(rp.h), nz=Math.sin(rp.h);
 sl.mesh.position.set(rp.x+nx*o.tm.latV,rp.y,rp.z+nz*o.tm.latV);
 sl.mesh.rotation.y=-rp.h;
+/* 他チームも 前方車 + ソーラーカー + 後方車 の隊列 (止まっているときは同じく道の外に並べる) */
+if(!sl.lead){ sl.lead=this.mkVan(0xf4f4f4); sl.chase=this.mkVan(0xc9ced6); this.scene.add(sl.lead,sl.chase); }
+{ const dnf=o.tm.status==="dnf", put=(m,ds,lat)=>{ const q=this.roadPoint(clamp(this.s+o.rel+ds,0,this.road.builtS-this.SEG)), cx=Math.cos(q.h), cz=Math.sin(q.h); m.position.set(q.x+cx*lat,q.y,q.z+cz*lat); m.rotation.y=-q.h; m.visible=!dnf; };
+  const latC= stopped? o.tm.latV-1.2 : o.tm.latV, same=!stopped&&!o.tm.passing&&Math.abs(latC-this.lateral)<2.2;
+  // 同じ車線で自車をはさむときは、自車から 12 m 以上離れる所まで隊列を詰める (入らなければその車は出さない)
+  let dL=stopped?9:70, dC=stopped?-9:-24;
+  if(same&&o.rel<0) dL=Math.min(dL,-o.rel-12); if(same&&o.rel>0) dC=Math.max(dC,-(o.rel-12));
+  put(sl.lead,dL,latC); put(sl.chase,dC,latC); if(dL<8) sl.lead.visible=false; if(dC>-8) sl.chase.visible=false; }
 const top=sl.mesh.userData.top; if(top){ const tw=stopped&&o.tm.status==="run"? 0.6*(sl.mesh.userData.tiltSign||-1) : 0; top.rotation.z=lerp(top.rotation.z,tw,clamp(dtR*2,0,1)); }   // 充電: アッパーカウルだけ傾ける
 // 自車との接触: 前後 4.6 m・左右 1.7 m 以内に入ったら当たり (近づく速さで 軽い接触 / 破損 / 大破)
 if(o.tm.status!=="dnf"&&Math.abs(o.rel)<4.6&&Math.abs(this.lateral-o.tm.latV)<1.7&&!es.crashed){
@@ -1058,14 +1079,19 @@ this.updateLandmarks(es);
 this.updateRoadTrains(es,dtR);
 // 前方誘導車: 通常は150m前。信号で先に抜けて赤で分断されたら、その場でハザードを点けて停車し待機
 { const want=this.s+150;
-  if(this.leadS===undefined||Math.abs(this.leadS-want)>2000) this.leadS=want;
+  if(this.leadS===undefined||Math.abs(this.leadS-want)>2000){ this.leadS=want; this.leadV=es.v; }
   let hold=false, stopAt=Infinity;
   for(const [,ent] of this.lmMap){ if(ent.lm.t!=="signal"||!ent.red) continue;
    const sg=this.sOfKm(ent.lm.km);
    if(sg>this.s && this.leadS>sg) hold=true;                 // ソーラーカーは赤信号の手前、誘導車は通過済み
    else if(sg>this.leadS-2 && sg<want+5) stopAt=Math.min(stopAt,sg-10); } // 誘導車の前が赤 → 停止線で止まる
   if(hold) this.leadHold=true;
-  else { this.leadHold=false; const tgt=Math.min(want,stopAt); this.leadS=Math.max(Math.min(this.leadS+ (es.v+8)*dtR, tgt), Math.min(tgt,this.leadS)); }
+  else { this.leadHold=false; const tgt=Math.min(want,stopAt), gap=tgt-this.leadS, lim=speedLimitAt(clamp(this.kmOfS(this.leadS),0,TOTAL_KM))/3.6;
+   // 自車の速さに合わせて走り、150 m 前を保つ。制限速度を守り、止まるときは手前から減速 (急発進・急停止しない)
+   let vT= gap<=0.5? 0 : clamp(es.v+(gap-20)*0.08,0,lim); vT=Math.min(vT,Math.sqrt(Math.max(0,2*2.5*(gap-0.5))));
+   const v0=this.leadV||0; this.leadV= vT>v0? Math.min(vT,v0+2.0*dtR) : Math.max(vT,v0-4.0*dtR);
+   this.leadS+=this.leadV*dtR; }
+  if(hold) this.leadV=0;
   if(this.leadHold&&!this._leadHoldMsg){ this._leadHoldMsg=true; Radio.push("赤信号で分断。前方誘導車はハザードを点けて停車・待機します。","前方誘導車"); }
   if(!this.leadHold) this._leadHoldMsg=false;
   const on=this.leadHold&&(performance.now()%800)<400;
@@ -1095,9 +1121,11 @@ this.speedLines.forEach((pl,i)=>{
     .addScaledVector(up,((i*29)%40)/10-2);
   pl.material.opacity=sInt*0.28;});
 Cockpit.renderRear(this);
+if(this._camCls!==this.cam){ this._camCls=this.cam; document.body.classList.toggle("cam-drv",this.cam===2); }   // 運転席視点: ハンドルの液晶を隠さないよう、指示の欄を上へ
 Post.blur= this.cam===4||this.cam===3? 0 : clamp((es.v-14)/36,0,1);
 Post.dof= this.cam===4&&this.rp&&this.rp.kind!=="wheel"? {focus:this.camera.position.distanceTo(this.car.position),k:this.rp.kind==="side"||this.rp.kind==="low"||this.rp.kind==="crane"? 0.4 : 1} : null;   /* 道ばたの望遠カメラは弱めに */   // リプレイ: 車にピント (車載カメラは掛けない)   // 速度のぶれ (最高画質。リプレイの固定カメラ・後ろ向きでは掛けない)
 Post.render(this.renderer,this.scene,this.camera);   // 画質「高」はブルーム・周辺減光つき
+Cockpit.rearHud(this);
 },
 updateEnvironment(es,pHere,alt,hor){
  const bio=biomeAt(es.km);
@@ -1157,7 +1185,7 @@ dynColliders(es){
    const b=new THREE.Box3().setFromObject(m); m.userData._cz=[(b.min.x+b.max.x)/2,(b.min.z+b.max.z)/2]; m.position.copy(q); m.rotation.y=r; m.updateMatrixWorld(true); }
   const [ox,oz]=m.userData._cz, c=Math.cos(m.rotation.y), sn=Math.sin(m.rotation.y);
   out.push({t:2,x:m.position.x+ox*c+oz*sn,z:m.position.z-ox*sn+oz*c,h:-m.rotation.y,L,W,v,kind}); };
- for(const sl of this.aiPool||[]) if(sl.team&&sl.mesh) add(sl.mesh,4.9,2.0,(sl.team.spd||0)/3.6,"vehicle");
+ for(const sl of this.aiPool||[]) if(sl.team&&sl.mesh){ const v=(sl.team.vNow||0)/3.6; add(sl.mesh,4.9,2.0,v,"vehicle"); add(sl.lead,5.6,2.0,v,"vehicle"); add(sl.chase,5.6,2.0,v,"vehicle"); }
  add(this.escortLead,5.6,2.0,es.v,"vehicle"); add(this.escortChase,5.6,2.0,es.v,"vehicle");
  for(const rt of this.roadTrains) add(rt.mesh,53,2.6,-27,"vehicle");
  return out;

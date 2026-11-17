@@ -62,7 +62,7 @@ const Coffee={
   else { const a=0.15+Math.sin(this.t*0.05)*0.75; pos=new THREE.Vector3(C.x+Math.cos(a)*8.6,2.5+Math.sin(this.t*0.12)*0.15,C.z+Math.sin(a)*8.6); look=new THREE.Vector3(C.x-1.2,0.9,C.z-0.6); }
   if(!this.camP){ this.camP=pos.clone(); this.camL=look.clone(); } const k=1-Math.exp(-dtR*2.2); this.camP.lerp(pos,k); this.camL.lerp(look,k);
   this.camera.position.copy(this.camP); this.camera.lookAt(this.camL); this.camera.updateMatrixWorld();
-  this.tag(w,L);
+  this.tag(w,L); if(typeof Post!=="undefined"){ Post.blur=0; Post.dof=null; }   // 走行の速度ぼかし・リプレイのピントを持ち込まない
   if(typeof Post!=="undefined") Post.render(View.renderer,this.scene,this.camera); else View.renderer.render(this.scene,this.camera); },
  /* 話している人の頭の上の名札 */
  tag(w,L){ const el=this.ui&&this.ui.querySelector(".cf-tag"); if(!el) return; if(!w){ el.style.opacity=0; return; }
@@ -87,7 +87,7 @@ const Coffee={
   const dash=new THREE.InstancedMesh(new THREE.PlaneGeometry(0.12,3),new THREE.MeshLambertMaterial({color:0xe8e8e8}),60), m4=new THREE.Matrix4(), q=new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI/2,0,0));
   for(let i=0;i<60;i++){ m4.compose(new THREE.Vector3(0,0.02,-180+i*6),q,new THREE.Vector3(1,1,1)); dash.setMatrixAt(i,m4); } sc.add(dash);
   /* 車: 朝は傾けて充電中 (パネルを朝日へ)、夕方は日没後なので平置き */
-  const car=View.buildCarModelImpl(); car.group.position.set(6.2,0,0.5); car.group.rotation.y=Math.PI; sc.add(car.group);
+  const car=View.buildCarModelCopy(); car.group.position.set(6.2,0,0.5); car.group.rotation.y=Math.PI; sc.add(car.group);
   const roll=pm? 0 : -(s.tiltDeg||40)*Math.PI/180*0.85, UT=car.group.userData.upperTilt; if(UT) UT.rotation.z=roll; else car.body.rotation.z=roll;
   car.group.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
   /* テント・テーブル・いす・カップ・ノート PC */
@@ -184,7 +184,7 @@ const Coffee={
    const hit=this.aiCache&&this.aiCache[key]; if(hit){ this.useAi(hit); return; }
    AI.talk(kind,step,this.facts(s,c,p)).then(L=>{ if(!L||tok!==this.sayTok||!this.active||this.ending) return; (this.aiCache||(this.aiCache={}))[key]=L; this.useAi(L); }); } },
  useAi(L){ this.lines=L.map(([role,text])=>({role,text})); this.li=0; this.lt=0; this.ai=true; this.drawTalk(); },
- /* AI に渡す事実: 相対的な値だけ (% ・ km ・ 時刻 ・ 順位 ・ 走り方の名前)。電力量・電費・速度・車両の値・名前は入れない */
+ /* AI に渡す事実: % ・ km ・ 時刻 ・ 順位 ・ 走り方の名前と電力 (AI は公開モデルのときだけ動く)。名前は入れない */
  facts(s,c,p){ const pc=(x)=>Math.round(x*100), hm=(h)=>h==null? null : fmtAbsH(h), S=this.STYLES, e=this.est, W=this.forecast(), base={day:s.day,soc_pct:pc(s.soc),place:this.place(s.km),km:Math.round(s.km)};
   const est=()=>e? Object.fromEntries(Object.entries(e).map(([k,v])=>[S[k].name,{reach_km:Math.round(v.kmDay),cs:v.cs?`CS${v.cs.n} ${v.cs.name}`:null,min_soc_pct:pc(v.minSoc),finish:v.ok?hm(v.finish):"届かない"}])) : null;
   const wx=()=>W.map(w=>({day:w.d,place:w.place,sun_pct:pc(w.k),err_pct:pc(w.err)}));
@@ -194,10 +194,11 @@ const Coffee={
    if(this.step===1) return {...base,topic:"天気予報 (8〜17 時の日射を快晴 100 % として)",forecast:wx()};
    if(this.step===2) return {...base,topic:"今日の走り方を決める",recommended:S[this.recommend()].name,options:est()};
    return {...base,topic:"ドライバーの順番と交代する CS",drivers:this.drivers().length,swaps:p.swaps.map(w=>`CS${w.n}`),reach:e&&e[p.style]?Math.round(e[p.style].kmDay):null}; }
-  if(this.step===0){ const o=this.today(); return {...base,topic:"今日の振り返り",today_km:Math.round(s.km-o.km0),vs_plan_km:o.est?Math.round(s.km-o.est.km):null,style:o.style?S[o.style].name:null,orders:o.ord}; }
+  if(this.step===0){ const o=this.today(); return {...base,topic:"今日の振り返り",today_km:Math.round(s.km-o.km0),vs_plan_km:o.est?Math.round(s.km-o.est.km):null,style:o.style?S[o.style].name:null,orders:o.ord,
+   gen_kwh:o.gen!=null?+(o.gen/1000).toFixed(2):null,use_kwh:o.use!=null?+(o.use/1000).toFixed(2):null,drivers_whkm:Object.values(o.drv).filter(q=>q.km>1).map((q,i)=>({driver:`D${i+1}`,km:Math.round(q.km),whkm:+(q.wh/q.km).toFixed(1)}))}; }
   if(this.step===1){ const r=this.rank(); return {...base,topic:"他チームとの差",rank:`P${r.r} / ${r.n}`,gap_to_leader_km:Math.round(r.lead),ahead:r.ahead?{team:r.ahead.name,km:Math.round(r.ahead.km-s.km)}:null,behind:r.behind?{team:r.behind.name,km:Math.round(s.km-r.behind.km)}:null,retired:r.dnf}; }
   if(this.step===2) return {...base,topic:"明日の予定 (走り方とドライバーを仮決め。朝の予報で確定)",forecast:wx().slice(0,2),recommended:S[this.recommend()].name,options:est()};
-  const wh=this.morningWh(s.day+1,s.km); return {...base,topic:"夜の充電と明朝の段取り",battery_off:"19:15〜6:15",morning_charge_pct:Math.round(wh/Math.max(500,P.batteryWh)*100),tilt_deg:s.tiltDeg||40,start:fmtAbsH(s.day*24+Engine.raceStartHour()),penalty_min:s.morningPenaltyMin||0}; },
+  const wh=this.morningWh(s.day+1,s.km); return {...base,topic:"夜の充電と明朝の段取り",battery_off:"19:15〜6:15",morning_charge_pct:Math.round(wh/Math.max(500,P.batteryWh)*100),morning_charge_kwh:+(wh/1000).toFixed(2),battery_wh:Math.round(s.soc*P.batteryWh),tilt_deg:s.tiltDeg||40,start:fmtAbsH(s.day*24+Engine.raceStartHour()),penalty_min:s.morningPenaltyMin||0}; },
  talkTick(dtR){ const L=this.lines[this.li]; if(!L||L.done) return; this.lt+=dtR; if(this.lt>=Math.max(3.2,L.text.length*0.11)) this.nextLine(); },
  nextLine(){ const L=this.lines[this.li]; if(!L) return; if(this.li<this.lines.length-1){ this.li++; this.lt=0; } else L.done=true; this.drawTalk(); },
  drawTalk(){ const el=this.ui&&this.ui.querySelector(".cf-pop"); if(!el) return; const L=this.lines[this.li];
@@ -322,7 +323,7 @@ const Coffee={
  csAi(s,cp){ const r=this.rank(), nx=RP_CS.find(c=>c.km>cp.km+0.2), pc=(x)=>Math.round(x*100), c=s.coffee||{}, pl=typeof Strategy!=="undefined"&&Strategy.last, rr=pl&&pl.r;
   const f={cs:`CS${cp.n} ${cp.name}`,time:fmtAbsH((s.day-1)*24+s.hour),soc_pct:pc(s.soc),rank:`P${r.r} / ${r.n}`,ahead_km:r.ahead?Math.round(r.ahead.km-s.km):null,behind_km:r.behind?Math.round(s.km-r.behind.km):null,
    style:c.style?(this.STYLES[c.style]||{}).name:null,rest_of_day_sun_pct:pc(this.sun(s.day,s.km,clamp(s.hour,8,16.5),17)),next_cs:nx?`CS${nx.n} ${nx.name} (${Math.round(nx.km-s.km)} km 先)`:"ゴール",
-   today_reach_km:rr?Math.round(rr.kmToday):null,min_soc_pct:rr?pc(rr.minSoc):null};
+   today_reach_km:rr?Math.round(rr.kmToday):null,min_soc_pct:rr?pc(rr.minSoc):null,battery_wh:Math.round(s.soc*P.batteryWh),recommended_kmh:pl&&pl.v?Math.round(pl.v):null};
   AI.csNote(f).then(t=>{ if(t&&Engine.st===s) Radio.push(t,this.label("strat")+" (AI)"); }); },
  onCamp(s){ if(!s.coffee) return; const l=s.coffee.log[s.day]; if(l){ l.kmEnd=s.km; l.socEnd=s.soc; } },
 };

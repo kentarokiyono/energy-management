@@ -63,7 +63,7 @@ const Team={
    <label class="drvf"><span class="lb">モデル (空欄なら ${AI.MODEL}。速くて安い Flash-Lite で十分。Pro 系は高い)</span><input id="team-aimodel" maxlength="40" value="${escHtml(P.aiModel||"")}" onchange="P.aiModel=this.value.replace(/[^a-z0-9.\-]/gi,'');Team.saved()"></label>
    <div class="team-act"><button class="btn ana-sm" onclick="Team.aiTest(this)">接続を確かめる</button><button class="btn ana-sm" onclick="AI.setKey('');document.getElementById('team-aikey').value='';Team.aiState()">キーを消す</button></div>
    <div class="dim team-note" id="team-aist"></div>
-   <div class="dim team-note">朝・夕方の話し合いのセリフ、CS での戦略のひとこと、分析画面の「AI に聞く」に使います。送るのは % ・ km ・ 時刻 ・ 順位などの相対的な値だけで、電力量・車両の値・名前は送りません。実車モデルのときは使いません。使えないときは今までどおりの固定のセリフです。</div>
+   <div class="dim team-note">朝・夕方の話し合いのセリフ、CS での戦略のひとこと、分析画面の「AI に聞く」に使います。送るのは % ・ km ・ 時刻 ・ 順位と、公開モデルの電力 (W・kWh・Wh/km) です。名前は送りません。実車モデルのときは使わず、分析画面で実車のログを見ているときは電力を送りません。使えないときは今までどおりの固定のセリフです。</div>
    <div class="team-sec">規則で決まっていること</div>
    ${this.row("朝の充電","6:15〜8:00 (傾けて)")}${this.row("夕方の充電","17:00〜日没 (傾けて)")}${this.row("夜","19:15〜6:15 は電池を切り離す")}${this.row("スタート","毎朝 8:00")}`; },
  /* ---- ドライバー ---- */
