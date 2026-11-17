@@ -245,7 +245,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
    const top=s.teams[0], last=s.teams[s.teams.length-1], r={top:top.km,last:last.km,soc:s.teams.map(t=>t.soc)};
    s.teams=keep.teams; s.hour=keep.h; s.day=keep.d; s.dayOfYear=keep.doy; s.km=keep.km; s.v=keep.v; return {top:r.top.toFixed(0),last:r.last.toFixed(0),socOk:r.soc.every(x=>x>=0&&x<=1)}; });
   check("AI チーム: 1 日の走行距離",ai.top>450&&ai.top<800&&ai.last>250&&ai.socOk,JSON.stringify(ai));
-  check("戦略: 推奨速度とゴール予想",st.ok&&st.v>=40&&st.v<=130&&st.fin>24&&st.fin<24*7,JSON.stringify(st));
+  check("戦略: 推奨速度とゴール予想 (60 km/h でも足りないときは電池不足の表示)",st.ok? st.v>=60&&st.v<=130&&st.fin>24&&st.fin<24*8 : st.v===60&&/電池不足/.test(st.txt),JSON.stringify(st));
   // 走行ログ: ポーズ画面のボタンで CSV を保存
   await p.evaluate(()=>{ const s=Engine.st; s.km+=1.2; });   // km の境目をまたがせる
   await p.waitForTimeout(500);
