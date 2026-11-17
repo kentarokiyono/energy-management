@@ -122,6 +122,23 @@ setupGrid(){
  s.grid=g; s.gridStartH=8+(g-1)*gap; s.qualiLap=best>0?best:null;
 },
 gridWait(){ const s=this.st; return P.mode==="race"&&!P.event&&!s.chapter&&s.day===1&&s.gridStartH>8&&s.hour<s.gridStartH; },
+CS_FLAT:5/60,   // [h] CS の最後の何時間はパネルを寝かせる (規則 3.27.10-11: 終了 5 分前からドライバーが走る形に戻す)
+/* CS の最後の 5 分 (計時が進んでいる間) */
+csFlatEnd(){ const s=this.st; return s.stopKind==="cp"&&s.stopTimer>0&&s.stopTimer<=this.CS_FLAT*3600&&!s.stopHold&&!(s.hour>=17||s.hour<8); },
+/* 規則 3.29.1: 開けた道 (制限 80 km/h 以上) で 60 km/h を保てないと競技外。MIN_WIN km ごとの平均で判定し、1 回目は警告。
+ 止まっている時間 (暴風雨・故障・修理・CS など) と、暴風雨の中・故障やパンクを抱えている間は数えない */
+MIN_KMH:60, MIN_WIN:10,
+trackMinSpeed(s,dKm,dtS,lim){
+ if(P.mode!=="race"||P.event||s.scenario||!s.competing) return;
+ if(lim<80||s.v<1||s.fault||s.burst||s.gear==="R"||(typeof Storm!=="undefined"&&Storm.active(s))) return;
+ const w=s.minSpd||(s.minSpd={km:0,t:0,warn:0});
+ w.km+=dKm; w.t+=dtS; if(w.km<this.MIN_WIN) return;
+ const avg=w.km/(w.t/3600); w.km=0; w.t=0;
+ if(avg>=this.MIN_KMH){ w.warn=0; return; }
+ if(++w.warn===1){ Radio.push(`開けた道の平均が時速 ${avg.toFixed(0)} km です。時速 60 km を保てないと競技外になります (規則 3.29.1)。`,"Event Official"); return; }
+ s.competing=false; s.nlcReason=`開けた道で時速 60 km を保てない (平均 ${avg.toFixed(0)} km/h)`;
+ Radio.push(`競技外 (no longer competing): ${s.nlcReason}。走行は続けられますが、記録は参考扱いです。`,"Event Official"); toast("⚠ 競技外: 最低速度 60 km/h","#f59e0b");
+},
 FLAT_BEFORE_START:5/60,   // [h] Day2 以降、朝の発進の何時間前からパネルを寝かせるか
 /* 発進前はパネルを寝かせる: Day1 はグリッドの発進の 10 分前、Day2 以降は朝の発進 (遅延ペナルティ込み) の 5 分前から */
 tiltEndHour(){ const s=this.st; return s.day===1&&s.gridStartH>8? s.gridStartH-10/60 : this.raceStartHour()-this.FLAT_BEFORE_START; },
@@ -304,7 +321,7 @@ const sunset=this.sunsetHour(prof.lat);
 // Reg 3.28.8-9: 電池は 19:15 までに切り離して封印、06:15 まで解除できない (夜間の CS も同じ)
 s.disconnected = (s.camp || (s.stopKind==="cp"&&s.stopTimer>0)) && (s.hour>=19.25 || s.hour<6.25);
 const csFlat = P.csTilt===false && s.stopKind==="cp" && s.stopTimer>0 && !(s.hour>=17||s.hour<8) && !(StopMenu.active&&StopMenu.mode==="charge");   // 17 時以降・朝は CS でも傾ける   // CS で傾けられない運用: 平置きのまま
-const tilted = ((parked && !csFlat) || s.camp) && !this.preStartFlat();
+const tilted = ((parked && !csFlat) || s.camp) && !this.preStartFlat() && !this.csFlatEnd();
 const sol=this.solarCalc(prof.lat,s.hour,tilted);
 const Tamb=Model.ambient(prof.lat,prof.lon,s.dayOfYear,s.hour);
 const phiW=s.windDirWorld-prof.bearing+Math.PI;
@@ -370,6 +387,7 @@ Snd.rattle();
 toast("🐄 キャトルグリッド通過 ― 足回りに衝撃","#fbbf24");
 }
 const lim=speedLimitAt(s.km);
+this.trackMinSpeed(s,dKm,dtS,lim);
 if(s.v*3.6>lim+5){ s.limitTimer+=dtR;
 if(s.limitTimer>3){ s.limitTimer=0; Radio.push(`制限速度${lim}km/hを超過しています。減速してください。`,"後方追走車"); } }
 else s.limitTimer=0;

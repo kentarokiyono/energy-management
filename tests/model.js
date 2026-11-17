@@ -77,7 +77,7 @@ const T0=Date.now();
  check("速度配分: 完走でき、電池が下限を割らない",bp[0]&&bp[2]>=bp[3]-1e-9,`平地 ${bp[1]} km/h・最小 ${(bp[2]*100).toFixed(1)} %・Day${Math.floor(bp[4]/24)+1}・${bp[5].toFixed(0)} ms`);
  const cmp=R(`(()=>{ const b=Strategy.bestProfile({abs:8,km:0,soc:1}), floor=b.r.minSoc; let lo=30,hi=130; while(hi-lo>0.5){ const m=(lo+hi)/2, x=Strategy.simulate(m,{abs:8,km:0,soc:1,floor}); if(x.ok) lo=m; else hi=m; } const c=Strategy.simulate(lo,{abs:8,km:0,soc:1,floor}); return [b.r.finishAbs,c.ok?c.finishAbs:Infinity,lo]; })()`);
  check("速度配分は、同じ電池の下限の一定速度より早く着く",cmp[0]<=cmp[1]+0.05,`配分 ${cmp[0].toFixed(2)} h / 一定 ${cmp[2].toFixed(1)} km/h ${cmp[1].toFixed(2)} h`);
- const head=R(`(()=>{ const sg=Strategy.segAt(1000), e=Strategy.segEnv(sg,8+24*2+3,0.7), mu=3e-3, vmax=120;
+ const head=R(`(()=>{ const sg=Strategy.segAt(1000), e=Strategy.segEnv(sg,8+24*2+3,0.7), mu=4e-4, vmax=120;
   const v0=Strategy.segBestV(sg,mu,Object.assign({},e,{head:0,varH:0,cross:0}),vmax), vh=Strategy.segBestV(sg,mu,Object.assign({},e,{head:6,varH:0,cross:0}),vmax); return [v0,vh]; })()`);
  check("向かい風の区間では配分の速度が下がる (電力の値打ちが同じとき)",head[1]<head[0],head.map(x=>x.toFixed(1)).join(" → ")+" km/h");
  const pieces=R(`(()=>{ let n=0, d=0; for(let k=0;k<TOTAL_KM-2;k+=2){ const s=Strategy.segAt(k); n++; d+=s.pieces.reduce((a,p)=>a+p[1],0); } return [n,d]; })()`);
@@ -101,7 +101,20 @@ const T0=Date.now();
   for(const h of [8.0,8+9/60,8+11/60]){ s.hour=h; o.push(Engine.preStartFlat()); }
   s.day=2; s.gridStartH=0; s.camp=true; for(const h of [7.5,7+54/60,7+56/60]){ s.hour=h; o.push(Engine.preStartFlat()); }
   s.morningPenaltyMin=10; s.hour=7+56/60; o.push(Engine.preStartFlat()); s.hour=8+6/60; o.push(Engine.preStartFlat()); return o; })()`);
+ const cs=R(`(()=>{ const s=Engine.st, o=[]; s.day=1; s.hour=12; s.stopKind="cp"; s.stopHold=false; for(const t of [1800,301,299]){ s.stopTimer=t; o.push(Engine.csFlatEnd()); } s.hour=17.5; o.push(Engine.csFlatEnd()); s.stopKind=""; s.stopTimer=0; return o; })()`);
+ check("CS の最後の 5 分だけ寝かせる (17 時以降の計時停止中は除く)",JSON.stringify(cs)===JSON.stringify([false,false,true,false]),JSON.stringify(cs));
  check("Day1 は発進の 10 分前、Day2 以降は 5 分前 (遅延ペナルティ込み) から寝かせる",JSON.stringify(t)===JSON.stringify([false,false,true,false,false,true,false,true]),JSON.stringify(t));
+}
+
+{ // ---- 最低速度 60 km/h (規則 3.29.1) ----
+ const C=load({realWeather:false}), R=C.run;
+ const v=R(`(()=>{ const sg=Strategy.segAt(1000), e=Strategy.segEnv(sg,8+24*2+3,0.7); return Math.min(...[0.001,0.01,0.05].map(mu=>Strategy.segBestV(sg,mu,e,120))); })()`);
+ check("戦略の速度は 60 km/h 以上 (電力の値打ちが大きくても)",v>=60,v.toFixed(1)+" km/h");
+ const m=R(`(()=>{ const s=Engine.st, run=(kmh,km,opt)=>{ const dt=1; let d=0; while(d<km){ s.v=kmh/3.6; Object.assign(s,opt||{}); const dk=s.v*dt/1000; d+=dk; Engine.trackMinSpeed(s,dk,dt,110); } };
+  const o=[]; s.competing=true; s.minSpd=null; run(55,10.5); o.push(s.competing,s.minSpd.warn); run(70,10.5); o.push(s.minSpd.warn);
+  run(55,10.5,{fault:{type:"accel"}}); o.push(s.competing); s.fault=null; run(55,21); o.push(s.competing);
+  s.competing=true; s.minSpd=null; for(let i=0;i<5000;i++){ s.v=0; Engine.trackMinSpeed(s,0,60,110); } run(65,10.5); o.push(s.competing,s.minSpd.warn); return o; })()`);
+ check("最低速度: 1 回目は警告、続くと競技外。故障中・止まっている時間は数えない",JSON.stringify(m)===JSON.stringify([true,1,0,true,false,true,0]),JSON.stringify(m));
 }
 
 console.log(results.join("\n"));

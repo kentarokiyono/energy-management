@@ -3,10 +3,11 @@
  先読みの内容: 100 m ごとの勾配と制限速度・カーブ・時刻と場所ごとの日射・気温 (空気密度・セル温度)・風 (向かい風・横風と突風の揺らぎ)・
  偵察班の天気予報 (weatherPlan)・CS の 30 分停車 (傾けて充電)・17 時以降と朝の充電・夜の停止・停車後の加速。
  消費・発電・電池は走行と同じ式 (Model: 内部抵抗の損失・開放電圧・モーターの銅損と鉄損・回生) で数える。
+ 速度は 60 km/h 以上 (規則 3.29.1: 開けた道で 60 km/h を保てないと競技外。町中は制限速度まで)。
  速度配分: 2 km ごとに「かかる時間 + μ × 使う電力量」が最小になる速度を選ぶ (μ = 電力量の値打ち)。
   登り・向かい風では電力が大きく増えるので遅め、平地・下り・追い風では速めになる。電池が下限を割らない最小の μ を 2 分探索で求める */
 const Strategy={
- FLOOR:0.05, SEG:2, PIECE:0.1, CHG_STEP:1/12, last:null, lastT:-1e9,
+ FLOOR:0.05, VMIN:60, SEG:2, PIECE:0.1, CHG_STEP:1/12, last:null, lastT:-1e9,
  floor(){ const s=Engine.st, b=(s&&s.scenario)||!(s&&s.fc)? this.FLOOR : ({off:0.05,low:0.08,mid:0.12,high:0.18,late:0.12})[P.fcErr]||this.FLOOR;
   return (s&&s.scenario)||typeof Coffee==="undefined"? b : Math.max(0.02,b+Coffee.floorAdj()); },   // 朝の打ち合わせで決めた走り方 (攻め・守りで電池を残す量を増減)
  /* [W] 速度 vms [m/s]・勾配 grade で巡航する電力 (モーター + 補機)。env (任意): {head, varH, cross, rho, gLat, soc}。無ければ無風・空気密度 1.17 */
@@ -44,7 +45,7 @@ const Strategy={
  /* μ に対して「時間 + μ × 電力量」が最小の速度 [km/h] (黄金分割で探す) */
  segBestV(sg,mu,env,vmax){
   const c=(v)=>{ const r=this.segRun(sg,v,env); return r.t+mu*r.E; }, q=0.6180339887;
-  let a=30, b=vmax, x1=b-q*(b-a), x2=a+q*(b-a), f1=c(x1), f2=c(x2);
+  let a=this.VMIN, b=Math.max(this.VMIN+1,vmax), x1=b-q*(b-a), x2=a+q*(b-a), f1=c(x1), f2=c(x2);
   while(b-a>1){ if(f1<f2){ b=x2; x2=x1; f2=f1; x1=b-q*(b-a); f1=c(x1); } else { a=x1; x1=x2; f1=f2; x2=a+q*(b-a); f2=c(x2); } }
   return (a+b)/2;
  },
@@ -96,10 +97,11 @@ const Strategy={
   for(let guard=0;guard<8000&&km<TOTAL_KM-1e-6;guard++){
    if(guard%this.YIELD_SEG===this.YIELD_SEG-1) yield;
    const day=Math.floor(abs/24), h=abs-day*24;
-   if(stopH>0){ const end=day*24+17;   // CS: 傾けない運用なら平置き。17 時に計時が止まり、残りは翌朝 8 時から
+   if(stopH>0){ const end=day*24+17;   // CS: 傾けない運用なら平置き。最後の 5 分は寝かせる。17 時に計時が止まり、残りは翌朝 8 時から
+    const csCharge=(left,dur)=>{ const tl=Math.max(0,Math.min(dur,left-Engine.CS_FLAT)); charge(tl,P.csTilt!==false,P.auxW); charge(dur-tl,false,P.auxW); };
     if(h>=17||h<8){ stopRem+=stopH; stopH=0; }
-    else if(abs+stopH>end){ const pre=end-abs; charge(pre,P.csTilt!==false,P.auxW); stopRem+=stopH-pre; stopH=0; continue; }
-    else { charge(stopH,P.csTilt!==false,P.auxW); stopH=0; continue; } }
+    else if(abs+stopH>end){ const pre=end-abs; csCharge(stopH,pre); stopRem+=stopH-pre; stopH=0; continue; }
+    else { csCharge(stopH,stopH); stopH=0; continue; } }
    if(h>=17||h<8){   // 夜: 日没まで・朝 6:15 から充電 (発進の少し前に寝かせる)、8:00 発
     if(kmToday==null&&day===startDay) kmToday=km;
     const pr=profileAt(km), sunset=Engine.sunsetHour(pr.lat,pr.lon);
@@ -134,7 +136,7 @@ const Strategy={
  },
  /* 電池が持つ最も速い一定の巡航速度 (o を渡すとその地点・時刻・SOC から) */
  best(o){
-  let lo=30, hi=Math.min(PRO.noSpeedCap?160:130,this.topSpeed(true));
+  let lo=this.VMIN, hi=Math.min(PRO.noSpeedCap?160:130,this.topSpeed(true));
   let best=this.simulate(lo,o);
   if(!best.ok) return {v:lo,ok:false,r:best};
   while(hi-lo>1){ const mid=Math.round((lo+hi)/2), r=this.simulate(mid,o); if(r.ok){ lo=mid; best=r; } else hi=mid; }
@@ -184,7 +186,7 @@ const Strategy={
   catch(e){ this.job=null; } },
  text(){
   const p=this.plan(true), r=p.r, s=Engine.st, nx=RP_CS.find(c=>!s.passedCP.has(c.km)&&c.km>s.km-0.2);
-  if(!p.ok) return `⚠ 時速 ${p.v} km でも ${r.minKm.toFixed(0)} km 付近で電池が尽きる見込み。充電停車を検討してください。`;
+  if(!p.ok) return `⚠ 時速 ${p.v} km (規則の最低速度) でも ${r.minKm.toFixed(0)} km 付近で電池が尽きる見込み。充電停車を検討してください。`;
   let m=`推奨巡航 時速 ${p.v} km (平地。登りは遅め・下りは速め、制限速度の範囲で)。ゴール予想 ${fmtAbsH(r.finishAbs)}。`;
   if(nx&&r.socNextCS!=null) m+=`CS${nx.n} ${nx.name} 到着時 SOC 約 ${(r.socNextCS*100).toFixed(0)} %。`;
   m+=`最も減るのは ${r.minKm.toFixed(0)} km 付近で約 ${(r.minSoc*100).toFixed(0)} %。今日は ${r.kmToday.toFixed(0)} km 付近まで。`;

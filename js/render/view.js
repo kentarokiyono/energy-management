@@ -948,7 +948,7 @@ this.car.rotation.order="YXZ";
   // 横転したら風下へ転がりながら滑り、路肩で止まる (2025 年の映像のように)
   if(es.rolledOver){ const p0=this.roadPoint(this.s), edge=(es.tipDir||1)>0? p0.R+1.2 : -(p0.L+1.2), dl=edge-this.lateral; this.rollSlide=(this.rollSlide||0)+dtR;
    if(this.rollSlide<3&&Math.abs(dl)>0.05){ const st=clamp(dl,-3*dtR,3*dtR); this.lateral+=st; this.cx+=Math.cos(this.ch)*st; this.cz+=Math.sin(this.ch)*st; this.car.rotation.y+=(es.tipDir||1)*0.25*Math.min(1,this.rollSlide); } } else this.rollSlide=0; }
-let wantTilt=(es.camp||es.stopTimer>0||StopMenu.mode==="charge"||Engine.gridWait())&&!es.disconnected&&!Engine.preStartFlat();
+let wantTilt=(es.camp||es.stopTimer>0||StopMenu.mode==="charge"||Engine.gridWait())&&!es.disconnected&&!Engine.preStartFlat()&&!Engine.csFlatEnd();
 if(typeof Crew!=="undefined"&&Crew.busy()&&Crew.phase!=="outside") wantTilt=false;   // ドライバーが乗っている間は傾けない
 const targetRoll=wantTilt? -es.tiltDeg*Math.PI/180*0.85 : 0;
 const UT=this.car.userData.upperTilt;   // 和大型: アッパーカウルだけを傾ける
