@@ -173,7 +173,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
    Team.setReal(null); P.realK=null; if(Trend.syncTeam) Trend.syncTeam(); const e2={...Trend.COND.effK};   // 外して「既定の比に戻す」: 最初と同じ範囲 Team.open("real"); const ui=document.querySelector('#team .team-pane[data-p="real"]').textContent.includes("実車との比")||true;
    const veh=!!document.querySelector("#team #sec-body")&&!!document.querySelector("#team #sec-veh"); Team.close();
    return {ask,rk,mid:rk&&Number.isFinite(rk.solar)? Math.abs((e1.min+e1.max)/2-rk.solar)<0.002 : false,saved:!!saved.realK,back:e2.min===e0.min&&e2.max===e0.max,veh,tabs:document.querySelectorAll("#team .team-tabs button").length}; });
-  check("車両・チームの設定: 実車との比 (ログ → 設定 → 傾向の範囲)・車両の欄",tm.ask&&tm.rk&&tm.mid&&tm.saved&&tm.back&&tm.veh&&tm.tabs===5,JSON.stringify(tm));
+  check("車両・チームの設定: 実車との比 (ログ → 設定 → 傾向の範囲)・車両の欄・タブ 6 つ (足回りを含む)",tm.ask&&tm.rk&&tm.mid&&tm.saved&&tm.back&&tm.veh&&tm.tabs===6,JSON.stringify(tm));
   // かんたん表示: 「調べる」で完走率・推奨の走り方 (言葉)・改善の候補 (同じ条件の並びで比べる)
   const ez=await p.evaluate(async()=>{ const keepCs=P.csTilt; P.csTilt=false; Trend.EASY_BUDGET=[400,1000]; Trend.EASY_N=120; Trend.setView("easy"); await Trend.easyRun(); const E=Trend.easy, ui=document.getElementById("tr-easy").textContent;
    P.csTilt=keepCs; Trend.setView("detail"); return E&&{rate:E.base.rate,n:E.base.n,words:E.words.length,lev:E.lev.map(l=>l.k).join(","),cs:(E.lev.find(l=>l.k==="cs")||{}).d,ui:ui.includes("完走率")&&ui.includes("推奨の走り方")&&ui.includes("一番効く改善"),years:Trend.cfg.years}; });
