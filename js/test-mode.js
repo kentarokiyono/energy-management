@@ -65,7 +65,7 @@ retry(){
 show("test-result",false);
 const es=Engine.st;
 es.throttleSet=0; es.brakePhys=0; es.brakeRegen=0;
-this.v=0; this.tire=null; this.tireFx=null; this.t=0; this.tSide=0; this.dmgAero=0; this.state="ready"; this.progress=0; this.prevLapIdx=undefined; this.lapPit=false; this.lapStartPit=false; this.inPit=false;
+this.v=0; this.tire=null; this.susp=null; this.tireFx=null; this.t=0; this.tSide=0; this.dmgAero=0; this.state="ready"; this.progress=0; this.prevLapIdx=undefined; this.lapPit=false; this.lapStartPit=false; this.inPit=false;
 this.coneHit=false; this.brakeEntry=null; this.brakeDist=null; this.slalomT=null; this.slalomOK=null;
 this.cones.forEach(c=>{c.userData.hit=false;c.rotation.set(0,0,0);c.position.y=0.38;});
 this.f8={accA:0,accB:0,prevA:null,prevB:null,moved:0,sides:[],done:[],count:0,best8:null};
@@ -135,8 +135,8 @@ let FxT=Ftrac-Fbrake;
 if(this.tireFx!=null&&Math.abs(this.tireFxReq)>1&&Math.sign(this.tireFxReq)===Math.sign(FxT)) FxT*=clamp(this.tireFx/this.tireFxReq,0,1);
 const Foff= offTrack&&this.v>1? m*clamp(this.v*0.12,0.2,2.5) : 0;
 const FnetT=FxT-Froll-Fdrag-Fslope-Fcorner-Foff;
-this.v=Math.max(0,this.v+FnetT/mEff*dtR);
-es.gLong=(FnetT/mEff)/GRAV; es.gPitch=((FnetT+Fslope)/mEff)/GRAV;
+const v0=this.v; this.v=Math.max(0,this.v+FnetT/mEff*dtR);
+{ const a=dtR>0? (this.v-v0)/dtR : 0; es.gLong=a/GRAV; es.gPitch=(a+Fslope/mEff)/GRAV; }   // 実際の速度の変化から (止まってブレーキを踏んでも沈まない)
 const Pmotor=Math.max(0,mmT.Pelec-Pregen);
 es.lastAmp=I_cmd; es.lastMotorW=Pmotor;
 const Pnet=Pmotor+P.auxW-Psolar;
@@ -149,10 +149,13 @@ es.lastIbat=Ibat; es.lastNet=Pnet;
 if(Ibat>0) es.ahUsed+=Ibat*dtR/3600;
 es.v=this.v;
 // 横の動き: タイヤの計算 (レースと同じ Tire)。コースの外は土
+const S=this.susp||(this.susp=Susp.init());
+Susp.step(S,{ax:(es.gPitch||0)*GRAV,Fy:this.v>0.05? (this.lastFyT||0) : 0},dtR);   // サスペンション (レースと同じ)
 if(this.v>0.05){
  T.ax=(es.gLong||0)*GRAV;
  const wet=typeof Rain!=="undefined"? (Rain.wet||0) : 0, mu= offTrack? Tire.SURF.dirt : 1-Tire.SURF.wetK*wet;
- const R=Tire.step(T,{u,delta:Tire.steerAngle(Input.steer,this.v,Input.steerMode),drive:Ftrac,brake:FbFric,regen:Fr},{mu},dtR);
+ const R=Tire.step(T,{u,delta:Tire.steerAngle(Input.steer,this.v,Input.steerMode),drive:Ftrac,brake:FbFric,regen:Fr},{mu,Fz:S.Fz,camber:S.camber},dtR);
+ this.lastFyT=R.fy;
  this.tireFx=R.fx; this.tireFxReq=R.fxReq; es.tireW=R.wheels; es.tireUse=T.use; es.tireSlide=T.slide; es.tireLock=T.lockAny; es.tireSat=T.sat;
  this.heading+=T.r*dtR; es.gLat=T.ay/GRAV;
 } else { es.gLat=0; T.vy=0; T.r=0; T.ay=0; this.tireFx=null; es.tireW=null; es.tireUse=0; es.tireSlide=false; es.tireLock=false; es.tireSat=0; }
@@ -173,13 +176,13 @@ if(this.kind==="circuit"&&this.trackPts){ const n=this.trackN, P=this.trackPts, 
  const W=this.car.userData.wheels; let df=1.3, dr=1.3; if(W&&W.length){ df=0; dr=0; for(const w of W){ const z=w.g.position.z; if(z<0) df=Math.max(df,-z); else dr=Math.max(dr,z); } df=df||1.3; dr=dr||1.3; }
  const fx=Math.sin(this.heading), fz=-Math.cos(this.heading), yF=hY(this.x+fx*df,this.z+fz*df), yR=hY(this.x-fx*dr,this.z-fz*dr);
  if(Number.isFinite(yF)&&Number.isFinite(yR)){ slopeA=Math.atan2(yF-yR,df+dr); carY=yR+(yF-yR)*dr/(df+dr); } }
-{ const gp=Number.isFinite(es.gPitch)? es.gPitch : (es.gLong||0), tgt=clamp(gp*0.035,-0.05,0.05), h=Math.min(dtR,0.05); if(!Number.isFinite(this.pitchS)){ this.pitchS=0; this.pitchV=0; }
-  this.pitchV+=((tgt-this.pitchS)*90-this.pitchV*8.5)*h; this.pitchS+=this.pitchV*h; if(!Number.isFinite(this.pitchS)||Math.abs(this.pitchS)>0.2){ this.pitchS=0; this.pitchV=0; } }
-this.car.position.set(this.x,carY,this.z);
-this.car.rotation.order="YXZ";   // 向きを決めてから、車体の前後の傾き
+this.pitchS=S.th;   // サスペンションの計算 (機首上げ +)
+this.car.position.set(this.x,carY+S.z,this.z);
+this.car.rotation.order="YXZ";   // 向きを決めてから、車体の前後・左右の傾き
 this.car.rotation.y=-this.heading;
-this.car.rotation.x=slopeA+this.pitchS;   // + で機首上げ
-if(this.car.userData.wheels) for(const w of this.car.userData.wheels) w.g.position.y=w.r+this.pitchS*w.g.position.z;   // 車輪は路面に着いたまま (傾くのは車体だけ)
+this.car.rotation.x=slopeA+S.th;
+this.car.rotation.z=-S.ph;
+if(typeof SuspMesh!=="undefined") SuspMesh.pose(this.car,S.th,S.ph,S.z);   // 車輪は路面に着いたまま (傾くのは車体だけ)
 if(this.car.userData.brakeMat)
 this.car.userData.brakeMat.color.setHex((es.brakePhys>0.05||es.brakeRegen>0.05)?0xff2222:0x4a0505);
 updateWinkers(this.car,es); updateRearCombo(this.car,es); reverseBeep(es); updateHatches(this.car,dtR);

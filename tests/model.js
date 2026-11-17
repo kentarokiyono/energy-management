@@ -148,6 +148,10 @@ const T0=Date.now();
  check("横風 (右へ 300 N): 何もしないと風下へ流され鼻先も風下へ。当て舵で車線の中 (0.5 m 以内)",cw.y>0.05&&cw.h>0&&cw.dev<0.5,`2 秒で ${cw.y.toFixed(2)} m・向き ${cw.h.toFixed(2)}°・当て舵 ${cw.dev.toFixed(2)} m`);
  const sp=R(`(()=>{ const F=motorModel(motorMaxA(false)*1.25,3,0.9,false).F; return [1,0.65,0.5].map(mu=>HT.run({u0:3,drive:F,mu,tmax:3}).lockR); })()`);
  check("後輪の空転: 舗装 (乾いた・濡れた) では全開でも空転しない。土の上では起きうる",sp[0]==null&&sp[1]==null,sp.map(x=>x==null?"なし":"あり").join(" / "));
+ const su=R(`(()=>{ const p=Susp.params(), tp=Tire.params(), st=Susp.init(), ay=5; for(let t=0;t<4;t+=0.01) Susp.step(st,{ax:-3,Fy:tp.m*ay},0.01);
+  const q=Tire.loads(tp,-3,ay,0), fw=p.wh.find(w=>w.geo.tab); return {d:Math.max(...st.Fz.map((f,i)=>Math.abs(f-q[i]))),ph:st.ph,th:st.th,rc:p.hF,cam:Susp.geoAt(fw,0.03).camber,cam0:Susp.geoAt(fw,0).camber}; })()`);
+ check("サスペンション: 落ち着いた後の荷重 = 釣り合いの式、曲がると外へ・ブレーキで前へ傾く",su.d<5&&su.ph<0&&su.th<0,`荷重の差 ${su.d.toFixed(1)} N・ロール ${(su.ph*57.3).toFixed(2)}°・ピッチ ${(su.th*57.3).toFixed(2)}°`);
+ check("ダブルウィッシュボーン: ロールセンター 0〜150 mm・縮むと上が内側へ傾く (ネガティブキャンバー)",su.rc>0&&su.rc<0.15&&su.cam<-0.005&&Math.abs(su.cam0)<1e-3,`${(su.rc*1000).toFixed(0)} mm・30 mm 縮んで ${(su.cam*57.3).toFixed(2)}°`);
  const ks=R(`(()=>{ const p=Tire.params(), st=Tire.init(); Tire.step(st,{u:1,delta:0.2},{mu:1},0.1); return {r:st.r, k:1*Math.tan(0.2)/p.L}; })()`);
  check("止まる直前 (1 m/s) は前輪の向きどおりに曲がる",near(ks.r,ks.k,1e-9),ks.r.toFixed(4)+" rad/s");
 }

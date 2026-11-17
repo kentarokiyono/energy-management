@@ -4,7 +4,7 @@
 const vm=require("vm"), fs=require("fs"), path=require("path");
 const ROOT=path.resolve(__dirname,"..","..");
 const FILES=["js/data/route-2025.js","js/data/route-plan.js","js/data/route-osm.js","js/data/route-geo.js","js/data/weather-2025.js","js/route.js",
- "js/data/australia.js","js/geo.js","js/data.js","js/vehicle.js","js/physics.js","js/model.js","js/data/vehicle-public.js","js/tire.js","js/rng.js","js/engine.js","js/strategy.js"];
+ "js/data/australia.js","js/geo.js","js/data.js","js/vehicle.js","js/physics.js","js/model.js","js/data/vehicle-public.js","js/tire.js","js/susp.js","js/rng.js","js/engine.js","js/strategy.js"];
 module.exports=function load(opt={}){
  const store={}, ctx={console,performance:{now:()=>Number(process.hrtime.bigint())/1e6},
   localStorage:{getItem:k=>(k in store? store[k] : null),setItem:(k,v)=>{ store[k]=String(v); },removeItem:k=>{ delete store[k]; }},
