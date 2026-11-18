@@ -7,6 +7,7 @@
  ・荷重 = 静止の荷重 + ばね・ダンパーの力 + アームを通る分 (ロールセンターの高さの分は遅れなく移る)
    ばねを通る分は車体が傾くまで遅れて移る (切り始め・ブレーキの踏み始めは荷重の移り方がなめらか)
  ・加減速による沈み込みは、実際の加速度 (速度の変化) から。止まってブレーキを踏んでも沈まない
+ ・ばね下 (車輪側の重さ) とタイヤの縦のばねも計算する。路面の凸凹・キャトルグリッドで車輪が跳ね、跳ねている間はタイヤの荷重 (グリップ) が抜ける
  値: 既定 (一般的な値) → 諸元 (vehicle-private.js の susp) → 設定 (P.susp、車両・チームの設定「足回り」) の順に上書き。
  座標は Tire と同じ (前 + / 右 +、上 +)。ストローク c はばねが縮む向きが +。ピッチ th は機首上げ +、ロール ph は右が下がる向き + */
 const Susp={
@@ -16,20 +17,25 @@ const Susp={
    swingL 下のアームの長さ・rLinkL 上のアームの長さ (前後方向)・rVw V の開き (車体側の 2 点の左右の間隔)・rUpH アップライト (インホイールモーターに直付け) の下の点から上の点まで [m]、
   rLowDz・rUpDz: 車体側の軸の高さ (車輪側との差、+ で前が高い) [m]、rearSide: アームが付く側 (運転席から見て "R" 右 / "L" 左)、
   mr: ばねのレバー比 (下のアームの何割の所に付くか)、travel: ストロークの限界 (± [m])、
-  fAirL: 前のエアサス (マウンテンバイク用) の空気室の長さ (車輪の動きに換算 [m])。短いほど縮んだときに急に硬くなる。後ろはコイルばね (硬さ一定) */
- DEF:{fHz:2.4, rHz:2.2, zeta:0.35, lowerL:0.30, upperL:0.22, upH:0.20, upTilt:-0.04, swingL:0.42, rLinkL:0.40, rVw:0.20, rUpH:0.14, rLowDz:0.01, rUpDz:0, rearSide:"R", mr:0.6, travel:0.06, fAirL:0.16},
+  fAirL: 前のエアサス (マウンテンバイク用) の空気室の長さ (車輪の動きに換算 [m])。短いほど縮んだときに急に硬くなる。後ろはコイルばね (硬さ一定)、
+  前輪のアライメント: caster キャスター角・toe トー (片輪、+ = トーイン)・camber0 静的キャンバー (− = 上が内側) [°]・ack アッカーマン [%]、
+  ばね下: muF・muR 前・後の 1 輪あたりのばね下の重さ [kg] (後ろはインホイールモーター込み)・kt タイヤの縦の硬さ [N/m]・roadK 路面の凸凹の大きさ (倍率) */
+ DEF:{fHz:2.4, rHz:2.2, zeta:0.35, lowerL:0.30, upperL:0.22, upH:0.20, upTilt:-0.04, swingL:0.42, rLinkL:0.40, rVw:0.20, rUpH:0.28, rLowDz:0.01, rUpDz:0, rearSide:"R", mr:0.6, travel:0.06, fAirL:0.16, caster:6, ack:60, toe:0.05, camber0:-0.25, muF:8, muR:20, kt:180000, roadK:1},
  TUNE:[["fHz","前のばね (固有振動数)","Hz",1,4,0.1],["rHz","後ろのばね (固有振動数)","Hz",1,4,0.1],["zeta","ダンパー (減衰比)","",0.1,1,0.05],
   ["lowerL","ロアアームの長さ","m",0.15,0.5,0.01],["upperL","アッパーアームの長さ","m",0.1,0.5,0.01],["upH","アップライトの高さ (ボールジョイントの間隔)","m",0.1,0.3,0.01],
   ["upTilt","アッパーアームの内側の高さ (外側との差)","m",-0.1,0.1,0.01],["swingL","後ろ: 下のアームの長さ (前後)","m",0.2,0.8,0.01],["rLinkL","後ろ: 上のアームの長さ (前後)","m",0.15,0.8,0.01],["rVw","後ろ: V の開き (車体側の 2 点の間隔)","m",0.05,0.5,0.01],
-  ["rUpH","後ろ: アップライトの高さ (下のアームから上のアームまで)","m",0.06,0.3,0.01],["rLowDz","後ろ: 下のアームの車体側の高さ (車輪側との差)","m",-0.1,0.1,0.005],
-  ["rUpDz","後ろ: 上のアームの車体側の高さ (車輪側との差)","m",-0.1,0.1,0.005],["mr","ばねのレバー比","",0.3,1,0.05],["fAirL","前: エアサスの空気室の長さ (車輪の動きに換算。短いほど奥で硬い)","m",0.08,0.5,0.01],["travel","ストロークの限界 (片側)","m",0.02,0.12,0.005]],
- H:0.004,
+  ["rUpH","後ろ: アップライトの長さ (上のアームから下へ、下のアームまで)","m",0.06,0.36,0.01],["rLowDz","後ろ: 下のアームの車体側の高さ (車輪側との差)","m",-0.1,0.1,0.005],
+  ["rUpDz","後ろ: 上のアームの車体側の高さ (車輪側との差)","m",-0.1,0.1,0.005],["mr","ばねのレバー比","",0.3,1,0.05],["fAirL","前: エアサスの空気室の長さ (車輪の動きに換算。短いほど奥で硬い)","m",0.08,0.5,0.01],["travel","ストロークの限界 (片側)","m",0.02,0.12,0.005],
+  ["caster","前: キャスター角 (ハンドルの戻り・切ったときの車輪の傾き)","°",0,15,0.5],["ack","前: アッカーマン (内輪を多く切る割合、100 % で同じ円の中心)","%",0,120,5],
+  ["toe","前: トー (片輪、+ = トーイン)","°",-1,1,0.01],["camber0","前: 静的キャンバー (− = 上が内側)","°",-3,3,0.05],
+  ["muF","前: ばね下の重さ (1 輪)","kg",2,30,0.5],["muR","後ろ: ばね下の重さ (インホイールモーター込み)","kg",5,40,0.5],["kt","タイヤの縦の硬さ","N/m",60000,400000,5000],["roadK","路面の凸凹の大きさ (倍率)","",0,3,0.1]],
+ H:0.002,
  val(k){ const o=P.susp&&typeof P.susp==="object"? P.susp : {}, S=(typeof VEH!=="undefined"&&VEH.active&&VEH.spec.susp)||{}, T=this.TUNE.find(t=>t[0]===k);
   let v=Number.isFinite(+o[k])&&o[k]!==""&&o[k]!=null? +o[k] : Number.isFinite(S[k])? S[k] : this.DEF[k];
   return T? clamp(v,T[3],T[4]) : v; },
  side(){ const o=P.susp&&typeof P.susp==="object"? P.susp : {}, S=(typeof VEH!=="undefined"&&VEH.active&&VEH.spec.susp)||{}, v=o.rearSide||S.rearSide||this.DEF.rearSide; return v==="L"? -1 : 1; },
  setSide(v){ P.susp=Object.assign({},P.susp&&typeof P.susp==="object"?P.susp:{},{rearSide:v==="L"?"L":"R"}); this._p=null; Settings.save(); },
- set(k,v){ const T=this.TUNE.find(t=>t[0]===k); if(!T) return; P.susp=Object.assign({},P.susp&&typeof P.susp==="object"?P.susp:{}); if(v===""||v==null) delete P.susp[k]; else P.susp[k]=clamp(+v,T[3],T[4]); this._p=null; Settings.save(); },
+ set(k,v){ const T=this.TUNE.find(t=>t[0]===k); if(!T) return; P.susp=Object.assign({},P.susp&&typeof P.susp==="object"?P.susp:{}); if(v===""||v==null) delete P.susp[k]; else P.susp[k]=clamp(+v,T[3],T[4]); this._p=null; if(typeof Strategy!=="undefined") Strategy.last=null; Settings.save(); },
  reset(){ P.susp={}; this._p=null; Settings.save(); },
 
  /* 車の値 (Tire の車輪の配置・荷重の配分を使う) */
@@ -39,11 +45,13 @@ const Susp={
   if(this._p&&this._key===key) return this._p;
   const v=k=>this.val(k), m=tp.m, g=GRAV;
   const wh=tp.wh.map(w=>{ const mi=w.share*m, f=w.front? v("fHz") : v("rHz"), k=(2*Math.PI*f)**2*mi;
-   return {px:w.px, py:w.py, front:w.front, R:w.R, k, lat:w.lat, airL:w.front? v("fAirL") : 0, c:2*v("zeta")*Math.sqrt(k*mi), F0:mi*g, geo:w.front? this.wishbone(w,v) : this.rear(w,v)}; });
+   const mu=w.front? v("muF") : v("muR"), kt=v("kt");
+   return {px:w.px, py:w.py, front:w.front, R:w.R, k, lat:w.lat, airL:w.front? v("fAirL") : 0, c:2*v("zeta")*Math.sqrt(k*mi), F0:mi*g, mu, kt, ct:2*0.05*Math.sqrt(kt*mu), geo:w.front? this.wishbone(w,v) : this.rear(w,v)}; });
   // ロールセンター: 前は幾何から、後ろ (スイングアーム) は軸の高さ。重心の位置での高さ (ロール軸)
   const rcF=wh.filter(w=>w.front).map(w=>w.geo.rc), hF=rcF.length? rcF.reduce((a,b)=>a+b,0)/rcF.length : 0;
   const rr=wh.filter(w=>!w.front), hR=rr.length? rr.reduce((a,w)=>a+w.geo.rc,0)/rr.length : 0, hRA=hF*(tp.b/tp.L)+hR*(tp.a/tp.L);
-  return this._key=key, this._p={m, h:tp.h, L:tp.L, Iy:tp.Iz*0.9, Ix:m*0.4*0.4, wh, hRA, hF, travel:v("travel"), mr:v("mr")};
+  const ms=Math.max(m*0.5,m-wh.reduce((a,w)=>a+w.mu,0));   // ばね上の重さ
+  return this._key=key, this._p={m, ms, h:tp.h, L:tp.L, Iy:tp.Iz*0.9*ms/m, Ix:ms*0.4*0.4, wh, hRA, hF, travel:v("travel"), mr:v("mr"), cam0:v("camber0")*Math.PI/180, roadK:v("roadK")};
  },
  /* 2 本のリンクで車体につながるアップライトの動き (平面の 4 節リンク)。座標 y (前輪: 外向き / 後輪: 前向き)・z 上、静止の接地点が原点。
   li・ui: 車体側の軸 (下・上)、lo・up: アップライト側の点 (下・上)。→ ストロークごとの表 {c, rot (アップライトの回転、y から z へ +), L1, U1, wc 車輪の中心, cp 接地点} と瞬間中心 ic */
@@ -78,7 +86,7 @@ const Susp={
   車体側の 2 点は同じ前後位置で、アームの軸は左右方向。車輪は車体と一緒に傾く (キャンバーの変化なし)。アームは片側 (rearSide) だけ。
   瞬間中心 (横から見たアームの延長の交点) の高さと距離から、駆動・回生・ブレーキの力の一部がアームを通って車体を持ち上げる/引き下げる (アンチスクワット・アンチリフト) */
  rear(w,v){
-  const R=w.R, lo={y:0,z:R-0.02}, up={y:0,z:R-0.02+v("rUpH")};
+  const R=w.R, up={y:0,z:R+0.12}, lo={y:0,z:R+0.12-v("rUpH")};   // 上の点は車輪の中心の少し上で固定、アップライトは下へ伸びる
   const li={y:v("swingL"),z:lo.z+v("rLowDz")}, ui={y:v("rLinkL"),z:up.z+v("rUpDz")};
   const K=this.linkage(li,ui,lo,up,R,v("travel")*1.5), tab=K.tab.map(t=>({c:t.c,camber:0,scrub:0,pitch:t.rot,L1:t.L1,U1:t.U1,wc:t.wc}));
   const ic=K.ic, anti= ic&&ic.y>0.05? clamp(ic.z/ic.y,-1,1) : 0;   // 接地点から瞬間中心への傾き (tan)。前の力 1 N あたり車体を持ち上げる力
@@ -90,33 +98,45 @@ const Susp={
 
  /* ばねの力 [N] (静止の位置からの増分、縮む +)。前はエアサス: 空気の圧縮 (指数 1.3) で縮むほど硬く、伸びると柔らかい。静止の位置での硬さは k。後ろはコイル (k 一定) */
  spring(w,c){ if(!w.airL) return w.k*c; const L=w.airL, n=1.3, x=Math.min(c,L*0.85); return w.k*L/n*(Math.pow(L/(L-x),n)-1)+(c>x? w.k*8*(c-x) : 0); },
- init(){ return {z:0,zd:0,th:0,thd:0,ph:0,phd:0,c:null,cd:null,Fz:null,camber:null}; },
+ init(){ return {z:0,zd:0,th:0,thd:0,ph:0,phd:0,c:null,cd:null,zu:null,zud:null,Fz:null,camber:null}; },
  /* 1 フレーム進める。inp: {ax 前への加速度 [m/s²] (実際の速度の変化)、Fy タイヤの横力の合計 [N, 右 +]、Fside 横風の横力 [N]、lift 浮き上がり [N]、
-  hcp 横風の力の高さ [m]、FxR 後輪のタイヤの前後の力 [N, 前 +]} → st.Fz (車輪ごとの荷重 [N])・st.c (ストローク)・st.camber (路面に対する車輪の傾き [rad]、右へ傾く向き +) */
+  hcp 横風の力の高さ [m]、FxR 後輪のタイヤの前後の力 [N, 前 +]、road(i, f): 車輪 i の下の路面の高さ [m] (f: フレームの中の時刻 0〜1。無ければ平ら)}
+  → st.Fz (車輪ごとの荷重 = タイヤが路面を押す力 [N]、跳ねて浮くと 0)・st.c (ストローク)・st.zu (車輪の上下 [m])・st.camber (路面に対する車輪の傾き [rad]、右へ傾く向き +)
+  車体 (ばね上) と車輪 (ばね下: アップライト・ブレーキ・タイヤ・後ろはモーター) を別々に動かす。路面の凸凹は タイヤの縦のばね → 車輪 → ばね・ダンパー → 車体 と伝わる */
  step(st,inp,dt){
-  const p=this.params(), n=Math.max(1,Math.min(25,Math.ceil(dt/this.H))), h=dt/n, ax=inp.ax||0, Fy=inp.Fy||0, Fw=inp.Fside||0, hcp=inp.hcp!=null? inp.hcp : p.h*1.25;
-  const Mpitch=p.m*ax*p.h;                                  // 加速で機首上げ (+)
+  const fin=x=>Number.isFinite(x)? x : 0;   // 入力が壊れても計算全体を道連れにしない
+  const p=this.params(), n=Math.max(1,Math.min(30,Math.ceil(fin(dt)/this.H))), h=Math.min(fin(dt)/n,0.003), ax=fin(inp.ax), Fy=fin(inp.Fy), Fw=fin(inp.Fside), hcp=inp.hcp!=null? inp.hcp : p.h*1.25, L=fin(inp.lift);
+  if(!(h>0)) return st;   // (フレームが長いとき (0.09 秒超) はその分だけ遅れて動く: 刻みを 3 ms 以下に保って発散させない)
+  const Mpitch=p.m*ax*p.h;                                  // 加速で機首上げ (+)。ばね下の分も含めて重心の高さで (釣り合いの式と同じ)
   const Mroll=-Fy*(p.h-p.hRA)+Fw*(hcp-p.h);                  // 右へ曲がる (右向きの力) と左 (外) へ傾く
-  // 後輪の前後の力のうちアームを通る分 (ばねを通らずに車体を持ち上げる・引き下げる)
-  const geoZ=p.wh.map(w=>w.geo.anti? (inp.FxR||0)/Math.max(1,p.wh.filter(q=>!q.front).length)*w.geo.anti : 0);
-  const nW=p.wh.length; if(!st.c||st.c.length!==nW){ st.c=new Array(nW).fill(0); st.cd=new Array(nW).fill(0); st.Fs=new Array(nW).fill(0); }
+  // 後輪の前後の力のうちアームを通る分 (ばねを通らずに車体を持ち上げる・引き下げる)、横の力のうちロール軸の高さの分 (アームを通って車輪の荷重へ)
+  const nR=Math.max(1,p.wh.filter(q=>!q.front).length), geoZ=p.wh.map(w=>w.geo.anti? fin(inp.FxR)/nR*w.geo.anti : 0), geoM=Fy*p.hRA;
+  const nW=p.wh.length; if(!st.c||st.c.length!==nW){ st.c=new Array(nW).fill(0); st.cd=new Array(nW).fill(0); st.Fs=new Array(nW).fill(0); st.zu=new Array(nW).fill(0); st.zud=new Array(nW).fill(0); st.Ft=p.wh.map(w=>w.F0); st.zr=new Array(nW).fill(0); }
   for(let k=0;k<n;k++){
    let Fz=0, My=0, Mx=0;
    for(let i=0;i<nW;i++){ const w=p.wh[i];
-    let c=-st.z-st.th*w.px+st.ph*w.py, cd=-st.zd-st.thd*w.px+st.phd*w.py;
+    const zr=inp.road? fin(inp.road(i,(k+1)/n)) : 0, zrd=(zr-st.zr[i])/h; st.zr[i]=zr;
+    const zb=st.z+st.th*w.px-st.ph*w.py, zbd=st.zd+st.thd*w.px-st.phd*w.py;   // 車体の、その車輪の上の点
+    const c=st.zu[i]-zb, cd=st.zud[i]-zbd;
     let F=this.spring(w,c)+w.c*cd;
     if(Math.abs(c)>p.travel){ F+=Math.sign(c)*(Math.abs(c)-p.travel)*w.k*8; }   // バンプラバー (ストロークの端で急に硬くなる)
-    if(F<-w.F0) F=-w.F0;                                                         // 車輪が浮く (ばねは引っ張れない)
-    st.c[i]=c; st.cd[i]=cd; st.Fs[i]=F; Fz+=F+geoZ[i]; My+=(F+geoZ[i])*w.px; Mx+=-F*w.py; }
-   st.zd+=(Fz/p.m)*h; st.thd+=((My+Mpitch)/p.Iy)*h; st.phd+=((Mx+Mroll)/p.Ix)*h;
+    if(F<-w.F0) F=-w.F0;                                                         // ばねは引っ張れない
+    const Ft=Math.max(0,w.F0+w.kt*(zr-st.zu[i])+w.ct*(zrd-st.zud[i]));         // タイヤの縦のばね (路面から離れると 0)
+    st.zud[i]+=((Ft-w.F0)-F-geoZ[i]-w.lat*geoM)/w.mu*h; st.zu[i]+=st.zud[i]*h;
+    st.c[i]=c; st.cd[i]=cd; st.Fs[i]=F; st.Ft[i]=Ft; Fz+=F+geoZ[i]; My+=(F+geoZ[i])*w.px; Mx+=-F*w.py; }
+   st.zd+=((Fz+L)/p.ms)*h; st.thd+=((My+Mpitch)/p.Iy)*h; st.phd+=((Mx+Mroll)/p.Ix)*h;
    st.z+=st.zd*h; st.th+=st.thd*h; st.ph+=st.phd*h;
-   if(!Number.isFinite(st.z+st.th+st.ph)){ Object.assign(st,this.init()); return this.step(st,inp,dt); }
+   if(!Number.isFinite(st.z+st.th+st.ph+st.zu.reduce((a,b)=>a+b,0))){ if(!this._nanWarn){ this._nanWarn=true; console.warn("Susp: 計算が発散したので静止の状態に戻しました",JSON.stringify({ax,Fy,Fw,L,FxR:inp.FxR,dt})); }
+    Object.assign(st,this.init()); st.Fz=p.wh.map(w=>w.F0); st.camber=p.wh.map(()=>0); st.c=new Array(nW).fill(0); return st; }
   }
-  // 荷重: 静止 + ばね・ダンパー + アームを通る横の荷重移動 (ロール軸の高さの分) − 浮き上がり
-  const geoM=Fy*p.hRA;
-  st.Fz=p.wh.map((w,i)=>Math.max(0, w.F0+st.Fs[i]+geoZ[i]-(inp.lift||0)*(w.F0/(p.m*GRAV))+w.lat*geoM));
-  // キャンバー (路面に対して、右へ傾く向き +): アームの幾何 (外向き +) を右向きに直し、車体のロールを足す
-  st.camber=p.wh.map((w,i)=>{ const g=w.geo.tab? this.geoAt(w,st.c[i]).camber : 0; return (w.py>=0? g : -g)+st.ph; });
+  st.Fz=st.Ft.slice();
+  // キャンバー (路面に対して、右へ傾く向き +): 静的キャンバー + アームの幾何 (外向き +) を右向きに直し、車体のロールを足す
+  st.camber=p.wh.map((w,i)=>{ const g=(w.geo.kind==="wishbone"? p.cam0 : 0)+(w.geo.tab? this.geoAt(w,st.c[i]).camber : 0); return (w.py>=0? g : -g)+st.ph; });
   return st;
  },
+ /* 路面の凸凹 [m] (距離 s [m] の所、横の位置 y [m])。舗装の細かいうねりの重ね合わせ。k: 路面の荒さの倍率 (町 0.6・郊外 1・路肩 4・土 8) */
+ roughAt(s,y,k){ const A=[[0.7,0.00025,0.3],[1.3,0.0004,1.9],[2.9,0.0009,4.1],[6.1,0.0016,0.7],[13,0.0025,2.6]];   // [波長 m, 振幅 m, 位相]。舗装の一般的な凸凹 (短い波長ほど小さい)
+  let z=0; for(const [L,a,ph] of A) z+=a*Math.sin(2*Math.PI*s/L+ph+y*7.3*ph); return z*k*this.params().roadK; },
+ /* キャトルグリッド [m]: 鉄の棒 (間隔 0.13 m) のすき間でタイヤが少し落ちる (接地面が棒をまたぐので浅い)。d: グリッドの中心からの距離 [m] (± 1.5 m の範囲) */
+ gridAt(d){ return Math.abs(d)>1.5? 0 : -0.0025*Math.pow(Math.sin(Math.PI*d/0.13),2)*this.params().roadK; },
 };

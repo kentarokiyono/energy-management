@@ -851,6 +851,18 @@ branchAt(x,z){
   for(const f of b.fillets||[]){ if(Math.hypot(f.C[0]-x,f.C[1]-z)<8.5) return {b,i:0,t:0,d:0,y:b.pts[0].y,along:0}; } }
  return null;
 },
+/* 車輪の下の路面の高さ [m] を返す関数 (Susp.step の road): 舗装の細かいうねり (町はなめらか、郊外は粗い、路肩・土はもっと荒い) とキャトルグリッド。
+ ds: このフレームで進む距離 [m]。f (0〜1) でフレームの中の位置 */
+roadFn(es,ds){
+ if(!this.road||this.cx===undefined) return null;
+ const p=Tire.params(), q=this.roadPoint(this.s), rh=this.relHeading||0, sn=Math.sin(rh), cs=Math.cos(rh), L=q.L||3.5, R=q.R||3.5;
+ const city= typeof isCity==="function"&&(isCity(es.km)||(typeof townProx==="function"&&townProx(es.km)<2.5));
+ if(!this._gridS||this._gridO!==this.visOrigin){ this._gridO=this.visOrigin; this._gridS= typeof GRID_KMS!=="undefined"? GRID_KMS.map(k=>this.sOfKm(k)) : []; }
+ const W=p.wh.map(w=>{ const lat=(this.lateral||0)+w.px*sn+w.py*cs, out= lat<-L? -L-lat : lat>R? lat-R : 0, paved=this.onBranch||this.lastSite;
+  return {ds:w.px*cs, y:lat, k: out>0&&!paved? (out<2? 4 : 8) : city? 0.6 : 1}; });
+ const s0=this.s, G=this._gridS.filter(g=>Math.abs(g-s0)<20+Math.abs(ds));
+ return (i,f)=>{ const w=W[i], si=s0+ds*f+w.ds; let z=Susp.roughAt(si,w.y,w.k); for(const g of G) z+=Susp.gridAt(si-g); return z; };
+},
 /* 車輪ごとの路面の μ の倍率 (乾いた舗装 = 1): 雨で濡れる・路肩の砂利・道の外の土。位置は前のフレームの値 */
 wheelMu(es){
  const p=Tire.params(), S=Tire.SURF, wet= typeof Rain!=="undefined"? (Rain.wet||0) : 0, road=1-S.wetK*wet;
@@ -871,7 +883,7 @@ const T=this.tire||(this.tire=Tire.init()), u=vv*gearDir(), S=this.susp||(this.s
 this.delta=Tire.steerAngle(Input.steer,vv,Input.steerMode);
 const wind=P.mode==="race"&&!P.event&&vv>1? VehDyn.aeroSide(-(es.lastCross||0),vv,es.lastRho||1.17) : null;
 /* サスペンション: 実際の加速度 (速度の変化) とタイヤの横力 (前のフレーム) から車体の動きと車輪ごとの荷重・キャンバー */
-Susp.step(S,{ax:(es.gPitch||0)*GRAV,Fy:vv>0.05? (this.lastFyT||0) : 0,FxR:vv>0.05? (this.lastFxR||0) : 0,Fside:wind?wind.Fy:0,lift:wind?wind.L:0},dtR);
+Susp.step(S,{ax:(es.gPitch||0)*GRAV,Fy:vv>0.05? (this.lastFyT||0) : 0,FxR:vv>0.05? (this.lastFxR||0) : 0,Fside:wind?wind.Fy:0,lift:wind?wind.L:0,road:this.roadFn(es,u*dtR)},dtR);
 if(vv>0.05){
  const rq=es.tireReq||{};
  T.ax=(es.gLong||0)*GRAV;
@@ -939,23 +951,23 @@ const nx=Math.cos(pHere.h), nz=Math.sin(pHere.h);
 const hCar=this.ch;
 this.car.position.set(this.cx, carY, this.cz);
 this.car.rotation.y=-hCar;
-if(this.car.userData.wheels) for(const w of this.car.userData.wheels){   // 車輪の回転と前輪の舵角
+if(this.car.userData.wheels) this.car.userData.wheels.forEach((w,i)=>{   // 車輪の回転と前輪の舵角
  w.spin=((w.spin||0)+vv*dtR/w.r)%(Math.PI*2); w.g.rotation.order="YZX";
- w.g.rotation.y= w.front? -(this.delta||0) : 0; w.g.rotation.x=-w.spin; }   // 前輪の舵角は実際の値 (Tire.steerAngle)
+ const tp=Tire.params(), tw=tp.wh[i]; w.g.rotation.y= w.front? -(tw? Tire.steerOf(tp,tw,this.delta||0,Tire.align()) : (this.delta||0)) : 0; w.g.rotation.x=-w.spin; });   // 前輪の舵角は実際の値 (アッカーマン・トー込み)
 updateHatches(this.car,dtR);
 /* サスペンション (Susp): 車体の上下・前後の傾き・左右の傾きはばねとダンパーの計算から (加減速・旋回・横風)。路面のうねり・荒れで上下に揺れる分を足す。
  車輪は路面に着いたまま (車体の動きの分を打ち消す)。前輪はアームの幾何でキャンバーが変わる */
-{ const S=this.susp, sp=clamp(vv/10,0,1), amp=es.offroad?0.03:0.0045, sd=this.s||0, hv=(Math.sin(sd*0.31)+Math.sin(sd*0.83+1.7)*0.6+Math.sin(sd*2.9+0.4)*0.25)*amp*sp;
+{ const S=this.susp, hv=0;   // 路面の凸凹による揺れはサスペンションの計算 (Susp) の中
   // 坂: 前輪と後輪の真下の路面の高さから車体の傾きと高さを決める (縦の曲がりがあっても両方の車輪が路面に着く)
   const W=this.car.userData.wheels; let df=1.3, dr=1.3; if(W&&W.length){ df=0; dr=0; for(const w of W){ const z=w.g.position.z; if(z<0) df=Math.max(df,-z); else dr=Math.max(dr,z); } df=df||1.3; dr=dr||1.3; }
   let slopeA=0;
   if(!br&&!site&&this.road){ const yF=this.roadPoint(Math.min(this.s+df,this.road.builtS-1)).y, yR=this.roadPoint(Math.max(0,this.s-dr)).y;
    if(Number.isFinite(yF)&&Number.isFinite(yR)){ slopeA=Math.atan2(yF-yR,df+dr); this.car.position.y+= yR+(yF-yR)*dr/(df+dr)-pHere.y; } }
   else slopeA=Math.atan(pHere.g||0);
-  const th=(S? S.th : 0)+Math.cos(sd*0.83)*amp*0.6*sp, zb=(S? S.z : 0)+hv, ph=S&&!es.rolledOver? S.ph : 0;   // th: 機首上げ +、ph: 右が下がる向き +
+  const th=(S? S.th : 0), zb=(S? S.z : 0)+hv, ph=S&&!es.rolledOver? S.ph : 0;   // th: 機首上げ +、ph: 右が下がる向き +
   this.car.position.y+=zb; this.heave=zb; this.pitchS=th; this.suspRoll=ph;
   this.car.rotation.x=slopeA+th;
-  if(typeof SuspMesh!=="undefined") SuspMesh.pose(this.car,th,ph,zb); }
+  if(typeof SuspMesh!=="undefined") SuspMesh.pose(this.car,th,ph,zb,S&&S.zu); }
 this.car.rotation.order="YXZ";
 { const want= es.rolledOver? 1.75*(es.tipDir||1) : clamp((es.tipRatio||0)*0.06,0,0.08)*(es.tipDir||1);   // 横転: 風下へ倒れる (旋回・横風の傾きはサスペンションの計算 suspRoll)
   this.carRoll=lerp(this.carRoll||0,want,clamp(dtR*(es.rolledOver?2.2:6),0,1)); this.car.rotation.z=-(this.carRoll+(this.suspRoll||0)); if(es.rolledOver) this.car.position.y+=Math.sin(Math.abs(this.carRoll))*0.5;

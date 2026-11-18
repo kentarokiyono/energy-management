@@ -348,7 +348,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
  { const p=await newPage(b,base);
   await p.evaluate(()=>{ window.pushChart=()=>{}; P.mode="test"; P.testKind="circuit"; startGame(); }); await p.waitForTimeout(1200);
   await p.evaluate(()=>{ const T=HV.track(), n=T.pts.length; let i=Test.lastIdx||0, moved=0; Test.v=12; Test.state="run";
-   window._lapT=setInterval(()=>{ const step=Math.max(1,Math.round(n/60)); i=(i+step)%n; moved+=step; const q=T.pts[i]; Test.x=q.x; Test.z=q.z; Test.v=12; if(moved>n*1.3) clearInterval(window._lapT); },60); });
+   window._lapT=setInterval(()=>{ const step=Math.max(1,Math.round(n/60)); i=(i+step)%n; moved+=step; const q=T.pts[i], q2=T.pts[(i+1)%n]; Test.x=q.x; Test.z=q.z; Test.heading=Math.atan2(q2.x-q.x,-(q2.z-q.z)); Test.v=12; if(Test.tire){ Test.tire.vy=0; Test.tire.r=0; } if(moved>n*1.3) clearInterval(window._lapT); },60); });   // 向きもコースに合わせる (合間に壁へ進んで接触扱いにならないように)
   await p.waitForFunction(()=>Test.laps.length>=1,null,{timeout:60000}).catch(()=>{});
   const lp=await p.evaluate(()=>{ clearInterval(window._lapT); return {laps:Test.laps.length,t:Test.laps[0]}; });
   check("ヒドゥンバレー: 周回の計測",lp.laps>=1&&lp.t>0,JSON.stringify(lp));
