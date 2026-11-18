@@ -815,7 +815,7 @@ resetRoad(){
  for(const [,e] of this.lmMap) this.scene.remove(e.mesh); this.lmMap.clear();
  this.ensureRoad(this.s+1500); Horizon.lastKm=-1e9;
  const p=this.roadPoint(this.s);
- this.cx=p.x+Math.cos(p.h)*this.lateral; this.cz=p.z+Math.sin(p.h)*this.lateral; this.ch=p.h; this.tire=null; this.susp=null; this._gt=null; this.tipA=0; this.tipW=0; this.iProj=Math.floor(this.s/this.SEG);
+ this.cx=p.x+Math.cos(p.h)*this.lateral; this.cz=p.z+Math.sin(p.h)*this.lateral; this.ch=p.h; this.tire=null; this.susp=null; this._gt=null; if(typeof Skid!=="undefined") Skid.clear(); this.sink=0; this.pushOn=false; this.stuckT=0; this.soilA=0; this.tipA=0; this.tipW=0; this.iProj=Math.floor(this.s/this.SEG);
  this.onBranch=null;
 },
 /* 本線への射影 (直前インデックス近傍のみ探索: 折り返しで反対側に飛ばない) */
@@ -891,6 +891,20 @@ trainWake(es,vv){
 },
 /* パンクした車輪 (前のどちらか・後ろ。パンクのたびに決める) */
 flatWheel(es){ return es.burstWheel==null? 0 : es.burstWheel; },
+/* 道の外の土の抵抗 (レース): 締まった砂利・土の転がり抵抗と、柔らかい砂で沈む分 (遅いほど深く沈み、抵抗が大きくなる → 止まると埋まる)。
+ 埋まって 3 秒アクセルを踏んでも動けないと、クルーが押し出す (固い所・道へ戻るまで) */
+soilStep(es,q,dtR){
+ const lat=this.lateral||0, L=q.L||3.5, R=q.R||3.5, out= !es.offroad? 0 : lat<-L? -L-lat : lat>R? lat-R : 0;
+ const sig=Tire.softAt(this.s,out); this.sink=Tire.sinkStep(this.sink||0,es.v,es.offroad? sig : 0,dtR); this.soilSig=sig;
+ const crr=es.offroad? Tire.soilCrr(out,this.sink) : 0, a=crr*GRAV; this.soilA=a;
+ const drive=(es.tireReq&&es.tireReq.drive)||0;
+ if(this.pushOn&&(!es.offroad||sig<0.05||es.v>3)){ this.pushOn=false; this.stuckT=0; }
+ if(es.offroad&&this.sink>0.03&&es.v<0.3&&drive>0&&!this.pushOn){ this.stuckT=(this.stuckT||0)+dtR;
+  if(this.stuckT>3){ this.pushOn=true; Radio.push("砂に埋まりました。クルーが降りて押し出します。アクセルはゆっくり。","後方追走車",{speak:true}); toast("砂に埋まった ― クルーが押し出し中","#f59e0b"); } }
+ else if(!(es.v<0.3)) this.stuckT=0;
+ const push= this.pushOn&&drive>0? 600 : 0;
+ es.v=Math.max(0,es.v+(push/Math.max(1,massTotal())-a)*dtR);
+},
 /* 車輪の下の路面の高さ [m] を返す関数 (Susp.step の road): 舗装の細かいうねり (町はなめらか、郊外は粗い、路肩・土はもっと荒い) とキャトルグリッド。
  ds: このフレームで進む距離 [m]。f (0〜1) でフレームの中の位置 */
 roadFn(es,ds){
@@ -919,31 +933,33 @@ if(this.cx===undefined) this.resetRoad();
 const vv=es.v;
 // ---- ワールド座標での運動 (分岐/Uターンに対応) ----
 /* 横の動きはタイヤの計算 (Tire): 前後の速さは Engine、横すべり・向きの変わり方は車輪ごとのタイヤの力と横風から */
-const T=this.tire||(this.tire=Tire.init()), u=vv*gearDir(), S=this.susp||(this.susp=Susp.init());
+const T=this.tire||(this.tire=Tire.init()), u=vv*gearDir()+(T.ub||0), S=this.susp||(this.susp=Susp.init());   // T.ub: スピンして後ろ向きに滑っている分 (Tire.long)
 this.delta=Tire.steerAngle(Input.steer,vv,Input.steerMode);
 /* 横風の力 (レース)。停車して約 8 秒たつと誘導車・追走車の風よけで風速半分 (this.stillT は前のフレームの値) */
 /* 短い突風 (数秒の揺らぎ・ときどき来る強い一吹き) を横風に足す。ロードトレインとすれ違うときの風圧 (押されて → 吸い寄せられる) も横の力に */
 const raceW=P.mode==="race"&&!P.event, gT=raceW? this.gustTurb(es,dtR) : 0; es.gustCross=gT;
 const shieldW=raceW&&(this.stillT||0)>8, crossR=-((es.lastCross||0)+gT)*(shieldW?0.5:1);
-const wind=raceW? VehDyn.aeroSide(crossR,vv,es.lastRho||1.17) : null;
-if(wind){ wind.Fy+=this.trainWake(es,vv); wind.beta=Math.atan2(Math.abs(crossR),Math.max(1,vv+(es.lastHead||0))); }   // beta: 車から見た風の角度
+/* 車が横に滑っている分 (T.vy) も横から風を受けるのと同じ (スピン・横すべりで横を向くと空気の力が大きく、滑りを止める向き。風の力の中心も後ろへ) */
+const crossE=(raceW? crossR : 0)-(T.vy||0), useW=raceW||Math.abs(T.vy||0)>0.3, uA=Math.abs(u);
+const wind=useW? VehDyn.aeroSide(crossE,uA,es.lastRho||1.17) : null;
+if(wind){ if(raceW) wind.Fy+=this.trainWake(es,vv); wind.beta=Math.atan2(Math.abs(crossE),Math.max(1,uA+(raceW? es.lastHead||0 : 0))); }   // beta: 車から見た風の角度
 /* サスペンション: 実際の加速度 (速度の変化) とタイヤの横力 (前のフレーム) から車体の動きと車輪ごとの荷重・キャンバー。
  止まっているときはタイヤが横風とつり合う (動かない)。風上側の浮き上がりは左右の傾きの力に、クルーが押さえる力は荷重に */
 const moving=vv>0.05, Wd=carDims()[1];
 Susp.step(S,{ax:(es.gPitch||0)*GRAV,Fy:moving? (this.lastFyT||0) : -(wind?wind.Fy:0),FxR:moving? (this.lastFxR||0) : 0,FxF:moving? (this.lastFxF||0) : 0,Fside:wind?wind.Fy:0,lift:wind?wind.L:0,
- Mx:wind? Math.sign(crossR)*wind.L*Wd/4 : 0,hold:shieldW? ROLL_DEF.hold : 0,flat:es.burst? this.flatWheel(es) : -1,road:this.roadFn(es,u*dtR)},dtR);
-if(vv>0.05||Math.abs(T.vy)>0.05){
+ Mx:wind? Math.sign(crossE)*wind.L*Wd/4 : 0,hold:shieldW? ROLL_DEF.hold : 0,flat:es.burst? this.flatWheel(es) : -1,road:this.roadFn(es,u*dtR)},dtR);
+if(vv>0.05||Math.abs(T.vy)>0.05||T.ub){
  const rq=es.tireReq||{};
  T.ax=(es.gLong||0)*GRAV;
- const R=Tire.step(T,{u,delta:this.delta,drive:rq.drive,brake:rq.brake,regen:rq.regen},
+ const R=Tire.step(T,{u,delta:this.delta,drive:T.ub?0:rq.drive,brake:rq.brake,regen:T.ub?0:rq.regen},
   {mu:this.wheelMu(es),Fside:wind?wind.Fy:0,cpX:wind? VehDyn.cpAt(wind.beta) : null,Fz:S.Fz,camber:S.camber,flat:es.burst? this.flatWheel(es) : -1},dtR);
- es.v=Math.max(0,es.v+R.du*gearDir()*dtR);   // スピン: 車体が回ると前へ進む速さが横の滑りに移り、横の滑りはタイヤの摩擦で止まる (前後の速さは 0 で止める)
+ es.v=Tire.long(T,es.v,gearDir(),R,dtR,0.12+(this.soilA||0));   // スピン: 車体が回ると前へ進む速さが横の滑りに移り、横の滑りはタイヤの摩擦で止まる。半回転を越えると後ろ向きに滑る
  this.lastFyT=R.fy; this.lastFxR=R.fxR; this.lastFxF=R.fxF;
  es.tireFx=R.fx; es.tireFxReq=R.fxReq; es.tireW=R.wheels; es.tireUse=T.use; es.tireSlide=T.slide; es.tireLock=T.lockAny; es.tireSat=T.sat;
  if(typeof DrvRec!=="undefined") DrvRec.tire(es,dtR);
  this.yawR=T.r; this.ch+=T.r*dtR;
  es.gLat=T.ay/GRAV;
-} else { es.gLat=0; this.yawR=0; T.vy=0; T.r=0; T.ay=0; es.tireFx=null; es.tireW=null; es.tireUse=0; es.tireSlide=false; es.tireLock=false; es.tireSat=0; }
+} else { es.gLat=0; this.yawR=0; T.vy=0; T.r=0; T.ay=0; T.ub=0; es.tireFx=null; es.tireW=null; es.tireUse=0; es.tireSlide=false; es.tireLock=false; es.tireSat=0; }
 const cx0=this.cx, cz0=this.cz;   // 当たり判定の掃引用
 this.cx+=(Math.sin(this.ch)*u+Math.cos(this.ch)*T.vy)*dtR; this.cz+=(-Math.cos(this.ch)*u+Math.sin(this.ch)*T.vy)*dtR;
 // 横転の危険度 (レース): 横風・浮き上がり・旋回・加減速。0.6 で後方追走車が警告、0.85 で警報、1 を 0.25 秒超えると横転
@@ -992,9 +1008,11 @@ const ahead=this.roadPoint(this.s+300);
 this.upcomingGrade= Math.abs(ahead.g)>0.02 ? Math.sign(ahead.g) : 0;
 const site=Scenery.pavedSite(this,this.s,this.lateral); this.lastSite=site;
 es.offroad=!onMain && !br && !site && !es.camp && es.stopTimer<=0;
-if(es.offroad&&es.v>1) es.v=Math.max(0,es.v-clamp(es.v*0.12,0.2,2.5)*dtR);
+this.soilStep(es,pHere0,dtR);
 let carY= br? br.y : site? pHere.y+(site.y||0) : pHere.y;
 if(!Number.isFinite(carY)) carY=pHere.y;   // 高さが壊れても画面全体を道連れにしない
+carY-=(this.sink||0)*0.8;   // 柔らかい土に沈む
+if(typeof Skid!=="undefined") Skid.frame(this.scene,this.cx,carY+(this.sink||0)*0.8,this.cz,this.ch,es.v>2||Math.abs(this.tire&&this.tire.vy||0)>1? es.tireW : null,!es.offroad&&!br);   // タイヤ痕 (舗装の上)
 const nx=Math.cos(pHere.h), nz=Math.sin(pHere.h);
 const hCar=this.ch;
 this.car.position.set(this.cx, carY, this.cz);
@@ -1028,7 +1046,6 @@ const targetRoll=wantTilt? -es.tiltDeg*Math.PI/180*0.85 : 0;
 const UT=this.car.userData.upperTilt;   // 和大型: アッパーカウルだけを傾ける
 if(UT){ UT.rotation.z=lerp(UT.rotation.z,targetRoll,dtR*2); this.carBody.rotation.z=0; }
 else this.carBody.rotation.z=lerp(this.carBody.rotation.z,targetRoll,dtR*2);
-if(es.offroad&&es.v>2) this.car.position.y+=Math.random()*0.05;
 if(es.burst&&es.v>2) this.car.position.y+=Math.random()*0.04;
 if(this.car.userData.brakeMat)
 this.car.userData.brakeMat.color.setHex((es.brakePhys>0.05||es.brakeRegen>0.05)?0xff2222:0x4a0505);
@@ -1068,7 +1085,7 @@ lookAt=new THREE.Vector3(cx+Math.sin(hCar)*40, cy+1.0, cz-Math.cos(hCar)*40);
 this.car.updateMatrixWorld();
 const E0=(this.cockE0||(VEH.active&&VEH.spec.eye)||[0,.84,-.45]).slice(); E0[1]-=this.EYE_DROP;   // 目線は 10 cm 低め (窓の上の縁より下から前を見る)
 /* 頭の動き: 横 G で外へ・加減速で前後へ傾き、路面の細かい揺れ (速いほど。硬い車体なので 11〜24 Hz の小刻みな震え) を拾う。曲がる先を少し見る */
- const gl=clamp(es.gLat||0,-1,1), gg=clamp(es.gLong||0,-1,1), t=performance.now()/1000, rv=clamp(vv/28,0,1)*(es.offroad?0.03:0.0015);
+ const gl=clamp(es.gLat||0,-1,1), gg=clamp(es.gLong||0,-1,1), t=performance.now()/1000, rv=clamp(vv/28,0,1)*(es.offroad?0.004:0.0015);   // 道の外の大きな揺れはサスの計算 (土の凸凹) で車体ごと揺れる
  this.headX=lerp(this.headX||0,-gl*0.07,clamp(dtR*5,0,1)); this.headZ=lerp(this.headZ||0,gg*0.05,clamp(dtR*4,0,1)); this.lookX=lerp(this.lookX||0,clamp(this.yawR||0,-0.6,0.6)*9,clamp(dtR*3,0,1));
  const eye=new THREE.Vector3(E0[0]+this.headX, E0[1]+(Math.sin(t*71)+Math.sin(t*109.3)*0.6+Math.sin(t*151.7)*0.35)*rv-Math.abs(gg)*0.008, E0[2]+this.headZ);
 eye.applyMatrix4(this.car.matrixWorld);

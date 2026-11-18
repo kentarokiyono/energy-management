@@ -39,6 +39,8 @@ const Snd={
    this.windLo=this.band(this.noise(true),220,0.7,0); this.windLo.out.connect(this.master);
    this.windHi=this.band(this.noise(),2600,0.7,0); this.windHi.out.connect(this.master);
    this.whistle=this.band(this.noise(),1700,14,0); this.whistle.out.connect(this.master);
+   // ---- タイヤの鳴き (滑る・ロック。小さめ) ----
+   this.squeal=this.band(this.noise(),1150,9,0); this.squeal.out.connect(this.master);
    // ---- 火災 ----
    this.fire=this.band(this.noise(),900,0.4,0); this.fire.out.connect(this.master);
    // ---- 雨 (粒の音・路面のザー) ----
@@ -106,6 +108,9 @@ const Snd={
   this.set(this.windHi.g.gain,0.035*a*a*wob,0.25); this.set(this.windHi.f.frequency,1800+air*35,0.3);
   this.set(this.whistle.g.gain,air>16? 0.012*(a-0.5)*wob : 0,0.4); this.set(this.whistle.f.frequency,1300+air*28,0.4);
   this.set(this.fire.g.gain,fire?0.3+Math.random()*0.15:0,0.1);
+  // タイヤの鳴き: いちばん滑っている車輪の強さ (ロック・空転 1、横に滑る 0.6、使い切る手前 0.15)。舗装の上だけ、小さめ
+  { const W=es&&es.tireW; let k=0; if(W&&!gravel&&!(es&&es.offroad)) for(const w of W) k=Math.max(k,w.lock? 1 : w.slide? 0.6 : (w.use||0)>0.97? 0.15 : 0);
+   const sq=k*clamp((v-2)/8,0,1); this.set(this.squeal.g.gain,0.035*sq,0.06); this.set(this.squeal.f.frequency,1000+k*250+Math.random()*60,0.05); }
   // ---- 車内の反響 ----
   const inCab=this.inCab=typeof View!=="undefined"&&View.cam===2&&P.mode!=="test";
   this.set(this.wet.gain,inCab?0.55:0,0.3); this.set(this.dry.gain,inCab?0.8:1,0.3);

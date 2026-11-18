@@ -20,7 +20,7 @@ const Tire={
  CAMBER:0.8,     // キャンバーの横力 (1 rad 傾くと荷重の何倍の横力か)
  TRAIL:0.035,    // タイヤの接地面の中心から力のかかる点までの距離 [m] (滑っていないとき、空気圧のトレール)。ハンドルを戻す力のもと。
                  // これにキャスター角による機構のトレール (滑っても残る) を足す
- V0:1.2, V1:2.5, // この速さ [m/s] より下は滑りのない動き、上はタイヤの計算 (間はなめらかに混ぜる)
+ V0:0.3, V1:0.8, // この速さ [m/s] より下は滑りのない動き、上はタイヤの計算 (間はなめらかに混ぜる)。低くして、ゆっくり滑っていてもタイヤの摩擦で自然に止まる
  H:0.004,        // 計算の刻み [s]
 
  /* 車の値 (質量・諸元・車輪の配置が変わったら作り直す) */
@@ -151,7 +151,7 @@ const Tire={
   const rK=u*Math.tan(d)/p.L, vyK=rK*p.b;   // (舵角は左右の平均 d で。アッカーマン・トーは低速では向きに効かない)
   if(kDyn<=0){ st.vy=vyK; st.r=rK; st.ay=u*rK; st.sat=0; st.use=0; st.slide=false; st.lockAny=false;
    for(const ws of st.w){ ws.lock=false; ws.ss=null; }
-   const fx=p.wh.reduce((s,w)=>s+this.demand(p,w,inp),0); return {fx,fxReq:fx,du:0,ay:st.ay,fy:p.m*st.ay,fxR:p.wh.reduce((s,w)=>s+(w.front?0:this.demand(p,w,inp)),0),fxF:p.wh.reduce((s,w)=>s+(w.front?this.demand(p,w,inp):0),0),wheels:null}; }
+   const fx=p.wh.reduce((s,w)=>s+this.demand(p,w,inp),0); return {fx,fxB:fx,fxReq:fx,du:0,ay:st.ay,fy:p.m*st.ay,fxR:p.wh.reduce((s,w)=>s+(w.front?0:this.demand(p,w,inp)),0),fxF:p.wh.reduce((s,w)=>s+(w.front?this.demand(p,w,inp):0),0),wheels:null}; }
   let out=null, fxS=0, fxR=0, duS=0; const A=this.align(), sc=Math.sin(A.caster), dW=p.wh.map(w=>this.steerOf(p,w,d,A)), PK=this.press(), flat=env.flat==null? -1 : env.flat;
   for(let k=0;k<n;k++){
    const Fz=env.Fz||this.loads(p,st.ax||0,st.ay||0,env.lift||0);   // 荷重: サスペンション (Susp) の計算があればそれ、無ければ釣り合いの式
@@ -169,14 +169,34 @@ const Tire={
    }
    const FYt=FY; FY+=env.Fside||0; MZ+=(env.Fside||0)*(env.cpX!=null? env.cpX : p.cpX);   // 横風の力は風の力の中心に (角度で動く: VehDyn.cpAt)
    const vyDot=FY/p.m-u*st.r, rDot=MZ/p.Iz;
-   duS+=st.vy*st.r+(FX-fxW)/p.m;   // 前後の速さの変わり方のうち Engine が数えない分: 車体が回ると横の速さが前後へ (スピン)、前輪の横の力の前後の成分
+   duS+=st.vy*st.r+(FX-fxW)/p.m+(typeof cornerDrag==="function"? cornerDrag(p.m,FYt/(p.m*GRAV))/p.m : 0);   // 前後の速さの変わり方のうち Engine が数えない分: 車体が回ると横の速さが前後へ (スピン)、前輪の横の力の前後の成分。
+   // (普通に曲がるときの分は Engine が曲がる抵抗 cornerDrag で数えているので、その分は戻す)
    st.vy+=vyDot*h; st.r+=rDot*h; st.ay=FY/p.m; st.ax=FX/p.m; fxS+=fxW;
    out={sat,use,slide,lockAny,wo,FYt,fxRr,fxFf};
   }
   st.vy=lerp(vyK,st.vy,kDyn); st.r=lerp(rK,st.r,kDyn);
   st.sat=out.sat*kDyn; st.use=out.use; st.slide=out.slide&&kDyn>0.5; st.lockAny=out.lockAny;
-  return {fx:fxS/n, fxReq:fxR/n, du:duS/n*kDyn, ay:st.ay, fy:out.FYt, fxR:out.fxRr, fxF:out.fxFf, wheels:out.wo};
+  return {fx:fxS/n, fxB:fxS/n, fxReq:fxR/n, du:duS/n*kDyn, ay:st.ay, fy:out.FYt, fxR:out.fxRr, fxF:out.fxFf, wheels:out.wo};
  },
+ /* 前後の速さの更新: v Engine の速さ (0 以上)、dir ギアの向き (±1)、R step の戻り値。スピンして車体の向きと逆へ進む分 (前進のギアで後ろ向きに滑る) は
+  st.ub [m/s] に持つ (Engine は止まっている扱い)。st.ub はタイヤの摩擦 (ブレーキ・ロック) と転がり抵抗で 0 へ戻る → 新しい v */
+ long(st,v,dir,R,dt,crrA){
+  const p=this.params(), du=R.du||0, a0=crrA==null? 0.12 : crrA;   // a0: 転がり抵抗の減速 [m/s²]
+  if(st.ub&&v>0){ st.ub+=v*dir; v=0; }   // 後ろ向きに滑っている間にモーターで前へ押した分は、後ろ向きの速さを打ち消す
+  if(st.ub){ const sg=Math.sign(st.ub); let ub=st.ub+(du+(R.fxB||0)/p.m)*dt-sg*a0*dt;
+   if(Math.sign(ub)!==sg||Math.abs(ub)<0.02){ v=Math.max(0,v+Math.max(0,ub*dir)); ub=0; }
+   st.ub=ub; return v; }
+  const nv=v*dir+du*dt; if(nv*dir<0&&Math.abs(nv)>0.02&&Math.abs(st.vy)>0.5){ st.ub=nv; return 0; }   // 0 を越えて逆向き (横に滑りながら回っているとき)
+  return Math.max(0,nv*dir);
+ },
+ /* 道の外の土。softAt: 柔らかさ 0〜1 (s 道のりの位置 [m]、out 道の端からの距離 [m])。路肩 (端から 1.5 m まで) は締まった砂利、
+  その先は所々 (数十 m の斑) に柔らかい砂。決まった式なので同じ場所はいつも同じ */
+ softAt(s,out){ if(!(out>1.5)) return 0; const n=0.5+0.3*Math.sin(s/23+1.3)+0.2*Math.sin(s/9.1+out*0.7)+0.12*Math.sin(s/4.3+2.1);
+  return clamp((n-0.55)/0.3,0,1)*clamp((out-1.5)/2.5,0,1); },
+ /* 沈み込み [m]: 柔らかいほど・遅いほど深く沈む (止まると約 7 cm)。沈むのは 0.8 秒、抜けるのは 0.3 秒ほど */
+ sinkStep(z,v,sig,dt){ const zEq=(sig||0)*0.07/(1+Math.abs(v)/3); return z+(zEq-z)*clamp(dt/(zEq>z?0.8:0.3),0,1); },
+ /* 土の転がり抵抗の係数 (舗装に足す分): 砂利 0.015・土 0.03 + 沈んだ分 (タイヤが前の土の壁を押し上げる)。7 cm 沈むと約 0.2 (モーターの力 ≈ 0.12 G では動けない) */
+ soilCrr(out,z){ if(!(out>0)) return 0; return (out<1.5? 0.015 : 0.03)+0.75*(z||0)/this.params().wh[0].R; },
  /* ハンドルを戻すモーメントの目安 [N·m] (乾いた路面で、前輪がいちばん強く戻そうとするくらい)。反力の強さをこれで割って 0〜1 にする */
  satRef(){ const p=this.params(), Ff=p.wh.reduce((s,w)=>s+(w.front?w.share:0),0)*p.m*GRAV; return Math.max(1,p.mu*Ff*(this.TRAIL*0.385+this.align().tm)); },
  /* 横すべり角 (車体の向きと進む向きの差) [rad] */
