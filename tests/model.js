@@ -200,6 +200,9 @@ const T0=Date.now();
   const h={brakeT:30}; let n=0; for(let k=0;k<6;k++){ for(let t=0;t<4;t+=0.05) Engine.brakeHeat(h,full,22*(1-t/4),0.05,0.05,30); n++; }
   return {dead,half,full,hot,T:h.brakeT}; })()`);
  check("ブレーキ: 遊びでは効かず、半分踏みで半分より弱い (踏み込むほど強い)。熱くなると効きが落ちる",bk.dead===0&&bk.half<bk.full*0.45&&bk.hot<bk.full*0.85&&bk.T>200,`半分 ${(bk.half/bk.full*100).toFixed(0)} %・400 °C で ${(bk.hot/bk.full*100).toFixed(0)} %・80 km/h から 6 回止まって ${bk.T.toFixed(0)} °C`);
+ const wkC=load(), wk=wkC.run(`(()=>{ VEH.spec.chassis={wheelKg:{FL:60,FR:50,R:90}}; VEH.active=true; Tire._p=null; Susp._p=null; const p=Tire.params();   // (テスト用の値。実車の値ではない)
+  return {fs:p.b/p.L, sh:p.wh.map(w=>+w.share.toFixed(3)), yCG:p.wh.reduce((a,w)=>a+w.share*w.py,0)}; })()`);
+ check("実測の車輪ごとの重さ (諸元 chassis.wheelKg) から荷重配分と重心の左右のずれ",near(wk.fs,0.55,1e-6)&&near(wk.sh.reduce((a,b)=>a+b,0),1,1e-6)&&Math.abs(wk.yCG)<1e-9,`前 ${(wk.fs*100).toFixed(0)} %・${JSON.stringify(wk.sh)}`);
  const ks=R(`(()=>{ const p=Tire.params(), st=Tire.init(); Tire.step(st,{u:1,delta:0.2},{mu:1},0.1); return {r:st.r, k:1*Math.tan(0.2)/p.L}; })()`);
  check("止まる直前 (1 m/s) は前輪の向きどおりに曲がる",near(ks.r,ks.k,1e-9),ks.r.toFixed(4)+" rad/s");
 }
