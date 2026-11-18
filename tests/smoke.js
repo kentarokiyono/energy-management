@@ -380,6 +380,14 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
    return {paved,off,right,noRoad,offMode}; });
   check("振動・反力",f.paved.n>0&&f.paved.w>0.05&&f.paved.s<0.05&&f.off.s>0.3&&f.right.t<-10&&f.noRoad.w<0.01&&f.offMode.n===0,JSON.stringify(f));
   await ctx.close(); }
+ // ---- キーの名前 (iPad の日本語入力などで e.key が変わってもスペースがブレーキ) ----
+ { const p=await newPage(b,base);
+  const k=await p.evaluate(()=>{ const ev=(t,o)=>dispatchEvent(new KeyboardEvent(t,o)), out=[];
+   for(const o of [{key:" ",code:"Space"},{key:"Spacebar"},{key:"Unidentified",code:"Space"},{key:"Process",code:"Space"},{key:"Process",code:"KeyW"}]){ ev("keydown",o); out.push(!!(Input.keys[" "]||Input.keys.w)); ev("keyup",o); out.push(!!(Input.keys[" "]||Input.keys.w)); }
+   const btn=document.createElement("button"); document.body.appendChild(btn); btn.focus(); ev("keydown",{key:" ",code:"Space"}); const blurred=document.activeElement!==btn; btn.remove();
+   dispatchEvent(new Event("blur")); return {out,blurred,rel:!Input.keys[" "]}; });
+  check("キーの名前: スペースのブレーキ (iPad)",k.out.join()==="true,false,true,false,true,false,true,false,true,false"&&k.blurred&&k.rel&&noErr(p).length===0,JSON.stringify(k));
+  await p.context().close(); }
  // ---- 分析画面 (スマホ縦): 地図・グラフ・右の欄が並び、地図の上の表示が重ならない ----
  { const p=await newPage(b,base,{vp:{width:390,height:844},touch:true});
   await p.evaluate(()=>Ana.open()); await p.waitForTimeout(1500);
