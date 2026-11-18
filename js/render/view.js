@@ -166,6 +166,7 @@ const deckY=SB&&SB.profiles? .68 : .62;
 this.cockE0=E0; this.cockDeckY=deckY;   // 乗降手順 (crew.js) の配置基準
 Cockpit.build(this,cock,E0,deckY,carbon);   // 内装は js/render/cockpit.js
 if(typeof ChassisMesh!=="undefined") g.userData.chassis=ChassisMesh.build(this,body,SB,E0,carbon);   // 車内の構造 (前の足回り・上面の板・後部の板・バッテリー・ロールバー)
+if(g.userData.chassis&&Y.canopy){ const rb=g.userData.chassis.g.getObjectByName("rollbar"); if(rb){ g.updateMatrixWorld(true); Y.canopy.attach(rb); } }   // ロールバーはキャノピーと一体 (開けると一緒に動く)
 body.add(cock);
 } else if(P.shape==="catamaran"){
 for(const sx of [-0.72,0.72]){

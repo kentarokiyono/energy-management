@@ -63,7 +63,7 @@ const ChassisMesh={
   const zMid=O.z1+.02, yP=Math.min(top(O.z0),top(zMid))-.012;
   const plate=(outline,holes,y)=>{ const sh=new THREE.Shape(outline.map(([x,z])=>new THREE.Vector2(x,z))); for(const h of holes) sh.holes.push(new THREE.Path(h.map(([x,z])=>new THREE.Vector2(x,z))));
    const geo=new THREE.ExtrudeGeometry(sh,{depth:.012,bevelEnabled:false}); geo.rotateX(Math.PI/2); const m=add(new THREE.Mesh(geo,carbon)); m.position.y=y; return m; };   // (x, z) の形を水平に寝かせる
-  const sz0=FW.length===2? FW[0].z+.36 : O.z0+.2, sz1=zMid;   // 足を入れる箱の後ろの端から (ドライバーの横だけ)
+  const sz0=FW.length===2? FW[0].z+.16 : O.z0, sz1=zMid-.2;   // ドライバーの横 (足回りボックスの後ろの段の横から)
   for(const sg of [-1,1]){
    const N=12, xs=z=>sg*(hw(z)-.03), xi=sg*(O.w+.01), out=[]; for(let i=0;i<=N;i++){ const z=sz0+(sz1-sz0)*i/N; out.push([xs(z),z]); } out.push([xi,sz1],[xi,sz0]);
    const holes=[], n=1, cell=sz1-sz0-.05;   // X 字は 1 個 (板いっぱい)
@@ -91,7 +91,7 @@ const ChassisMesh={
   { const yb=bot(bat.z)+.03, b=box(bw,bh,bd,blk,0,yb+bh/2,bat.z); b.name="battery";
    box(bw+.004,.02,bd+.004,orange,0,yb+bh-.02,bat.z);   // 上の縁の色帯
    for(const sx of [-.1,.1]){ const c=add(new THREE.Mesh(new THREE.CylinderGeometry(.01,.01,.22,8),sx<0? cable : blk)); c.position.set(sx,yb+bh+.02,bat.z-.04); c.rotation.x=Math.PI/2.4; } }
-  // ---- ロールバー (運転席の後ろの黒い覆い。キャノピーと一体になる) ----
+  // ---- ロールバー (運転席の後ろの黒い覆い。キャノピーと一体: view.js でキャノピーの子にする) ----
   { const cz1= SB.canopy? SB.canopy.x+SB.canopy.len*.52-HL : E0[2]+.6;   // キャノピーの後端 (この中に収める)
    const z0=E0[2]+.14, z1=Math.max(z0+.2,cz1-.2), yb=top(z0)-.01, yt=Math.min(E0[1]+.03,(SB.canopy&&SB.canopy.top||1.08)-.17), w=Math.min(.3,(SB.canopy&&SB.canopy.w||.36)*.5);   // キャノピーの幅・高さの内側
    const sh=new THREE.Shape([[z0,yb],[z1,yb],[z1-.04,yb+.05],[z0+.14,yt],[z0+.02,yt-.03]].map(([z,y])=>new THREE.Vector2(z,y)));   // 前は頭の後ろで高く、後ろへ低く (キャノピーの形に沿う)
