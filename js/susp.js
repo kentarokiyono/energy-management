@@ -91,7 +91,7 @@ const Susp={
   車体側の 2 点は同じ前後位置で、アームの軸は左右方向。車輪は車体と一緒に傾く (キャンバーの変化なし)。アームは片側 (rearSide) だけ。
   瞬間中心 (横から見たアームの延長の交点) の高さと距離から、駆動・回生・ブレーキの力の一部がアームを通って車体を持ち上げる/引き下げる (アンチスクワット・アンチリフト) */
  rear(w,v){
-  const R=w.R, up={y:0,z:R+0.12}, lo={y:0,z:R+0.12-v("rUpH")};   // 上の点は車輪の中心の少し上で固定、アップライトは下へ伸びる
+  const R=w.R, up={y:0,z:R+0.22}, lo={y:0,z:R+0.22-v("rUpH")};   // 上の点は車輪の中心より 22 cm 上 (地面から約 48 cm)、アップライトは下へ伸びる (下の点は約 20 cm)
   const li={y:v("swingL"),z:lo.z+v("rLowDz")}, ui={y:v("rLinkL"),z:up.z+v("rUpDz")};
   const K=this.linkage(li,ui,lo,up,R,v("travel")*1.5), tab=K.tab.map(t=>({c:t.c,camber:0,scrub:0,pitch:t.rot,L1:t.L1,U1:t.U1,wc:t.wc}));
   const ic=K.ic, anti= ic&&ic.y>0.05? clamp(ic.z/ic.y,-1,1) : 0;   // 接地点から瞬間中心への傾き (tan)。前の力 1 N あたり車体を持ち上げる力

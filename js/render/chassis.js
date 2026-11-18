@@ -40,7 +40,7 @@ const ChassisMesh={
      [[zf+.06,yb+.05],[zm-.06,yb+.05],[(zf+zm)/2,yLo-.04]], [[zm+.04,yHi-.06],[zr-.05,yHi-.06],[(zm+zr)/2+.02,liY+.06]]];
     vplate(sg*fbx,ol,hl); }
    box(fbx*2,.012,zm-zf,carbon,0,yLo,(zf+zm)/2); box(fbx*2,.012,zr-zm,carbon,0,yHi,(zm+zr)/2);   // 天板 (2 段)
-   box(fbx*2,yLo-yb,.012,carbon,0,(yLo+yb)/2,zf); box(fbx*2,yHi-yLo,.012,carbon,0,(yHi+yLo)/2,zm); }
+   box(fbx*2,yLo-yb,.012,carbon,0,(yLo+yb)/2,zf); box(fbx*2,yHi-yLo,.012,carbon,0,(yHi+yLo)/2,zm); }   // 中は前の端まで抜けている (足を前の低い段の下まで伸ばす)
   // ---- ステアリングラック・タイロッド・シャフト ----
   let steer=null;
   if(FW.length===2){ const zR=FW[0].z+.08, yR=Math.min(top(FW[0].z)-.04,uiY+.14)-.03, xr=fbx+.02;   // 箱の上の切り込みを通る
@@ -48,17 +48,16 @@ const ChassisMesh={
    const rod=()=>{ const gg=new THREE.CylinderGeometry(.007,.007,1,8); gg.translate(0,.5,0); return add(new THREE.Mesh(gg,alu)); };
    steer={rack,yR,zR,xr,ties:FW.map(w=>({w,m:rod()})),col:rod()};
    const yp=V.yokePivot; if(yp) this.link(steer.col,new THREE.Vector3(yp.position.x,yp.position.y-.02,yp.position.z+.02),new THREE.Vector3(0,yR+.02,zR)); }
-  // ---- 運転席の左右: 箱 (内側の壁・前の壁) と上面の板。左は斜めの細長い穴、右は X 字の穴 ----
+  // ---- 運転席の左右 (左右対称): 箱 (内側の壁・前の壁) と、ドライバーの横だけ X 字の穴の天板 ----
   const zMid=O.z1+.02, yP=Math.min(top(O.z0),top(zMid))-.012;
   const plate=(outline,holes,y)=>{ const sh=new THREE.Shape(outline.map(([x,z])=>new THREE.Vector2(x,z))); for(const h of holes) sh.holes.push(new THREE.Path(h.map(([x,z])=>new THREE.Vector2(x,z))));
    const geo=new THREE.ExtrudeGeometry(sh,{depth:.012,bevelEnabled:false}); geo.rotateX(Math.PI/2); const m=add(new THREE.Mesh(geo,carbon)); m.position.y=y; return m; };   // (x, z) の形を水平に寝かせる
-  const sz0=O.z0+.2, sz1=zMid;
+  const sz0=FW.length===2? FW[0].z+.36 : O.z0+.2, sz1=zMid;   // 足を入れる箱の後ろの端から (ドライバーの横だけ)
   for(const sg of [-1,1]){
    const N=12, xs=z=>sg*(hw(z)-.03), xi=sg*(O.w+.01), out=[]; for(let i=0;i<=N;i++){ const z=sz0+(sz1-sz0)*i/N; out.push([xs(z),z]); } out.push([xi,sz1],[xi,sz0]);
    const holes=[], cell=.3, n=Math.floor((sz1-sz0-.06)/cell);
    for(let k=0;k<n;k++){ const a=sz0+.05+k*cell, b=a+cell-.06, xin=xi+sg*.05, xout=sg*(Math.min(hw(a),hw(b))-.09), w=Math.abs(xout-xin); if(w<.1) continue;
-    if(sg<0){ for(let q=0;q<2;q++){ const o=q*(b-a)/2, d=(b-a)/2-.03; holes.push([[xin,a+o+.05],[xin,a+o+.05+d*.35],[xout,a+o+d],[xout,a+o+d*.65]]); } }   // 左: 斜めの細長い穴
-    else { const cx=(xin+xout)/2, cz=(a+b)/2, hx=w/2-.01, hz=(b-a)/2, gp=.025;   // 右: X 字 (三角 4 つ)
+    { const cx=(xin+xout)/2, cz=(a+b)/2, hx=w/2-.01, hz=(b-a)/2, gp=.025;   // 右: X 字 (三角 4 つ)
      holes.push([[cx-hx,cz-hz],[cx+hx,cz-hz],[cx,cz-gp]],[[cx+hx,cz-hz+gp],[cx+hx,cz+hz-gp],[cx+gp,cz]],[[cx+hx,cz+hz],[cx-hx,cz+hz],[cx,cz+gp]],[[cx-hx,cz+hz-gp],[cx-hx,cz-hz+gp],[cx-gp,cz]]); } }
    plate(sg<0? out : out.slice().reverse(),holes,yP);
    const yb=bot((sz0+sz1)/2)+.03;   // 箱の内側の壁 (開口の縁の下) と前の壁 (胴体の断面に沿って)
@@ -69,9 +68,9 @@ const ChassisMesh={
   const zr0=RW.length? RW[0].z : 1.34, swL=typeof Susp!=="undefined"? Susp.val("swingL") : .3, zs=zr0-swL;   // 仕切り板 = 後ろのアームの車体側の軸の位置
   const pz0=bat.z-bd/2-.02, pz1=zs;
   for(const sg of [-1,1]){ const x=sg*(bw/2+bx/2+.005), N=10, up=[], dn=[];
-   for(let i=0;i<=N;i++){ const z=pz0+(pz1-pz0)*i/N, t=i/N, yb=bot(z)+.03, yt=top(z)-.04; dn.push([z,yb]); up.push([z,yb+(yt-yb)*(.55+.45*t*t*(3-2*t))]); }
+   const ry0=Math.max(bot(pz0),bot(pz1))+.03, ry1=Math.min(top(pz0),top(pz1))-.06; for(let i=0;i<=N;i++){ const z=pz0+(pz1-pz0)*i/N; dn.push([z,ry0]); up.push([z,ry1]); }   // 長方形
    const holes=[], n=Math.max(1,Math.floor((pz1-pz0-.1)/.26));
-   for(let k=0;k<n;k++){ const a=pz0+.06+k*(pz1-pz0-.1)/n, b=a+(pz1-pz0-.1)/n-.05, yb=bot((a+b)/2)+.08, yt=yb+.16; holes.push(k%2? [[a,yb],[b,yb],[(a+b)/2,yt]] : [[a,yt],[b,yt],[(a+b)/2,yb]]); }
+   for(let k=0;k<n;k++){ const a=pz0+.06+k*(pz1-pz0-.1)/n, b=a+(pz1-pz0-.1)/n-.05, yb=ry0+.05, yt=Math.min(ry1-.05,yb+.18); holes.push(k%2? [[a,yb],[b,yb],[(a+b)/2,yt]] : [[a,yt],[b,yt],[(a+b)/2,yb]]); }
    vplate(x,[...dn,...up.reverse()],holes); }
   { const yb=bot(zs)+.01, yt=top(zs)-.01, N=8, R=[], Lf=[];
    for(let i=0;i<=N;i++){ const y=yb+(yt-yb)*i/N, x=secX(zs,y)-.02; R.push([x,y]); Lf.unshift([-x,y]); }   // ロアカウルの断面に沿って立つ
