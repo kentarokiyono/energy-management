@@ -1066,10 +1066,10 @@ lookAt=new THREE.Vector3(cx+Math.sin(hCar)*40, cy+1.0, cz-Math.cos(hCar)*40);
 } else if(this.cam===2){ // ドライバー: 頭を車体に固定(勾配ピッチ・オフロード揺れを継承)
 this.car.updateMatrixWorld();
 const E0=(this.cockE0||(VEH.active&&VEH.spec.eye)||[0,.84,-.45]).slice(); E0[1]-=this.EYE_DROP;   // 目線は 10 cm 低め (窓の上の縁より下から前を見る)
-/* 頭の動き: 横 G で外へ・加減速で前後へ傾き、路面の細かい揺れ (速いほど) を拾う。曲がる先を少し見る */
- const gl=clamp(es.gLat||0,-1,1), gg=clamp(es.gLong||0,-1,1), t=performance.now()/1000, rv=clamp(vv/28,0,1)*(es.offroad?0.03:0.0035);
+/* 頭の動き: 横 G で外へ・加減速で前後へ傾き、路面の細かい揺れ (速いほど。硬い車体なので 11〜24 Hz の小刻みな震え) を拾う。曲がる先を少し見る */
+ const gl=clamp(es.gLat||0,-1,1), gg=clamp(es.gLong||0,-1,1), t=performance.now()/1000, rv=clamp(vv/28,0,1)*(es.offroad?0.03:0.0015);
  this.headX=lerp(this.headX||0,-gl*0.07,clamp(dtR*5,0,1)); this.headZ=lerp(this.headZ||0,gg*0.05,clamp(dtR*4,0,1)); this.lookX=lerp(this.lookX||0,clamp(this.yawR||0,-0.6,0.6)*9,clamp(dtR*3,0,1));
- const eye=new THREE.Vector3(E0[0]+this.headX, E0[1]+(Math.sin(t*31)+Math.sin(t*47.3)*0.6)*rv-Math.abs(gg)*0.008, E0[2]+this.headZ);
+ const eye=new THREE.Vector3(E0[0]+this.headX, E0[1]+(Math.sin(t*71)+Math.sin(t*109.3)*0.6+Math.sin(t*151.7)*0.35)*rv-Math.abs(gg)*0.008, E0[2]+this.headZ);
 eye.applyMatrix4(this.car.matrixWorld);
 const aim=new THREE.Vector3(this.lookX,.76,-30).applyMatrix4(this.car.matrixWorld);
 camPos=eye; lookAt=aim;
