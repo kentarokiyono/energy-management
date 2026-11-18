@@ -39,7 +39,8 @@ const ChassisMesh={
   const SP=typeof Susp!=="undefined"? Susp.params() : null, fg=SP&&SP.wh.find(q=>q.geo.kind==="wishbone");
   let fbx=.24, liY=.16, uiY=.32, yHi=.3, pedal=null, fbox=null;
   if(FW.length===2){ if(fg){ liY=fg.geo.li.z; uiY=fg.geo.ui.z; } fbx=Math.max(.16,Math.abs(FW[0].x)-.18);
-   const zw=FW[0].z, zf=zw-.42, zm=zw-.06, zr=zw+.36, yb=bot(zw)+.02, yShelf=uiY-.02; yHi=top(zw)-.06; const yLo=Math.max(yShelf+.06,yHi-.10);   // 壁は胴体の上面の少し下まで。上のアームは中の棚板 (yShelf)
+   const zw=FW[0].z, zf=zw-.42, zm=zw-.06, zr=zw+.36, yb=Math.max(bot(zf),bot(zw),bot(zr))+.02,   // 床: 箱の前後でいちばん高い底 (前輪の車輪カバーの所で底が深くなる分は使わない)
+   yShelf=uiY-.02; yHi=top(zw)-.06; const yLo=Math.max(yShelf+.06,yHi-.10);   // 壁は胴体の上面の少し下まで。上のアームは中の棚板 (yShelf)
    for(const sg of [-1,1]){   // 左右の壁 (三角の穴、下にロアアームの穴)
     const ol=[[zf,yb],[zr,yb],[zr,yHi],[zm,yHi],[zm,yLo],[zf,yLo]];
     const hl=[[[zw-.08,liY-.03],[zw+.08,liY-.03],[zw+.08,liY+.03],[zw-.08,liY+.03]],   // ロアアームの穴
