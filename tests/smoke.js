@@ -86,6 +86,14 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   const ln=await p.evaluate(()=>{ const es=Engine.st, keep={km:es.km,st:es.stopTimer,camp:es.camp}, msgs=[]; const o=Radio.push; Radio.push=(m,w)=>{ if(w==="前方誘導車"&&/制限速度/.test(m)) msgs.push(m); };
    es.stopTimer=0; es.camp=false; es.v=20; Orders.limDone=new Set(); for(let k=300;k<316;k+=0.02){ es.km=k; Orders.limitNotice(es); } Radio.push=o; Object.assign(es,{km:keep.km,stopTimer:keep.st,camp:keep.camp}); return msgs; });
   check("制限速度の予告",ln.length>=3&&ln.every(m=>/この先 [0-9.]+ km で制限速度 \d+ km\/h \(現在 \d+ km\/h\)/.test(m)),ln.slice(0,3).join(" / "));
+  // パンクの練習: 決めた地点でパンク → 止まると採点 (パンクした車輪・止まるまでの時間・振れ・ずれ・ロック・止めた位置)
+  const fl=await p.evaluate(()=>{ Scenario.closeRes(); quitToMenu(); document.getElementById("scenario").value="flat"; startGame(); running=false; modalPause=false;
+   const es=Engine.st, c=Scenario.cur, step=()=>{ Engine.step(1/60,1/60); View.update(1/60); Scenario.frame(es,1/60); };
+   if(!c||!c.flat) return {ok:false}; c.flat.atKm=es.km; es.v=22; es.gear="D"; for(let i=0;i<10&&!c.flat.burst;i++){ es.v=22; step(); }
+   const burst=c.flat.burst&&es.burst&&es.burstWheel!=null; for(let i=0;i<120&&!c.done;i++){ es.v=0; es.brakePhys=1; step(); }
+   const res=document.getElementById("scn-result"), txt=res? res.innerText : ""; return {ok:true,burst,done:c.done,rows:/パンクした車輪/.test(txt)&&/止めた位置/.test(txt),last:Scenario.last}; });
+  check("練習シナリオ: パンク (決めた地点でパンク、止まると採点)",fl.ok&&fl.burst&&fl.done&&fl.rows&&fl.last&&fl.last.id==="flat",JSON.stringify(fl));
+  await p.evaluate(()=>{ Scenario.closeRes(); quitToMenu(); document.getElementById("scenario").value=""; });
   check("練習シナリオ: エラーなし",noErr(p).length===0,noErr(p).slice(0,2).join(" | "));
   await p.evaluate(()=>{ Scenario.closeRes(); quitToMenu(); document.getElementById("scenario").value=""; }); await p.context().close(); }
  // ---- 横転の危険度と練習シナリオ (暴風雨) ----

@@ -49,7 +49,7 @@ const DrvRec={
   return [...m.values()].sort((a,b)=>b.last-a.last);
  },
  open(){
-  const S=this.summary(), f=(x,d)=>Number.isFinite(x)?x.toFixed(d):"―", NAMES={squall:"スコール",cross:"強い横風",cloud:"長い曇り"};
+  const S=this.summary(), f=(x,d)=>Number.isFinite(x)?x.toFixed(d):"―", NAMES={squall:"スコール",cross:"強い横風",cloud:"長い曇り",storm:"暴風雨",flat:"パンク"};
   const el=document.getElementById("drvrec")||(()=>{ const d=document.createElement("div"); d.id="drvrec"; d.className="scn-res"; document.body.appendChild(d); return d; })();
   const rows=S.map(o=>`<tr><td><b>${escHtml(o.name)}</b></td><td>${f(o.dist,0)} km</td><td>${o.t>0?f(o.dist/o.t,1):"―"} km/h</td><td>${o.dist>0?f(o.wh/o.dist,1):"―"} Wh/km</td>
    <td>${o.on.n? `${f(o.on.pct/o.on.n*100,0)} % <span class="dim">(A ${o.on.A}・B ${o.on.B}・C ${o.on.C})</span>` : "―"}</td>
