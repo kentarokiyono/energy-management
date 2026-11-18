@@ -15,6 +15,7 @@ const Tire={
  SURF:{road:1, wetK:0.35, shoulder:0.6, dirt:0.5},   // 路面の μ の倍率 (乾いた舗装 = 1)。濡れ: 1 - 0.35·濡れ具合、路肩の砂利・土
  LS:0.15,        // 荷重感度
  SLIDE:0.85,     // 滑っているときの摩擦 (滑り出す直前の μ に対する比)
+ FLAT:{corn:0.3, mu:0.6},   // パンクしたタイヤ: 横すべりの硬さ・グリップの倍率
  CAMBER:0.8,     // キャンバーの横力 (1 rad 傾くと荷重の何倍の横力か)
  TRAIL:0.035,    // タイヤの接地面の中心から力のかかる点までの距離 [m] (滑っていないとき、空気圧のトレール)。ハンドルを戻す力のもと。
                  // これにキャスター角による機構のトレール (滑っても残る) を足す
@@ -145,7 +146,7 @@ const Tire={
    for(let i=0;i<p.wh.length;i++){ const w=p.wh[i], di=dW[i], c=Math.cos(di), s=Math.sin(di);
     const uF=u-st.r*w.py, vR=st.vy+st.r*w.px, vl=uF*c+vR*s, vt=-uF*s+vR*c;
     // 空気圧 (横の硬さ・グリップ)・パンク (横の硬さ 3 割・グリップ 6 割、潰れたタイヤを引きずる抵抗)
-    const pk=PK[i], fl=i===flat, kC=pk.corn*(fl?0.3:1), kM=pk.mu*(fl?0.6:1);
+    const pk=PK[i], fl=i===flat, kC=pk.corn*(fl?this.FLAT.corn:1), kM=pk.mu*(fl?this.FLAT.mu:1);
     const fxd=this.demand(p,w,inp), f=this.wheel(p,vl,vt,Fz[i],this.SURF.road*muOf(i)*p.mu*kM,fxd,st.w[i],(env.camber?env.camber[i]:0)+(w.front? sc*di : 0),kC);   // キャスター: 切った向きへ車輪が傾く
     if(fl&&Math.abs(vl)>0.3){ const Fd=0.05*Fz[i]*Math.sign(vl); MZ+=w.py*Fd*c; }   // パンクした側が引きずられて、その側へ向きが変わる (エネルギーは Engine の転がり抵抗)
     const fxb=f.fx*c-f.fy*s, fyb=f.fx*s+f.fy*c;
