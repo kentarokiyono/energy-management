@@ -205,7 +205,7 @@ body.touch-on #hud-map .ahead{ display:none; }
  #hud-detail .cv{ margin:2px 0; } #wind-canvas{ width:44px; height:44px; } #g-canvas{ width:56px; height:56px; }
 }
 /* ---- タッチ操作の配置: 右上 地図 → その下に機能ボタン → 右下にペダル。左下にハンドル ---- */
-#t-fn{ position:absolute; right:8px; top:var(--tfn-top,360px); display:grid; grid-template-columns:repeat(5,40px); gap:4px; }
+#t-fn{ position:absolute; right:8px; top:var(--tfn-top,360px); display:grid; grid-template-columns:repeat(6,40px); gap:4px; }
 #t-fn .tbtn{ width:40px; height:40px; padding:0; display:flex; align-items:center; justify-content:center; font-size:12px; border-radius:0; }
 #t-fn .tbtn.acc{ border-color:var(--acc); color:var(--acc); }
 #t-fn .tbtn.on{ border-color:#34d399; color:#34d399; }   /* 車体を透かす: 入っている間 */
