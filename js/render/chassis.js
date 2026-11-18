@@ -66,9 +66,9 @@ const ChassisMesh={
   const sz0=FW.length===2? FW[0].z+.36 : O.z0+.2, sz1=zMid;   // 足を入れる箱の後ろの端から (ドライバーの横だけ)
   for(const sg of [-1,1]){
    const N=12, xs=z=>sg*(hw(z)-.03), xi=sg*(O.w+.01), out=[]; for(let i=0;i<=N;i++){ const z=sz0+(sz1-sz0)*i/N; out.push([xs(z),z]); } out.push([xi,sz1],[xi,sz0]);
-   const holes=[], cell=.3, n=Math.floor((sz1-sz0-.06)/cell);
+   const holes=[], n=1, cell=sz1-sz0-.05;   // X 字は 1 個 (板いっぱい)
    for(let k=0;k<n;k++){ const a=sz0+.05+k*cell, b=a+cell-.06, xin=xi+sg*.05, xout=sg*(Math.min(hw(a),hw(b))-.09), w=Math.abs(xout-xin); if(w<.1) continue;
-    { const cx=(xin+xout)/2, cz=(a+b)/2, hx=w/2-.01, hz=(b-a)/2, gp=.025;   // 右: X 字 (三角 4 つ)
+    { const cx=(xin+xout)/2, cz=(a+b)/2, hx=w/2-.02, hz=(b-a)/2, gp=.07;   // 右: X 字 (三角 4 つ)
      holes.push([[cx-hx,cz-hz],[cx+hx,cz-hz],[cx,cz-gp]],[[cx+hx,cz-hz+gp],[cx+hx,cz+hz-gp],[cx+gp,cz]],[[cx+hx,cz+hz],[cx-hx,cz+hz],[cx,cz+gp]],[[cx-hx,cz+hz-gp],[cx-hx,cz-hz+gp],[cx-gp,cz]]); } }
    plate(sg<0? out : out.slice().reverse(),holes,yP);
    const yb=bot((sz0+sz1)/2)+.03;   // 箱の内側の壁 (開口の縁の下) と前の壁 (胴体の断面に沿って)
