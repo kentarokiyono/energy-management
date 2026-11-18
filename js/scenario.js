@@ -20,7 +20,12 @@ const Scenario={
   storm:{name:"暴風雨 (Port Pirie 付近)",km:2790,day:6,hour:14.2,soc:0.32,ts:4,dist:45,refV:35,minSoc:0.05,
    wx:[{in:0.45,dur:0.55,type:"squall",factor:0.06}],wind:{ms:6,rel:1,gust:0.6,pulse:0},storm:{in:0.45,dur:0.55,mean:17,max:39},
    brief:"Day6 14:12、Port Augusta の先 2790 km (ゴールまで 237 km)。2025 年に実際に起きた暴風雨 (突風 約 140 km/h) を想定。偵察車から「西から雷雨のセル。約 27 分後に暴風雨、突風は最大 140 km/h (39 m/s) 近く」。前方誘導車は突風の直前に知らせる。横転せずに 45 km 先まで行く。",
-   tip:["いちばん強い突風は雨の降り始め (雷雨の前縁) に来る。雨が来る前に路肩に寄せて止まり、通り過ぎるのを待つのが基本。走ったままだと、ゆっくりでも 20 m/s 前後の突風で倒れることがある","止まってしばらくすると、誘導車と追走車が風上で風よけになり (風が半分)、クルーが車体を押さえる。140 km/h の突風でも、これで耐えられる","横風の力は走っているほど大きい (車の速度と風が合わさる)","突風で流されたとき、ハンドルを大きく切ると遠心力が横風に加わって倒れやすい。当て舵は小さく","画面の「横転」の % (危険度) が 60 % を超えたら、すぐに減速"]}},
+   tip:["いちばん強い突風は雨の降り始め (雷雨の前縁) に来る。雨が来る前に路肩に寄せて止まり、通り過ぎるのを待つのが基本。走ったままだと、ゆっくりでも 20 m/s 前後の突風で倒れることがある","止まってしばらくすると、誘導車と追走車が風上で風よけになり (風が半分)、クルーが車体を押さえる。140 km/h の突風でも、これで耐えられる","横風の力は走っているほど大きい (車の速度と風が合わさる)","突風で流されたとき、ハンドルを大きく切ると遠心力が横風に加わって倒れやすい。当て舵は小さく","画面の「横転」の % (危険度) が 60 % を超えたら、すぐに減速"]},
+  flat:{name:"タイヤのパンク",km:600,day:2,hour:10.2,soc:0.8,ts:1,dist:10,refV:80,minSoc:0,wx:[],wind:null,
+   flat:{at:[1.5,3.5],minKmh:60},
+   brief:"Day2 10:12、Daly Waters の手前 600 km。制限速度 130 km/h の開けた道。80 km/h 前後で走っていると、どこかでタイヤがパンクします (どの車輪かは毎回変わる)。車を落ち着かせ、左の路肩に寄せて止めてください。",
+   tip:["ハンドルをしっかり持ち、まっすぐを保つ。後輪のパンクは車が振られやすい: 小さく速い当て舵で","急ブレーキは振られを大きくする。アクセルを戻し、回生と軽いブレーキで少しずつ減速","前輪のパンクはパンクした側へ取られる。反対へ当て舵","速度が落ちてからウインカーを出し、左の路肩に寄せて止める (車線の中で止めない)"]},
+ },
  cur:null, id:null,
  /* 暴風雨の難しさ: 実戦 = 実際の強さ / 標準 = 風は約半分 (30〜40 km/h なら耐えられる)・前方誘導車の予告が早い (実時間で約 6 秒前) */
  LEVELS:{real:{name:"実戦",wind:1,lead:3},std:{name:"標準",wind:0.45,lead:6}},
@@ -39,6 +44,8 @@ const Scenario={
   this.id=id; this.cur={sc,abs0,goal:sc.km+sc.dist,minSoc:sc.soc,off:0,hits:0,warned:{},done:false,t0:performance.now(),gusts:null,lv:this.level()};
   if(sc.storm){ const L=this.LEVELS[this.cur.lv]; this.cur.st=Object.assign({},sc.storm,{mean:sc.storm.mean*L.wind,max:sc.storm.max*L.wind}); this.cur.gusts=this.mkGusts(this.cur.st); }
   s.tipMax=0;
+  if(sc.flat){ const F=sc.flat; this.cur.flat={atKm:sc.km+F.at[0]+Math.random()*(F.at[1]-F.at[0]),wheel:null,burst:false,abs:null,beta:0,dev:0,lat0:null,locks:0,lockPrev:false,stopT:0,brakeMax:0};
+   s.burst=false; s.burstWheel=null; }
   Radio.push(`練習シナリオ「${sc.name}」${sc.storm&&this.cur.lv==="std"?" (標準: 風は実際の約半分)":""}: ${sc.brief}`,"チーフ");
  },
  /* 暴風雨の突風の並びと風速は、レース中の暴風雨と共通 (js/storm.js)。いちばん強いのは雨の降り始め (前縁) */
@@ -61,7 +68,8 @@ const Scenario={
   c.minSoc=Math.min(c.minSoc,es.soc);
   let shoulder=false; try{ const p=View.roadPoint(View.s); shoulder=View.lateral<-(p.L+0.2)||View.lateral>p.R+0.2; }catch(e){}
   if((es.offroad||shoulder)&&es.v>1) c.off+=dtR;
-  if(es.km>=c.goal) this.finish(es,true);
+  if(c.sc.flat){ if(this.flatFrame(c,es,dtR)) return; }
+  if(es.km>=c.goal) c.sc.flat? this.finish(es,false,"パンクしたまま走り続けました (止まって交換が必要)") : this.finish(es,true);
   else if(es.soc<=0.02) this.finish(es,false,"電池がなくなりました");
   else if(es.hour>=17) this.finish(es,false,"17 時までに着けませんでした");
  },
@@ -76,11 +84,38 @@ const Scenario={
   for(const [t0,pk] of c.gusts) if(pk>=big*0.55&&t>=t0-lead&&t<t0) say("g"+t0,`突風来ます!(約 ${pk.toFixed(0)} m/s・${(pk*3.6).toFixed(0)} km/h)${es.v*3.6>20?" 減速!":""}`,"前方誘導車");
   if(t>=st.dur*3600&&t<st.dur*3600+60) say("end","暴風域を抜けます。風は弱まっていきます。","偵察車");
  },
+ /* パンクの練習: 決めた地点 (速度が出ていれば) でどれかの車輪がパンク → 振れ・車線からのずれ・ロックを記録 → 止まったら採点 */
+ flatFrame(c,es,dtR){
+  const f=c.flat, kmh=es.v*3.6;
+  if(!f.burst){ if(es.km>=f.atKm&&kmh>=c.sc.flat.minKmh){ const n=Tire.params().wh.length; f.wheel=Math.floor(Math.random()*n); f.burst=true; f.abs=(es.day-1)*24+es.hour; f.lat0=View.lateral;
+    es.burst=true; es.burstWheel=f.wheel; Snd.bang(); toast("💥 パンク!","#ef4444"); if(typeof FFB!=="undefined"&&FFB.kick) FFB.kick(0.9,0.8,400); }
+   return false; }
+  const T=View.tire; if(T&&es.v>2) f.beta=Math.max(f.beta,Math.abs(Tire.beta(T,es.v)));
+  if(f.lat0!=null&&es.v>2) f.dev=Math.max(f.dev,Math.abs(View.lateral-f.lat0));
+  if(es.tireLock&&!f.lockPrev) f.locks++; f.lockPrev=!!es.tireLock;
+  f.brakeMax=Math.max(f.brakeMax,-(es.gLong||0));
+  if(f.beta>0.6){ this.finish(es,false,"車が回ってしまいました (スピン)"); return true; }
+  if(es.rolledOver||es.crashed){ this.finish(es,false,"横転・事故"); return true; }
+  f.stopT= es.v<0.3? f.stopT+dtR : 0;
+  if(f.stopT>1){ this.finish(es,true); return true; }
+  return false;
+ },
+ /* パンクの練習の採点の行 */
+ flatRows(c,es){
+  const f=c.flat, p=Tire.params(), w=p.wh[f.wheel]||{}, name= !w.front? "後輪" : w.py<0? "左前" : "右前";
+  const tStop=((es.day-1)*24+es.hour-f.abs)*3600, q=View.roadPoint(View.s), L=q.L||3.5, edge=View.lateral<=-(L-1.2)&&View.lateral>=-(L+2.5);
+  const pT=Math.min(30,Math.max(0,Math.round(tStop-30))), b=f.beta*57.3, pB= b>10? 25 : b>5? 10 : 0, pD= f.dev>2.5? 20 : f.dev>1.5? 10 : 0;
+  const pL=Math.min(20,f.locks*10), pE= edge? 0 : 15, tm=es.tipMax||0, pR= tm>=0.85? 20 : tm>=0.6? 10 : 0;
+  return {name,rows:[["パンクした車輪",name,0],["止まるまでの時間",`${tStop.toFixed(0)} 秒 (目安 30 秒以内)`,pT],["車の振れ (横すべりの最大)",`${b.toFixed(1)}°`,pB],
+   ["車線からのずれ (最大)",`${f.dev.toFixed(1)} m`,pD],["タイヤのロック",`${f.locks} 回`,pL],["止めた位置",edge?"左の路肩":"車線の中・道の外",pE],["横転の危険度 (最大)",`${Math.round(tm*100)} %`,pR]]};
+ },
  hit(){ if(this.cur) this.cur.hits++; },
  finish(es,ok,why){
   const c=this.cur; if(!c||c.done) return; c.done=true;
-  const sc=c.sc, tAct=(es.day-1)*24+es.hour-c.abs0, tRef=sc.dist/sc.refV, rows=[];
-  let score=100;
+  const sc=c.sc, tAct=(es.day-1)*24+es.hour-c.abs0, tRef=sc.dist/sc.refV;
+  let rows=[], score=100;
+  if(sc.flat&&c.flat&&c.flat.burst){ const F=this.flatRows(c,es); rows=F.rows; for(const r of rows) score-=r[2]; if(!ok) score=Math.min(score,20); score=Math.max(0,Math.round(score)); return this.showRes(c,es,ok,why,score,rows); }
+  if(sc.flat) return this.showRes(c,es,false,why||"パンクする前に終わりました",0,[]);
   const slow=Math.max(0,tAct/tRef-1); const pT=Math.min(40,Math.round(slow*100)); score-=pT;
   const pS= es.soc<sc.minSoc? 30 : 0; score-=pS;
   const pM= c.minSoc<0.05? 15 : 0; score-=pM;
@@ -96,6 +131,10 @@ const Scenario={
   rows.push(["道の外・路肩",`${c.off.toFixed(0)} 秒`,pO]);
   rows.push(["接触",`${c.hits} 回`,pH]);
   rows.push(["横転の危険度 (最大)",`${Math.round(tm*100)} %${es.rolledOver?" (横転)":""}`,pR]);
+  this.showRes(c,es,ok,why,score,rows);
+ },
+ showRes(c,es,ok,why,score,rows){
+  const sc=c.sc;
   const el=document.getElementById("scn-result")||(()=>{ const d=document.createElement("div"); d.id="scn-result"; d.className="scn-res"; document.body.appendChild(d); return d; })();
   el.innerHTML=`<div class="box"><div class="lb">練習シナリオ</div><h3>${escHtml(sc.name)}${sc.storm?` (${this.LEVELS[c.lv||"real"].name})`:""} ${ok?"":"― 失敗"}</h3>
    ${why?`<div class="why">${escHtml(why)}</div>`:""}<div class="score"><b>${score}</b><span>/ 100</span></div>
