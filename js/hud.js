@@ -159,7 +159,8 @@ tb.style.color=es.Tbat>55?"#d23a2e":es.Tbat>45?"#f0812a":"";
 { const bt=document.getElementById("hud-tbrk"); if(bt){ const T=es.brakeT; bt.textContent=Number.isFinite(T)? T.toFixed(0)+"°C"+(T>Engine.BRAKE.fade0?" (効き "+Math.round(Engine.brakeFade(T)*100)+" %)":"") : dash; bt.style.color=T>Engine.BRAKE.fade0?"#d23a2e":T>180?"#f0812a":""; } }   // ブレーキ温度・フェード
 { const tm=document.getElementById("hud-tmot"), tt=document.getElementById("hud-ttyre");   // モーター・タイヤの温度
   if(tm){ tm.textContent=Number.isFinite(es.Tmot)? es.Tmot.toFixed(0)+"°C"+(es.Tmot>140?" (電流を制限)":"") : dash; tm.style.color=es.Tmot>140?"#d23a2e":es.Tmot>110?"#f0812a":""; }
-  if(tt){ tt.textContent=Number.isFinite(es.Ttyre)? es.Ttyre.toFixed(0)+"°C" : dash; } }
+  if(tt){ tt.textContent=Number.isFinite(es.Ttyre)? es.Ttyre.toFixed(0)+"°C" : dash; }
+  const tw=document.getElementById("hud-twear"); if(tw){ const w=es.tyreWear; tw.textContent=Number.isFinite(w)? Math.round(w*100)+" %" : dash; tw.style.color=w>0.8?"#d23a2e":w>0.6?"#f0812a":""; } }   // タイヤの摩耗 (毎晩交換)
 { const gp=document.getElementById("hud-grip"); if(gp){ const u=es.tireUse||0; gp.textContent= es.tireLock? "ロック" : es.tireSlide? "スリップ" : Math.round(u*100)+" %"; gp.style.color=(es.tireLock||es.tireSlide||u>0.85)?"#d23a2e":u>0.6?"#f0812a":""; } }   // 一番使っている車輪のグリップ
 document.getElementById("hud-wind").innerHTML=`${es.windSpeed.toFixed(1)} m/s`;
 const prof=profileAt(es.km);

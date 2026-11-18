@@ -95,6 +95,8 @@ const Snd={
    if(this.lastKm!=null&&typeof LANDMARKS!=="undefined") for(const lm of LANDMARKS) if(lm.t==="bridge"){ for(const e of [lm.km-0.025,lm.km+0.025]) if(this.lastKm<e&&km>=e) this.thump(0.5); }
    this.lastKm=km;
   }
+  const inTest=P.mode==="test"&&typeof Test!=="undefined"&&Test.active;   // テスト走行 (ヒドゥンバレー): コースは舗装、外は土
+  if(inTest){ rough=0.6; gravel=!!Test.offTrack; }
   if(gravel) rough=1.4;
   const sp=clamp(v/30,0,1.4);
   this.set(this.tyre.f.frequency,120+v*9+(gravel?300:0),0.2);
@@ -112,7 +114,7 @@ const Snd={
   { const W=es&&es.tireW; let k=0; if(W&&!gravel&&!(es&&es.offroad)) for(const w of W) k=Math.max(k,w.lock? 1 : w.slide? 0.6 : (w.use||0)>0.97? 0.15 : 0);
    const sq=k*clamp((v-2)/8,0,1); this.set(this.squeal.g.gain,0.035*sq,0.06); this.set(this.squeal.f.frequency,1000+k*250+Math.random()*60,0.05); }
   // ---- 車内の反響 ----
-  const inCab=this.inCab=typeof View!=="undefined"&&View.cam===2&&P.mode!=="test";
+  const inCab=this.inCab=typeof View!=="undefined"&&View.cam===2&&(P.mode!=="test"||inTest);
   this.set(this.wet.gain,inCab?0.55:0,0.3); this.set(this.dry.gain,inCab?0.8:1,0.3);
   this.cabin(inCab,v,rough,gravel);
   this.trucksFrame(v);
@@ -120,7 +122,7 @@ const Snd={
  /* 車内の走行音: 速さで大きく (約 70 km/h で実車の動画と同じ釣り合い)、路面の凸凹 (タイヤの荷重の揺れ、70 km/h の郊外の舗装で約 0.11) で強弱。
   凸凹が大きいほど部品がカタカタ鳴る */
  cabin(on,v,rough,gravel){
-  const S=typeof View!=="undefined"&&View.susp, p=S&&S.Ft&&typeof Susp!=="undefined"? Susp.params() : null;
+  const S= P.mode==="test"&&typeof Test!=="undefined"&&Test.active? Test.susp : typeof View!=="undefined"&&View.susp, p=S&&S.Ft&&typeof Susp!=="undefined"? Susp.params() : null;
   let exc= p&&p.wh.length===S.Ft.length? S.Ft.reduce((a,F,i)=>a+Math.abs(F-p.wh[i].F0)/p.wh[i].F0,0)/S.Ft.length : 0.11*rough/0.6*clamp(v/19.4,0,1.5);
   if(!Number.isFinite(exc)) exc=0;
   this.excS+=(exc-this.excS)*0.35; const rel=clamp(this.excS/0.11,0,5), sp=clamp(v/19.4,0,1.5);
