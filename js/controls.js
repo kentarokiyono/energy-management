@@ -230,25 +230,36 @@ map: JSON.parse(localStorage.getItem("bwsc_wheelmap")||"null") ||
 { steer:{axis:0,inv:false}, accel:null, brake:null },
 gamepadOK:false, gpSteer:0, gpThrottle:0, gpBrake:0, gpRegen:false,
 };
+/* キーの名前をそろえる: iPad などで日本語入力が有効だと、スペースや文字キーの e.key が "Process"・"Unidentified" になったり、
+ 古いブラウザでは "Spacebar" になる。そのときは物理的なキーの位置 (e.code) から決める */
+function keyOf(e){
+ const k=e.key||"", c=e.code||"";
+ if(c==="Space"||k===" "||k==="Spacebar"||e.keyCode===32) return " ";
+ if(k.length===1) return k.toLowerCase();
+ if(/^(Process|Unidentified|Dead)$/.test(k)||e.isComposing){ if(/^Key[A-Z]$/.test(c)) return c.slice(3).toLowerCase(); if(/^Digit\d$/.test(c)) return c.slice(5); }
+ return k.toLowerCase();
+}
 addEventListener("keydown",e=>{
-Input.keys[e.key.toLowerCase()]=true;
-if(e.key===" ") e.preventDefault();
+const key=keyOf(e);
+Input.keys[key]=true;
+if(key===" "){ e.preventDefault(); const a=document.activeElement; if(a&&a!==document.body&&/^(BUTTON|A|SUMMARY)$/.test(a.tagName)) a.blur(); }   // 画面のボタンに触れたあとでも、スペースはブレーキ (ボタンを押さない)
 if(e.key==="Escape"){ const ov=document.getElementById("map-ov"); if(ov&&ov.classList.contains("on")){ MapUI.toggle(false); return; } togglePause(); }
 if(e.key==="Tab"&&running){ e.preventDefault(); toggleDetail(); }
-if(e.key.toLowerCase()==="v") nextCam();
-if(e.key.toLowerCase()==="g") cycleChart();
-if(e.key.toLowerCase()==="m") StopMenu.open(true);
-if(e.key.toLowerCase()==="p"&&Engine.st&&running) togglePower();
-if(e.key.toLowerCase()==="z") toggleSignal(-1);
-if(e.key.toLowerCase()==="c") toggleSignal(1);
-if(e.key.toLowerCase()==="x") toggleSignal(2);
-if(e.key.toLowerCase()==="q"&&running) document.getElementById("ask-panel").classList.toggle("hidden");
-if(e.key.toLowerCase()==="b"&&running) boost();
-if(e.key.toLowerCase()==="n"&&running) toggleGear();
-if(e.key.toLowerCase()==="t"&&running){ P.xray=!P.xray; Settings.save(); toast(P.xray?"車体を透かす: サスペンションが見えます (T で戻す)":"車体を透かす: 切","#34d399"); }
+if(key==="v") nextCam();
+if(key==="g") cycleChart();
+if(key==="m") StopMenu.open(true);
+if(key==="p"&&Engine.st&&running) togglePower();
+if(key==="z") toggleSignal(-1);
+if(key==="c") toggleSignal(1);
+if(key==="x") toggleSignal(2);
+if(key==="q"&&running) document.getElementById("ask-panel").classList.toggle("hidden");
+if(key==="b"&&running) boost();
+if(key==="n"&&running) toggleGear();
+if(key==="t"&&running){ P.xray=!P.xray; Settings.save(); toast(P.xray?"車体を透かす: サスペンションが見えます (T で戻す)":"車体を透かす: 切","#34d399"); }
 if(e.key==="Backspace"&&Test.active){ e.preventDefault(); Test.retry(); }
 });
-addEventListener("keyup",e=>Input.keys[e.key.toLowerCase()]=false);
+addEventListener("keyup",e=>{ const key=keyOf(e); Input.keys[key]=false; if(key===" ") e.preventDefault(); });
+addEventListener("blur",()=>{ for(const k in Input.keys) Input.keys[k]=false; });   // 他のアプリへ切り替えると keyup が来ないので、押しっぱなしにならないよう離す
 function axisToPedal(gp,m){
 if(!m||m.axis==null) return 0;
 const raw=gp.axes[m.axis];

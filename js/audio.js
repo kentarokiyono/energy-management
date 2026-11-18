@@ -4,7 +4,9 @@
    インバーターの「ヒュイーン」(一定の高さのキャリア音と、その上下に回転に合わせて動く音) を重ねる
  ・タイヤ: 路面 (町のなめらかな舗装 / 郊外の荒い舗装 / 路肩の砂利) で音色を変える。橋のつなぎ目で「トン」
  ・風: 対気速度の 2 乗で強くなる低い「ゴー」と高い「シュー」、キャノピーの細い笛鳴り。突風で揺れる
- ・車内 (運転席の視点): 狭い車体の反響をかける
+ ・車内 (運転席の視点): 狭い車体の反響をかける。実車の車内で撮った動画 (約 70 km/h) の音の特徴に合わせて、
+   低い「ゴー」(40〜80 Hz、いちばん大きい)・車体の殻が鳴る帯 (330・500・770・1240 Hz)・2 kHz より上は殻にさえぎられて小さい・
+   8.8 kHz の細い音・路面の凸凹でガタガタ (タイヤの荷重の揺れ = Susp の計算に合わせて強弱、ときどき部品がカタカタ鳴る) を足す
  ・対向のロードトレイン: 低いディーゼル音。近づくと高く、離れると低く (ドップラー効果)、右側から聞こえる
  ・案内音: 無線は「ザッ」というスケルチ、ウインカーはリレーの「カチ」、ボタンは短いクリック */
 const Snd={
@@ -18,7 +20,8 @@ const Snd={
    // 車内の反響 (運転席の視点で混ぜる)
    this.dry=c.createGain(); this.wet=c.createGain(); this.wet.gain.value=0;
    const conv=c.createConvolver(); conv.buffer=this.room(0.22,2800);
-   this.master.connect(this.dry); this.master.connect(conv); conv.connect(this.wet); this.dry.connect(this.out); this.wet.connect(this.out);
+   this.cabEq=c.createBiquadFilter(); this.cabEq.type="highshelf"; this.cabEq.frequency.value=1800; this.cabEq.gain.value=0;   // 車内: 高い音は殻にさえぎられる
+   this.master.connect(this.cabEq); this.cabEq.connect(this.dry); this.cabEq.connect(conv); conv.connect(this.wet); this.dry.connect(this.out); this.wet.connect(this.out);
    this.ui=c.createGain(); this.ui.gain.value=0.6; this.ui.connect(this.out);                 // 案内音は反響なし
    // ---- モーター (交流モーター + インバーター) ----
    // 回転の音: 前の版と同じ 3 つの波 (のこぎり波 1 倍・サイン 3 倍・矩形 6 倍)。高さは速度に比例
@@ -41,6 +44,15 @@ const Snd={
    // ---- 雨 (粒の音・路面のザー) ----
    this.rainHi=this.band(this.noise(),5200,0.35,0); this.rainHi.out.connect(this.master);
    this.rainLo=this.band(this.noise(true),850,0.45,0); this.rainLo.out.connect(this.master);
+   // ---- 車内の走行音 (運転席の視点だけ) ----
+   this.cab=c.createGain(); this.cab.gain.value=0; this.cab.connect(this.master);
+   this.cabRough=c.createGain(); this.cabRough.gain.value=1; this.cabRough.connect(this.cab);   // 路面の凸凹 (タイヤの荷重の揺れ) で強弱
+   const cbn=this.noise(true), cwn=this.noise();
+   this.boom=this.band(cbn,57,2.2,1.0); this.boom.out.connect(this.cabRough);                   // 低い「ゴー」(車体がこもって鳴る)
+   this.boom2=this.band(cbn,95,1.4,0.35); this.boom2.out.connect(this.cabRough);
+   this.shell=[[330,3,1.6],[410,4,0.45],[505,4,0.2],[640,4,0.16],[765,4,0.08],[1240,5,0.15],[220,2,0.13],[1700,1.2,0.09],[3000,1,0.025]].map(([f,q,g])=>{ const b=this.band(cwn,f,q,g); b.out.connect(this.cabRough); return {b,f}; });   // 殻の鳴り
+   this.cabTone=c.createOscillator(); this.cabTone.type="sine"; this.cabTone.frequency.value=8800; const ctg=c.createGain(); ctg.gain.value=0.02; this.cabTone.connect(ctg); ctg.connect(this.cab); this.cabTone.start();   // 8.8 kHz の細い音
+   this.rattleT=0; this.excS=0;
    this.trucks=new Map(); this.lastKm=null; this.started=true;
   }catch(e){ console.warn("audio init failed",e); }
  },
@@ -68,7 +80,7 @@ const Snd={
   // ---- モーター ----
   const load=clamp(Math.abs(ampFrac||0),0,1), rg=clamp(regenW/700,0,1), f=30+v*13;    // 回転の音の高さ (前の版と同じ)
   for(const m of this.motorOsc) this.set(m.o.frequency,f*m.mult,0.05);
-  this.set(this.motorBus.gain,clamp(0.02+load*0.16+rg*0.08,0,0.22)*clamp(v/4+0.2,0.2,1),0.08);
+  this.set(this.motorBus.gain,clamp(0.02+load*0.16+rg*0.08,0,0.22)*clamp(v/4+0.2,0.2,1)*(this.inCab?0.35:1),0.08);   // 車内: 回転の音は殻・タイヤの音に埋もれる (動画では目立たない)
   // インバーター: キャリアの上下に「回転の高さ × 2」ずつ離れた音。加速で強く、速度が上がると (約 50 km/h まで) 消える
   const fe=f*0.5;
   for(const k of this.carrier) this.set(k.o.frequency,Math.max(20,this.FC+k.k*fe),0.04);
@@ -95,9 +107,24 @@ const Snd={
   this.set(this.whistle.g.gain,air>16? 0.012*(a-0.5)*wob : 0,0.4); this.set(this.whistle.f.frequency,1300+air*28,0.4);
   this.set(this.fire.g.gain,fire?0.3+Math.random()*0.15:0,0.1);
   // ---- 車内の反響 ----
-  const inCab=typeof View!=="undefined"&&View.cam===2&&P.mode!=="test";
+  const inCab=this.inCab=typeof View!=="undefined"&&View.cam===2&&P.mode!=="test";
   this.set(this.wet.gain,inCab?0.55:0,0.3); this.set(this.dry.gain,inCab?0.8:1,0.3);
+  this.cabin(inCab,v,rough,gravel);
   this.trucksFrame(v);
+ },
+ /* 車内の走行音: 速さで大きく (約 70 km/h で実車の動画と同じ釣り合い)、路面の凸凹 (タイヤの荷重の揺れ、70 km/h の郊外の舗装で約 0.11) で強弱。
+  凸凹が大きいほど部品がカタカタ鳴る */
+ cabin(on,v,rough,gravel){
+  const S=typeof View!=="undefined"&&View.susp, p=S&&S.Ft&&typeof Susp!=="undefined"? Susp.params() : null;
+  let exc= p&&p.wh.length===S.Ft.length? S.Ft.reduce((a,F,i)=>a+Math.abs(F-p.wh[i].F0)/p.wh[i].F0,0)/S.Ft.length : 0.11*rough/0.6*clamp(v/19.4,0,1.5);
+  if(!Number.isFinite(exc)) exc=0;
+  this.excS+=(exc-this.excS)*0.35; const rel=clamp(this.excS/0.11,0,5), sp=clamp(v/19.4,0,1.5);
+  this.set(this.cab.gain,on? 0.5*Math.pow(sp,1.3) : 0,0.15);
+  this.set(this.cabRough.gain,clamp(0.55+0.45*rel,0.3,2.5),0.03);   // ガタガタ (フレームごとの荷重の揺れに合わせて)
+  this.set(this.cabEq.gain,on? -15 : 0,0.3);
+  // 部品のカタカタ: 凸凹の強さと速さに比例した回数 (70 km/h の郊外で毎秒約 3 回)
+  if(on&&v>2&&!this.muted){ this.rattleT-=1/60; if(this.rattleT<=0){ const k=Math.min(4,rel*sp*(gravel?2:1)); this.rattleT=k>0.05? (0.15+Math.random()*0.5)/k : 1;
+    if(k>0.05){ this.burst(900+Math.random()*1600,4+Math.random()*4,0.02+Math.random()*0.03,0.05*Math.min(2,0.6+0.4*k),this.cab); if(rel>1.6&&Math.random()<0.4) this.thump(0.15*Math.min(3,rel)); } } }
  },
  /* 対向のロードトレイン (ディーゼルの低音 + 走行音)。近づく/遠ざかるで音程が変わる */
  trucksFrame(v){
