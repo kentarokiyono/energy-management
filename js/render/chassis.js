@@ -11,7 +11,11 @@ const ChassisMesh={
  /* 形の値 (車体の諸元の profiles): u (0 先端〜1 後端) の折れ線 */
  lin(P,u,d){ if(!P||!P.length) return d; if(u<=P[0][0]) return P[0][1]; for(let i=1;i<P.length;i++) if(u<=P[i][0]){ const [a,va]=P[i-1], [b,vb]=P[i]; return va+(vb-va)*(u-a)/(b-a||1); } return P[P.length-1][1]; },
  build(V,body,SB,E0,carbon){
-  if(typeof THREE==="undefined"||!SB||!SB.profiles) return null;
+  /* 形の値: 諸元 (実車の非公開のデータ) に profiles が無いとき (実車の外形の STL で車体を作るとき) は、公開用の形 (実車の外形から 2 cm 単位に丸めた値) で寸法を決める。
+   車輪・キャノピーの位置は諸元の値 */
+  const PB= SB&&SB.profiles? SB : (typeof YATA_PUBLIC_BODY!=="undefined"? YATA_PUBLIC_BODY : null);
+  if(typeof THREE==="undefined"||!PB||!PB.profiles) return null;
+  if(SB!==PB) SB=Object.assign({},PB,SB,{profiles:PB.profiles,L:PB.L,sectionBottom:PB.sectionBottom,wheels:(SB&&SB.wheels)||PB.wheels,canopy:(SB&&SB.canopy)||PB.canopy});
   const L=SB.L||5.76, HL=L/2, PF=SB.profiles, uOf=z=>clamp((z+HL)/L,0,1);
   const hw=z=>this.lin(PF.hullW,uOf(z),.5), top=z=>this.lin(PF.zHull,uOf(z),.62), bot=z=>this.lin(PF.zBell,uOf(z),.16);
   /* 胴体の断面の半幅 (高さ y の所): yata.js と同じ形 (諸元の sectionBottom があれば台形、無ければ丸い形) */
