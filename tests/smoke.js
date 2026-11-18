@@ -62,7 +62,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   await p.route("https://generativelanguage.googleapis.com/**",async rt=>{ const body=rt.request().postData()||""; bodies.push(body); const sys=JSON.parse(body).systemInstruction.parts[0].text;
    const text= sys.includes("JSON 配列")? JSON.stringify([{role:"tm",text:"AIテスト1"},{role:"elec",text:"AIテスト2"}]) : sys.includes("分析する")? "AI分析" : "AI戦略";
    await rt.fulfill({status:200,contentType:"application/json",body:JSON.stringify({candidates:[{content:{parts:[{text}]}}],usageMetadata:{promptTokenCount:10,candidatesTokenCount:5}})}); });
-  await p.goto(base+"index.html"); await p.waitForFunction(()=>typeof startGame==="function"&&typeof AI!=="undefined"); await p.waitForTimeout(500);
+  await p.goto(base+"index.html",{timeout:90000}); await p.waitForFunction(()=>typeof startGame==="function"&&typeof AI!=="undefined",null,{timeout:90000}); await p.waitForTimeout(500);
   const off=await p.evaluate(()=>{ AI.setKey(""); return AI.on(); });
   await p.evaluate(()=>{ AI.setKey("dummy"); P.aiOn=true; P.coffee=true; P.gfx="low"; P.mode="race"; P.event=false; P.crewProc=false; DRIVER_NAMES=["名前テスト甲","名前テスト乙"]; startGame(); });
   await p.waitForFunction(()=>Coffee.active&&Coffee.scene&&Coffee.est&&Coffee.est.flex&&!Coffee.job,null,{timeout:120000}).catch(()=>{});
@@ -96,6 +96,21 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   await p.evaluate(()=>{ Scenario.closeRes(); quitToMenu(); document.getElementById("scenario").value=""; });
   check("練習シナリオ: エラーなし",noErr(p).length===0,noErr(p).slice(0,2).join(" | "));
   await p.evaluate(()=>{ Scenario.closeRes(); quitToMenu(); document.getElementById("scenario").value=""; }); await p.context().close(); }
+ // ---- スピン (後ろ向きに滑る・ブレーキで止まる)・タイヤ痕・道の外の柔らかい砂に沈む ----
+ { const p=await newPage(b,base);
+  const r=await p.evaluate(()=>{ P.mode="race"; P.event=false; P.crewProc=false; startGame(); running=false; modalPause=false; Collide.enabled=false;
+   const es=Engine.st, step=()=>{ Engine.step(1/60,1/60); View.update(1/60); };
+   es.gear="D"; for(let i=0;i<30;i++){ es.v=20; step(); }
+   const T=View.tire; T.r=2.6; T.vy=-3; let back=0, t=0, stop=null;
+   for(;t<15;t+=1/60){ es.brakePhys= t>1.2? 1 : 0; step(); back=Math.min(back,T.ub||0); if(t>1.3&&es.v<0.05&&Math.abs(T.vy)<0.05&&!T.ub){ stop=t; break; } }
+   const skid=Skid.n;
+   // 道の外: 柔らかい斑 (道の端から 5 m) へ移して、4 m/s から惰性で
+   es.brakePhys=0; let s0=View.s; for(let k=0;k<400&&Tire.softAt(s0,5)<0.9;k++) s0+=1;
+   const q=View.roadPoint(s0), lat=(q.R||3.5)+5; View.cx=q.x+Math.cos(q.h)*lat; View.cz=q.z+Math.sin(q.h)*lat; View.ch=q.h+Math.PI/2; T.vy=0; T.r=0; T.ub=0;
+   es.v=4; let tS=0; for(;tS<8&&es.v>0.01;tS+=1/60) View.update(1/60);   // (Engine は止めて: 止まったあとの停車の扱いに入らないよう、道の外の抵抗だけを見る)
+   return {stop,back:+back.toFixed(1),skid,off:es.offroad,soft:+Tire.softAt(View.s,5).toFixed(2),sink:+(View.sink||0).toFixed(3),tS:+tS.toFixed(1)}; });
+  check("スピン: 後ろ向きに滑り、ブレーキで止まる・路面にタイヤ痕・道の外の柔らかい砂に沈んで止まる",r.stop!=null&&r.stop<8&&r.skid>10&&r.off&&r.sink>0.02&&r.tS<6&&noErr(p).length===0,JSON.stringify(r)+" "+noErr(p).slice(0,2).join(" | "));
+  await p.context().close(); }
  // ---- 横転の危険度と練習シナリオ (暴風雨) ----
  { const p=await newPage(b,base);
   const rr=await p.evaluate(()=>{ const es={lastRho:1.17,gLat:0,gLong:0}, R=(c,v,sh)=>VehDyn.roll(es,c,v/3.6,sh).risk;
@@ -369,7 +384,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
    const pad={id:"Fake",index:0,connected:true,axes:[0,0,0,0],buttons:[{pressed:false}],vibrationActuator:{playEffect:(t,o)=>{ window._rum.push([o.strongMagnitude,o.weakMagnitude]); return Promise.resolve("complete"); }}};
    navigator.getGamepads=()=>[pad]; });
   const p=await ctx.newPage(); p.errs=[]; p.on("pageerror",e=>p.errs.push(e.message));
-  await p.goto(base+"index.html"); await p.waitForFunction(()=>typeof FFB==="object"); await p.waitForTimeout(300);
+  await p.goto(base+"index.html",{timeout:90000}); await p.waitForFunction(()=>typeof FFB==="object",null,{timeout:90000}); await p.waitForTimeout(300);
   const f=await p.evaluate(async()=>{ const hid=[]; FFB.hid={sendReport:(id,d)=>{ hid.push([...d]); return Promise.resolve(); }}; P.ffb="high"; P.ffbTune={};
    const base={v:25,steer:0,offroad:false,shoulder:false,rough:0.65,cross:0,trainRel:null,brake:0,gLat:0,dt:1/60};
    const run=async(mod)=>{ window._rum.length=0; hid.length=0; FFB.on=false; for(let i=0;i<30;i++){ FFB.tSend=0; FFB.update(Object.assign({},base,mod)); await new Promise(r=>setTimeout(r,2)); }

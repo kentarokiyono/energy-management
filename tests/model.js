@@ -209,8 +209,14 @@ const T0=Date.now();
   return {kCold,kWarm,rC,rW,R25,R100,ay0:st0.ay,ay1:st1.ay,cp0:VehDyn.cpAt(0),cp40:VehDyn.cpAt(0.7)}; })()`);
  check("冷えたタイヤは転がり抵抗が大きい (暑い日の巡航で 1)・熱いモーターは巻線の抵抗が大きい",ph.kCold>1.15&&near(ph.kWarm,1,0.02)&&ph.rC>ph.rW&&ph.R100>ph.R25*1.25,`タイヤ 20 °C ×${ph.kCold.toFixed(2)}・巡航 ×${ph.kWarm.toFixed(2)}・モーター 100 °C で抵抗 ×${(ph.R100/ph.R25).toFixed(2)}`);
  check("タイヤの横の力は少し遅れて立ち上がる・横風の力の中心は風の角度が大きいと後ろへ",ph.ay0<ph.ay1*0.95&&ph.ay0>0&&ph.cp40<ph.cp0-0.5,`切って 0.02 秒の横 G ${(ph.ay0/9.79).toFixed(3)} / 遅れなし ${(ph.ay1/9.79).toFixed(3)}・中心 ${ph.cp0.toFixed(2)} → ${ph.cp40.toFixed(2)} m`);
- const ks=R(`(()=>{ const p=Tire.params(), st=Tire.init(); Tire.step(st,{u:1,delta:0.2},{mu:1},0.1); return {r:st.r, k:1*Math.tan(0.2)/p.L}; })()`);
- check("止まる直前 (1 m/s) は前輪の向きどおりに曲がる",near(ks.r,ks.k,1e-9),ks.r.toFixed(4)+" rad/s");
+ const ks=R(`(()=>{ const p=Tire.params(), st=Tire.init(); Tire.step(st,{u:0.25,delta:0.2},{mu:1},0.1); return {r:st.r, k:0.25*Math.tan(0.2)/p.L}; })()`);
+ check("止まる直前 (0.25 m/s) は前輪の向きどおりに曲がる",near(ks.r,ks.k,1e-9),ks.r.toFixed(4)+" rad/s");
+ const slow=R(`(()=>{ const st=Tire.init(), dt=1/60; st.vy=1.5; let t=0, mx=0; for(;t<5;t+=dt){ Tire.step(st,{u:0.6,delta:0},{mu:0.9},dt); const j=Math.abs(st.vy); if(t>0&&j>mx) mx=j; if(Math.abs(st.vy)<0.02) break; } return {t,vy:st.vy}; })()`);
+ check("ゆっくり横に滑っても、タイヤの摩擦でなめらかに止まる (急に止まらない)",slow.t>0.1&&slow.t<1.5&&Math.abs(slow.vy)<0.05,`横 1.5 m/s が ${slow.t.toFixed(2)} 秒で止まる`);
+ const soil=R(`(()=>{ const z=[0,2,8,20].map(v=>{ let z=0; for(let t=0;t<5;t+=0.05) z=Tire.sinkStep(z,v,1,0.05); return z; }); return {z,crr0:Tire.soilCrr(3,z[0]),crr20:Tire.soilCrr(3,z[3]),gravel:Tire.soilCrr(1,0),Fm:motorModel(48,0.5,0.8,"normal").F,m:massTotal()}; })()`);
+ check("道の外: 柔らかい砂は遅いほど深く沈み、止まると埋まって動けない・速ければ抜けられる",soil.z[0]>soil.z[1]&&soil.z[1]>soil.z[3]&&soil.crr0*soil.m*9.79>soil.Fm&&soil.crr20*soil.m*9.79<soil.Fm&&soil.gravel<0.03,`沈み ${soil.z.map(x=>(x*100).toFixed(1)).join("・")} cm (0/2/8/20 m/s)、抵抗 ${(soil.crr0*soil.m*9.79).toFixed(0)} N / ${(soil.crr20*soil.m*9.79).toFixed(0)} N (モーター ${soil.Fm.toFixed(0)} N)`);
+ const sair=R(`(()=>{ const a=VehDyn.aeroSide(-20,0,1.17), b=VehDyn.aeroSide(-0.2,20,1.17); return {side:a.Fy, small:b.Fy}; })()`);
+ check("横に滑ると空気の力が滑りを止める向きに大きくかかる (真横 20 m/s で数百 N、普通の走りの横すべりでは小さい)",sair.side<-300&&Math.abs(sair.small)<30,`真横 ${sair.side.toFixed(0)} N・横すべり 0.2 m/s で ${sair.small.toFixed(0)} N`);
  const spn=R(`(()=>{ const st=Tire.init(), dt=1/60; st.r=1.5; st.vy=-2; let u=20,t=0,d=0; for(;t<30;t+=dt){ const R=Tire.step(st,{u,delta:0},{mu:0.9},dt); u=Math.max(0,u+R.du*dt); d+=Math.hypot(u,st.vy)*dt; if(Math.hypot(u,st.vy)<0.3) break; } return {t,d}; })()`);
  check("スピンすると横に滑ってタイヤの摩擦で止まる (どこまでも滑らない)",spn.t<6&&spn.d<60,`72 km/h から ${spn.t.toFixed(1)} 秒・${spn.d.toFixed(0)} m`);
 }

@@ -130,7 +130,7 @@ if(es.brakePhys>0) Fbrake+=Engine.brakeForce(es,m);
 const FbFric=Fbrake;
 if(es.brakeRegen>0){ const rg=regenModel(es.brakeRegen,this.v,es.soc,es.powerMode); Fr=rg.F; Fbrake+=Fr; Pregen=rg.Pgen; }
 // タイヤが伝えられる分だけ効く (ロック・空転)。前のフレームの割合
-const T=this.tire||(this.tire=Tire.init()), u=this.v*gearDir();
+const T=this.tire||(this.tire=Tire.init()), u=this.v*gearDir()+(T.ub||0);   // T.ub: 後ろ向きに滑っている分 (Tire.long)
 let FxT=Ftrac-Fbrake;
 if(this.tireFx!=null&&Math.abs(this.tireFxReq)>1&&Math.sign(this.tireFxReq)===Math.sign(FxT)) FxT*=clamp(this.tireFx/this.tireFxReq,0,1);
 const Foff= offTrack&&this.v>1? m*clamp(this.v*0.12,0.2,2.5) : 0;
@@ -153,15 +153,15 @@ es.v=this.v;
 const S=this.susp||(this.susp=Susp.init());
 { const ds=this.v*dtR, s0=(this.odo=(this.odo||0)+ds)-ds, k=offTrack? 8 : 0.8, wh=Tire.params().wh;   // 路面の凸凹 (コースは舗装、外は土)
  Susp.step(S,{ax:(es.gPitch||0)*GRAV,Fy:this.v>0.05? (this.lastFyT||0) : 0,FxR:this.v>0.05? (this.lastFxR||0) : 0,road:(i,f)=>Susp.roughAt(s0+ds*f+wh[i].px,wh[i].py,k)},dtR); }   // サスペンション (レースと同じ)
-if(this.v>0.05||Math.abs(T.vy)>0.05){
+if(this.v>0.05||Math.abs(T.vy)>0.05||T.ub){
  T.ax=(es.gLong||0)*GRAV;
  const wet=typeof Rain!=="undefined"? (Rain.wet||0) : 0, mu= offTrack? Tire.SURF.dirt : 1-Tire.SURF.wetK*wet;
- const R=Tire.step(T,{u,delta:Tire.steerAngle(Input.steer,this.v,Input.steerMode),drive:Ftrac,brake:FbFric,regen:Fr},{mu,Fz:S.Fz,camber:S.camber},dtR);
- this.v=Math.max(0,this.v+R.du*gearDir()*dtR); es.v=this.v;   // スピン: 前へ進む速さが横の滑りに移る (レースと同じ)
+ const R=Tire.step(T,{u,delta:Tire.steerAngle(Input.steer,this.v,Input.steerMode),drive:T.ub?0:Ftrac,brake:FbFric,regen:T.ub?0:Fr},{mu,Fz:S.Fz,camber:S.camber,...this.slideAir(T,u)},dtR);
+ this.v=Tire.long(T,this.v,gearDir(),R,dtR); es.v=this.v;   // スピン: 前へ進む速さが横の滑りに移る・後ろ向きに滑る (レースと同じ)
  this.lastFyT=R.fy; this.lastFxR=R.fxR;
  this.tireFx=R.fx; this.tireFxReq=R.fxReq; es.tireW=R.wheels; es.tireUse=T.use; es.tireSlide=T.slide; es.tireLock=T.lockAny; es.tireSat=T.sat;
  this.heading+=T.r*dtR; es.gLat=T.ay/GRAV;
-} else { es.gLat=0; T.vy=0; T.r=0; T.ay=0; this.tireFx=null; es.tireW=null; es.tireUse=0; es.tireSlide=false; es.tireLock=false; es.tireSat=0; }
+} else { es.gLat=0; T.vy=0; T.r=0; T.ay=0; T.ub=0; this.tireFx=null; es.tireW=null; es.tireUse=0; es.tireSlide=false; es.tireLock=false; es.tireSat=0; }
 const x0=this.x, z0=this.z;
 this.x+=(Math.sin(this.heading)*u+Math.cos(this.heading)*T.vy)*dtR;
 this.z+=(-Math.cos(this.heading)*u+Math.sin(this.heading)*T.vy)*dtR;
@@ -371,6 +371,8 @@ else if(Math.abs(f.accB)>=2*Math.PI) doneSide("右円");
 }
 },
 /* 当たり判定: 試験の座標 (ローカル) → 会場の座標に直して判定し、押し出しを戻す。破損・大破はその試験を失格 */
+/* 横に滑っている分の空気の力 (レースと同じ: 横から風を受けるのと同じ) → Tire.step の env */
+slideAir(T,u){ const c=-(T.vy||0); if(Math.abs(c)<=0.3||typeof VehDyn==="undefined") return {}; const w=VehDyn.aeroSide(c,Math.abs(u),1.17); return {Fside:w.Fy,cpX:VehDyn.cpAt(Math.atan2(Math.abs(c),Math.max(1,Math.abs(u))))}; },
 collide(x0,z0){
  if(typeof Collide==="undefined"||!Collide.enabled||this.state==="done") return;
  const e=this.frameM.elements, toV=(x,z)=>[e[0]*x+e[8]*z+e[12], e[2]*x+e[10]*z+e[14]];
