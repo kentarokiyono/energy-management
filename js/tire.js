@@ -125,7 +125,7 @@ const Tire={
   // 横すべり + キャンバー (車輪が傾いた向きへ押す力 = CAMBER·荷重·傾き) を合わせた滑りの量
   const C=p.cornK*(kC||1)*Fz*Math.max(0.3,1-0.5*this.LS*r0), ss0=vt/Math.max(Math.abs(vl),0.5)-(gam? this.CAMBER*Fz*gam/Math.max(C,1) : 0);
   /* タイヤの力の立ち上がりの遅れ: 横すべりは、タイヤが RELAX [m] ほど転がる間に追いつく (切った瞬間・突風の直後は力が少し遅れる) */
-  if(!Number.isFinite(ws.ss)||!h) ws.ss=ss0; else ws.ss+=clamp(Math.abs(vl)*h/this.RELAX,0,1)*(ss0-ws.ss);
+  if(!Number.isFinite(ws.ss)||!h) ws.ss=ss0; else ws.ss+=clamp(Math.hypot(vl,vt)*h/this.RELAX,0,1)*(ss0-ws.ss);   // 真横に滑っていても追いつく
   const ss=ws.ss, ta=Math.abs(ss);
   let fy=0, z=0;
   if(fyMax>1e-6){ z=C*ta/(3*fyMax);
@@ -141,18 +141,18 @@ const Tire={
 
  /* 1 フレーム進める。st: init() の状態、inp: {u [m/s, 後退 −], delta [rad], drive, brake, regen [N]}、
   env: {mu: 車輪ごとの μ の配列 (または 1 つの数), Fside 横風の横力 [N, 右 +], lift [N], Fz: 車輪ごとの荷重 [N] (Susp。無ければ釣り合いの式), camber: 車輪ごとの傾き [rad, 右へ +]}、dt [s]
-  → st を更新し、{fx 実際に出た前後の力 (車輪の向きの成分) の合計 [N], fxReq 要求の合計, ay, wheels} */
+  → st を更新し、{fx 実際に出た前後の力 (車輪の向きの成分) の合計 [N], fxReq 要求の合計, du 前後の速さの足し分 [m/s²] (呼び出し側が u に足す), ay, wheels} */
  step(st,inp,env,dt){
   const p=this.params(), u=inp.u||0, au=Math.abs(u), d=inp.delta||0, n=Math.max(1,Math.min(25,Math.ceil(dt/this.H))), h=dt/n;
   if(!st.w||st.w.length!==p.wh.length) st.w=p.wh.map(()=>({lock:false}));
   const muOf=i=> Array.isArray(env.mu)? (env.mu[i]==null?1:env.mu[i]) : (env.mu==null?1:env.mu);
-  const kDyn=clamp((au-this.V0)/(this.V1-this.V0),0,1);
+  const kDyn=clamp((Math.hypot(au,st.vy||0)-this.V0)/(this.V1-this.V0),0,1);   // 速さ: 横に滑っている分も (スピン中に前後の速さが 0 近くでも、横の滑りはタイヤの摩擦で止める)
   // 滑りのない動き (前輪の向きどおり、後輪は横に滑らない)
   const rK=u*Math.tan(d)/p.L, vyK=rK*p.b;   // (舵角は左右の平均 d で。アッカーマン・トーは低速では向きに効かない)
   if(kDyn<=0){ st.vy=vyK; st.r=rK; st.ay=u*rK; st.sat=0; st.use=0; st.slide=false; st.lockAny=false;
    for(const ws of st.w){ ws.lock=false; ws.ss=null; }
-   const fx=p.wh.reduce((s,w)=>s+this.demand(p,w,inp),0); return {fx,fxReq:fx,ay:st.ay,fy:p.m*st.ay,fxR:p.wh.reduce((s,w)=>s+(w.front?0:this.demand(p,w,inp)),0),fxF:p.wh.reduce((s,w)=>s+(w.front?this.demand(p,w,inp):0),0),wheels:null}; }
-  let out=null, fxS=0, fxR=0; const A=this.align(), sc=Math.sin(A.caster), dW=p.wh.map(w=>this.steerOf(p,w,d,A)), PK=this.press(), flat=env.flat==null? -1 : env.flat;
+   const fx=p.wh.reduce((s,w)=>s+this.demand(p,w,inp),0); return {fx,fxReq:fx,du:0,ay:st.ay,fy:p.m*st.ay,fxR:p.wh.reduce((s,w)=>s+(w.front?0:this.demand(p,w,inp)),0),fxF:p.wh.reduce((s,w)=>s+(w.front?this.demand(p,w,inp):0),0),wheels:null}; }
+  let out=null, fxS=0, fxR=0, duS=0; const A=this.align(), sc=Math.sin(A.caster), dW=p.wh.map(w=>this.steerOf(p,w,d,A)), PK=this.press(), flat=env.flat==null? -1 : env.flat;
   for(let k=0;k<n;k++){
    const Fz=env.Fz||this.loads(p,st.ax||0,st.ay||0,env.lift||0);   // 荷重: サスペンション (Susp) の計算があればそれ、無ければ釣り合いの式
    let FX=0, FY=0, MZ=0, fxW=0, fxRr=0, fxFf=0, sat=0, use=0, slide=false, lockAny=false; const wo=[];
@@ -169,12 +169,13 @@ const Tire={
    }
    const FYt=FY; FY+=env.Fside||0; MZ+=(env.Fside||0)*(env.cpX!=null? env.cpX : p.cpX);   // 横風の力は風の力の中心に (角度で動く: VehDyn.cpAt)
    const vyDot=FY/p.m-u*st.r, rDot=MZ/p.Iz;
+   duS+=st.vy*st.r+(FX-fxW)/p.m;   // 前後の速さの変わり方のうち Engine が数えない分: 車体が回ると横の速さが前後へ (スピン)、前輪の横の力の前後の成分
    st.vy+=vyDot*h; st.r+=rDot*h; st.ay=FY/p.m; st.ax=FX/p.m; fxS+=fxW;
    out={sat,use,slide,lockAny,wo,FYt,fxRr,fxFf};
   }
   st.vy=lerp(vyK,st.vy,kDyn); st.r=lerp(rK,st.r,kDyn);
   st.sat=out.sat*kDyn; st.use=out.use; st.slide=out.slide&&kDyn>0.5; st.lockAny=out.lockAny;
-  return {fx:fxS/n, fxReq:fxR/n, ay:st.ay, fy:out.FYt, fxR:out.fxRr, fxF:out.fxFf, wheels:out.wo};
+  return {fx:fxS/n, fxReq:fxR/n, du:duS/n*kDyn, ay:st.ay, fy:out.FYt, fxR:out.fxRr, fxF:out.fxFf, wheels:out.wo};
  },
  /* ハンドルを戻すモーメントの目安 [N·m] (乾いた路面で、前輪がいちばん強く戻そうとするくらい)。反力の強さをこれで割って 0〜1 にする */
  satRef(){ const p=this.params(), Ff=p.wh.reduce((s,w)=>s+(w.front?w.share:0),0)*p.m*GRAV; return Math.max(1,p.mu*Ff*(this.TRAIL*0.385+this.align().tm)); },

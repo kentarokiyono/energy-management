@@ -932,11 +932,12 @@ if(wind){ wind.Fy+=this.trainWake(es,vv); wind.beta=Math.atan2(Math.abs(crossR),
 const moving=vv>0.05, Wd=carDims()[1];
 Susp.step(S,{ax:(es.gPitch||0)*GRAV,Fy:moving? (this.lastFyT||0) : -(wind?wind.Fy:0),FxR:moving? (this.lastFxR||0) : 0,FxF:moving? (this.lastFxF||0) : 0,Fside:wind?wind.Fy:0,lift:wind?wind.L:0,
  Mx:wind? Math.sign(crossR)*wind.L*Wd/4 : 0,hold:shieldW? ROLL_DEF.hold : 0,flat:es.burst? this.flatWheel(es) : -1,road:this.roadFn(es,u*dtR)},dtR);
-if(vv>0.05){
+if(vv>0.05||Math.abs(T.vy)>0.05){
  const rq=es.tireReq||{};
  T.ax=(es.gLong||0)*GRAV;
  const R=Tire.step(T,{u,delta:this.delta,drive:rq.drive,brake:rq.brake,regen:rq.regen},
   {mu:this.wheelMu(es),Fside:wind?wind.Fy:0,cpX:wind? VehDyn.cpAt(wind.beta) : null,Fz:S.Fz,camber:S.camber,flat:es.burst? this.flatWheel(es) : -1},dtR);
+ es.v=Math.max(0,es.v+R.du*gearDir()*dtR);   // スピン: 車体が回ると前へ進む速さが横の滑りに移り、横の滑りはタイヤの摩擦で止まる (前後の速さは 0 で止める)
  this.lastFyT=R.fy; this.lastFxR=R.fxR; this.lastFxF=R.fxF;
  es.tireFx=R.fx; es.tireFxReq=R.fxReq; es.tireW=R.wheels; es.tireUse=T.use; es.tireSlide=T.slide; es.tireLock=T.lockAny; es.tireSat=T.sat;
  if(typeof DrvRec!=="undefined") DrvRec.tire(es,dtR);

@@ -24,14 +24,14 @@ module.exports=`globalThis.HT={
    const Fs=typeof o.Fside==="function"? o.Fside(t) : (o.Fside||0), env={mu:o.mu==null?1:o.mu,Fside:Fs};
    if(o.susp!==false){ Susp.step(sp,{ax:st.ax||0,Fy:fyT,Fside:Fs,FxR:fxRr},dt); env.Fz=sp.Fz; env.camber=sp.camber; }   // サスペンション (走行と同じ)。susp:false で釣り合いの式
    const R=Tire.step(st,{u,delta:dl,brake:o.brake||0,drive:o.drive||0},env,dt); fyT=R.fy; fxRr=R.fxR||0;
-   if(o.u==null){ st.ax=R.fx/p.m; u=Math.max(0,u+R.fx/p.m*dt); }
+   if(o.u==null){ st.ax=R.fx/p.m; u=Math.max(0,u+(R.fx/p.m+(R.du||0))*dt); }   // du: スピンで前後の速さが横の滑りに移る分 (走行と同じ)
    h+=st.r*dt; x+=(Math.cos(h)*u-Math.sin(h)*st.vy)*dt; y+=(Math.sin(h)*u+Math.cos(h)*st.vy)*dt; t+=dt;
    r.maxBeta=Math.max(r.maxBeta,Math.abs(Tire.beta(st,u))); r.maxRoll=Math.max(r.maxRoll||0,Math.abs(sp.ph||0)); r.maxUse=Math.max(r.maxUse,st.use||0); if(st.slide) r.slideT+=dt;
    if(R.wheels){ if(r.lockF==null&&R.wheels.some(w=>w.front&&w.lock)) r.lockF=t; if(r.lockR==null&&R.wheels.some(w=>!w.front&&w.lock)) r.lockR=t; }
    if(o.wheelR){ for(const w of p.wh){ const wx=x+Math.cos(h)*w.px-Math.sin(h)*w.py, wy=y+Math.sin(h)*w.px+Math.cos(h)*w.py; r.wx=r.wx||[]; r.wx.push([wx,wy]); } }
    if(Math.round(t/dt)%10===0) r.path.push([x,y,h]);
    if(o.stop&&o.stop({x,y,h,u,t})) break;
-   if(o.u==null&&u<0.3) break;
+   if(o.u==null&&Math.hypot(u,st.vy)<0.3) break;
   }
   return Object.assign(r,{t,x,y,h,u});
  },
