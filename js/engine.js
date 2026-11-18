@@ -243,6 +243,19 @@ const sunset=this.sunsetHour(prof.lat);
 return (s.hour>=6.25&&s.hour<8) || (s.hour>=17&&s.hour<sunset) || (s.hour>=this.raceStartHour()&&s.hour<17);
 },
 GUST_DT:10,   // [s] 突風の値を決める間隔 (ゲーム内時間)
+/* 機械ブレーキ: ペダル (0〜1) → 力 [N]。踏み始めの遊び 6 %、踏み込むほど強く効く (1.5 乗)。
+ ディスクの温度: ブレーキの仕事 (力 × 速さ) で上がり、走行風で冷える。250 °C を超えると効きが落ち (フェード)、450 °C で 55 % */
+BRAKE:{dead:0.06, pow:1.5, C:550, hA:2.0, fade0:250, fade1:450, fadeMin:0.55},
+brakeFade(T){ const B=this.BRAKE; return !(T>B.fade0)? 1 : T>=B.fade1? B.fadeMin : 1-(1-B.fadeMin)*(T-B.fade0)/(B.fade1-B.fade0); },
+brakeForce(s,m){ const B=this.BRAKE, p=clamp(((s.brakePhys||0)-B.dead)/(1-B.dead),0,1); return Math.pow(p,B.pow)*PRO.brakeMu*m*GRAV*this.brakeFade(s.brakeT); },
+/* 温め: 実時間 dtR のブレーキの仕事。冷え: ゲーム内時間 dtS (時間を早送りしても冷える時間はゲームの時計どおり) */
+brakeHeat(s,Fb,v,dtR,dtS,Tamb){ const B=this.BRAKE, Ta=Number.isFinite(Tamb)? Tamb : 30; if(!Number.isFinite(s.brakeT)) s.brakeT=Ta;
+ s.brakeT+=(Fb*Math.max(0,v)*(dtR||0)-B.hA*(1+0.08*Math.max(0,v))*(s.brakeT-Ta)*(dtS||0))/B.C;
+ if(s.brakeT<Ta) s.brakeT=Ta;
+ if(s.brakeT>300&&!s.brakeHotMsg&&typeof Radio!=="undefined"){ s.brakeHotMsg=true; Radio.push(`ブレーキが熱くなっています (${Math.round(s.brakeT)} °C)。効きが落ちるので回生ブレーキを使ってください。`,"チーフ"); }
+ if(s.brakeT<200) s.brakeHotMsg=false; },
+/* パンク: その車輪だけ転がり抵抗が 8 倍 → 車全体では荷重の配分の分 */
+burstCrrK(s){ if(typeof Tire==="undefined") return 8; const w=Tire.params().wh[s.burstWheel==null?0:s.burstWheel]; return w? 1+7*w.share : 8; },
 step(dtS,dtR){
 const s=this.st;
 if(s.finished||s.trailered) return;
@@ -298,7 +311,7 @@ if(csPaused&&!s.csPauseMsg){ s.csPauseMsg=true; Radio.push("17:00 です。コ�
 if(!csPaused) s.csPauseMsg=false;
 if(!s.stopHold&&!csPaused) s.stopTimer-=dtS; s.v=0;
 if(s.stopTimer<=0){
-if(s.stopKind==="tire"&&s.burst){ s.burst=false; toast("🛞 タイヤ交換完了!","#34d399"); }
+if(s.stopKind==="tire"&&s.burst){ s.burst=false; s.burstWheel=null; toast("🛞 タイヤ交換完了!","#34d399"); }
 if(s.stopKind==="check"){ if(s.fault){ s.fault=null; s.faultAnnounced=false; toast("🔍 不具合を修理しました!","#34d399"); } else toast("🔍 機器チェック完了。異常なし","#34d399"); }
 if(s.stopKind==="cp") toast("点検完了!係員の指示に従ってコントロールストップを出てください","#34d399");
 if(s.stopKind==="driver") toast("🔁 ドライバー交代完了。本線へ戻ってください","#34d399");
@@ -342,7 +355,7 @@ const m=massTotal(), mEff=m+PRO.mRot;
 // 勾配は実際の標高 (ルートの標高データ) だけで計算する。見た目の道路の起伏は使わない
 const slope=(P.event&&typeof EventGame!=="undefined"&&EventGame.hilly&&View.road)? Math.atan(View.roadPoint(View.s).g||0) : prof.slope; s.physSlope=slope;   // イベントの Port Augusta 区間は見た目の坂がそのまま効く
 const rw=Model.relWind({ms:s.windSpeed,toward:s.windDirWorld},prof.bearing); s.lastHead=rw.head; s.lastCross=rw.cross;
-const rs=Model.resist(s.v,{m,grade:Math.tan(slope)*(s.gear==="R"?-1:1),head:rw.head,cross:rw.cross,rho,gLat:s.gLat,crrK:s.burst?8:1,aeroK:1+((s.damage&&s.damage.aero)||0)});   // 後退では坂の向きが逆。接触による破損で空気抵抗が増える
+const rs=Model.resist(s.v,{m,grade:Math.tan(slope)*(s.gear==="R"?-1:1),head:rw.head,cross:rw.cross,rho,gLat:s.gLat,crrK:s.burst? this.burstCrrK(s) : 1,aeroK:1+((s.damage&&s.damage.aero)||0)});   // 後退では坂の向きが逆。接触による破損で空気抵抗が増える
 const Froll=rs.roll, Fdrag=rs.drag, Fcorner=rs.corner, Fslope=rs.slope;
 s.lastYawDeg=rs.yaw*180/Math.PI;
 let thr=s.throttleSet;
@@ -361,7 +374,7 @@ const mm=motorModel(I_cmd,s.v,s.soc,s.powerMode);
 let Ftrac=mm.F;
 if(s.gear==="R"&&s.v>REVERSE.maxV) Ftrac=0;   // 後退の上限速度
 let Fbrake=0, Pregen=0;
-if(s.brakePhys>0) Fbrake += s.brakePhys*PRO.brakeMu*m*GRAV;
+if(s.brakePhys>0) Fbrake += this.brakeForce(s,m);   // ペダル → 力 (遊び・踏み込み特性・温度のフェード)
 const FbFric=Fbrake;
 let Fr=0;
 if(s.brakeRegen>0){ const rg=regenModel(s.brakeRegen,s.v,s.soc,s.powerMode); Fr=rg.F; Fbrake+=Fr; Pregen=rg.Pgen; }
@@ -371,6 +384,7 @@ let Fx=Ftrac-Fbrake;
 if(s.tireFx!=null&&Math.abs(s.tireFxReq)>1&&Math.sign(s.tireFxReq)===Math.sign(Fx)) Fx*=clamp(s.tireFx/s.tireFxReq,0,1);
 const Fnet=Fx-Froll-Fdrag-Fslope-Fcorner;
 const v0=s.v; s.v=Math.max(0,s.v+Fnet/mEff*dtR);
+this.brakeHeat(s,FbFric*(s.tireFx!=null&&Math.abs(s.tireFxReq)>1? clamp(s.tireFx/s.tireFxReq,0,1) : 1)*(v0>0.1?1:0),v0,dtR,dtS,Tamb);   // ブレーキの温度 (止まっていれば仕事をしない)
 /* 加減速 [G] は実際の速度の変化から (止まっているときにブレーキを踏んでも 0。タイヤの荷重移動・車体の沈み込みに使う)。
  gPitch: 路面に沿う力 (タイヤの前後の力) による沈み込み = 加速度 + 坂の重力の成分 (坂で止まっていても少し傾く) */
 if(dtR>0){ const a=(s.v-v0)/dtR; s.gLong=a/GRAV; s.gPitch=(a+Fslope/mEff)/GRAV; }
@@ -401,7 +415,7 @@ else s.limitTimer=0;
 if(View.redSignalKm!=null && prev<View.redSignalKm && s.km>=View.redSignalKm && s.v*3.6>5){
 Snd.alarm(); toast("🚨 赤信号を通過しました!","#ef4444"); View.redSignalKm=null; if(P.event) EventGame.onRedRun();
 }
-} else { const v0=s.v; s.v=Math.max(0,s.v-3*dtR); if(dtR>0){ s.gLong=(s.v-v0)/dtR/GRAV; s.gPitch=s.gLong; } I_cmd=0; Pmotor=0; }
+} else { this.brakeHeat(s,0,0,0,dtS,Tamb); const v0=s.v; s.v=Math.max(0,s.v-3*dtR); if(dtR>0){ s.gLong=(s.v-v0)/dtR/GRAV; s.gPitch=s.gLong; } I_cmd=0; Pmotor=0; }
 s.lastAmp=I_cmd; s.lastMotorW=Math.max(0,s.lastMotorNow!=null?s.lastMotorNow:Pmotor); s.lastMotorNow=null;
 let Paux = s.disconnected ? 0 : (s.camp?2:P.auxW);
 if(s.fault&&s.fault.type==="aux") Paux+=150;
@@ -429,7 +443,7 @@ if(s.socZeroSec>300) this.ignite("バッテリー過放電による熱暴走");
 } else if(s.soc>0.01) { s.socZeroSec=0; s.radioCd.soc0=false; }
 if(P.mode==="race" && s.v>3){
 if(!s.burst && Rng.r("fault")<0.20*PRO.faultScale*dKmSafe(s,dtS)/TOTAL_KM*(1+0.08*PRO.gridRisk*s.gridCount)){
-s.burst=true; Snd.bang(); toast("💥 タイヤバースト!停車してタイヤ交換が必要です","#ef4444");
+s.burst=true; s.burstWheel=Math.floor(Rng.r("fault")*(typeof Tire!=="undefined"? Tire.params().wh.length : 3)); Snd.bang(); toast("💥 タイヤバースト!停車してタイヤ交換が必要です","#ef4444");   // どの車輪か (タイヤの計算で片側へ取られる)
 Radio.push("タイヤバースト発生!安全に減速して停車後、タイヤ交換を実施してください。");
 }
 if(!s.fault && Rng.r("fault")<0.20*PRO.faultScale*dKmSafe(s,dtS)/TOTAL_KM*(1+0.04*PRO.gridRisk*s.gridCount)){

@@ -286,7 +286,9 @@ es.brakeRegen=lerp(es.brakeRegen,(k["r"]||Input.gpRegen)?1:0,clamp(dt*8,0,1));
 const kbS=((k["a"]||k["arrowleft"])?-1:0)+((k["d"]||k["arrowright"])?1:0);
 if(Input.gamepadOK&&Math.abs(Input.gpSteer)>0.02){
  // ハンコン (ペダルを割り当て済み) はそのまま。スティックは中央付近を細かく (小さく倒すと少しだけ切れる)
- const g=Input.gpSteer, sIn= Input.map.accel? g : Math.sign(g)*Math.pow(Math.abs(g),1.6);
+ /* ハンコン: 機器の回転角 (wheelDeg、G HUB などの設定) と実車のハンドルのロックからロックまで (carLockDeg) の比で、実車と同じ角度で切れる */
+ const wk= (P.wheelDeg>0&&P.carLockDeg>0)? P.wheelDeg/P.carLockDeg : 1;
+ const g=Input.gpSteer, sIn= Input.map.accel? clamp(g*wk,-1,1) : Math.sign(g)*Math.pow(Math.abs(g),1.6);
  Input.steer=lerp(Input.steer,clamp(sIn,-1,1),clamp(dt*(Input.map.accel?14:8),0,1)); Input.kbHold=0; Input.steerMode=Input.map.accel? "wheel" : "assist"; return; }
 Input.steerMode="assist";   // ハンコン: 前輪の舵角はハンドルの角度に比例。キーボード・スティック: 速いほど切れ方を抑える (Tire.steerAngle)
 /* キーボード: 人がハンドルを回す速さで切れていき、離すとタイヤの復元力で戻る。

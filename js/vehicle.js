@@ -63,6 +63,8 @@ const VehDyn={
   諸元 (vehicle-private.js) があればその値。無いときは一般的な値 */
  roll(es,crossR,v,shield){
   const C=Object.assign({},ROLL_DEF.chassis,VEH.spec.chassis||{}), A=Object.assign({},ROLL_DEF.aero,VEH.spec.aero||{});
+  // 諸元が無いときは、タイヤの計算 (Tire) と同じ重心の高さ・車輪の数 (静的安定係数 1.2 から決めた高さ)
+  if(!(VEH.active&&VEH.spec.chassis)&&typeof Tire!=="undefined"){ const tp=Tire.params(); C.cgHeight=tp.h; C.cgTread=0; C.ssf=ROLL_DEF.ssf; C.wheels=tp.wh.length; }
   const g=GRAV, m=massTotal(), rho=es.lastRho||1.17, h=C.cgHeight, half= C.cgTread? C.cgTread/2 : (C.ssf||ROLL_DEF.ssf)*h;
   const W=carDims()[1], hold=shield? ROLL_DEF.hold : 0;   // 風よけ: 誘導車・追走車が風上で風を弱める (風速半分)。クルーが押さえる力 [N]
   const {Fy,L}=this.aeroSide(crossR*(shield?0.5:1),v,rho);

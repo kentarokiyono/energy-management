@@ -76,6 +76,13 @@ const Tire={
    const ideal=Math.atan(p.L/Math.max(0.05,Rc+(inner?-y:y))); di=d+A.ack*(Math.sign(d)*ideal-d); }
   return di+(w.py<0? A.toe : -A.toe);
  },
+ /* 車輪ごとの空気圧の効き (Susp.pressK)。設定が無ければ基準 */
+ press(){ const p=this.params(), S=typeof Susp!=="undefined"? Susp : null;
+  return p.wh.map(w=> S? S.pressK(w.front? S.val("pF") : S.val("pR")) : {kt:1,crr:1,corn:1,mu:1}); },
+ /* 空気圧による転がり抵抗の倍率 (荷重の配分で平均)。Model.resist の転がり抵抗に掛ける */
+ _ck:null,
+ crrK(){ const c=this._ck, ps=typeof P!=="undefined"? P.susp : null; if(c&&c.ps===ps&&c.p===this._p) return c.k;
+  const p=this.params(), PK=this.press(); let k=0; p.wh.forEach((w,i)=>{ k+=w.share*PK[i].crr; }); this._ck={ps,p:this._p,k}; return k; },
  /* トー・静的キャンバーによる、まっすぐ走るときの抵抗 [N] (前輪がわずかに横すべりしたまま転がる分)。走行抵抗 (Model.resist) に足す */
  _ad:null,
  alignDrag(m){ const c=this._ad, ps=typeof P!=="undefined"? P.susp : null; if(c&&c.m===m&&c.ps===ps&&c.p===this._p) return c.F;   // 走行抵抗の計算で何度も呼ばれるので、値が変わるまで覚えておく
@@ -91,7 +98,7 @@ const Tire={
 
  /* 1 輪の力 (車輪の向きの座標: 前 + / 右 +)。vl・vt: 接地点の速さ、Fz 荷重、mu 路面の μ、Fxd 前後の力の要求 (前 +)、ws: 車輪の状態 {lock}
   → {fx, fy, slide (横に滑っている), lock (ロック・空転), use (グリップの使い方 0〜1), sat (ハンドルを戻すモーメント [N·m])} */
- wheel(p,vl,vt,Fz,mu,Fxd,ws,gam){
+ wheel(p,vl,vt,Fz,mu,Fxd,ws,gam,kC){
   const r0=Fz/p.Fz0-1, muE=mu*Math.max(0.5,1-this.LS*r0), Fmax=muE*Fz;
   if(Fmax<1){ ws.lock=false; return {fx:0,fy:0,slide:Fz>0,lock:false,use:Fz>0?1:0,sat:0}; }
   const brakeReq= Fxd*Math.sign(vl||1)<0;   // 動いている向きと逆の力 = ブレーキ
@@ -105,7 +112,7 @@ const Tire={
   }
   const fx=Fxd, fyMax=Math.sqrt(Math.max(0,Fmax*Fmax-fx*fx));
   // 横すべり + キャンバー (車輪が傾いた向きへ押す力 = CAMBER·荷重·傾き) を合わせた滑りの量
-  const C=p.cornK*Fz*Math.max(0.3,1-0.5*this.LS*r0), ss=vt/Math.max(Math.abs(vl),0.5)-(gam? this.CAMBER*Fz*gam/Math.max(C,1) : 0), ta=Math.abs(ss);
+  const C=p.cornK*(kC||1)*Fz*Math.max(0.3,1-0.5*this.LS*r0), ss=vt/Math.max(Math.abs(vl),0.5)-(gam? this.CAMBER*Fz*gam/Math.max(C,1) : 0), ta=Math.abs(ss);
   let fy=0, z=0;
   if(fyMax>1e-6){ z=C*ta/(3*fyMax);
    const mag= z<1? fyMax*(3*z-3*z*z+z*z*z) : fyMax*(1-(1-this.SLIDE)*clamp(z-1,0,1));
@@ -130,27 +137,30 @@ const Tire={
   const rK=u*Math.tan(d)/p.L, vyK=rK*p.b;   // (舵角は左右の平均 d で。アッカーマン・トーは低速では向きに効かない)
   if(kDyn<=0){ st.vy=vyK; st.r=rK; st.ay=u*rK; st.sat=0; st.use=0; st.slide=false; st.lockAny=false;
    for(const ws of st.w) ws.lock=false;
-   const fx=p.wh.reduce((s,w)=>s+this.demand(p,w,inp),0); return {fx,fxReq:fx,ay:st.ay,fy:p.m*st.ay,fxR:p.wh.reduce((s,w)=>s+(w.front?0:this.demand(p,w,inp)),0),wheels:null}; }
-  let out=null, fxS=0, fxR=0; const A=this.align(), sc=Math.sin(A.caster), dW=p.wh.map(w=>this.steerOf(p,w,d,A));
+   const fx=p.wh.reduce((s,w)=>s+this.demand(p,w,inp),0); return {fx,fxReq:fx,ay:st.ay,fy:p.m*st.ay,fxR:p.wh.reduce((s,w)=>s+(w.front?0:this.demand(p,w,inp)),0),fxF:p.wh.reduce((s,w)=>s+(w.front?this.demand(p,w,inp):0),0),wheels:null}; }
+  let out=null, fxS=0, fxR=0; const A=this.align(), sc=Math.sin(A.caster), dW=p.wh.map(w=>this.steerOf(p,w,d,A)), PK=this.press(), flat=env.flat==null? -1 : env.flat;
   for(let k=0;k<n;k++){
    const Fz=env.Fz||this.loads(p,st.ax||0,st.ay||0,env.lift||0);   // 荷重: サスペンション (Susp) の計算があればそれ、無ければ釣り合いの式
-   let FX=0, FY=0, MZ=0, fxW=0, fxRr=0, sat=0, use=0, slide=false, lockAny=false; const wo=[];
+   let FX=0, FY=0, MZ=0, fxW=0, fxRr=0, fxFf=0, sat=0, use=0, slide=false, lockAny=false; const wo=[];
    for(let i=0;i<p.wh.length;i++){ const w=p.wh[i], di=dW[i], c=Math.cos(di), s=Math.sin(di);
     const uF=u-st.r*w.py, vR=st.vy+st.r*w.px, vl=uF*c+vR*s, vt=-uF*s+vR*c;
-    const fxd=this.demand(p,w,inp), f=this.wheel(p,vl,vt,Fz[i],this.SURF.road*muOf(i)*p.mu,fxd,st.w[i],(env.camber?env.camber[i]:0)+(w.front? sc*di : 0));   // キャスター: 切った向きへ車輪が傾く
+    // 空気圧 (横の硬さ・グリップ)・パンク (横の硬さ 3 割・グリップ 6 割、潰れたタイヤを引きずる抵抗)
+    const pk=PK[i], fl=i===flat, kC=pk.corn*(fl?0.3:1), kM=pk.mu*(fl?0.6:1);
+    const fxd=this.demand(p,w,inp), f=this.wheel(p,vl,vt,Fz[i],this.SURF.road*muOf(i)*p.mu*kM,fxd,st.w[i],(env.camber?env.camber[i]:0)+(w.front? sc*di : 0),kC);   // キャスター: 切った向きへ車輪が傾く
+    if(fl&&Math.abs(vl)>0.3){ const Fd=0.05*Fz[i]*Math.sign(vl); MZ+=w.py*Fd*c; }   // パンクした側が引きずられて、その側へ向きが変わる (エネルギーは Engine の転がり抵抗)
     const fxb=f.fx*c-f.fy*s, fyb=f.fx*s+f.fy*c;
-    FX+=fxb; FY+=fyb; MZ+=w.px*fyb-w.py*fxb; fxR+=fxd; fxW+=f.fx; if(!w.front) fxRr+=f.fx;
+    FX+=fxb; FY+=fyb; MZ+=w.px*fyb-w.py*fxb; fxR+=fxd; fxW+=f.fx; if(!w.front) fxRr+=f.fx; else fxFf+=f.fx;
     if(w.front) sat+=f.sat+f.fy*A.tm; use=Math.max(use,f.use); slide=slide||f.slide; lockAny=lockAny||f.lock;
     wo.push({Fz:Fz[i],fx:f.fx,fy:f.fy,use:f.use,slide:f.slide,lock:f.lock,front:w.front,px:w.px,py:w.py});
    }
    const FYt=FY; FY+=env.Fside||0; MZ+=(env.Fside||0)*p.cpX;
    const vyDot=FY/p.m-u*st.r, rDot=MZ/p.Iz;
    st.vy+=vyDot*h; st.r+=rDot*h; st.ay=FY/p.m; st.ax=FX/p.m; fxS+=fxW;
-   out={sat,use,slide,lockAny,wo,FYt,fxRr};
+   out={sat,use,slide,lockAny,wo,FYt,fxRr,fxFf};
   }
   st.vy=lerp(vyK,st.vy,kDyn); st.r=lerp(rK,st.r,kDyn);
   st.sat=out.sat*kDyn; st.use=out.use; st.slide=out.slide&&kDyn>0.5; st.lockAny=out.lockAny;
-  return {fx:fxS/n, fxReq:fxR/n, ay:st.ay, fy:out.FYt, fxR:out.fxRr, wheels:out.wo};
+  return {fx:fxS/n, fxReq:fxR/n, ay:st.ay, fy:out.FYt, fxR:out.fxRr, fxF:out.fxFf, wheels:out.wo};
  },
  /* ハンドルを戻すモーメントの目安 [N·m] (乾いた路面で、前輪がいちばん強く戻そうとするくらい)。反力の強さをこれで割って 0〜1 にする */
  satRef(){ const p=this.params(), Ff=p.wh.reduce((s,w)=>s+(w.front?w.share:0),0)*p.m*GRAV; return Math.max(1,p.mu*Ff*(this.TRAIL*0.385+this.align().tm)); },

@@ -126,7 +126,7 @@ const I_cmd=thr*(es.gear==="R"? Math.min(REVERSE.maxA,motorMaxA(es.powerMode)) :
 const mmT=motorModel(I_cmd,this.v,es.soc,es.powerMode);
 const Ftrac= es.gear==="R"&&this.v>REVERSE.maxV? 0 : mmT.F;
 let Fbrake=0,Pregen=0,Fr=0;
-if(es.brakePhys>0) Fbrake+=es.brakePhys*PRO.brakeMu*m*GRAV;
+if(es.brakePhys>0) Fbrake+=Engine.brakeForce(es,m);
 const FbFric=Fbrake;
 if(es.brakeRegen>0){ const rg=regenModel(es.brakeRegen,this.v,es.soc,es.powerMode); Fr=rg.F; Fbrake+=Fr; Pregen=rg.Pgen; }
 // タイヤが伝えられる分だけ効く (ロック・空転)。前のフレームの割合
@@ -136,6 +136,7 @@ if(this.tireFx!=null&&Math.abs(this.tireFxReq)>1&&Math.sign(this.tireFxReq)===Ma
 const Foff= offTrack&&this.v>1? m*clamp(this.v*0.12,0.2,2.5) : 0;
 const FnetT=FxT-Froll-Fdrag-Fslope-Fcorner-Foff;
 const v0=this.v; this.v=Math.max(0,this.v+FnetT/mEff*dtR);
+Engine.brakeHeat(es,FbFric*(this.tireFx!=null&&Math.abs(this.tireFxReq)>1? clamp(this.tireFx/this.tireFxReq,0,1) : 1)*(v0>0.1?1:0),v0,dtR,dtR,Tamb);
 { const a=dtR>0? (this.v-v0)/dtR : 0; es.gLong=a/GRAV; es.gPitch=(a+Fslope/mEff)/GRAV; }   // 実際の速度の変化から (止まってブレーキを踏んでも沈まない)
 const Pmotor=Math.max(0,mmT.Pelec-Pregen);
 es.lastAmp=I_cmd; es.lastMotorW=Pmotor;

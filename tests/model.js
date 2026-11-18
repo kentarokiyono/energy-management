@@ -175,6 +175,31 @@ const T0=Date.now();
    return {mn:mn/p.wh[1].F0,mx:mx/p.wh[1].F0,zb}; };
   return {flat:run(()=>0), rough:run((s,y)=>Susp.roughAt(s,y,1)), grid:run((s,y)=>Susp.gridAt(s))}; })()`);
  check("ばね下: 平らな道は荷重一定、舗装のうねり・キャトルグリッドで揺れる (舗装では車輪は浮かない・車体はあまり動かない)",near(gr.flat.mn,1,1e-6)&&gr.rough.mn>0.5&&gr.rough.mx>1.05&&gr.grid.mn<0.9&&gr.grid.zb<0.005,`前輪の荷重 舗装 ${(gr.rough.mn*100).toFixed(0)}〜${(gr.rough.mx*100).toFixed(0)} %・グリッド ${(gr.grid.mn*100).toFixed(0)}〜${(gr.grid.mx*100).toFixed(0)} %・車体 ${(gr.grid.zb*1000).toFixed(1)} mm`);
+ const tp=R(`(()=>{ const p=Susp.params(), fr=p.wh.map((w,i)=>({w,i})).filter(o=>o.w.geo.kind==="wishbone"), L=fr.find(o=>o.w.py<0), Rt=fr.find(o=>o.w.py>0);
+  const ltr=(st)=>(st.Fz[L.i]-st.Fz[Rt.i])/(st.Fz[L.i]+st.Fz[Rt.i]);
+  const run=(o)=>{ const st=Susp.init(); for(let t=0;t<3;t+=0.01) Susp.step(st,o,0.01); return st; };
+  let ayLift=null; for(let ay=0.2;ay<=2;ay+=0.02){ const st=run({Fy:-p.m*ay*GRAV}); if(Math.min(st.Fz[L.i],st.Fz[Rt.i])<1){ ayLift=ay; break; } }
+  const w=run({Fy:-700,Fside:700,lift:400,Mx:400*1.8/4}), wh=run({Fy:-700,Fside:700,lift:400,Mx:400*1.8/4,hold:1500});   // 停車して強い横風 (右へ)
+  return {ayLift, wind:Math.abs(ltr(w)), hold:Math.abs(ltr(wh))}; })()`);
+ check("横転: 片輪が浮くのは静的安定係数どおり (1.2 G 付近)。止まって横風を受けると荷重が偏り、クルーが押さえると減る",tp.ayLift>1.05&&tp.ayLift<1.35&&tp.wind>0.1&&tp.hold<tp.wind*0.85,`浮く横 G ${tp.ayLift&&tp.ayLift.toFixed(2)}・横風で偏り ${(tp.wind*100).toFixed(0)} % → 押さえて ${(tp.hold*100).toFixed(0)} %`);
+ const fl=R(`(()=>{ const p=Tire.params(), right=p.wh.findIndex(w=>w.front&&w.py>0), run=(flat)=>{ const st=Tire.init(); for(let t=0;t<2;t+=0.01) Tire.step(st,{u:20,delta:0},{mu:1,flat},0.01); return st.r; };
+  const sg=(flat)=>{ const st=Tire.init(); let ay=0; for(let t=0;t<3;t+=0.01){ Tire.step(st,{u:20,delta:0.04},{mu:1,flat},0.01); ay=st.ay; } return ay; };
+  return {r0:run(-1), rF:run(right), ay0:sg(-1), ayF:sg(right), k:Engine.burstCrrK({burstWheel:right})}; })()`);
+ check("パンク (右前): 右へ取られ、曲がる力が落ち、転がり抵抗はその車輪の分だけ増える",Math.abs(fl.r0)<1e-6&&fl.rF>0.002&&fl.ayF<fl.ay0&&fl.k>1.5&&fl.k<4,`向きの変わり ${(fl.rF*57.3).toFixed(2)}°/s・横 G ${(fl.ay0/9.79).toFixed(2)} → ${(fl.ayF/9.79).toFixed(2)}・転がり ×${fl.k.toFixed(2)}`);
+ const pr=R(`(()=>{ const set=(o)=>{ P.susp=Object.assign({},o); Susp._p=null; }; const roll=()=>Model.resist(20,{m:270}).roll, c=()=>{ const st=Tire.init(); for(let t=0;t<3;t+=0.01) Tire.step(st,{u:20,delta:0.02},{mu:1},0.01); return st.ay; };
+  set({pF:4,pR:4}); const r4=roll(), a4=c(); set({pF:6,pR:6}); const r6=roll(), a6=c(); set({}); return {r4,r6,a4,a6}; })()`);
+ check("空気圧: 高いほど転がり抵抗が小さく、横すべりが硬い (同じ舵角でよく曲がる)",pr.r6<pr.r4*0.93&&pr.a6>pr.a4,`転がり 4 bar ${pr.r4.toFixed(1)} N → 6 bar ${pr.r6.toFixed(1)} N`);
+ const ad=R(`(()=>{ const set=(o)=>{ P.susp=Object.assign({},o); Susp._p=null; }; const run=(o)=>{ const st=Susp.init(); for(let t=0;t<3;t+=0.01) Susp.step(st,o,0.01); return st.th; };
+  set({antiDive:0}); const t0=run({ax:-5,FxF:-1000,FxR:-300}); set({antiDive:60}); const t6=run({ax:-5,FxF:-1000,FxR:-300}); set({});
+  const p=Susp.params(), w=p.wh[1], b1=Susp.spring(w,p.travel-0.02)+0, st=Susp.init();
+  // ダンパー: 同じ速さで縮むより伸びるほうが強い / バンプストッパー: 端で急に硬い (力の比)
+  return {t0,t6,cC:w.cC,cR:w.cR}; })()`);
+ check("アンチダイブで前の沈みが減る・ダンパーは伸び側が強い",ad.t6>ad.t0&&ad.t0<0&&ad.cR>ad.cC,`沈み ${(ad.t0*57.3).toFixed(3)}° → ${(ad.t6*57.3).toFixed(3)}°`);
+ const bk=R(`(()=>{ const s={brakePhys:0.05}, m=270, f=(p,T)=>{ s.brakePhys=p; s.brakeT=T; return Engine.brakeForce(s,m); };
+  const dead=f(0.05,30), half=f(0.5,30), full=f(1,30), hot=f(1,400);
+  const h={brakeT:30}; let n=0; for(let k=0;k<6;k++){ for(let t=0;t<4;t+=0.05) Engine.brakeHeat(h,full,22*(1-t/4),0.05,0.05,30); n++; }
+  return {dead,half,full,hot,T:h.brakeT}; })()`);
+ check("ブレーキ: 遊びでは効かず、半分踏みで半分より弱い (踏み込むほど強い)。熱くなると効きが落ちる",bk.dead===0&&bk.half<bk.full*0.45&&bk.hot<bk.full*0.85&&bk.T>200,`半分 ${(bk.half/bk.full*100).toFixed(0)} %・400 °C で ${(bk.hot/bk.full*100).toFixed(0)} %・80 km/h から 6 回止まって ${bk.T.toFixed(0)} °C`);
  const ks=R(`(()=>{ const p=Tire.params(), st=Tire.init(); Tire.step(st,{u:1,delta:0.2},{mu:1},0.1); return {r:st.r, k:1*Math.tan(0.2)/p.L}; })()`);
  check("止まる直前 (1 m/s) は前輪の向きどおりに曲がる",near(ks.r,ks.k,1e-9),ks.r.toFixed(4)+" rad/s");
 }

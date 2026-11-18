@@ -156,6 +156,8 @@ document.getElementById("hud-tcell").textContent=telem?es.lastTcell.toFixed(0)+"
 const tb=document.getElementById("hud-tbat");
 tb.textContent=telem&&es.Tbat!=null?es.Tbat.toFixed(1)+"°C":dash;
 tb.style.color=es.Tbat>55?"#d23a2e":es.Tbat>45?"#f0812a":"";
+{ const bt=document.getElementById("hud-tbrk"); if(bt){ const T=es.brakeT; bt.textContent=Number.isFinite(T)? T.toFixed(0)+"°C"+(T>Engine.BRAKE.fade0?" (効き "+Math.round(Engine.brakeFade(T)*100)+" %)":"") : dash; bt.style.color=T>Engine.BRAKE.fade0?"#d23a2e":T>180?"#f0812a":""; } }   // ブレーキ温度・フェード
+{ const gp=document.getElementById("hud-grip"); if(gp){ const u=es.tireUse||0; gp.textContent= es.tireLock? "ロック" : es.tireSlide? "スリップ" : Math.round(u*100)+" %"; gp.style.color=(es.tireLock||es.tireSlide||u>0.85)?"#d23a2e":u>0.6?"#f0812a":""; } }   // 一番使っている車輪のグリップ
 document.getElementById("hud-wind").innerHTML=`${es.windSpeed.toFixed(1)} m/s`;
 const prof=profileAt(es.km);
 document.getElementById("hud-elev").textContent=prof.elev.toFixed(0)+" m";
