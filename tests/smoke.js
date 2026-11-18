@@ -439,7 +439,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   check("待機画面",o.open&&o.anim==="sbSpin"&&o.faces===2&&/radial-gradient/.test(o.bg)&&c.closed&&c.q==="",JSON.stringify([o,c]));
   await p.context().close(); }
  // ---- サスペンション: 止まってブレーキでは沈まない・走りながらのブレーキで前が沈む・曲がると外へ傾く・車体を透かすとアームが見える ----
- { const p=await newPage(b,base);
+ { const b2=await chromium.launch({args:["--use-gl=swiftshader","--enable-webgl","--ignore-gpu-blocklist"]}), p=await newPage(b2,base);   // 別のブラウザで (ページ内で走行を一気に回すと、後片付けが次のテストの読み込みまで巻き込むことがある)
   const r=await p.evaluate(()=>{ P.mode="race"; P.event=false; P.crewProc=false; P.susp={roadK:0}; startGame(); running=false; modalPause=false;   // 路面の凸凹なし (曲がって路肩・土に出ても揺れで値がぶれないように)
    const es=Engine.st, run=(sec,f)=>{ for(let t=0;t<sec;t+=1/60){ if(f) f(); Engine.step(1/60,1/60); View.update(1/60); } };
    es.hour=Math.max(es.hour,es.gridStartH+0.01); es.stopTimer=0; es.gear="D";
@@ -453,7 +453,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   check("走りながらブレーキで前が沈む",r.brake.g<-0.2&&r.brake.th<-0.001,`${r.brake.g.toFixed(2)} G・${(r.brake.th*57.3).toFixed(2)}°`);
   check("右へ曲がると車体は外 (左) へ傾く",r.turn.gLat>0.1&&r.turn.ph<-0.002,`${r.turn.gLat.toFixed(2)} G・${(r.turn.ph*57.3).toFixed(2)}°`);
   check("車体を透かすとサスペンションの部品が見える (戻すと隠れる)",r.x.vis&&r.x.parts>=3&&r.x.tr&&r.x.off,JSON.stringify(r.x));
-  await p.context().close(); }
+  await p.context().close(); await b2.close(); }
  // ---- 戦略の先読みと実際の走行 (Engine.step) が一致する・天気番号で同じ天気・空が描画距離の内側 ----
  { const p=await newPage(b,base);
   const r=await p.evaluate(()=>{ P.mode="race"; P.event=false; P.fcErr="off"; P.crewProc=false; startGame(); View.update=()=>{};
