@@ -57,15 +57,17 @@ const Team={
  sus(){ const p=Susp.params(), f=(x,d)=>Number.isFinite(x)? x.toFixed(d) : "―", o=P.susp||{}, S=(VEH.active&&VEH.spec.susp)||{};
   const rows=Susp.TUNE.map(([k,l,u,lo,hi,st])=>{ const v=Susp.val(k), src= o[k]!=null? "設定" : S[k]!=null? "実車の値" : "既定";
    return `<div class="team-row"><span class="lb">${l}</span><span class="num"><input type="number" class="team-num" step="${st}" min="${lo}" max="${hi}" value="${v}" onchange="Susp.set('${k}',this.value);Team.render('sus')"> ${u}</span><span class="dim">${src}</span></div>`; }).join("");
-  const fw=p.wh.find(w=>w.front&&w.geo.tab), cam= fw? Susp.geoAt(fw,0.03).camber*180/Math.PI : NaN;
+  const fw=p.wh.find(w=>w.geo.kind==="wishbone"), cam= fw? Susp.geoAt(fw,0.03).camber*180/Math.PI : NaN;
   return `<label class="chk team-chk"><input type="checkbox" ${P.xray?"checked":""} onchange="P.xray=this.checked;Settings.save()"><i></i>車体を透かしてサスペンションを見る (走行中は T キー)</label>
    <div class="team-sec">ばね・ダンパー・アーム</div>${rows}
+   <div class="team-row"><span class="lb">後ろ: アームの付く側</span><span class="num"><select class="team-num" onchange="Susp.setSide(this.value);Team.render('sus')"><option value="R" ${Susp.side()>0?"selected":""}>右</option><option value="L" ${Susp.side()<0?"selected":""}>左</option></select></span><span class="dim">運転席に座って前を見たときの向き</span></div>
    <div class="team-act"><button class="btn ana-sm" onclick="Susp.reset();Team.render('sus')">${this.ic("x")}既定に戻す</button></div>
    <div class="team-sec">計算した値</div>
    ${this.row("ロールセンター (前)",f(p.hF*1000,0)+" mm","地面から")}${this.row("ロール軸 (重心の位置)",f(p.hRA*1000,0)+" mm","")}
    ${this.row("30 mm 縮んだときのキャンバー (前)",f(cam,2)+" °","− = 上が内側")}
+   ${(()=>{ const r=p.wh.find(w=>w.geo.kind==="link"); return r? this.row("アンチスクワット (後ろ)",f(r.geo.anti*p.L/p.h*100,0)+" %","加速で後ろが沈むのを、アームが打ち消す割合") : ""; })()}
    ${this.row("ばね (車輪の位置で)",p.wh.map(w=>`${w.front?"前":"後"} ${f(w.k/1000,1)}`).join(" / ")+" N/mm","")}
-   <div class="dim team-note">前はダブルウィッシュボーン (アッパーアーム・ロアアーム・アップライト)、後ろはスイングアーム。ばねの硬さは車体の揺れの周期 (Hz) で決めます。実車の値は非公開の諸元ファイル (susp) に入れると既定になります。</div>`; },
+   <div class="dim team-note">前はダブルウィッシュボーン (アッパーアーム・ロアアーム・アップライト) とマウンテンバイク用のエアサス (縮むほど硬い)。後ろは片持ち (上下 2 本の非対称な V 字のアーム、下はサスのブラケットで A 字。アップライトはインホイールモーターに直付け) とコイルばね。ばねの硬さは車体の揺れの周期 (Hz) で決めます。実車の値は非公開の諸元ファイル (susp) に入れると既定になります。</div>`; },
  /* ---- 運用 ---- */
  ops(){ setTimeout(()=>this.aiState(),0); return `<label class="chk team-chk"><input type="checkbox" ${P.csTilt!==false?"checked":""} onchange="P.csTilt=this.checked;Team.saved();if(typeof Trend!=='undefined'&&Trend.left)Trend.left()"><i></i>CS (30 分の停車) で傾けて充電する</label>
    <div class="dim team-note">外すと、ゲーム本戦の CS では平置きのまま充電し、戦略・速度の指示・傾向もそれを前提に計算します (朝・夕方は傾ける)。</div>

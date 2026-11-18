@@ -871,13 +871,13 @@ const T=this.tire||(this.tire=Tire.init()), u=vv*gearDir(), S=this.susp||(this.s
 this.delta=Tire.steerAngle(Input.steer,vv,Input.steerMode);
 const wind=P.mode==="race"&&!P.event&&vv>1? VehDyn.aeroSide(-(es.lastCross||0),vv,es.lastRho||1.17) : null;
 /* サスペンション: 実際の加速度 (速度の変化) とタイヤの横力 (前のフレーム) から車体の動きと車輪ごとの荷重・キャンバー */
-Susp.step(S,{ax:(es.gPitch||0)*GRAV,Fy:vv>0.05? (this.lastFyT||0) : 0,Fside:wind?wind.Fy:0,lift:wind?wind.L:0},dtR);
+Susp.step(S,{ax:(es.gPitch||0)*GRAV,Fy:vv>0.05? (this.lastFyT||0) : 0,FxR:vv>0.05? (this.lastFxR||0) : 0,Fside:wind?wind.Fy:0,lift:wind?wind.L:0},dtR);
 if(vv>0.05){
  const rq=es.tireReq||{};
  T.ax=(es.gLong||0)*GRAV;
  const R=Tire.step(T,{u,delta:this.delta,drive:rq.drive,brake:rq.brake,regen:rq.regen},
   {mu:this.wheelMu(es),Fside:wind?wind.Fy:0,Fz:S.Fz,camber:S.camber},dtR);
- this.lastFyT=R.fy;
+ this.lastFyT=R.fy; this.lastFxR=R.fxR;
  es.tireFx=R.fx; es.tireFxReq=R.fxReq; es.tireW=R.wheels; es.tireUse=T.use; es.tireSlide=T.slide; es.tireLock=T.lockAny; es.tireSat=T.sat;
  if(typeof DrvRec!=="undefined") DrvRec.tire(es,dtR);
  this.yawR=T.r; this.ch+=T.r*dtR;

@@ -109,27 +109,27 @@ const Tire={
   const rK=u*Math.tan(d)/p.L, vyK=rK*p.b;
   if(kDyn<=0){ st.vy=vyK; st.r=rK; st.ay=u*rK; st.sat=0; st.use=0; st.slide=false; st.lockAny=false;
    for(const ws of st.w) ws.lock=false;
-   const fx=p.wh.reduce((s,w)=>s+this.demand(p,w,inp),0); return {fx,fxReq:fx,ay:st.ay,fy:p.m*st.ay,wheels:null}; }
+   const fx=p.wh.reduce((s,w)=>s+this.demand(p,w,inp),0); return {fx,fxReq:fx,ay:st.ay,fy:p.m*st.ay,fxR:p.wh.reduce((s,w)=>s+(w.front?0:this.demand(p,w,inp)),0),wheels:null}; }
   let out=null, fxS=0, fxR=0;
   for(let k=0;k<n;k++){
    const Fz=env.Fz||this.loads(p,st.ax||0,st.ay||0,env.lift||0);   // 荷重: サスペンション (Susp) の計算があればそれ、無ければ釣り合いの式
-   let FX=0, FY=0, MZ=0, fxW=0, sat=0, use=0, slide=false, lockAny=false; const wo=[];
+   let FX=0, FY=0, MZ=0, fxW=0, fxRr=0, sat=0, use=0, slide=false, lockAny=false; const wo=[];
    for(let i=0;i<p.wh.length;i++){ const w=p.wh[i], di=w.front? d : 0, c=Math.cos(di), s=Math.sin(di);
     const uF=u-st.r*w.py, vR=st.vy+st.r*w.px, vl=uF*c+vR*s, vt=-uF*s+vR*c;
     const fxd=this.demand(p,w,inp), f=this.wheel(p,vl,vt,Fz[i],this.SURF.road*muOf(i)*p.mu,fxd,st.w[i],env.camber?env.camber[i]:0);
     const fxb=f.fx*c-f.fy*s, fyb=f.fx*s+f.fy*c;
-    FX+=fxb; FY+=fyb; MZ+=w.px*fyb-w.py*fxb; fxR+=fxd; fxW+=f.fx;
+    FX+=fxb; FY+=fyb; MZ+=w.px*fyb-w.py*fxb; fxR+=fxd; fxW+=f.fx; if(!w.front) fxRr+=f.fx;
     if(w.front) sat+=f.sat; use=Math.max(use,f.use); slide=slide||f.slide; lockAny=lockAny||f.lock;
     wo.push({Fz:Fz[i],fx:f.fx,fy:f.fy,use:f.use,slide:f.slide,lock:f.lock,front:w.front,px:w.px,py:w.py});
    }
    const FYt=FY; FY+=env.Fside||0; MZ+=(env.Fside||0)*p.cpX;
    const vyDot=FY/p.m-u*st.r, rDot=MZ/p.Iz;
    st.vy+=vyDot*h; st.r+=rDot*h; st.ay=FY/p.m; st.ax=FX/p.m; fxS+=fxW;
-   out={sat,use,slide,lockAny,wo,FYt};
+   out={sat,use,slide,lockAny,wo,FYt,fxRr};
   }
   st.vy=lerp(vyK,st.vy,kDyn); st.r=lerp(rK,st.r,kDyn);
   st.sat=out.sat*kDyn; st.use=out.use; st.slide=out.slide&&kDyn>0.5; st.lockAny=out.lockAny;
-  return {fx:fxS/n, fxReq:fxR/n, ay:st.ay, fy:out.FYt, wheels:out.wo};
+  return {fx:fxS/n, fxReq:fxR/n, ay:st.ay, fy:out.FYt, fxR:out.fxRr, wheels:out.wo};
  },
  /* ハンドルを戻すモーメントの目安 [N·m] (乾いた路面で、前輪がいちばん強く戻そうとするくらい)。反力の強さをこれで割って 0〜1 にする */
  satRef(){ const p=this.params(), Ff=p.wh.reduce((s,w)=>s+(w.front?w.share:0),0)*p.m*GRAV; return Math.max(1,p.mu*Ff*this.TRAIL*0.385); },
