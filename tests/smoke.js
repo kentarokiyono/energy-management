@@ -10,12 +10,14 @@ function serve(){ return new Promise(res=>{ const s=http.createServer((q,r)=>{ l
   r.writeHead(200,{"Content-Type":TYPES[path.extname(f)]||"application/octet-stream"}); fs.createReadStream(f).pipe(r); }); s.listen(0,"127.0.0.1",()=>res(s)); }); }
 const results=[]; let failed=0;
 function check(name,ok,info){ results.push(`${ok?"PASS":"FAIL"}  ${name}${info?"  ("+info+")":""}`); if(!ok) failed++; }
-async function newPage(b,base,opt={}){
+async function newPage(b,base,opt={},retry=1){
  const ctx=await b.newContext({viewport:opt.vp||{width:1280,height:720},hasTouch:!!opt.touch,isMobile:!!opt.touch});
  const p=await ctx.newPage(); p.errs=[]; p.ext=[];
  p.on("pageerror",e=>p.errs.push(e.message)); p.on("console",m=>{ if(m.type()==="error") p.errs.push(m.text()); });
  p.on("request",r=>{ const u=r.url(); if(!u.startsWith(base)&&!/^(data|blob):/.test(u)) p.ext.push(u); });
- await p.goto(base+"index.html"+(opt.q||""),{timeout:90000}); await p.waitForFunction(()=>typeof startGame==="function"&&typeof THREE!=="undefined",null,{timeout:90000});   // ソフトウェア描画では、前のページの後片付けで読み込みが遅れることがある
+ /* ソフトウェア描画では、前のページの後片付けで読み込みが遅れる・まれに止まることがある (CI)。止まったらページを作り直して 1 回だけやり直す */
+ try{ await p.goto(base+"index.html"+(opt.q||""),{timeout:retry? 60000 : 90000}); await p.waitForFunction(()=>typeof startGame==="function"&&typeof THREE!=="undefined",null,{timeout:retry? 60000 : 90000}); }
+ catch(e){ if(!retry) throw e; console.log("(読み込みが止まったので、ページを作り直してやり直します: "+String(e.message).split("\n")[0]+")"); await ctx.close().catch(()=>{}); return newPage(b,base,opt,0); }
  /* 描画を止める (既定)。テストは値・画面の部品・エラーを確かめるので 3D の絵は要らない。GPU の無いソフトウェア描画は遅く、テストの大半の時間が描画だった。
   描いた絵が要る確認 (高画質の効果・スクリーンショット) は render:true */
  if(!opt.render&&!process.env.SMOKE_RENDER) await p.evaluate(()=>{ THREE.WebGLRenderer.prototype.render=function(){}; });
