@@ -26,46 +26,57 @@ const ChassisMesh={
   const box=(w,h,d,m,x,y,z)=>{ const b=add(new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m)); b.position.set(x,y,z); return b; };
   const W=(SB.wheels||[]).map(([x,z,r,w])=>({x,z,r,w:w||.1})), FW=W.filter(w=>w.z<0), RW=W.filter(w=>w.z>=0);
   const O=V.cockOpening||{w:.22,z0:E0[2]-1.1,z1:E0[2]+.45};
-  // ---- 前輪の箱 (内側の壁・前後の壁・上の板) ----
-  for(const w of FW){ const sg=Math.sign(w.x)||1, xi=w.x-sg*(w.w/2+.07), z0=w.z-w.r-.08, z1=w.z+w.r+.08, yT=Math.min(top(w.z)-.03,w.r*2+.08), yB=bot(w.z)+.02, xo=sg*(secX(w.z,yT)-.03);
-   box(.01,yT-yB,z1-z0,carbon,xi,(yT+yB)/2,(z0+z1)/2);
-   for(const zz of [z0,z1]) secPlate(zz,xi,sg,yB,yT,.03,carbon);   // 前後の壁は胴体の断面に沿って (下ほど細い)
-   box(Math.abs(xo-xi),.01,z1-z0,carbon,(xi+xo)/2,yT,(z0+z1)/2); }
+  /* 縦に立てた板 (x の位置、(z, y) の形と穴) */
+  const vplate=(x,outline,holes,m)=>{ const sh=new THREE.Shape(outline.map(([z,y])=>new THREE.Vector2(z,y))); for(const h of holes||[]) sh.holes.push(new THREE.Path(h.map(([z,y])=>new THREE.Vector2(z,y))));
+   const geo=new THREE.ExtrudeGeometry(sh,{depth:.012,bevelEnabled:false}); geo.rotateY(-Math.PI/2); const o=add(new THREE.Mesh(geo,m||carbon)); o.position.x=x+.006; return o; };
+  // ---- 前: 足を入れる箱 (前の足回りの取り付け)。前が低く後ろが 1 段高い。下の穴にロアアームが入り (ドライバーの足元をロアアームが通る)、上の切り込みにステアリングのアーム ----
+  const SP=typeof Susp!=="undefined"? Susp.params() : null, fg=SP&&SP.wh.find(q=>q.geo.kind==="wishbone");
+  let fbx=.14, liY=.2, uiY=.36;
+  if(FW.length===2){ if(fg){ fbx=Math.max(.1,Math.abs(FW[0].x)-Math.abs(fg.geo.li.y)+.03); liY=fg.geo.li.z; uiY=fg.geo.ui.z; }
+   const zw=FW[0].z, zf=zw-.42, zm=zw-.04, zr=zw+.36, yb=bot(zw)+.03, yLo=Math.max(liY+.12,yb+.22), yHi=Math.min(top(zw)-.04,uiY+.14);
+   for(const sg of [-1,1]){   // 左右の壁 (三角の穴、下にロアアームの穴、上の後ろ寄りにステアリングの切り込み)
+    const ol=[[zf,yb],[zr,yb],[zr,yHi],[zw+.14,yHi],[zw+.11,yHi-.05],[zw+.05,yHi-.05],[zw+.02,yHi],[zm,yHi],[zm,yLo],[zf,yLo]];
+    const hl=[[[zw-.06,liY-.035],[zw+.06,liY-.035],[zw+.06,liY+.035],[zw-.06,liY+.035]],   // ロアアームの穴
+     [[zf+.06,yb+.05],[zm-.06,yb+.05],[(zf+zm)/2,yLo-.04]], [[zm+.04,yHi-.06],[zr-.05,yHi-.06],[(zm+zr)/2+.02,liY+.06]]];
+    vplate(sg*fbx,ol,hl); }
+   box(fbx*2,.012,zm-zf,carbon,0,yLo,(zf+zm)/2); box(fbx*2,.012,zr-zm,carbon,0,yHi,(zm+zr)/2);   // 天板 (2 段)
+   box(fbx*2,yLo-yb,.012,carbon,0,(yLo+yb)/2,zf); box(fbx*2,yHi-yLo,.012,carbon,0,(yHi+yLo)/2,zm); }
   // ---- ステアリングラック・タイロッド・シャフト ----
   let steer=null;
-  if(FW.length===2){ const zR=FW[0].z+.11, yR=FW[0].r+.12, xr=Math.abs(FW[0].x)-.2;
+  if(FW.length===2){ const zR=FW[0].z+.08, yR=Math.min(top(FW[0].z)-.04,uiY+.14)-.03, xr=fbx+.02;   // 箱の上の切り込みを通る
    const rack=add(new THREE.Mesh(new THREE.CylinderGeometry(.018,.018,xr*2,12),alu)); rack.rotation.z=Math.PI/2; rack.position.set(0,yR,zR);
    const rod=()=>{ const gg=new THREE.CylinderGeometry(.007,.007,1,8); gg.translate(0,.5,0); return add(new THREE.Mesh(gg,alu)); };
    steer={rack,yR,zR,xr,ties:FW.map(w=>({w,m:rod()})),col:rod()};
    const yp=V.yokePivot; if(yp) this.link(steer.col,new THREE.Vector3(yp.position.x,yp.position.y-.02,yp.position.z+.02),new THREE.Vector3(0,yR+.02,zR)); }
-  // ---- 上面の板 (三角の穴) ----
-  const zA=(FW.length? Math.min(...FW.map(w=>w.z-w.r-.08)) : -1.6), zB=(RW.length? RW[0].z-RW[0].r-.05 : 1.0), zMid=O.z1+.02;
+  // ---- 運転席の左右: 箱 (内側の壁・前の壁) と上面の板。左は斜めの細長い穴、右は X 字の穴 ----
+  const zMid=O.z1+.02, yP=Math.min(top(O.z0),top(zMid))-.012;
   const plate=(outline,holes,y)=>{ const sh=new THREE.Shape(outline.map(([x,z])=>new THREE.Vector2(x,z))); for(const h of holes) sh.holes.push(new THREE.Path(h.map(([x,z])=>new THREE.Vector2(x,z))));
    const geo=new THREE.ExtrudeGeometry(sh,{depth:.012,bevelEnabled:false}); geo.rotateX(Math.PI/2); const m=add(new THREE.Mesh(geo,carbon)); m.position.y=y; return m; };   // (x, z) の形を水平に寝かせる
-  const yP=Math.min(top(zA),top(zB),top(0))-.012;
-  for(const sg of [-1,1]){   // 左右の板: 開口の縁から胴体の側面まで、前輪の箱の上から後ろの板まで
-   const N=12, xs=z=>sg*(hw(z)-.03), xi=sg*(O.w+.01), out=[]; for(let i=0;i<=N;i++){ const z=O.z0+(zMid-O.z0)*i/N; out.push([xs(z),z]); } out.push([xi,zMid],[xi,O.z0]);
-   const holes=[], cell=.34, n=Math.floor((zMid-O.z0-.08)/cell);
-   for(let k=0;k<n;k++){ const a=O.z0+.05+k*cell, b=a+cell-.05, xin=xi+sg*.05, xout=sg*(Math.min(hw(a),hw(b))-.09); if(Math.abs(xout-xin)<.08) continue;
-    holes.push(k%2? [[xin,a],[xout,(a+b)/2],[xin,b]] : [[xout,a],[xin,(a+b)/2],[xout,b]]); }   // 交互の三角 (トラスの形)
-   plate(sg<0? out : out.slice().reverse(),holes,yP); }
-  { const N=10, out=[], holes=[]; for(let i=0;i<=N;i++){ const z=zMid+(zB-zMid)*i/N; out.push([hw(z)-.03,z]); } for(let i=N;i>=0;i--){ const z=zMid+(zB-zMid)*i/N; out.push([-(hw(z)-.03),z]); }   // 後ろの板 (X 字の穴)
-   const c=(zMid+zB)/2, hx=Math.min(hw(zB),hw(zMid))-.12, hz=(zB-zMid)/2-.07, gp=.035;
-   if(hx>.1&&hz>.08){ holes.push([[-hx,c-hz],[hx,c-hz],[0,c-gp]],[[hx,c-hz+gp],[hx,c+hz-gp],[gp,c]],[[hx,c+hz],[-hx,c+hz],[0,c+gp]],[[-hx,c+hz-gp],[-hx,c-hz+gp],[-gp,c]]); }
-   plate(out,holes,yP); }
-  // ---- 後部: 縦の細長い板 2 枚・サス受けの仕切り板 ----
+  const sz0=O.z0+.2, sz1=zMid;
+  for(const sg of [-1,1]){
+   const N=12, xs=z=>sg*(hw(z)-.03), xi=sg*(O.w+.01), out=[]; for(let i=0;i<=N;i++){ const z=sz0+(sz1-sz0)*i/N; out.push([xs(z),z]); } out.push([xi,sz1],[xi,sz0]);
+   const holes=[], cell=.3, n=Math.floor((sz1-sz0-.06)/cell);
+   for(let k=0;k<n;k++){ const a=sz0+.05+k*cell, b=a+cell-.06, xin=xi+sg*.05, xout=sg*(Math.min(hw(a),hw(b))-.09), w=Math.abs(xout-xin); if(w<.1) continue;
+    if(sg<0){ for(let q=0;q<2;q++){ const o=q*(b-a)/2, d=(b-a)/2-.03; holes.push([[xin,a+o+.05],[xin,a+o+.05+d*.35],[xout,a+o+d],[xout,a+o+d*.65]]); } }   // 左: 斜めの細長い穴
+    else { const cx=(xin+xout)/2, cz=(a+b)/2, hx=w/2-.01, hz=(b-a)/2, gp=.025;   // 右: X 字 (三角 4 つ)
+     holes.push([[cx-hx,cz-hz],[cx+hx,cz-hz],[cx,cz-gp]],[[cx+hx,cz-hz+gp],[cx+hx,cz+hz-gp],[cx+gp,cz]],[[cx+hx,cz+hz],[cx-hx,cz+hz],[cx,cz+gp]],[[cx-hx,cz+hz-gp],[cx-hx,cz-hz+gp],[cx-gp,cz]]); } }
+   plate(sg<0? out : out.slice().reverse(),holes,yP);
+   const yb=bot((sz0+sz1)/2)+.03;   // 箱の内側の壁 (開口の縁の下) と前の壁 (胴体の断面に沿って)
+   vplate(xi,[[sz0,yb],[sz1,yb],[sz1,yP-.012],[sz0,yP-.012]],[[[sz0+.08,yb+.08],[sz0+.3,yb+.08],[sz0+.08,yP-.1]]]);
+   secPlate(sz0,xi,sg,yb,yP-.012,.03,carbon); }
+  // ---- 後部: 縦の細長い板 2 枚 (平行、上の縁は後ろへ高く、三角の穴)・後輪のすぐ前の仕切り板 (後ろの足回りの取り付け) ----
   const bat=Tire.battery(), bw=.40, bh=.22, bd=.30, bx=.012;
-  const pz0=bat.z-bd/2-.02, pz1=zB-.02;
+  const zr0=RW.length? RW[0].z : 1.34, swL=typeof Susp!=="undefined"? Susp.val("swingL") : .3, zs=zr0-swL;   // 仕切り板 = 後ろのアームの車体側の軸の位置
+  const pz0=bat.z-bd/2-.02, pz1=zs;
   for(const sg of [-1,1]){ const x=sg*(bw/2+bx/2+.005), N=10, up=[], dn=[];
-   for(let i=0;i<=N;i++){ const z=pz0+(pz1-pz0)*i/N; up.push([z,top(z)-.04]); dn.push([z,bot(z)+.03]); }
-   const sh=new THREE.Shape([...dn,...up.reverse()].map(([z,y])=>new THREE.Vector2(z,y)));
-   const geo=new THREE.ExtrudeGeometry(sh,{depth:bx,bevelEnabled:false}); geo.rotateY(-Math.PI/2); const m=add(new THREE.Mesh(geo,carbon)); m.position.x=x+(sg<0? bx/2 : bx/2); }
-  { const sw=typeof Susp!=="undefined"? Susp.val("swingL") : .42, zr=RW.length? RW[0].z : 1.34, zs=clamp(zr-sw*.6-.30,pz0+.2,pz1-.1);   // サス受け (後ろのサスの車体側の取り付け) の位置
-   const yb=bot(zs)+.01, yt=top(zs)-.01, h=hw(zs)-.02, N=8, R=[], Lf=[];
-   for(let i=0;i<=N;i++){ const y=yb+(yt-yb)*i/N, x=secX(zs,y)-.02; R.push([x,y]); Lf.unshift([-x,y]); }   // ロアカウルの断面に沿う
+   for(let i=0;i<=N;i++){ const z=pz0+(pz1-pz0)*i/N, t=i/N, yb=bot(z)+.03, yt=top(z)-.04; dn.push([z,yb]); up.push([z,yb+(yt-yb)*(.55+.45*t*t*(3-2*t))]); }
+   const holes=[], n=Math.max(1,Math.floor((pz1-pz0-.1)/.26));
+   for(let k=0;k<n;k++){ const a=pz0+.06+k*(pz1-pz0-.1)/n, b=a+(pz1-pz0-.1)/n-.05, yb=bot((a+b)/2)+.08, yt=yb+.16; holes.push(k%2? [[a,yb],[b,yb],[(a+b)/2,yt]] : [[a,yt],[b,yt],[(a+b)/2,yb]]); }
+   vplate(x,[...dn,...up.reverse()],holes); }
+  { const yb=bot(zs)+.01, yt=top(zs)-.01, N=8, R=[], Lf=[];
+   for(let i=0;i<=N;i++){ const y=yb+(yt-yb)*i/N, x=secX(zs,y)-.02; R.push([x,y]); Lf.unshift([-x,y]); }   // ロアカウルの断面に沿って立つ
    const sh=new THREE.Shape([...R,...Lf].map(([x,y])=>new THREE.Vector2(x,y)));
-   const hole=new THREE.Path(); hole.absellipse(0,(yb+yt)/2,Math.min(.12,h*.3),(yt-yb)*.28,0,Math.PI*2,false); sh.holes.push(hole);   // 配線を通す穴
-   const geo=new THREE.ExtrudeGeometry(sh,{depth:.012,bevelEnabled:false}); const m=add(new THREE.Mesh(geo,carbon)); m.position.z=zs; this.bulkZ=zs; }
+   const geo=new THREE.ExtrudeGeometry(sh,{depth:.012,bevelEnabled:false}); const m=add(new THREE.Mesh(geo,carbon)); m.position.z=zs-.012; m.name="bulkhead"; this.bulkZ=zs; }
   // ---- バッテリー (20 kg): 運転席のすぐ後ろ、2 枚の板の間 ----
   { const yb=bot(bat.z)+.03, b=box(bw,bh,bd,blk,0,yb+bh/2,bat.z); b.name="battery";
    box(bw+.004,.02,bd+.004,orange,0,yb+bh-.02,bat.z);   // 上の縁の色帯

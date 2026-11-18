@@ -24,7 +24,8 @@ const SuspMesh={
   const parts=p.wh.map((w,i)=>{ const o={w,i};
    if(w.geo.kind==="wishbone"){ o.lf=this.rod(0.009,M.arm); o.lr=this.rod(0.009,M.arm); o.uf=this.rod(0.008,M.arm); o.ur=this.rod(0.008,M.arm);
     o.upr=this.rod(0.016,M.up); o.spd=this.rod(0.012,M.up); o.br=this.rod(0.008,M.arm); o.can=this.rod(0.024,M.damp); o.stan=this.rod(0.013,M.arm); [o.lf,o.lr,o.uf,o.ur,o.upr,o.spd,o.br,o.can,o.stan].forEach(m=>g.add(m)); }   // 前: ロアアームのサス受けのブラケット・マウンテンバイク用のエアサス (空気の缶 + 細い筒)
-   else { o.ls=this.rod(0.009,M.arm); o.ld=this.rod(0.009,M.arm); o.us=this.rod(0.009,M.arm); o.ud=this.rod(0.009,M.arm); o.br=this.rod(0.008,M.arm); o.upr=this.rod(0.02,M.up); o.hub=this.rod(0.035,M.up); o.dmp=this.rod(0.016,M.damp); o.cl=this.coil(); [o.ls,o.ld,o.us,o.ud,o.br,o.upr,o.hub,o.dmp,o.cl].forEach(m=>g.add(m)); }   // 後ろ: 上の V 字のアーム・下の A 字のアーム (サスを付けるブラケット)・アップライト・モーターへの取り付け・ばね (コイル)
+   else { o.ls=this.rod(0.009,M.arm); o.ld=this.rod(0.009,M.arm); o.us=this.rod(0.009,M.arm); o.ud=this.rod(0.009,M.arm); o.br=this.rod(0.008,M.arm); o.upr=this.rod(0.02,M.up); o.hub=this.rod(0.035,M.up); o.dmp=this.rod(0.016,M.damp); o.cl=this.coil(); [o.ls,o.ld,o.us,o.ud,o.br,o.upr,o.hub,o.dmp,o.cl].forEach(m=>g.add(m));
+    o.bk=[0,1,2,3].map(()=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(.045,.06,.03),M.arm); g.add(b); return b; }); }   // 仕切り板のアルミのブラケット (アームの車体側の軸)   // 後ろ: 上の V 字のアーム・下の A 字のアーム (サスを付けるブラケット)・アップライト・モーターへの取り付け・ばね (コイル)
    return o; });
   return car.userData.susp={g,parts,V:[0,1,2,3,4,5,6,7].map(()=>new THREE.Vector3())};
  },
@@ -49,7 +50,8 @@ const SuspMesh={
     this.link(o.ls,pl,L1); this.link(o.ld,pl2,L1); this.link(o.us,pu,U1); this.link(o.ud,pu2,U1); this.link(o.upr,L1,U1); this.link(o.hub,wc,V[0].set(wx,s.wc.z,z0-s.wc.y));
     // 下のアームのブラケット (2 本の脚をつなぐ横棒) の中ほどにサスの下端。上端は前の車体側へ斜め (前に 0.30 m・上に 0.20 m)。車体側の取り付けは静止の位置で固定
     const bs=V[1].lerpVectors(pl,L1,mr).clone(), bd=V[2].lerpVectors(pl2,L1,mr).clone(); this.link(o.br,bs,bd); const a=bs.clone().lerp(bd,0.5);
-    const a0=new THREE.Vector3(ax,G.li.z+(G.lo.z-G.li.z)*mr,z0-(G.li.y+(G.lo.y-G.li.y)*mr)).addScaledVector(dv,0.5*(1-mr)), st=a0.add(V[3].set(0,0.20,-0.30));
+    const st=pu.clone();   // サスの上端: 仕切り板の上のブラケット (上のアームと同じ所)
+    if(o.bk) [pl,pl2,pu,pu2].forEach((q,k)=>o.bk[k].position.set(q.x,q.y,q.z+0.015));
     this.link(o.cl,a,st); this.link(o.dmp,a,V[3].lerpVectors(a,st,0.55)); }   // ダンパーの本体は下側 (ブラケット側)、ばねはその外側に全長
   }
  },
