@@ -1,6 +1,6 @@
 "use strict";
 /* ============ サスペンションの見た目 (車体を透かすと見える) ============
- 前: ロアアーム・アッパーアーム (A 字の 2 本ずつ)・アップライト・ばねとダンパー。後ろ (片持ち): 上の V 字・下の A 字のアーム (サスのブラケット付き)・アップライト (モーターに直付け)・コイルばねとダンパー (車体側へ斜め)。前のサスはマウンテンバイク用のエアサス。
+ 前: ロアアーム・アッパーアーム (A 字の 2 本ずつ)・アップライト・ばねとダンパー。後ろ (片持ち): 上の V 字・下の A 字のアーム (サスのブラケット付き)・アップライト (モーターに直付け)・コイルばねとダンパー (前の車体側へ斜め)。前のサスはマウンテンバイク用のエアサス。
  位置は Susp の幾何 (ストロークごとの表) から毎フレーム決める。車体 (car のグループ) の座標: x 右・y 上・z 後ろ、接地点の高さが y = 0 (静止のとき) */
 const SuspMesh={
  mats:null,
@@ -46,9 +46,9 @@ const SuspMesh={
     const pl=P(G.li,3).clone(), pu=P(G.ui,4).clone(), L1=P(s.L1,5).clone(), U1=P(s.U1,6).clone(), wc=P(s.wc,7).clone();
     const dv=new THREE.Vector3(G.side*G.vw,0,0), pl2=pl.clone().add(dv), pu2=pu.clone().add(dv);   // V の斜めの脚: 車体側の 2 点目 (車体の中心側へ vw)
     this.link(o.ls,pl,L1); this.link(o.ld,pl2,L1); this.link(o.us,pu,U1); this.link(o.ud,pu2,U1); this.link(o.upr,L1,U1); this.link(o.hub,wc,V[0].set(wx,s.wc.z,z0-s.wc.y));
-    // 下のアームのブラケット (2 本の脚をつなぐ横棒) の中ほどにサスの下端。上端は車体側へ斜め (横に 0.14 m・上に 0.24 m)。車体側の取り付けは静止の位置で固定
+    // 下のアームのブラケット (2 本の脚をつなぐ横棒) の中ほどにサスの下端。上端は前の車体側へ斜め (前に 0.30 m・上に 0.20 m)。車体側の取り付けは静止の位置で固定
     const bs=V[1].lerpVectors(pl,L1,mr).clone(), bd=V[2].lerpVectors(pl2,L1,mr).clone(); this.link(o.br,bs,bd); const a=bs.clone().lerp(bd,0.5);
-    const a0=new THREE.Vector3(ax,G.li.z+(G.lo.z-G.li.z)*mr,z0-(G.li.y+(G.lo.y-G.li.y)*mr)).addScaledVector(dv,0.5*(1-mr)), st=a0.add(V[3].set(G.side*0.14,0.24,-0.03));
+    const a0=new THREE.Vector3(ax,G.li.z+(G.lo.z-G.li.z)*mr,z0-(G.li.y+(G.lo.y-G.li.y)*mr)).addScaledVector(dv,0.5*(1-mr)), st=a0.add(V[3].set(0,0.20,-0.30));
     this.link(o.cl,a,st); const m=V[3].lerpVectors(a,st,0.45); this.link(o.dmp,m,st); }
   }
  },
