@@ -64,20 +64,23 @@ const ChassisMesh={
   const plate=(outline,holes,y)=>{ const sh=new THREE.Shape(outline.map(([x,z])=>new THREE.Vector2(x,z))); for(const h of holes) sh.holes.push(new THREE.Path(h.map(([x,z])=>new THREE.Vector2(x,z))));
    const geo=new THREE.ExtrudeGeometry(sh,{depth:.012,bevelEnabled:false}); geo.rotateX(Math.PI/2); const m=add(new THREE.Mesh(geo,carbon)); m.position.y=y; return m; };   // (x, z) の形を水平に寝かせる
   const sz0=FW.length===2? FW[0].z+.16 : O.z0, sz1=zMid-.2;   // ドライバーの横 (足回りボックスの後ろの段の横から)
+  // 前輪の逃げ: 外側は前輪の後ろ (舵を切っても当たらない所) から。内側 (前輪の内側の面より内) は sz0 から
+  const wR=FW.length? FW[0].r : .26, zW=FW.length===2? Math.max(sz0,FW[0].z+wR+.07) : sz0, xN=FW.length===2? Math.abs(FW[0].x)-FW[0].w/2-.08 : 9;
   for(const sg of [-1,1]){
-   const N=12, xs=z=>sg*(hw(z)-.03), xi=sg*(O.w+.01), out=[]; for(let i=0;i<=N;i++){ const z=sz0+(sz1-sz0)*i/N; out.push([xs(z),z]); } out.push([xi,sz1],[xi,sz0]);
-   const holes=[], n=1, cell=sz1-sz0-.05;   // X 字は 1 個 (板いっぱい)
-   for(let k=0;k<n;k++){ const a=sz0+.05+k*cell, b=a+cell-.06, xin=xi+sg*.05, xout=sg*(Math.min(hw(a),hw(b))-.09), w=Math.abs(xout-xin); if(w<.1) continue;
-    { const cx=(xin+xout)/2, cz=(a+b)/2, hx=w/2-.03, hz=(b-a)/2-.03, L=Math.hypot(hx,hz), t=Math.min(.09,1.6*hx*hz/L), ex=t*L/(2*hz), ez=t*L/(2*hx);   // X 字 (三角 4 つ)。t: 斜めの枠の太さ [m]
-     holes.push([[cx-hx+ex,cz-hz],[cx+hx-ex,cz-hz],[cx,cz-ez]],[[cx+hx,cz-hz+ez],[cx+hx,cz+hz-ez],[cx+ex,cz]],[[cx+hx-ex,cz+hz],[cx-hx+ex,cz+hz],[cx,cz+ez]],[[cx-hx,cz+hz-ez],[cx-hx,cz-hz+ez],[cx-ex,cz]]); } }
-   plate(sg<0? out : out.slice().reverse(),holes,yP);
-   const yb=bot((sz0+sz1)/2)+.03;   // 箱の内側の壁 (開口の縁の下) と前の壁 (胴体の断面に沿って)
+   const N=12, xs=z=>sg*(hw(z)-.03), xi=sg*(O.w+.01), xn=sg*Math.max(O.w+.08,Math.min(xN,hw(sz0)-.05)), out=[[xi,sz0],[xn,sz0],[xn,zW]];
+   for(let i=0;i<=N;i++){ const z=zW+(sz1-zW)*i/N; out.push([xs(z),z]); } out.push([xi,sz1]);
+   const holes=[], a=zW+.05, b=sz1-.06, xin=xi+sg*.05, xout=sg*(Math.min(hw(a),hw(b))-.09), w=Math.abs(xout-xin);
+   if(w>.1&&b-a>.15){ const cx=(xin+xout)/2, cz=(a+b)/2, hx=w/2-.03, hz=(b-a)/2-.03, L=Math.hypot(hx,hz), t=Math.min(.09,1.6*hx*hz/L), ex=t*L/(2*hz), ez=t*L/(2*hx);   // X 字は 1 個 (三角 4 つ)。t: 斜めの枠の太さ [m]
+    holes.push([[cx-hx+ex,cz-hz],[cx+hx-ex,cz-hz],[cx,cz-ez]],[[cx+hx,cz-hz+ez],[cx+hx,cz+hz-ez],[cx+ex,cz]],[[cx+hx-ex,cz+hz],[cx-hx+ex,cz+hz],[cx,cz+ez]],[[cx-hx,cz+hz-ez],[cx-hx,cz-hz+ez],[cx-ex,cz]]); }
+   plate(sg<0? out.slice().reverse() : out,holes,yP);
+   const yb=bot((sz0+sz1)/2)+.03;   // 箱の内側の壁 (開口の縁の下)・前の壁 (内側は sz0、外側は前輪の後ろ)
    vplate(xi,[[sz0,yb],[sz1,yb],[sz1,yP-.012],[sz0,yP-.012]],[[[sz0+.08,yb+.08],[sz0+.3,yb+.08],[sz0+.08,yP-.1]]]);
-   secPlate(sz0,xi,sg,yb,yP-.012,.03,carbon); }
+   box(Math.abs(xn-xi),yP-.012-yb,.01,carbon,(xi+xn)/2,(yb+yP-.012)/2,sz0); vplate(xn,[[sz0,yb],[zW,yb],[zW,yP-.012],[sz0,yP-.012]]);
+   secPlate(zW,xn,sg,yb,yP-.012,.03,carbon); }
   // ---- 後部: 縦の細長い板 2 枚 (平行、上の縁は後ろへ高く、三角の穴)・後輪のすぐ前の仕切り板 (後ろの足回りの取り付け) ----
   const bat=Tire.battery(), bw=.40, bh=.22, bd=.30, bx=.012;
   const zr0=RW.length? RW[0].z : 1.34, swL=typeof Susp!=="undefined"? Susp.val("swingL") : .3, zs=zr0-swL;   // 仕切り板 = 後ろのアームの車体側の軸の位置
-  const pz0=bat.z-bd/2-.02, pz1=zs;
+  const pz0=Math.min(bat.z-bd/2-.02,sz1), pz1=zs;   // 左右の箱のすぐ後ろから
   for(const sg of [-1,1]){ const x=sg*(bw/2+bx/2+.005), N=10, up=[], dn=[];
    const ry0=Math.max(bot(pz0),bot(pz1))+.03, ry1=Math.min(top(pz0),top(pz1))-.06; for(let i=0;i<=N;i++){ const z=pz0+(pz1-pz0)*i/N; dn.push([z,ry0]); up.push([z,ry1]); }   // 長方形
    const holes=[], n=Math.max(1,Math.floor((pz1-pz0-.1)/.26));
@@ -91,7 +94,7 @@ const ChassisMesh={
   { const yb=bot(bat.z)+.03, b=box(bw,bh,bd,blk,0,yb+bh/2,bat.z); b.name="battery";
    box(bw+.004,.02,bd+.004,orange,0,yb+bh-.02,bat.z);   // 上の縁の色帯
    for(const sx of [-.1,.1]){ const c=add(new THREE.Mesh(new THREE.CylinderGeometry(.01,.01,.22,8),sx<0? cable : blk)); c.position.set(sx,yb+bh+.02,bat.z-.04); c.rotation.x=Math.PI/2.4; } }
-  // ---- ロールバー (運転席の後ろの黒い覆い。キャノピーと一体: view.js でキャノピーの子にする) ----
+  // ---- ロールバー (運転席の後ろの黒い覆い。車体側に付き、アッパーカウル側のキャノピーとつなぎ目なく続く) ----
   { const cz1= SB.canopy? SB.canopy.x+SB.canopy.len*.52-HL : E0[2]+.6;   // キャノピーの後端 (この中に収める)
    const z0=E0[2]+.14, z1=Math.max(z0+.2,cz1-.2), yb=top(z0)-.01, yt=Math.min(E0[1]+.03,(SB.canopy&&SB.canopy.top||1.08)-.17), w=Math.min(.3,(SB.canopy&&SB.canopy.w||.36)*.5);   // キャノピーの幅・高さの内側
    const sh=new THREE.Shape([[z0,yb],[z1,yb],[z1-.04,yb+.05],[z0+.14,yt],[z0+.02,yt-.03]].map(([z,y])=>new THREE.Vector2(z,y)));   // 前は頭の後ろで高く、後ろへ低く (キャノピーの形に沿う)
