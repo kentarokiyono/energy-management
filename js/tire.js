@@ -42,7 +42,9 @@ const Tire={
    const v= fr? (L_? WK.FL : WK.FR) : (WK.R!=null? WK.R : (L_? WK.RL : WK.RR)!=null? (L_? WK.RL : WK.RR) : ((+WK.RL||0)+(+WK.RR||0)));
    return Number.isFinite(+v)&&+v>0? +v : null; };
   const wk=W.map(w=>wkOf(w[0],w[1])), wkOk=wk.every(v=>v!=null), wkSum=wkOk? wk.reduce((a,b)=>a+b,0) : 0;
-  const fs= wkOk&&wkSum>0? W.reduce((a,w,i)=>a+(w[1]<zMid? wk[i] : 0),0)/wkSum : C.frontShare||1/(1+D.rearLoadK*nR0/nF0);
+  /* 実測が無いとき: 一般的な配分 (または諸元の frontShare) を電池以外の分に使い、電池 (運転席のすぐ後ろ、Tire.battery) はその位置で足す */
+  const bat=this.battery(), fsB=clamp((zR-bat.z)/L,0,1), mb=Math.min(bat.kg,m*0.5), fs0=C.frontShare||1/(1+D.rearLoadK*nR0/nF0);
+  const fs= wkOk&&wkSum>0? W.reduce((a,w,i)=>a+(w[1]<zMid? wk[i] : 0),0)/wkSum : ((m-mb)*fs0+mb*fsB)/m;
   const zCG=zF+(1-fs)*L, a=(1-fs)*L, b=fs*L;   // a: 重心から前の車軸、b: 後ろの車軸
   const wh=W.map(w=>({px:zCG-w[1], py:w[0], x0:w[0], front:w[1]<zMid, R:w[2]||0.26}));
   const nF=wh.filter(w=>w.front).length||1, nR=(wh.length-nF)||1;
@@ -61,6 +63,10 @@ const Tire={
   return this._key=key, this._p={m, L, a, b, h, bf, Iz:C.Iz||D.izK*m*a*b, wh, nF, nR, nDrive:nR,
    steerMax:C.steerMax||D.steerMax, mu:T.mu||C.mu||D.mu, cornK:T.cornK||D.cornK, cpX:A.cpX!=null? A.cpX : D.cpX, Fz0:m*GRAV/wh.length};
  },
+ /* 電池: 重さ [kg] と位置 z [m] (車体の中心から後ろ +)。諸元 chassis.battery {kg, z} があればその値。既定は運転席のすぐ後ろの 20 kg。
+  車内の構造の見た目 (chassis.js) も同じ値 */
+ BATTERY:{kg:20, z:-0.15},
+ battery(){ const S=(typeof VEH!=="undefined"&&VEH.active&&VEH.spec)||{}, B=(S.chassis&&S.chassis.battery)||{}; return {kg:Number.isFinite(+B.kg)&&+B.kg>0? +B.kg : this.BATTERY.kg, z:Number.isFinite(+B.z)? +B.z : this.BATTERY.z}; },
  init(){ return {vy:0, r:0, ay:0, ax:0, w:null, slideT:0, lockT:0, sat:0, use:0}; },
 
  /* 舵角 [rad] (右 +)。mode "wheel" (ハンコン) はハンドルの角度に比例。

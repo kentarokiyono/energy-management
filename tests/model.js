@@ -217,6 +217,8 @@ const T0=Date.now();
  check("道の外: 柔らかい砂は遅いほど深く沈み、止まると埋まって動けない・速ければ抜けられる",soil.z[0]>soil.z[1]&&soil.z[1]>soil.z[3]&&soil.crr0*soil.m*9.79>soil.Fm&&soil.crr20*soil.m*9.79<soil.Fm&&soil.gravel<0.03,`沈み ${soil.z.map(x=>(x*100).toFixed(1)).join("・")} cm (0/2/8/20 m/s)、抵抗 ${(soil.crr0*soil.m*9.79).toFixed(0)} N / ${(soil.crr20*soil.m*9.79).toFixed(0)} N (モーター ${soil.Fm.toFixed(0)} N)`);
  const sair=R(`(()=>{ const a=VehDyn.aeroSide(-20,0,1.17), b=VehDyn.aeroSide(-0.2,20,1.17); return {side:a.Fy, small:b.Fy}; })()`);
  check("横に滑ると空気の力が滑りを止める向きに大きくかかる (真横 20 m/s で数百 N、普通の走りの横すべりでは小さい)",sair.side<-300&&Math.abs(sair.small)<30,`真横 ${sair.side.toFixed(0)} N・横すべり 0.2 m/s で ${sair.small.toFixed(0)} N`);
+ const btz=R(`(()=>{ const f=()=>{ Tire._p=null; return Tire.params().wh.filter(w=>w.front).reduce((a,w)=>a+w.share,0); }, z0=Tire.BATTERY.z, a=f(); Tire.BATTERY.z=z0+1; const b=f(); Tire.BATTERY.z=z0; f(); return {a,b}; })()`);
+ check("電池 (20 kg) の位置が前後の荷重配分に効く (後ろへ動かすと前が軽く)",btz.b<btz.a-0.01&&btz.a>0.6,`前輪 ${(btz.a*100).toFixed(1)} % → 1 m 後ろで ${(btz.b*100).toFixed(1)} %`);
  const spn=R(`(()=>{ const st=Tire.init(), dt=1/60; st.r=1.5; st.vy=-2; let u=20,t=0,d=0; for(;t<30;t+=dt){ const R=Tire.step(st,{u,delta:0},{mu:0.9},dt); u=Math.max(0,u+R.du*dt); d+=Math.hypot(u,st.vy)*dt; if(Math.hypot(u,st.vy)<0.3) break; } return {t,d}; })()`);
  check("スピンすると横に滑ってタイヤの摩擦で止まる (どこまでも滑らない)",spn.t<6&&spn.d<60,`72 km/h から ${spn.t.toFixed(1)} 秒・${spn.d.toFixed(0)} m`);
 }

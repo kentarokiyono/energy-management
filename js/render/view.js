@@ -165,6 +165,7 @@ const E0=(VEH.active&&VEH.spec.eye)||[0,.84,-.45];
 const deckY=SB&&SB.profiles? .68 : .62;
 this.cockE0=E0; this.cockDeckY=deckY;   // 乗降手順 (crew.js) の配置基準
 Cockpit.build(this,cock,E0,deckY,carbon);   // 内装は js/render/cockpit.js
+if(typeof ChassisMesh!=="undefined") g.userData.chassis=ChassisMesh.build(this,body,SB,E0,carbon);   // 車内の構造 (前の足回り・上面の板・後部の板・バッテリー・ロールバー)
 body.add(cock);
 } else if(P.shape==="catamaran"){
 for(const sx of [-0.72,0.72]){
@@ -1023,6 +1024,7 @@ this.car.rotation.y=-hCar;
 if(this.car.userData.wheels) this.car.userData.wheels.forEach((w,i)=>{   // 車輪の回転と前輪の舵角
  w.spin=((w.spin||0)+vv*dtR/w.r)%(Math.PI*2); w.g.rotation.order="YZX";
  const tp=Tire.params(), tw=tp.wh[i]; w.g.rotation.y= w.front? -(tw? Tire.steerOf(tp,tw,this.delta||0,Tire.align()) : (this.delta||0)) : 0; w.g.rotation.x=-w.spin; });   // 前輪の舵角は実際の値 (アッカーマン・トー込み)
+ if(typeof ChassisMesh!=="undefined") ChassisMesh.sync(this.car);   // ステアリングラック・タイロッド
 updateHatches(this.car,dtR);
 /* サスペンション (Susp): 車体の上下・前後の傾き・左右の傾きはばねとダンパーの計算から (加減速・旋回・横風)。路面のうねり・荒れで上下に揺れる分を足す。
  車輪は路面に着いたまま (車体の動きの分を打ち消す)。前輪はアームの幾何でキャンバーが変わる */

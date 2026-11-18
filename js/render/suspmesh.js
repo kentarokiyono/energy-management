@@ -68,7 +68,7 @@ const SuspMesh={
  xray(car,on){
   const body=car.userData.body; if(!body||!!car.userData._xray===!!on) return; car.userData._xray=!!on;
   const cp=car.userData.canopy, tg=[body]; if(cp&&cp.traverse&&!body.getObjectById(cp.id)) tg.push(cp);   // キャノピーも
-  for(const t of tg) t.traverse(o=>{ if(!o.isMesh||!o.material) return;
+  for(const t of tg) t.traverse(o=>{ if(!o.isMesh||!o.material||o.userData.noXray) return;   // 車内の構造 (chassis.js) は透かさない
    if(on){ o.userData._m0=o.material; const mk=m=>{ const c=m.clone(); c.transparent=true; c.opacity=Math.min(m.opacity,0.16); c.depthWrite=false; return c; };
     o.material= Array.isArray(o.material)? o.material.map(mk) : mk(o.material); }
    else if(o.userData._m0){ const cur=o.material; o.material=o.userData._m0; o.userData._m0=null; (Array.isArray(cur)?cur:[cur]).forEach(m=>m.dispose()); } });
