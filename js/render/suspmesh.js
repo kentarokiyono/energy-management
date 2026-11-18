@@ -48,9 +48,11 @@ const SuspMesh={
     const FB=car.userData.chassis&&car.userData.chassis.fbox, a=V[0].copy(bf).lerp(bb,0.5), b= FB? V[1].set(sg*FB.fbx,FB.yTop,wz) : V[1].set(wx+sg*(li.y+(G.lo.y-li.y)*mr-0.05),li.z+0.26,wz);   // サスの上端: 足回りボックスの天板の外側の角
     const cb=V[2].copy(b).addScaledVector(V[3].subVectors(a,b).normalize(),0.15); this.link(o.can,b,cb); this.link(o.stan,a,V[4].lerpVectors(a,cb,1.15));
    } else { /* 後ろ (片持ち): アームは車輪の片側 (side: +1 右)。横から見た座標 y (前 +) を車体の z (後ろ +) へ */
-    const G=w.geo, s=Susp.geoAt(w,ci), z0=wm.z0!=null? wm.z0 : wz, ax=wx+G.side*0.18, P=(q,k)=>V[k].set(ax,q.z,z0-q.y), mr=p.mr;
+    /* アームの面は車輪の中心から横に 18 cm、V の開き vw。胴体 (仕切り板の所) の幅に収まらないときは、比を保って縮める */
+    const G=w.geo, RH=car.userData.chassis&&car.userData.chassis.rearHalf, sc= RH&&RH>0.05? Math.min(1,(RH-Math.abs(wx))/(0.18+G.vw)) : 1, off=0.18*sc, vw=G.vw*sc;
+    const s=Susp.geoAt(w,ci), z0=wm.z0!=null? wm.z0 : wz, ax=wx+G.side*off, P=(q,k)=>V[k].set(ax,q.z,z0-q.y), mr=p.mr;
     const pl=P(G.li,3).clone(), pu=P(G.ui,4).clone(), L1=P(s.L1,5).clone(), U1=P(s.U1,6).clone(), wc=P(s.wc,7).clone();
-    const dv=new THREE.Vector3(G.side*G.vw,0,0), pl2=pl.clone().add(dv), pu2=pu.clone().add(dv);   // V の斜めの脚: 車体側の 2 点目 (車体の中心側へ vw)
+    const dv=new THREE.Vector3(G.side*vw,0,0), pl2=pl.clone().add(dv), pu2=pu.clone().add(dv);   // V の斜めの脚: 車体側の 2 点目 (車体の中心側へ vw)
     this.link(o.ls,pl,L1); this.link(o.ld,pl2,L1); this.link(o.us,pu,U1); this.link(o.ud,pu2,U1); this.link(o.upr,L1,U1); this.link(o.hub,wc,V[0].set(wx,s.wc.z,z0-s.wc.y));   // 横向きの角材の腕: アームの先 (アップライト) からモーターの車軸へ
     { const tb=pl2.clone().add(V[0].set(0,0.05,0.01)), te=V[1].lerpVectors(L1,U1,0.18).clone(), tm=tb.clone().lerp(te,0.35);   // 細いリンク (ロッドエンド付き): 仕切り板の外側のブラケット (斜めの脚と同じ所) → V 字の先 (アップライトの下寄り)
      this.link(o.toe,tb,te); this.link(o.toeB,tb.clone().lerp(te,0.2),tm); }

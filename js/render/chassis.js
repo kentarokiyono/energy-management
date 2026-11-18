@@ -95,6 +95,7 @@ const ChassisMesh={
    for(let i=0;i<=N;i++){ const y=yb+(yt-yb)*i/N, x=secX(zs,y)-.02; R.push([x,y]); Lf.unshift([-x,y]); }   // ロアカウルの断面に沿って立つ
    const sh=new THREE.Shape([...R,...Lf].map(([x,y])=>new THREE.Vector2(x,y)));
    const geo=new THREE.ExtrudeGeometry(sh,{depth:.012,bevelEnabled:false}); const m=add(new THREE.Mesh(geo,carbon)); m.position.z=zs-.012; m.name="bulkhead"; this.bulkZ=zs; }
+  const rearHalf=secX(zs,bot(zs)+.03)-.03;   // 後ろのアームを付けられる半幅 (仕切り板の下寄りの所。suspmesh.js がアームの横の位置をこれに収める)
   // ---- バッテリー (20 kg): 運転席のすぐ後ろ、2 枚の板の間 ----
   { const yb=bot(bat.z)+.03, b=box(bw,bh,bd,blk,0,yb+bh/2,bat.z); b.name="battery";
    box(bw+.004,.02,bd+.004,orange,0,yb+bh-.02,bat.z);   // 上の縁の色帯
@@ -105,7 +106,7 @@ const ChassisMesh={
    const sh=new THREE.Shape([[z0,yb],[z1,yb],[z1-.04,yb+.05],[z0+.14,yt],[z0+.02,yt-.03]].map(([z,y])=>new THREE.Vector2(z,y)));   // 前は頭の後ろで高く、後ろへ低く (キャノピーの形に沿う)
    const geo=new THREE.ExtrudeGeometry(sh,{depth:w,bevelEnabled:true,bevelThickness:.02,bevelSize:.02,bevelSegments:3}); geo.rotateY(-Math.PI/2); geo.translate(w/2,0,0);
    const m=add(new THREE.Mesh(geo,M(0x0b0c0e,{roughness:.35,metalness:.2}))); m.name="rollbar"; }
-  body.add(g); return {g,steer,pedal,fbox};
+  body.add(g); return {g,steer,pedal,fbox,rearHalf};
  },
  _v:null, _up:null,
  link(o,a,b){ const v=this._v||(this._v=new THREE.Vector3()), up=this._up||(this._up=new THREE.Vector3(0,1,0)); v.subVectors(b,a); const L=v.length()||1e-4;
