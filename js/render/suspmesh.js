@@ -24,7 +24,11 @@ const SuspMesh={
   const parts=p.wh.map((w,i)=>{ const o={w,i};
    if(w.geo.kind==="wishbone"){ o.lf=this.rod(0.009,M.arm); o.lr=this.rod(0.009,M.arm); o.uf=this.rod(0.008,M.arm); o.ur=this.rod(0.008,M.arm);
     o.upr=this.rod(0.016,M.up); o.spd=this.rod(0.012,M.up); o.br=this.rod(0.008,M.arm); o.can=this.rod(0.024,M.damp); o.stan=this.rod(0.013,M.arm); [o.lf,o.lr,o.uf,o.ur,o.upr,o.spd,o.br,o.can,o.stan].forEach(m=>g.add(m)); }   // 前: ロアアームのサス受けのブラケット・マウンテンバイク用のエアサス (空気の缶 + 細い筒)
-   else { o.ls=this.rod(0.009,M.arm); o.ld=this.rod(0.009,M.arm); o.us=this.rod(0.009,M.arm); o.ud=this.rod(0.009,M.arm); o.br=this.rod(0.008,M.arm); o.upr=this.rod(0.02,M.up); o.hub=(()=>{ const g2=new THREE.BoxGeometry(0.045,1,0.045); g2.translate(0,0.5,0); return new THREE.Mesh(g2,M.arm); })(); o.toe=this.rod(0.006,M.arm); o.toeB=this.rod(0.013,M.arm); g.add(o.toe,o.toeB); o.dmp=this.rod(0.016,M.damp); o.cl=this.coil(); [o.ls,o.ld,o.us,o.ud,o.br,o.upr,o.hub,o.dmp,o.cl].forEach(m=>g.add(m));
+   else { o.ls=this.rod(0.009,M.arm); o.ld=this.rod(0.009,M.arm); o.us=this.rod(0.009,M.arm); o.ud=this.rod(0.009,M.arm); o.br=this.rod(0.008,M.arm); o.upr=this.rod(0.02,M.up); o.hub=(()=>{ const g2=new THREE.BoxGeometry(0.045,1,0.045); g2.translate(0,0.5,0); return new THREE.Mesh(g2,M.arm); })(); o.toe=this.rod(0.006,M.arm); o.toeB=this.rod(0.013,M.arm); g.add(o.toe,o.toeB); o.cal=new THREE.Mesh(new THREE.BoxGeometry(0.03,0.07,0.05),new THREE.MeshStandardMaterial({color:0xd9a521,roughness:0.35,metalness:0.6})); o.blk=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.05,0.05),M.arm); o.adj=[0,1].map(()=>this.rod(0.014,M.arm)); g.add(o.cal,o.blk,...o.adj);   // キャリパー (金)・上のアームの先の継ぎ手のブロック・上のアームの長さ調整部
+    if(car.userData.wheels&&car.userData.wheels[i]){ const wg=car.userData.wheels[i].g, sd=w.geo.side||1, R=w.R||0.26;   // インホイールモーター (外側が回る): 赤い外殻・紫のハブ・ブレーキディスク。車輪と一緒に回る
+     const mot=new THREE.Mesh(new THREE.CylinderGeometry(R*0.68,R*0.68,0.11,32),new THREE.MeshStandardMaterial({color:0xb3262e,roughness:0.4,metalness:0.55})); mot.rotation.z=Math.PI/2; wg.add(mot);
+     const hubP=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.14,16),new THREE.MeshStandardMaterial({color:0x7b3fbf,roughness:0.35,metalness:0.6})); hubP.rotation.z=Math.PI/2; wg.add(hubP);
+     const disc=new THREE.Mesh(new THREE.CylinderGeometry(R*0.66,R*0.66,0.005,32),new THREE.MeshStandardMaterial({color:0xb8bcc2,roughness:0.3,metalness:0.85})); disc.rotation.z=Math.PI/2; disc.position.x=sd*0.07; wg.add(disc); } o.dmp=this.rod(0.016,M.damp); o.cl=this.coil(); [o.ls,o.ld,o.us,o.ud,o.br,o.upr,o.hub,o.dmp,o.cl].forEach(m=>g.add(m));
     o.bk=[0,1,2,3].map(()=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(.045,.06,.03),M.arm); g.add(b); return b; }); }   // 仕切り板のアルミのブラケット (アームの車体側の軸)   // 後ろ: 上の V 字のアーム・下の A 字のアーム (サスを付けるブラケット)・アップライト・モーターへの取り付け・ばね (コイル)
    return o; });
   return car.userData.susp={g,parts,V:[0,1,2,3,4,5,6,7].map(()=>new THREE.Vector3())};
@@ -48,8 +52,10 @@ const SuspMesh={
     const pl=P(G.li,3).clone(), pu=P(G.ui,4).clone(), L1=P(s.L1,5).clone(), U1=P(s.U1,6).clone(), wc=P(s.wc,7).clone();
     const dv=new THREE.Vector3(G.side*G.vw,0,0), pl2=pl.clone().add(dv), pu2=pu.clone().add(dv);   // V の斜めの脚: 車体側の 2 点目 (車体の中心側へ vw)
     this.link(o.ls,pl,L1); this.link(o.ld,pl2,L1); this.link(o.us,pu,U1); this.link(o.ud,pu2,U1); this.link(o.upr,L1,U1); this.link(o.hub,wc,V[0].set(wx,s.wc.z,z0-s.wc.y));   // 横向きの角材の腕: アームの先 (アップライト) からモーターの車軸へ
-    { const tb=new THREE.Vector3(ax+G.side*(G.vw+0.07),s.wc.z+0.02,pl.z), te=wc.clone(), tm=tb.clone().lerp(te,0.35);   // 細いリンク (ロッドエンド付き、車軸の高さ): 仕切り板 → アップライト
+    { const tb=pl2.clone().add(V[0].set(0,0.05,0.01)), te=V[1].lerpVectors(L1,U1,0.18).clone(), tm=tb.clone().lerp(te,0.35);   // 細いリンク (ロッドエンド付き): 仕切り板の外側のブラケット (斜めの脚と同じ所) → V 字の先 (アップライトの下寄り)
      this.link(o.toe,tb,te); this.link(o.toeB,tb.clone().lerp(te,0.2),tm); }
+    if(o.cal){ const R=w.R||0.26; o.cal.position.set(wx+G.side*0.075,s.wc.z+R*0.5,z0-s.wc.y+R*0.42); o.blk.position.copy(U1);   // キャリパー: ディスクの縁の後ろ上
+     o.adj.forEach((m,k)=>{ const b0=k? pu2 : pu; this.link(m,V[2].lerpVectors(b0,U1,0.12).clone(),V[3].lerpVectors(b0,U1,0.3)); }); }   // 上のアームの脚の付け根寄りの長さ調整部
     // 下のアームのブラケット (2 本の脚をつなぐ横棒) の中ほどにサスの下端。上端は前の車体側へ斜め (前に 0.30 m・上に 0.20 m)。車体側の取り付けは静止の位置で固定
     const bs=V[1].lerpVectors(pl,L1,mr).clone(), bd=V[2].lerpVectors(pl2,L1,mr).clone(); this.link(o.br,bs,bd); const a=bs.clone().lerp(bd,0.5);
     const st=pu.clone();   // サスの上端: 仕切り板の上のブラケット (上のアームと同じ所)
