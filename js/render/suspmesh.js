@@ -1,6 +1,6 @@
 "use strict";
 /* ============ サスペンションの見た目 (車体を透かすと見える) ============
- 前: ロアアーム・アッパーアーム (A 字の 2 本ずつ)・アップライト・ばねとダンパー。後ろ: スイングアーム・ばねとダンパー。
+ 前: ロアアーム・アッパーアーム (A 字の 2 本ずつ)・アップライト・ばねとダンパー。後ろ (片持ち): 太いスイングアーム・細いリンク・アップライト (モーターに直付け)・ばねとダンパー。
  位置は Susp の幾何 (ストロークごとの表) から毎フレーム決める。車体 (car のグループ) の座標: x 右・y 上・z 後ろ、接地点の高さが y = 0 (静止のとき) */
 const SuspMesh={
  mats:null,
@@ -24,7 +24,7 @@ const SuspMesh={
   const parts=p.wh.map((w,i)=>{ const o={w,i};
    if(w.geo.kind==="wishbone"){ o.lf=this.rod(0.009,M.arm); o.lr=this.rod(0.009,M.arm); o.uf=this.rod(0.008,M.arm); o.ur=this.rod(0.008,M.arm);
     o.upr=this.rod(0.016,M.up); o.spd=this.rod(0.012,M.up); o.dmp=this.rod(0.011,M.damp); o.cl=this.coil(); [o.lf,o.lr,o.uf,o.ur,o.upr,o.spd,o.dmp,o.cl].forEach(m=>g.add(m)); }
-   else { o.arm=this.rod(0.018,M.arm); o.arm2=this.rod(0.018,M.arm); o.dmp=this.rod(0.011,M.damp); o.cl=this.coil(); [o.arm,o.arm2,o.dmp,o.cl].forEach(m=>g.add(m)); }
+   else { o.arm=this.rod(0.022,M.arm); o.arm2=this.rod(0.009,M.arm); o.upr=this.rod(0.02,M.up); o.hub=this.rod(0.035,M.up); o.dmp=this.rod(0.011,M.damp); o.cl=this.coil(); [o.arm,o.arm2,o.upr,o.hub,o.dmp,o.cl].forEach(m=>g.add(m)); }   // 後ろ: 太いスイングアーム・細いリンク・アップライト・モーターへの取り付け
    return o; });
   return car.userData.susp={g,parts,V:[0,1,2,3,4,5,6,7].map(()=>new THREE.Vector3())};
  },
@@ -41,17 +41,21 @@ const SuspMesh={
     // ばね・ダンパー: ロアアームの mr の所 → 車体 (静止の位置の真上 0.26 m、少し内側)
     const a=V[0].set(wx+sg*(li.y+(s.L1.y-li.y)*mr),li.z+(s.L1.z-li.z)*mr,wz+0.06), b=V[1].set(wx+sg*(li.y+(G.lo.y-li.y)*mr-0.05),li.z+0.26,wz+0.06);
     this.link(o.cl,a,b); const m=V[2].lerpVectors(a,b,0.45); this.link(o.dmp,m,b);
-   } else { const L=w.geo.L, an=Math.asin(clamp(ci/L,-0.9,0.9)), pv=V[3].set(wx-0.06,w.R,wz-L), wc=V[4].set(wx-0.06,w.R+ci,wz-L+L*Math.cos(an)), pv2=V[5].set(wx+0.06,w.R,wz-L), wc2=V[6].set(wx+0.06,w.R+ci,wz-L+L*Math.cos(an));
-    this.link(o.arm,pv,wc); this.link(o.arm2,pv2,wc2);
-    const a=V[0].lerpVectors(pv,wc,0.55), b=V[1].set(a.x,w.R+0.28,a.z-0.04); this.link(o.cl,a,b); const m=V[2].lerpVectors(a,b,0.45); this.link(o.dmp,m,b); }
+   } else { /* 後ろ (片持ち): アームは車輪の片側 (side: +1 右)。横から見た座標 y (前 +) を車体の z (後ろ +) へ */
+    const G=w.geo, s=Susp.geoAt(w,ci), z0=wm.z0!=null? wm.z0 : wz, ax=wx+G.side*0.075, P=(q,k)=>V[k].set(ax,q.z,z0-q.y), mr=p.mr;
+    const pl=P(G.li,3).clone(), pu=P(G.ui,4).clone(), L1=P(s.L1,5).clone(), U1=P(s.U1,6).clone(), wc=P(s.wc,7).clone();
+    this.link(o.arm,pl,L1); this.link(o.arm2,pu,U1); this.link(o.upr,L1,U1); this.link(o.hub,wc,V[0].set(wx,s.wc.z,z0-s.wc.y));
+    const a=V[1].lerpVectors(pl,L1,mr), st=V[2].set(ax,G.li.z+(G.lo.z-G.li.z)*mr+0.28,z0-(G.li.y+(G.lo.y-G.li.y)*mr)-0.04);   // ばね: スイングアームの mr の所 → 車体
+    this.link(o.cl,a,st); const m=V[3].lerpVectors(a,st,0.45); this.link(o.dmp,m,st); }
   }
  },
  /* 車体の姿勢 (th 機首上げ・ph 右が下がる・zb 上へ [m]) に対して、車輪を路面に着けたまま置く。前輪はアームの幾何のキャンバー。
   部品の見た目も合わせる。戻り値: 車輪ごとのストローク */
  pose(car,th,ph,zb){
   const W=car.userData.wheels; if(!W) return null; const cv=car.userData._cv||(car.userData._cv=[]), tp=typeof Susp!=="undefined"? Susp.params() : null;
-  W.forEach((w,i)=>{ const x=w.g.position.x, z=w.g.position.z, c=th*z+ph*x-zb; cv[i]=c;
+  W.forEach((w,i)=>{ if(w.z0==null) w.z0=w.g.position.z; const x=w.g.position.x, z=w.z0, c=th*z+ph*x-zb; cv[i]=c;
    w.g.position.y=w.r+c; const sw=tp&&tp.wh[i], gm=sw&&sw.geo.tab? Susp.geoAt(sw,c) : null;
+   w.g.position.z= gm&&sw.geo.kind==="link"? z-gm.wc.y : z;   // 後ろ: リンクの動きで車輪が少し前後する
    w.g.rotation.order="YZX"; w.g.rotation.z=ph-(gm? (x>=0?1:-1)*gm.camber : 0); });   // 車体のロールを打ち消し、アームの幾何のキャンバーだけ傾ける
   this.update(car,cv,!!P.xray); this.xray(car,!!P.xray); return cv;
  },

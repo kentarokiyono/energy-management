@@ -7,7 +7,7 @@ module.exports=`globalThis.HT={
   susp: false でサスペンションなし (荷重は釣り合いの式)
   → {t, x, y, h, maxRoll (車体の傾きの最大 [rad]), maxBeta, maxUse, lockF (前輪が最初にロックした時刻), lockR, path: 間引いた軌跡 [[x,y,h]], wheels: 車輪の軌跡の最大の半径用} */
  run(o){
-  const p=Tire.params(), st=Tire.init(), sp=Susp.init(), dt=0.01; let fyT=0; let x=o.x0||0, y=o.y0||0, h=o.h0||0, u=o.u!=null? o.u : o.u0, t=0, dl=0, iN=0;
+  const p=Tire.params(), st=Tire.init(), sp=Susp.init(), dt=0.01; let fyT=0, fxRr=0; let x=o.x0||0, y=o.y0||0, h=o.h0||0, u=o.u!=null? o.u : o.u0, t=0, dl=0, iN=0;
   const r={maxBeta:0,maxUse:0,lockF:null,lockR:null,path:[],slideT:0};
   while(t<(o.tmax||60)){
    let dc=0;
@@ -22,8 +22,8 @@ module.exports=`globalThis.HT={
    else dc= typeof o.delta==="function"? o.delta(t) : (o.delta||0);
    dc=clamp(dc,-p.steerMax,p.steerMax); const dr=(o.dRate||1.2)*dt; dl+=clamp(dc-dl,-dr,dr);
    const Fs=typeof o.Fside==="function"? o.Fside(t) : (o.Fside||0), env={mu:o.mu==null?1:o.mu,Fside:Fs};
-   if(o.susp!==false){ Susp.step(sp,{ax:st.ax||0,Fy:fyT,Fside:Fs},dt); env.Fz=sp.Fz; env.camber=sp.camber; }   // サスペンション (走行と同じ)。susp:false で釣り合いの式
-   const R=Tire.step(st,{u,delta:dl,brake:o.brake||0,drive:o.drive||0},env,dt); fyT=R.fy;
+   if(o.susp!==false){ Susp.step(sp,{ax:st.ax||0,Fy:fyT,Fside:Fs,FxR:fxRr},dt); env.Fz=sp.Fz; env.camber=sp.camber; }   // サスペンション (走行と同じ)。susp:false で釣り合いの式
+   const R=Tire.step(st,{u,delta:dl,brake:o.brake||0,drive:o.drive||0},env,dt); fyT=R.fy; fxRr=R.fxR||0;
    if(o.u==null){ st.ax=R.fx/p.m; u=Math.max(0,u+R.fx/p.m*dt); }
    h+=st.r*dt; x+=(Math.cos(h)*u-Math.sin(h)*st.vy)*dt; y+=(Math.sin(h)*u+Math.cos(h)*st.vy)*dt; t+=dt;
    r.maxBeta=Math.max(r.maxBeta,Math.abs(Tire.beta(st,u))); r.maxRoll=Math.max(r.maxRoll||0,Math.abs(sp.ph||0)); r.maxUse=Math.max(r.maxUse,st.use||0); if(st.slide) r.slideT+=dt;

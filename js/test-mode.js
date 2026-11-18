@@ -150,12 +150,12 @@ if(Ibat>0) es.ahUsed+=Ibat*dtR/3600;
 es.v=this.v;
 // 横の動き: タイヤの計算 (レースと同じ Tire)。コースの外は土
 const S=this.susp||(this.susp=Susp.init());
-Susp.step(S,{ax:(es.gPitch||0)*GRAV,Fy:this.v>0.05? (this.lastFyT||0) : 0},dtR);   // サスペンション (レースと同じ)
+Susp.step(S,{ax:(es.gPitch||0)*GRAV,Fy:this.v>0.05? (this.lastFyT||0) : 0,FxR:this.v>0.05? (this.lastFxR||0) : 0},dtR);   // サスペンション (レースと同じ)
 if(this.v>0.05){
  T.ax=(es.gLong||0)*GRAV;
  const wet=typeof Rain!=="undefined"? (Rain.wet||0) : 0, mu= offTrack? Tire.SURF.dirt : 1-Tire.SURF.wetK*wet;
  const R=Tire.step(T,{u,delta:Tire.steerAngle(Input.steer,this.v,Input.steerMode),drive:Ftrac,brake:FbFric,regen:Fr},{mu,Fz:S.Fz,camber:S.camber},dtR);
- this.lastFyT=R.fy;
+ this.lastFyT=R.fy; this.lastFxR=R.fxR;
  this.tireFx=R.fx; this.tireFxReq=R.fxReq; es.tireW=R.wheels; es.tireUse=T.use; es.tireSlide=T.slide; es.tireLock=T.lockAny; es.tireSat=T.sat;
  this.heading+=T.r*dtR; es.gLat=T.ay/GRAV;
 } else { es.gLat=0; T.vy=0; T.r=0; T.ay=0; this.tireFx=null; es.tireW=null; es.tireUse=0; es.tireSlide=false; es.tireLock=false; es.tireSat=0; }
