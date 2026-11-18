@@ -63,7 +63,8 @@ const Model={
   → {roll (鉄損・前輪のトーとキャンバーの抵抗を含む), drag, slope, corner, total, yaw [rad]} */
  resist(v,e){
   const m=e.m, th=Math.atan(e.grade||0), rho=e.rho||1.17;
-  const roll=(e.crrK||1)*Phys.crr(v)*m*GRAV*Math.cos(th)+motorIronW(v)/Math.max(v,0.5)+(typeof Tire!=="undefined"? Tire.alignDrag(m) : 0);   // + トー・キャンバーの抵抗
+  const T=typeof Tire!=="undefined"? Tire : null;
+  const roll=(e.crrK||1)*(T? T.crrK() : 1)*Phys.crr(v)*m*GRAV*Math.cos(th)+motorIronW(v)/Math.max(v,0.5)+(T? T.alignDrag(m) : 0);   // 空気圧の倍率、+ トー・キャンバーの抵抗
   const cross=e.cross||0, yaw=Math.atan2(Math.abs(cross),Math.max(v,1));
   const va=Math.max(0,v+(e.head||0)), va2=va*va+(e.varH||0);
   const drag=0.5*rho*P.Cd*cdYawFactor(yaw)*(e.aeroK||1)*P.frontal*va2;

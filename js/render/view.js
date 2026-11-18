@@ -851,6 +851,20 @@ branchAt(x,z){
   for(const f of b.fillets||[]){ if(Math.hypot(f.C[0]-x,f.C[1]-z)<8.5) return {b,i:0,t:0,d:0,y:b.pts[0].y,along:0}; } }
  return null;
 },
+/* 横転の危険度: サスペンションの計算の車輪の荷重から、前の左右の荷重の偏り (片輪が浮くと 1)。路面の凸凹で一瞬浮くのは数えない (0.15 秒でならす)。
+ 片輪が浮いたあとは、転倒させる力と踏ん張る力の比 (VehDyn.roll) で 1 を超えるかを見る。内訳 (風・旋回) は VehDyn.roll から */
+tipRisk(es,vv,shield,dtR){
+ const S=this.susp, p=typeof Susp!=="undefined"? Susp.params() : null, Rr=VehDyn.roll(es,-(es.lastCross||0),vv,shield);
+ if(!S||!S.Fz||!p) return Rr;
+ const fr=p.wh.map((w,i)=>({w,i})).filter(o=>o.w.geo.kind==="wishbone"); if(fr.length<2) return Rr;
+ const L=fr.find(o=>o.w.py<0), Rt=fr.find(o=>o.w.py>0); if(!L||!Rt) return Rr;
+ const fl=S.Fz[L.i], fR=S.Fz[Rt.i], ltr=(fl-fR)/Math.max(1,fl+fR);   // + = 右が重い (左が浮きそう → 右へ倒れる)
+ this.ltrF= lerp(Number.isFinite(this.ltrF)?this.ltrF:ltr,ltr,clamp(dtR/0.15,0,1));
+ const a=Math.abs(this.ltrF), risk= a<0.98? a : Math.max(a,Rr.risk);
+ return {risk,dir:Math.sign(this.ltrF)||Rr.dir,wind:Rr.wind,turn:Rr.turn,lift:Rr.lift,ltr:this.ltrF};
+},
+/* パンクした車輪 (前のどちらか・後ろ。パンクのたびに決める) */
+flatWheel(es){ return es.burstWheel==null? 0 : es.burstWheel; },
 /* 車輪の下の路面の高さ [m] を返す関数 (Susp.step の road): 舗装の細かいうねり (町はなめらか、郊外は粗い、路肩・土はもっと荒い) とキャトルグリッド。
  ds: このフレームで進む距離 [m]。f (0〜1) でフレームの中の位置 */
 roadFn(es,ds){
@@ -881,15 +895,20 @@ const vv=es.v;
 /* 横の動きはタイヤの計算 (Tire): 前後の速さは Engine、横すべり・向きの変わり方は車輪ごとのタイヤの力と横風から */
 const T=this.tire||(this.tire=Tire.init()), u=vv*gearDir(), S=this.susp||(this.susp=Susp.init());
 this.delta=Tire.steerAngle(Input.steer,vv,Input.steerMode);
-const wind=P.mode==="race"&&!P.event&&vv>1? VehDyn.aeroSide(-(es.lastCross||0),vv,es.lastRho||1.17) : null;
-/* サスペンション: 実際の加速度 (速度の変化) とタイヤの横力 (前のフレーム) から車体の動きと車輪ごとの荷重・キャンバー */
-Susp.step(S,{ax:(es.gPitch||0)*GRAV,Fy:vv>0.05? (this.lastFyT||0) : 0,FxR:vv>0.05? (this.lastFxR||0) : 0,Fside:wind?wind.Fy:0,lift:wind?wind.L:0,road:this.roadFn(es,u*dtR)},dtR);
+/* 横風の力 (レース)。停車して約 8 秒たつと誘導車・追走車の風よけで風速半分 (this.stillT は前のフレームの値) */
+const shieldW=P.mode==="race"&&!P.event&&(this.stillT||0)>8, crossR=-(es.lastCross||0)*(shieldW?0.5:1);
+const wind=P.mode==="race"&&!P.event? VehDyn.aeroSide(crossR,vv,es.lastRho||1.17) : null;
+/* サスペンション: 実際の加速度 (速度の変化) とタイヤの横力 (前のフレーム) から車体の動きと車輪ごとの荷重・キャンバー。
+ 止まっているときはタイヤが横風とつり合う (動かない)。風上側の浮き上がりは左右の傾きの力に、クルーが押さえる力は荷重に */
+const moving=vv>0.05, Wd=carDims()[1];
+Susp.step(S,{ax:(es.gPitch||0)*GRAV,Fy:moving? (this.lastFyT||0) : -(wind?wind.Fy:0),FxR:moving? (this.lastFxR||0) : 0,FxF:moving? (this.lastFxF||0) : 0,Fside:wind?wind.Fy:0,lift:wind?wind.L:0,
+ Mx:wind? Math.sign(crossR)*wind.L*Wd/4 : 0,hold:shieldW? ROLL_DEF.hold : 0,flat:es.burst? this.flatWheel(es) : -1,road:this.roadFn(es,u*dtR)},dtR);
 if(vv>0.05){
  const rq=es.tireReq||{};
  T.ax=(es.gLong||0)*GRAV;
  const R=Tire.step(T,{u,delta:this.delta,drive:rq.drive,brake:rq.brake,regen:rq.regen},
-  {mu:this.wheelMu(es),Fside:wind?wind.Fy:0,Fz:S.Fz,camber:S.camber},dtR);
- this.lastFyT=R.fy; this.lastFxR=R.fxR;
+  {mu:this.wheelMu(es),Fside:wind?wind.Fy:0,Fz:S.Fz,camber:S.camber,flat:es.burst? this.flatWheel(es) : -1},dtR);
+ this.lastFyT=R.fy; this.lastFxR=R.fxR; this.lastFxF=R.fxF;
  es.tireFx=R.fx; es.tireFxReq=R.fxReq; es.tireW=R.wheels; es.tireUse=T.use; es.tireSlide=T.slide; es.tireLock=T.lockAny; es.tireSat=T.sat;
  if(typeof DrvRec!=="undefined") DrvRec.tire(es,dtR);
  this.yawR=T.r; this.ch+=T.r*dtR;
@@ -902,7 +921,7 @@ if(P.mode==="race"&&!P.event&&!es.crashed&&!es.camp){
  this.stillT= vv<0.5&&!(es.gear==="R")? (this.stillT||0)+dtR : 0;   // 停車して約 8 秒: 誘導車・追走車が風上で風よけ、クルーが車体を押さえる
  const shield=this.stillT>8; if(shield&&!this._shieldMsg&&Math.abs(es.lastCross||0)>10){ this._shieldMsg=true; Radio.push("停車確認。誘導車と追走車を風上側に寄せて風よけにします。クルーは降りて車体を押さえて。","後方追走車",{speak:true}); }
  if(!shield) this._shieldMsg=false; es.shielded=shield;
- const R=VehDyn.roll(es,-(es.lastCross||0),vv,shield); es.tipRatio=R.risk; es.tipDir=R.dir; es.tipWind=R.wind; es.tipTurn=R.turn;
+ const R=this.tipRisk(es,vv,shield,dtR); es.tipRatio=R.risk; es.tipDir=R.dir; es.tipWind=R.wind; es.tipTurn=R.turn;
  es.tipMax=Math.max(es.tipMax||0,R.risk);
  if(this.tipWarnT>0) this.tipWarnT-=dtR;
  if(R.risk>=0.6&&!(this.tipWarnT>0)){ this.tipWarnT= R.risk>=0.85? 4 : 8; if(R.risk>=0.85) Snd.alarm();
