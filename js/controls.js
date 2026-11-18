@@ -230,6 +230,9 @@ map: JSON.parse(localStorage.getItem("bwsc_wheelmap")||"null") ||
 { steer:{axis:0,inv:false}, accel:null, brake:null },
 gamepadOK:false, gpSteer:0, gpThrottle:0, gpBrake:0, gpRegen:false,
 };
+/* 車体を透かす (T キー・スマホのボタン): カウルを半透明にして、足回り・車内の構造を見る */
+function toggleXray(){ P.xray=!P.xray; Settings.save(); const b=document.getElementById("t-xray"); if(b) b.classList.toggle("on",!!P.xray);
+ toast(P.xray?"車体を透かす: 足回り・車内が見えます (もう一度で戻す)":"車体を透かす: 切","#34d399"); }
 /* キーの名前をそろえる: iPad などで日本語入力が有効だと、スペースや文字キーの e.key が "Process"・"Unidentified" になったり、
  古いブラウザでは "Spacebar" になる。そのときは物理的なキーの位置 (e.code) から決める */
 function keyOf(e){
@@ -255,7 +258,7 @@ if(key==="x") toggleSignal(2);
 if(key==="q"&&running) document.getElementById("ask-panel").classList.toggle("hidden");
 if(key==="b"&&running) boost();
 if(key==="n"&&running) toggleGear();
-if(key==="t"&&running){ P.xray=!P.xray; Settings.save(); toast(P.xray?"車体を透かす: サスペンションが見えます (T で戻す)":"車体を透かす: 切","#34d399"); }
+if(key==="t"&&running) toggleXray();
 if(e.key==="Backspace"&&Test.active){ e.preventDefault(); Test.retry(); }
 });
 addEventListener("keyup",e=>{ const key=keyOf(e); Input.keys[key]=false; if(key===" ") e.preventDefault(); });

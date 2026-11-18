@@ -34,14 +34,22 @@ def main():
         A, B = E[m, 0], E[m, 1]; d = B[:, 2] - A[:, 2]; t = np.where(np.abs(d) > 1e-12, (zc - A[:, 2]) / np.where(np.abs(d) > 1e-12, d, 1), 0.5)
         return A + (B - A) * t[:, None]
 
-    rows = []
+    rows = []; SBR = []
     for i in range(N):
         u = i / (N - 1); zc = z0 + min(max(u, 0.004), 0.996) * L; S = section(zc)
         if len(S) < 4: rows.append(None); continue
         ax = np.abs(S[:, 0]); halfW = ax.max(); rim = S[ax >= halfW - 0.004, 1].mean()
-        low = S[S[:, 1] < rim - 0.06]; hullW = np.abs(low[:, 0]).max() if len(low) else halfW * 0.6
-        top = S[(ax < halfW * 0.9) & (S[:, 1] <= upTop + 0.004)]; zPanel = top[:, 1].max() if len(top) else rim
         zBell = S[:, 1].min()   # 底: 断面のいちばん下 (車輪カバーの所は深くなり、車輪が隠れる)
+        # 胴体の幅: 胴体の側面だけで測る (パネルの縁の近く = パネルの裏は除く。除かないと後部の細い胴体を太く測る)
+        low = S[(S[:, 1] > zBell + 0.04) & (S[:, 1] < rim - 0.12)]
+        if len(low) >= 3: hullW = np.abs(low[:, 0]).max()
+        else:   # 胴体が低い所 (先端・後端): 縁の少し下までで測り、前の位置の値を超えない
+            low = S[S[:, 1] < rim - 0.06]; hullW = np.abs(low[:, 0]).max() if len(low) else halfW * 0.6
+            prev = [r for r in rows if r]
+            if prev: hullW = min(hullW, prev[-1][2])
+        nb = S[S[:, 1] < zBell + 0.03]
+        if len(nb) and hullW > 0.15: SBR.append(np.abs(nb[:, 0]).max() / hullW)   # 断面の底の幅の割合
+        top = S[(ax < halfW * 0.9) & (S[:, 1] <= upTop + 0.004)]; zPanel = top[:, 1].max() if len(top) else rim
         rows.append((u, halfW, hullW, zPanel + yg, rim + yg - 0.02, zBell + yg))
     good = [r for r in rows if r]
     # 高さ (zPanel / zHull / zBell) は前後の位置と 1:2:1 でならす (丸めの段や車輪カバーのでこぼこで、下の線が波打たないように)
@@ -74,7 +82,7 @@ def main():
         for g in groups:
             if len(g) < 3: continue
             m = np.mean(g, 0); wheels.append([r2(m[0]), r2(m[1] - (z0 + z1) / 2), 0.26, 0.1])
-    body = {"L": r2(L), "wheels": wheels, "livery": True, "orangeU": 0.03, "hatches": True, "sectionBottom": 0.8, "noseTip": prof["zBell"][0][1],
+    body = {"L": r2(L), "wheels": wheels, "livery": True, "orangeU": 0.03, "hatches": True, "sectionBottom": r2(float(np.median(SBR))) if SBR else 0.8, "noseTip": prof["zBell"][0][1],
             "canopy": {"x": r2(can[:, 2].mean() - z0), "len": r2(can[:, 2].max() - can[:, 2].min()), "w": r2(2 * np.abs(can[:, 0]).max()), "top": r2(can[:, 1].max() + yg)},
             "profiles": prof}
     print("車輪", wheels)

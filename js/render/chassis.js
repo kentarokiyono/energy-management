@@ -11,7 +11,11 @@ const ChassisMesh={
  /* 形の値 (車体の諸元の profiles): u (0 先端〜1 後端) の折れ線 */
  lin(P,u,d){ if(!P||!P.length) return d; if(u<=P[0][0]) return P[0][1]; for(let i=1;i<P.length;i++) if(u<=P[i][0]){ const [a,va]=P[i-1], [b,vb]=P[i]; return va+(vb-va)*(u-a)/(b-a||1); } return P[P.length-1][1]; },
  build(V,body,SB,E0,carbon){
-  if(typeof THREE==="undefined"||!SB||!SB.profiles) return null;
+  /* 形の値: 諸元 (実車の非公開のデータ) に profiles が無いとき (実車の外形の STL で車体を作るとき) は、公開用の形 (実車の外形から 2 cm 単位に丸めた値) で寸法を決める。
+   車輪・キャノピーの位置は諸元の値 */
+  const PB= SB&&SB.profiles? SB : (typeof YATA_PUBLIC_BODY!=="undefined"? YATA_PUBLIC_BODY : null);
+  if(typeof THREE==="undefined"||!PB||!PB.profiles) return null;
+  if(SB!==PB) SB=Object.assign({},PB,SB,{profiles:PB.profiles,L:PB.L,sectionBottom:PB.sectionBottom,wheels:(SB&&SB.wheels)||PB.wheels,canopy:(SB&&SB.canopy)||PB.canopy});
   const L=SB.L||5.76, HL=L/2, PF=SB.profiles, uOf=z=>clamp((z+HL)/L,0,1);
   const hw=z=>this.lin(PF.hullW,uOf(z),.5), top=z=>this.lin(PF.zHull,uOf(z),.62), bot=z=>this.lin(PF.zBell,uOf(z),.16);
   /* 胴体の断面の半幅 (高さ y の所): yata.js と同じ形 (諸元の sectionBottom があれば台形、無ければ丸い形) */
@@ -35,7 +39,8 @@ const ChassisMesh={
   const SP=typeof Susp!=="undefined"? Susp.params() : null, fg=SP&&SP.wh.find(q=>q.geo.kind==="wishbone");
   let fbx=.24, liY=.16, uiY=.32, yHi=.3, pedal=null, fbox=null;
   if(FW.length===2){ if(fg){ liY=fg.geo.li.z; uiY=fg.geo.ui.z; } fbx=Math.max(.16,Math.abs(FW[0].x)-.18);
-   const zw=FW[0].z, zf=zw-.42, zm=zw-.06, zr=zw+.36, yb=bot(zw)+.02, yShelf=uiY-.02; yHi=top(zw)-.06; const yLo=Math.max(yShelf+.06,yHi-.10);   // 壁は胴体の上面の少し下まで。上のアームは中の棚板 (yShelf)
+   const zw=FW[0].z, zf=zw-.42, zm=zw-.06, zr=zw+.36, yb=Math.max(bot(zf),bot(zw),bot(zr))+.02,   // 床: 箱の前後でいちばん高い底 (前輪の車輪カバーの所で底が深くなる分は使わない)
+   yShelf=uiY-.02; yHi=top(zw)-.06; const yLo=Math.max(yShelf+.06,yHi-.10);   // 壁は胴体の上面の少し下まで。上のアームは中の棚板 (yShelf)
    for(const sg of [-1,1]){   // 左右の壁 (三角の穴、下にロアアームの穴)
     const ol=[[zf,yb],[zr,yb],[zr,yHi],[zm,yHi],[zm,yLo],[zf,yLo]];
     const hl=[[[zw-.08,liY-.03],[zw+.08,liY-.03],[zw+.08,liY+.03],[zw-.08,liY+.03]],   // ロアアームの穴
@@ -90,6 +95,7 @@ const ChassisMesh={
    for(let i=0;i<=N;i++){ const y=yb+(yt-yb)*i/N, x=secX(zs,y)-.02; R.push([x,y]); Lf.unshift([-x,y]); }   // ロアカウルの断面に沿って立つ
    const sh=new THREE.Shape([...R,...Lf].map(([x,y])=>new THREE.Vector2(x,y)));
    const geo=new THREE.ExtrudeGeometry(sh,{depth:.012,bevelEnabled:false}); const m=add(new THREE.Mesh(geo,carbon)); m.position.z=zs-.012; m.name="bulkhead"; this.bulkZ=zs; }
+  const rearHalf=secX(zs,bot(zs)+.03)-.03;   // 後ろのアームを付けられる半幅 (仕切り板の下寄りの所。suspmesh.js がアームの横の位置をこれに収める)
   // ---- バッテリー (20 kg): 運転席のすぐ後ろ、2 枚の板の間 ----
   { const yb=bot(bat.z)+.03, b=box(bw,bh,bd,blk,0,yb+bh/2,bat.z); b.name="battery";
    box(bw+.004,.02,bd+.004,orange,0,yb+bh-.02,bat.z);   // 上の縁の色帯
@@ -100,7 +106,7 @@ const ChassisMesh={
    const sh=new THREE.Shape([[z0,yb],[z1,yb],[z1-.04,yb+.05],[z0+.14,yt],[z0+.02,yt-.03]].map(([z,y])=>new THREE.Vector2(z,y)));   // 前は頭の後ろで高く、後ろへ低く (キャノピーの形に沿う)
    const geo=new THREE.ExtrudeGeometry(sh,{depth:w,bevelEnabled:true,bevelThickness:.02,bevelSize:.02,bevelSegments:3}); geo.rotateY(-Math.PI/2); geo.translate(w/2,0,0);
    const m=add(new THREE.Mesh(geo,M(0x0b0c0e,{roughness:.35,metalness:.2}))); m.name="rollbar"; }
-  body.add(g); return {g,steer,pedal,fbox};
+  body.add(g); return {g,steer,pedal,fbox,rearHalf};
  },
  _v:null, _up:null,
  link(o,a,b){ const v=this._v||(this._v=new THREE.Vector3()), up=this._up||(this._up=new THREE.Vector3(0,1,0)); v.subVectors(b,a); const L=v.length()||1e-4;
