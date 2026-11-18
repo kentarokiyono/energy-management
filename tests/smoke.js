@@ -10,14 +10,19 @@ function serve(){ return new Promise(res=>{ const s=http.createServer((q,r)=>{ l
   r.writeHead(200,{"Content-Type":TYPES[path.extname(f)]||"application/octet-stream"}); fs.createReadStream(f).pipe(r); }); s.listen(0,"127.0.0.1",()=>res(s)); }); }
 const results=[]; let failed=0;
 function check(name,ok,info){ results.push(`${ok?"PASS":"FAIL"}  ${name}${info?"  ("+info+")":""}`); if(!ok) failed++; }
+/* ブラウザ: 読み込みが止まったら新しいブラウザに替える (BR.b)。最初のブラウザ (BR.orig) を渡された確認は、替えた後のブラウザを使う */
+const GL_ARGS=["--use-gl=swiftshader","--enable-webgl","--ignore-gpu-blocklist"], BR={b:null,orig:null};
 async function newPage(b,base,opt={},retry=1){
+ if(b===BR.orig) b=BR.b;
  const ctx=await b.newContext({viewport:opt.vp||{width:1280,height:720},hasTouch:!!opt.touch,isMobile:!!opt.touch});
  const p=await ctx.newPage(); p.errs=[]; p.ext=[];
  p.on("pageerror",e=>p.errs.push(e.message)); p.on("console",m=>{ if(m.type()==="error") p.errs.push(m.text()); });
  p.on("request",r=>{ const u=r.url(); if(!u.startsWith(base)&&!/^(data|blob):/.test(u)) p.ext.push(u); });
  /* ソフトウェア描画では、前のページの後片付けで読み込みが遅れる・まれに止まることがある (CI)。止まったらページを作り直して 1 回だけやり直す */
  try{ await p.goto(base+"index.html"+(opt.q||""),{timeout:retry? 60000 : 90000}); await p.waitForFunction(()=>typeof startGame==="function"&&typeof THREE!=="undefined",null,{timeout:retry? 60000 : 90000}); }
- catch(e){ if(!retry) throw e; console.log("(読み込みが止まったので、ページを作り直してやり直します: "+String(e.message).split("\n")[0]+")"); await ctx.close().catch(()=>{}); return newPage(b,base,opt,0); }
+ catch(e){ if(!retry) throw e; console.log("(読み込みが止まったので、新しいブラウザでやり直します: "+String(e.message).split("\n")[0]+")"); await ctx.close().catch(()=>{});
+  if(b===BR.b){ const old=BR.b; BR.b=await chromium.launch({args:GL_ARGS}); old.close().catch(()=>{}); b=BR.b; } else { b=await chromium.launch({args:GL_ARGS}); }
+  return newPage(b,base,opt,0); }
  /* 描画を止める (既定)。テストは値・画面の部品・エラーを確かめるので 3D の絵は要らない。GPU の無いソフトウェア描画は遅く、テストの大半の時間が描画だった。
   描いた絵が要る確認 (高画質の効果・スクリーンショット) は render:true */
  if(!opt.render&&!process.env.SMOKE_RENDER) await p.evaluate(()=>{ THREE.WebGLRenderer.prototype.render=function(){}; });
@@ -29,7 +34,7 @@ const noErr=(p)=>p.errs.filter(e=>!/vehicle-private|404/.test(e));
 async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screenshot({path:path.join(OUT,name+".png")}); }
 (async()=>{
  const srv=await serve(), base=`http://127.0.0.1:${srv.address().port}/`;
- const b=await chromium.launch({args:["--use-gl=swiftshader","--enable-webgl","--ignore-gpu-blocklist"]});
+ const b=await chromium.launch({args:GL_ARGS}); BR.b=BR.orig=b;
  const T0=Date.now();
  try{
  // ---- 画質「高」: ポストプロセスと映り込みの環境がエラーなく動く ----
@@ -59,7 +64,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   check("夕方の話し合い: 18:30 に 4 つの議題と話す人、明日の予定を仮決め",pm.kind==="pm"&&pm.steps===4&&pm.pop&&pm.lines>=3&&pm.night==="def2"&&pm.done&&noErr(p).length===0,JSON.stringify(pm));
   await p.context().close(); }
  // ---- AI (Gemini、擬似の返答): 話し合いのセリフが差し替わる・送る内容に名前や電力量が入らない・実車モデルでは使わない ----
- { const ctx=await b.newContext({viewport:{width:1280,height:720}}), p=await ctx.newPage(), errs=[], bodies=[]; p.on("pageerror",e=>errs.push(e.message));
+ { const ctx=await BR.b.newContext({viewport:{width:1280,height:720}}), p=await ctx.newPage(), errs=[], bodies=[]; p.on("pageerror",e=>errs.push(e.message));
   await p.route("**/*-private.*",r=>r.fulfill({status:404,body:""}));   // 公開モデルで確かめる
   await p.route("https://generativelanguage.googleapis.com/**",async rt=>{ const body=rt.request().postData()||""; bodies.push(body); const sys=JSON.parse(body).systemInstruction.parts[0].text;
    const text= sys.includes("JSON 配列")? JSON.stringify([{role:"tm",text:"AIテスト1"},{role:"elec",text:"AIテスト2"}]) : sys.includes("分析する")? "AI分析" : "AI戦略";
@@ -99,7 +104,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   check("練習シナリオ: エラーなし",noErr(p).length===0,noErr(p).slice(0,2).join(" | "));
   await p.evaluate(()=>{ Scenario.closeRes(); quitToMenu(); document.getElementById("scenario").value=""; }); await p.context().close(); }
  // ---- スピン (後ろ向きに滑る・ブレーキで止まる)・タイヤ痕・道の外の柔らかい砂に沈む ----
- { const p=await newPage(b,base);
+ { const b3=await chromium.launch({args:GL_ARGS}), p=await newPage(b3,base);   // 別のブラウザで (長い計算のあと、次のページの読み込みが止まることがある)
   const r=await p.evaluate(()=>{ P.mode="race"; P.event=false; P.crewProc=false; startGame(); running=false; modalPause=false; Collide.enabled=false;
    const es=Engine.st, step=()=>{ Engine.step(1/60,1/60); View.update(1/60); };
    es.gear="D"; for(let i=0;i<30;i++){ es.v=20; step(); }
@@ -112,7 +117,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
    es.v=4; let tS=0; for(;tS<8&&es.v>0.01;tS+=1/60) View.update(1/60);   // (Engine は止めて: 止まったあとの停車の扱いに入らないよう、道の外の抵抗だけを見る)
    return {stop,back:+back.toFixed(1),skid,off:es.offroad,soft:+Tire.softAt(View.s,5).toFixed(2),sink:+(View.sink||0).toFixed(3),tS:+tS.toFixed(1)}; });
   check("スピン: 後ろ向きに滑り、ブレーキで止まる・路面にタイヤ痕・道の外の柔らかい砂に沈んで止まる",r.stop!=null&&r.stop<8&&r.skid>10&&r.off&&r.sink>0.02&&r.tS<6&&noErr(p).length===0,JSON.stringify(r)+" "+noErr(p).slice(0,2).join(" | "));
-  await p.context().close(); }
+  await p.context().close(); await b3.close(); }
  // ---- 横転の危険度と練習シナリオ (暴風雨) ----
  { const p=await newPage(b,base);
   const rr=await p.evaluate(()=>{ const es={lastRho:1.17,gLat:0,gLong:0}, R=(c,v,sh)=>VehDyn.roll(es,c,v/3.6,sh).risk;
@@ -382,7 +387,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   check("ヒドゥンバレー: 周回の計測",lp.laps>=1&&lp.t>0,JSON.stringify(lp));
   await p.context().close(); }
  // ---- 振動・反力: 仮のゲームパッドと仮のハンコンで、出力の向きと強さ・OFF・項目ごとの強さ ----
- { const ctx=await b.newContext({viewport:{width:1280,height:720}}); await ctx.addInitScript(()=>{ window._rum=[];
+ { const ctx=await BR.b.newContext({viewport:{width:1280,height:720}}); await ctx.addInitScript(()=>{ window._rum=[];
    const pad={id:"Fake",index:0,connected:true,axes:[0,0,0,0],buttons:[{pressed:false}],vibrationActuator:{playEffect:(t,o)=>{ window._rum.push([o.strongMagnitude,o.weakMagnitude]); return Promise.resolve("complete"); }}};
    navigator.getGamepads=()=>[pad]; });
   const p=await ctx.newPage(); p.errs=[]; p.on("pageerror",e=>p.errs.push(e.message));
@@ -505,7 +510,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   check("オフラインで起動",o.game==="function"&&o.three==="object"&&o.chart==="function",JSON.stringify(o));
   await p.context().close(); }
  } catch(e){ check("テスト実行",false,e.message); }
- await b.close(); srv.close();
+ await BR.b.close().catch(()=>{}); if(BR.b!==b) await b.close().catch(()=>{}); srv.close();
  console.log(results.join("\n")); console.log(`\n${results.length-failed}/${results.length} 件成功 (${((Date.now()-T0)/1000).toFixed(0)} 秒)`);
  process.exit(failed?1:0);
 })();
