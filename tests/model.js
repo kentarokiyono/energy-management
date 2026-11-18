@@ -211,6 +211,8 @@ const T0=Date.now();
  check("タイヤの横の力は少し遅れて立ち上がる・横風の力の中心は風の角度が大きいと後ろへ",ph.ay0<ph.ay1*0.95&&ph.ay0>0&&ph.cp40<ph.cp0-0.5,`切って 0.02 秒の横 G ${(ph.ay0/9.79).toFixed(3)} / 遅れなし ${(ph.ay1/9.79).toFixed(3)}・中心 ${ph.cp0.toFixed(2)} → ${ph.cp40.toFixed(2)} m`);
  const ks=R(`(()=>{ const p=Tire.params(), st=Tire.init(); Tire.step(st,{u:1,delta:0.2},{mu:1},0.1); return {r:st.r, k:1*Math.tan(0.2)/p.L}; })()`);
  check("止まる直前 (1 m/s) は前輪の向きどおりに曲がる",near(ks.r,ks.k,1e-9),ks.r.toFixed(4)+" rad/s");
+ const spn=R(`(()=>{ const st=Tire.init(), dt=1/60; st.r=1.5; st.vy=-2; let u=20,t=0,d=0; for(;t<30;t+=dt){ const R=Tire.step(st,{u,delta:0},{mu:0.9},dt); u=Math.max(0,u+R.du*dt); d+=Math.hypot(u,st.vy)*dt; if(Math.hypot(u,st.vy)<0.3) break; } return {t,d}; })()`);
+ check("スピンすると横に滑ってタイヤの摩擦で止まる (どこまでも滑らない)",spn.t<6&&spn.d<60,`72 km/h から ${spn.t.toFixed(1)} 秒・${spn.d.toFixed(0)} m`);
 }
 
 console.log(results.join("\n"));

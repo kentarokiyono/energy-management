@@ -153,10 +153,11 @@ es.v=this.v;
 const S=this.susp||(this.susp=Susp.init());
 { const ds=this.v*dtR, s0=(this.odo=(this.odo||0)+ds)-ds, k=offTrack? 8 : 0.8, wh=Tire.params().wh;   // 路面の凸凹 (コースは舗装、外は土)
  Susp.step(S,{ax:(es.gPitch||0)*GRAV,Fy:this.v>0.05? (this.lastFyT||0) : 0,FxR:this.v>0.05? (this.lastFxR||0) : 0,road:(i,f)=>Susp.roughAt(s0+ds*f+wh[i].px,wh[i].py,k)},dtR); }   // サスペンション (レースと同じ)
-if(this.v>0.05){
+if(this.v>0.05||Math.abs(T.vy)>0.05){
  T.ax=(es.gLong||0)*GRAV;
  const wet=typeof Rain!=="undefined"? (Rain.wet||0) : 0, mu= offTrack? Tire.SURF.dirt : 1-Tire.SURF.wetK*wet;
  const R=Tire.step(T,{u,delta:Tire.steerAngle(Input.steer,this.v,Input.steerMode),drive:Ftrac,brake:FbFric,regen:Fr},{mu,Fz:S.Fz,camber:S.camber},dtR);
+ this.v=Math.max(0,this.v+R.du*gearDir()*dtR); es.v=this.v;   // スピン: 前へ進む速さが横の滑りに移る (レースと同じ)
  this.lastFyT=R.fy; this.lastFxR=R.fxR;
  this.tireFx=R.fx; this.tireFxReq=R.fxReq; es.tireW=R.wheels; es.tireUse=T.use; es.tireSlide=T.slide; es.tireLock=T.lockAny; es.tireSat=T.sat;
  this.heading+=T.r*dtR; es.gLat=T.ay/GRAV;
