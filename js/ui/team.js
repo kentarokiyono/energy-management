@@ -67,7 +67,7 @@ const Team={
    ${this.row("30 mm 縮んだときのキャンバー (前)",f(cam,2)+" °","− = 上が内側")}
    ${(()=>{ const r=p.wh.find(w=>w.geo.kind==="link"); return r? this.row("アンチスクワット (後ろ)",f(r.geo.anti*p.L/p.h*100,0)+" %","加速で後ろが沈むのを、アームが打ち消す割合") : ""; })()}
    ${this.row("ばね (車輪の位置で)",p.wh.map(w=>`${w.front?"前":"後"} ${f(w.k/1000,1)}`).join(" / ")+" N/mm","")}
-   <div class="dim team-note">前はダブルウィッシュボーン (アッパーアーム・ロアアーム・アップライト)、後ろは片持ち (上下 2 本の非対称な V 字のアーム。アップライト側 1 点・車体側 2 点、アップライトはインホイールモーターに直付け)。ばねの硬さは車体の揺れの周期 (Hz) で決めます。実車の値は非公開の諸元ファイル (susp) に入れると既定になります。</div>`; },
+   <div class="dim team-note">前はダブルウィッシュボーン (アッパーアーム・ロアアーム・アップライト) とマウンテンバイク用のエアサス (縮むほど硬い)。後ろは片持ち (上下 2 本の非対称な V 字のアーム、下はサスのブラケットで A 字。アップライトはインホイールモーターに直付け) とコイルばね。ばねの硬さは車体の揺れの周期 (Hz) で決めます。実車の値は非公開の諸元ファイル (susp) に入れると既定になります。</div>`; },
  /* ---- 運用 ---- */
  ops(){ setTimeout(()=>this.aiState(),0); return `<label class="chk team-chk"><input type="checkbox" ${P.csTilt!==false?"checked":""} onchange="P.csTilt=this.checked;Team.saved();if(typeof Trend!=='undefined'&&Trend.left)Trend.left()"><i></i>CS (30 分の停車) で傾けて充電する</label>
    <div class="dim team-note">外すと、ゲーム本戦の CS では平置きのまま充電し、戦略・速度の指示・傾向もそれを前提に計算します (朝・夕方は傾ける)。</div>

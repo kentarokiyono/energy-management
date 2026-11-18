@@ -156,6 +156,9 @@ const T0=Date.now();
   const a=run(400), b=(()=>{ const st=Susp.init(); for(let t=0;t<4;t+=0.01) Susp.step(st,{ax:400/p.m,FxR:0},0.01); return st; })(), i=p.wh.indexOf(r);
   return {anti:r.geo.anti*p.L/p.h, th:a.th, th0:b.th, Fz:a.Fz[i], Fz0:b.Fz[i], side:r.geo.side}; })()`);
  check("後ろ (片持ち): 加速でアームが後ろを持ち上げ、沈み (機首上げ) が減る。荷重の移り方は同じ。アームは右",aq.anti>0&&aq.th<aq.th0&&Math.abs(aq.Fz-aq.Fz0)<3&&aq.side===1,`アンチスクワット ${(aq.anti*100).toFixed(0)} %・${(aq.th0*57.3).toFixed(3)}° → ${(aq.th*57.3).toFixed(3)}°`);
+ const air=R(`(()=>{ const p=Susp.params(), f=p.wh.find(w=>w.front), r=p.wh.find(w=>!w.front), k=(w,c)=>(Susp.spring(w,c+0.001)-Susp.spring(w,c-0.001))/0.002;
+  return {f0:k(f,0)/f.k, f4:k(f,0.04)/f.k, fm:k(f,-0.04)/f.k, r4:k(r,0.04)/r.k}; })()`);
+ check("前のエアサスは縮むほど硬く伸びると柔らかい (静止で既定の硬さ)・後ろのコイルは一定",near(air.f0,1,0.02)&&air.f4>1.3&&air.fm<0.8&&near(air.r4,1,1e-6),`前 伸び 40 mm ×${air.fm.toFixed(2)}・縮み 40 mm ×${air.f4.toFixed(2)}・後ろ ×${air.r4.toFixed(2)}`);
  const ks=R(`(()=>{ const p=Tire.params(), st=Tire.init(); Tire.step(st,{u:1,delta:0.2},{mu:1},0.1); return {r:st.r, k:1*Math.tan(0.2)/p.L}; })()`);
  check("止まる直前 (1 m/s) は前輪の向きどおりに曲がる",near(ks.r,ks.k,1e-9),ks.r.toFixed(4)+" rad/s");
 }
