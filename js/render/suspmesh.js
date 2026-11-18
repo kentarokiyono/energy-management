@@ -53,14 +53,15 @@ const SuspMesh={
     this.link(o.cl,a,st); this.link(o.dmp,a,V[3].lerpVectors(a,st,0.55)); }   // ダンパーの本体は下側 (ブラケット側)、ばねはその外側に全長
   }
  },
- /* 車体の姿勢 (th 機首上げ・ph 右が下がる・zb 上へ [m]) に対して、車輪を路面に着けたまま置く。前輪はアームの幾何のキャンバー。
+ /* 車体の姿勢 (th 機首上げ・ph 右が下がる・zb 上へ [m]) と車輪の上下 zu に対して車輪を置く。前輪はアームの幾何のキャンバー。
   部品の見た目も合わせる。戻り値: 車輪ごとのストローク */
- pose(car,th,ph,zb){
+ pose(car,th,ph,zb,zu){
   const W=car.userData.wheels; if(!W) return null; const cv=car.userData._cv||(car.userData._cv=[]), tp=typeof Susp!=="undefined"? Susp.params() : null;
-  W.forEach((w,i)=>{ if(w.z0==null) w.z0=w.g.position.z; const x=w.g.position.x, z=w.z0, c=th*z+ph*x-zb; cv[i]=c;
+  W.forEach((w,i)=>{ if(w.z0==null) w.z0=w.g.position.z; const x=w.g.position.x, z=w.z0, u=zu&&Number.isFinite(zu[i])? zu[i] : 0, c=th*z+ph*x-zb+u; cv[i]=c;   // u: 車輪の上下 (路面の凸凹で跳ねる)
    w.g.position.y=w.r+c; const sw=tp&&tp.wh[i], gm=sw&&sw.geo.tab? Susp.geoAt(sw,c) : null;
    w.g.position.z= gm&&sw.geo.kind==="link"? z-gm.wc.y : z;   // 後ろ: リンクの動きで車輪が少し前後する
-   w.g.rotation.order="YZX"; w.g.rotation.z=ph-(gm? (x>=0?1:-1)*gm.camber : 0); });   // 車体のロールを打ち消し、アームの幾何のキャンバーだけ傾ける
+   const c0= sw&&sw.geo.kind==="wishbone"? tp.cam0 : 0;
+   w.g.rotation.order="YZX"; w.g.rotation.z=ph-(x>=0?1:-1)*((gm? gm.camber : 0)+c0); });   // 車体のロールを打ち消し、アームの幾何のキャンバーだけ傾ける
   this.update(car,cv,!!P.xray); this.xray(car,!!P.xray); return cv;
  },
  /* 車体を半透明に (アーム・ばねが見える)。材質はこの車だけの複製に差し替え (他の車・ゴーストは変えない)、戻すときは元の材質 */

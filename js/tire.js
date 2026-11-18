@@ -16,7 +16,8 @@ const Tire={
  LS:0.15,        // 荷重感度
  SLIDE:0.85,     // 滑っているときの摩擦 (滑り出す直前の μ に対する比)
  CAMBER:0.8,     // キャンバーの横力 (1 rad 傾くと荷重の何倍の横力か)
- TRAIL:0.035,    // タイヤの接地面の中心から力のかかる点までの距離 [m] (滑っていないとき)。ハンドルを戻す力のもと
+ TRAIL:0.035,    // タイヤの接地面の中心から力のかかる点までの距離 [m] (滑っていないとき、空気圧のトレール)。ハンドルを戻す力のもと。
+                 // これにキャスター角による機構のトレール (滑っても残る) を足す
  V0:1.2, V1:2.5, // この速さ [m/s] より下は滑りのない動き、上はタイヤの計算 (間はなめらかに混ぜる)
  H:0.004,        // 計算の刻み [s]
 
@@ -62,6 +63,26 @@ const Tire={
  /* キーボードでいっぱいに切ったときの横加速度 [m/s²] (グリップの限界まで) */
  fullAccel(v){ const p=this.params(), d=this.steerAngle(1,v,"assist"); return Math.min(v*v*Math.tan(d)/p.L,p.mu*GRAV); },
 
+ /* 前輪のアライメント (Susp の設定。無ければ 0): caster キャスター角・toe トー (片輪、+ = トーイン)・cam0 静的キャンバー (− = 上が内側) [rad]・ack アッカーマンの割合 (0〜1)・tm 機構のトレール [m] */
+ align(){ const S=typeof Susp!=="undefined"? Susp : null, d=Math.PI/180;
+  if(!S) return {caster:0,toe:0,cam0:0,ack:0,tm:0};
+  const caster=S.val("caster")*d, R=this.params().wh.find(w=>w.front)||{R:0.26};
+  return {caster,toe:S.val("toe")*d,cam0:S.val("camber0")*d,ack:S.val("ack")/100,tm:(R.R||0.26)*Math.tan(caster)}; },
+ /* 前輪 1 本の舵角 [rad]: アッカーマン (内輪を外輪より大きく切る。100 % で両輪とも同じ円の中心を向く) + トー */
+ steerOf(p,w,d,A){
+  if(!w.front) return 0;
+  let di=d;
+  if(A.ack&&Math.abs(d)>1e-5){ const Rc=p.L/Math.tan(Math.abs(d)), inner=Math.sign(w.py)===Math.sign(d), y=Math.abs(w.py);
+   const ideal=Math.atan(p.L/Math.max(0.05,Rc+(inner?-y:y))); di=d+A.ack*(Math.sign(d)*ideal-d); }
+  return di+(w.py<0? A.toe : -A.toe);
+ },
+ /* トー・静的キャンバーによる、まっすぐ走るときの抵抗 [N] (前輪がわずかに横すべりしたまま転がる分)。走行抵抗 (Model.resist) に足す */
+ _ad:null,
+ alignDrag(m){ const c=this._ad, ps=typeof P!=="undefined"? P.susp : null; if(c&&c.m===m&&c.ps===ps&&c.p===this._p) return c.F;   // 走行抵抗の計算で何度も呼ばれるので、値が変わるまで覚えておく
+  const F=this.alignDrag0(m); this._ad={m,ps,p:this._p,F}; return F; },
+ alignDrag0(m){ const A=this.align(); if(!A.toe&&!A.cam0) return 0; const p=this.params(), mm=m||p.m;
+  let F=0; for(const w of p.wh){ if(!w.front) continue; const Fz=w.share*mm*GRAV, C=p.cornK*Fz; F+=C*A.toe*A.toe+this.CAMBER*Fz*(-A.cam0)*A.toe; }
+  return Math.max(0,F); },
  /* 車輪ごとの荷重 [N]。ax 前へ加速 +・ay 右へ加速 + [m/s²]、lift 浮き上がり [N] */
  loads(p,ax,ay,lift){
   const mg=p.m*GRAV, dLong=p.m*ax*p.h/p.L;
@@ -106,20 +127,20 @@ const Tire={
   const muOf=i=> Array.isArray(env.mu)? (env.mu[i]==null?1:env.mu[i]) : (env.mu==null?1:env.mu);
   const kDyn=clamp((au-this.V0)/(this.V1-this.V0),0,1);
   // 滑りのない動き (前輪の向きどおり、後輪は横に滑らない)
-  const rK=u*Math.tan(d)/p.L, vyK=rK*p.b;
+  const rK=u*Math.tan(d)/p.L, vyK=rK*p.b;   // (舵角は左右の平均 d で。アッカーマン・トーは低速では向きに効かない)
   if(kDyn<=0){ st.vy=vyK; st.r=rK; st.ay=u*rK; st.sat=0; st.use=0; st.slide=false; st.lockAny=false;
    for(const ws of st.w) ws.lock=false;
    const fx=p.wh.reduce((s,w)=>s+this.demand(p,w,inp),0); return {fx,fxReq:fx,ay:st.ay,fy:p.m*st.ay,fxR:p.wh.reduce((s,w)=>s+(w.front?0:this.demand(p,w,inp)),0),wheels:null}; }
-  let out=null, fxS=0, fxR=0;
+  let out=null, fxS=0, fxR=0; const A=this.align(), sc=Math.sin(A.caster), dW=p.wh.map(w=>this.steerOf(p,w,d,A));
   for(let k=0;k<n;k++){
    const Fz=env.Fz||this.loads(p,st.ax||0,st.ay||0,env.lift||0);   // 荷重: サスペンション (Susp) の計算があればそれ、無ければ釣り合いの式
    let FX=0, FY=0, MZ=0, fxW=0, fxRr=0, sat=0, use=0, slide=false, lockAny=false; const wo=[];
-   for(let i=0;i<p.wh.length;i++){ const w=p.wh[i], di=w.front? d : 0, c=Math.cos(di), s=Math.sin(di);
+   for(let i=0;i<p.wh.length;i++){ const w=p.wh[i], di=dW[i], c=Math.cos(di), s=Math.sin(di);
     const uF=u-st.r*w.py, vR=st.vy+st.r*w.px, vl=uF*c+vR*s, vt=-uF*s+vR*c;
-    const fxd=this.demand(p,w,inp), f=this.wheel(p,vl,vt,Fz[i],this.SURF.road*muOf(i)*p.mu,fxd,st.w[i],env.camber?env.camber[i]:0);
+    const fxd=this.demand(p,w,inp), f=this.wheel(p,vl,vt,Fz[i],this.SURF.road*muOf(i)*p.mu,fxd,st.w[i],(env.camber?env.camber[i]:0)+(w.front? sc*di : 0));   // キャスター: 切った向きへ車輪が傾く
     const fxb=f.fx*c-f.fy*s, fyb=f.fx*s+f.fy*c;
     FX+=fxb; FY+=fyb; MZ+=w.px*fyb-w.py*fxb; fxR+=fxd; fxW+=f.fx; if(!w.front) fxRr+=f.fx;
-    if(w.front) sat+=f.sat; use=Math.max(use,f.use); slide=slide||f.slide; lockAny=lockAny||f.lock;
+    if(w.front) sat+=f.sat+f.fy*A.tm; use=Math.max(use,f.use); slide=slide||f.slide; lockAny=lockAny||f.lock;
     wo.push({Fz:Fz[i],fx:f.fx,fy:f.fy,use:f.use,slide:f.slide,lock:f.lock,front:w.front,px:w.px,py:w.py});
    }
    const FYt=FY; FY+=env.Fside||0; MZ+=(env.Fside||0)*p.cpX;
@@ -132,7 +153,7 @@ const Tire={
   return {fx:fxS/n, fxReq:fxR/n, ay:st.ay, fy:out.FYt, fxR:out.fxRr, wheels:out.wo};
  },
  /* ハンドルを戻すモーメントの目安 [N·m] (乾いた路面で、前輪がいちばん強く戻そうとするくらい)。反力の強さをこれで割って 0〜1 にする */
- satRef(){ const p=this.params(), Ff=p.wh.reduce((s,w)=>s+(w.front?w.share:0),0)*p.m*GRAV; return Math.max(1,p.mu*Ff*this.TRAIL*0.385); },
+ satRef(){ const p=this.params(), Ff=p.wh.reduce((s,w)=>s+(w.front?w.share:0),0)*p.m*GRAV; return Math.max(1,p.mu*Ff*(this.TRAIL*0.385+this.align().tm)); },
  /* 横すべり角 (車体の向きと進む向きの差) [rad] */
  beta(st,u){ return Math.atan2(st.vy||0,Math.max(Math.abs(u),0.5)); },
 };

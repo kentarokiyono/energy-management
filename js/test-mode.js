@@ -150,7 +150,8 @@ if(Ibat>0) es.ahUsed+=Ibat*dtR/3600;
 es.v=this.v;
 // 横の動き: タイヤの計算 (レースと同じ Tire)。コースの外は土
 const S=this.susp||(this.susp=Susp.init());
-Susp.step(S,{ax:(es.gPitch||0)*GRAV,Fy:this.v>0.05? (this.lastFyT||0) : 0,FxR:this.v>0.05? (this.lastFxR||0) : 0},dtR);   // サスペンション (レースと同じ)
+{ const ds=this.v*dtR, s0=(this.odo=(this.odo||0)+ds)-ds, k=offTrack? 8 : 0.8, wh=Tire.params().wh;   // 路面の凸凹 (コースは舗装、外は土)
+ Susp.step(S,{ax:(es.gPitch||0)*GRAV,Fy:this.v>0.05? (this.lastFyT||0) : 0,FxR:this.v>0.05? (this.lastFxR||0) : 0,road:(i,f)=>Susp.roughAt(s0+ds*f+wh[i].px,wh[i].py,k)},dtR); }   // サスペンション (レースと同じ)
 if(this.v>0.05){
  T.ax=(es.gLong||0)*GRAV;
  const wet=typeof Rain!=="undefined"? (Rain.wet||0) : 0, mu= offTrack? Tire.SURF.dirt : 1-Tire.SURF.wetK*wet;
@@ -182,7 +183,7 @@ this.car.rotation.order="YXZ";   // 向きを決めてから、車体の前後�
 this.car.rotation.y=-this.heading;
 this.car.rotation.x=slopeA+S.th;
 this.car.rotation.z=-S.ph;
-if(typeof SuspMesh!=="undefined") SuspMesh.pose(this.car,S.th,S.ph,S.z);   // 車輪は路面に着いたまま (傾くのは車体だけ)
+if(typeof SuspMesh!=="undefined") SuspMesh.pose(this.car,S.th,S.ph,S.z,S.zu);   // 車輪は路面に着いたまま (傾くのは車体だけ)
 if(this.car.userData.brakeMat)
 this.car.userData.brakeMat.color.setHex((es.brakePhys>0.05||es.brakeRegen>0.05)?0xff2222:0x4a0505);
 updateWinkers(this.car,es); updateRearCombo(this.car,es); reverseBeep(es); updateHatches(this.car,dtR);

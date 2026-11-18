@@ -159,6 +159,22 @@ const T0=Date.now();
  const air=R(`(()=>{ const p=Susp.params(), f=p.wh.find(w=>w.front), r=p.wh.find(w=>!w.front), k=(w,c)=>(Susp.spring(w,c+0.001)-Susp.spring(w,c-0.001))/0.002;
   return {f0:k(f,0)/f.k, f4:k(f,0.04)/f.k, fm:k(f,-0.04)/f.k, r4:k(r,0.04)/r.k}; })()`);
  check("前のエアサスは縮むほど硬く伸びると柔らかい (静止で既定の硬さ)・後ろのコイルは一定",near(air.f0,1,0.02)&&air.f4>1.3&&air.fm<0.8&&near(air.r4,1,1e-6),`前 伸び 40 mm ×${air.fm.toFixed(2)}・縮み 40 mm ×${air.f4.toFixed(2)}・後ろ ×${air.r4.toFixed(2)}`);
+ const al=R(`(()=>{ const p=Tire.params(), set=(o)=>{ P.susp=Object.assign({},o); Susp._p=null; };
+  const sat=(o,d,mu)=>{ set(o); const st=Tire.init(); let r; for(let t=0;t<3;t+=0.01) r=Tire.step(st,{u:15,delta:d},{mu},0.01); return st.sat; };
+  const s0=sat({caster:0},0.02,1), s6=sat({caster:6},0.02,1), sl0=sat({caster:0},0.3,0.5), sl6=sat({caster:6},0.3,0.5);
+  set({ack:100,toe:0}); const A=Tire.align(), fw=p.wh.filter(w=>w.front), d=0.3, ang=fw.map(w=>Tire.steerOf(p,w,d,A)), inner=fw.findIndex(w=>w.py>0);
+  const Rc=p.L/Math.tan(d), ok100=fw.every((w,i)=>Math.abs(Math.tan(ang[i])-p.L/(Rc+(w.py>0?-1:1)*Math.abs(w.py)))<1e-6);
+  set({}); const dr0=Tire.alignDrag0(270); set({toe:0.5}); const dIn=Tire.alignDrag0(270); set({toe:-0.5}); const dOut=Tire.alignDrag0(270);
+  set({toe:0.5}); const roll5=Model.resist(20,{m:270}).roll; set({toe:0}); const roll0=Model.resist(20,{m:270}).roll; set({});
+  return {s0,s6,sl0,sl6,inner:ang[inner],outer:ang[1-inner],ok100,dr0,dIn,dOut,roll5,roll0}; })()`);
+ check("キャスター: ハンドルの戻る力が増え、前輪が滑っても戻る力が残る",al.s6>al.s0*1.3&&Math.abs(al.sl6)>Math.abs(al.sl0)+1,`普通 ${al.s0.toFixed(1)} → ${al.s6.toFixed(1)} N·m・滑り ${al.sl0.toFixed(1)} → ${al.sl6.toFixed(1)} N·m`);
+ check("アッカーマン 100 %: 内輪を多く切り、両輪とも同じ円の中心を向く",al.inner>al.outer&&al.ok100,`内 ${(al.inner*57.3).toFixed(2)}° / 外 ${(al.outer*57.3).toFixed(2)}°`);
+ check("トー: 既定はほぼ抵抗なし。0.5° のトーインで転がり抵抗が増え、静的キャンバー (−) とトーアウトは打ち消し合って小さい",al.dr0<0.1&&al.dIn>0.5&&al.dOut<al.dIn&&near(al.roll5-al.roll0,al.dIn,1e-6),`既定 ${al.dr0.toFixed(3)} N・トーイン 0.5° ${al.dIn.toFixed(2)} N・トーアウト ${al.dOut.toFixed(2)} N`);
+ const gr=R(`(()=>{ const p=Susp.params(), run=(road)=>{ const st=Susp.init(); let mn=1e9, mx=0, zb=0; const v=22, dt=1/60; let s=-30;
+   for(let t=0;t<3;t+=dt){ const s0=s; s+=v*dt; Susp.step(st,{road:(i,f)=>road(s0+v*dt*f+p.wh[i].px,p.wh[i].py)},dt); if(Math.abs(s)<5){ const f=st.Fz[1]; mn=Math.min(mn,f); mx=Math.max(mx,f); zb=Math.max(zb,Math.abs(st.z)); } }
+   return {mn:mn/p.wh[1].F0,mx:mx/p.wh[1].F0,zb}; };
+  return {flat:run(()=>0), rough:run((s,y)=>Susp.roughAt(s,y,1)), grid:run((s,y)=>Susp.gridAt(s))}; })()`);
+ check("ばね下: 平らな道は荷重一定、舗装のうねりで少し、キャトルグリッドで大きく揺れる (車体はあまり動かない)",near(gr.flat.mn,1,1e-6)&&gr.rough.mn>0.7&&gr.grid.mn<gr.rough.mn&&gr.grid.zb<0.005,`前輪の荷重 舗装 ${(gr.rough.mn*100).toFixed(0)}〜${(gr.rough.mx*100).toFixed(0)} %・グリッド ${(gr.grid.mn*100).toFixed(0)}〜${(gr.grid.mx*100).toFixed(0)} %・車体 ${(gr.grid.zb*1000).toFixed(1)} mm`);
  const ks=R(`(()=>{ const p=Tire.params(), st=Tire.init(); Tire.step(st,{u:1,delta:0.2},{mu:1},0.1); return {r:st.r, k:1*Math.tan(0.2)/p.L}; })()`);
  check("止まる直前 (1 m/s) は前輪の向きどおりに曲がる",near(ks.r,ks.k,1e-9),ks.r.toFixed(4)+" rad/s");
 }

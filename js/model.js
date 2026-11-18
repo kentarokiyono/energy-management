@@ -60,10 +60,10 @@ const Model={
  pvSteady(G,alt,tilted,Tamb,airV){ return this.pv(G,alt,tilted,cellTempSS(Tamb,G,airV,tilted)); },
 
  /* 走行抵抗 [N]。e = {m, grade (tan), head, varH, cross, rho, gLat, crrK (パンクなど), aeroK (破損など)}
-  → {roll (鉄損を含む), drag, slope, corner, total, yaw [rad]} */
+  → {roll (鉄損・前輪のトーとキャンバーの抵抗を含む), drag, slope, corner, total, yaw [rad]} */
  resist(v,e){
   const m=e.m, th=Math.atan(e.grade||0), rho=e.rho||1.17;
-  const roll=(e.crrK||1)*Phys.crr(v)*m*GRAV*Math.cos(th)+motorIronW(v)/Math.max(v,0.5);
+  const roll=(e.crrK||1)*Phys.crr(v)*m*GRAV*Math.cos(th)+motorIronW(v)/Math.max(v,0.5)+(typeof Tire!=="undefined"? Tire.alignDrag(m) : 0);   // + トー・キャンバーの抵抗
   const cross=e.cross||0, yaw=Math.atan2(Math.abs(cross),Math.max(v,1));
   const va=Math.max(0,v+(e.head||0)), va2=va*va+(e.varH||0);
   const drag=0.5*rho*P.Cd*cdYawFactor(yaw)*(e.aeroK||1)*P.frontal*va2;
