@@ -188,7 +188,7 @@ this.car.rotation.order="YXZ";   // 向きを決めてから、車体の前後�
 this.car.rotation.y=-this.heading;
 this.car.rotation.x=slopeA+S.th;
 this.car.rotation.z=-S.ph;
-if(typeof SuspMesh!=="undefined") SuspMesh.pose(this.car,S.th,S.ph,S.z,S.zu);   // 車輪は路面に着いたまま (傾くのは車体だけ)
+if(typeof SuspMesh!=="undefined") SuspMesh.pose(this.car,S.th,S.ph,S.z,S.zu); if(typeof ChassisMesh!=="undefined") ChassisMesh.sync(this.car);   // 車輪は路面に着いたまま (傾くのは車体だけ)
 if(this.car.userData.brakeMat)
 this.car.userData.brakeMat.color.setHex((es.brakePhys>0.05||es.brakeRegen>0.05)?0xff2222:0x4a0505);
 updateWinkers(this.car,es); updateRearCombo(this.car,es); reverseBeep(es); updateHatches(this.car,dtR);

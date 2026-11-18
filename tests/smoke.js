@@ -115,10 +115,11 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
    es.brakePhys=0; let s0=View.s; for(let k=0;k<400&&Tire.softAt(s0,5)<0.9;k++) s0+=1;
    const q=View.roadPoint(s0), lat=(q.R||3.5)+5; View.cx=q.x+Math.cos(q.h)*lat; View.cz=q.z+Math.sin(q.h)*lat; View.ch=q.h+Math.PI/2; T.vy=0; T.r=0; T.ub=0;
    es.v=4; let tS=0; for(;tS<8&&es.v>0.01;tS+=1/60) View.update(1/60);   // (Engine は止めて: 止まったあとの停車の扱いに入らないよう、道の外の抵抗だけを見る)
+   const chN=[]; View.car.traverse(o=>{ if(o.name) chN.push(o.name); });   // 車内の構造
    const ruts=Ruts.n; View.pushOn=true; for(let i=0;i<30;i++){ es.v=0.5; View.update(1/60); } const push=!!(PushCrew.g&&PushCrew.g.visible);
    const wear=+(es.tyreWear||0).toFixed(3); Engine.enterCamp(); const wear0=es.tyreWear;
-   return {stop,back:+back.toFixed(1),skid,off:es.offroad,soft:+Tire.softAt(View.s,5).toFixed(2),sink:+(View.sink||0).toFixed(3),tS:+tS.toFixed(1),ruts,push,wear,wear0,hudW:document.getElementById("hud-twear").textContent}; });
-  check("スピン: 後ろ向きに滑り、ブレーキで止まる・路面にタイヤ痕・道の外の柔らかい砂に沈んで止まる (轍)・押し出すクルー・タイヤの摩耗 (毎晩新品)",r.stop!=null&&r.stop<8&&r.skid>10&&r.off&&r.sink>0.02&&r.tS<6&&r.ruts>10&&r.push&&r.wear>0&&r.wear0===0&&noErr(p).length===0,JSON.stringify(r)+" "+noErr(p).slice(0,2).join(" | "));
+   return {stop,back:+back.toFixed(1),skid,off:es.offroad,soft:+Tire.softAt(View.s,5).toFixed(2),sink:+(View.sink||0).toFixed(3),tS:+tS.toFixed(1),ruts,push,wear,wear0,hudW:document.getElementById("hud-twear").textContent,chN}; });
+  check("スピン: 後ろ向きに滑り、ブレーキで止まる・路面にタイヤ痕・道の外の柔らかい砂に沈んで止まる (轍)・押し出すクルー・タイヤの摩耗 (毎晩新品)・車内の構造",r.stop!=null&&r.stop<8&&r.skid>10&&r.off&&r.sink>0.02&&r.tS<6&&r.ruts>10&&r.push&&r.wear>0&&r.wear0===0&&r.chN.includes("battery")&&r.chN.includes("rollbar")&&noErr(p).length===0,JSON.stringify(r)+" "+noErr(p).slice(0,2).join(" | "));
   await p.context().close(); await b3.close(); }
  // ---- 横転の危険度と練習シナリオ (暴風雨) ----
  { const p=await newPage(b,base);
