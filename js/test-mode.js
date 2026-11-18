@@ -133,7 +133,7 @@ if(es.brakeRegen>0){ const rg=regenModel(es.brakeRegen,this.v,es.soc,es.powerMod
 const T=this.tire||(this.tire=Tire.init()), u=this.v*gearDir()+(T.ub||0);   // T.ub: 後ろ向きに滑っている分 (Tire.long)
 let FxT=Ftrac-Fbrake;
 if(this.tireFx!=null&&Math.abs(this.tireFxReq)>1&&Math.sign(this.tireFxReq)===Math.sign(FxT)) FxT*=clamp(this.tireFx/this.tireFxReq,0,1);
-const Foff= offTrack&&this.v>1? m*clamp(this.v*0.12,0.2,2.5) : 0;
+const Foff= offTrack&&this.v>0.05? m*GRAV*Tire.soilCrr(2,0) : 0;   // コースの外の土 (締まった土の転がり抵抗、レースと同じ)
 const FnetT=FxT-Froll-Fdrag-Fslope-Fcorner-Foff;
 const v0=this.v; this.v=Math.max(0,this.v+FnetT/mEff*dtR);
 Engine.brakeHeat(es,FbFric*(this.tireFx!=null&&Math.abs(this.tireFxReq)>1? clamp(this.tireFx/this.tireFxReq,0,1) : 1)*(v0>0.1?1:0),v0,dtR,dtR,Tamb);
@@ -181,6 +181,9 @@ if(this.kind==="circuit"&&this.trackPts){ const n=this.trackN, P=this.trackPts, 
  if(Number.isFinite(yF)&&Number.isFinite(yR)){ slopeA=Math.atan2(yF-yR,df+dr); carY=yR+(yF-yR)*dr/(df+dr); } }
 this.pitchS=S.th;   // サスペンションの計算 (機首上げ +)
 this.car.position.set(this.x,carY+S.z,this.z);
+if(typeof Skid!=="undefined"){ const slid=this.v>2||Math.abs(T.vy||0)>1;   // タイヤ痕 (コースで滑る)・轍 (コースの外の土を転がる)
+ Skid.frame(this.scene,this.x,carY,this.z,this.heading,slid&&!offTrack? es.tireW : null,Skid.kOf);
+ Ruts.frame(this.scene,this.x,carY,this.z,this.heading,offTrack? (es.tireW||Tire.params().wh) : null,Ruts.kOfSink(0)); }
 this.car.rotation.order="YXZ";   // 向きを決めてから、車体の前後・左右の傾き
 this.car.rotation.y=-this.heading;
 this.car.rotation.x=slopeA+S.th;

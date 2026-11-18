@@ -311,7 +311,7 @@ if(csPaused&&!s.csPauseMsg){ s.csPauseMsg=true; Radio.push("17:00 です。コ�
 if(!csPaused) s.csPauseMsg=false;
 if(!s.stopHold&&!csPaused) s.stopTimer-=dtS; s.v=0;
 if(s.stopTimer<=0){
-if(s.stopKind==="tire"&&s.burst){ s.burst=false; s.burstWheel=null; toast("🛞 タイヤ交換完了!","#34d399"); }
+if(s.stopKind==="tire"){ s.tyreWear=0; if(s.burst){ s.burst=false; s.burstWheel=null; toast("🛞 タイヤ交換完了!","#34d399"); } }
 if(s.stopKind==="check"){ if(s.fault){ s.fault=null; s.faultAnnounced=false; toast("🔍 不具合を修理しました!","#34d399"); } else toast("🔍 機器チェック完了。異常なし","#34d399"); }
 if(s.stopKind==="cp") toast("点検完了!係員の指示に従ってコントロールストップを出てください","#34d399");
 if(s.stopKind==="driver") toast("🔁 ドライバー交代完了。本線へ戻ってください","#34d399");
@@ -348,6 +348,10 @@ if(s.Tbat==null) s.Tbat=Tamb;
  モーター: 銅損・鉄損で温まり走行風で冷える (熱いと巻線の抵抗が増えて損失が増え、140 °C を超えると電流を絞る) */
 if(!Number.isFinite(s.Ttyre)) s.Ttyre=Tamb; if(!Number.isFinite(s.Tmot)) s.Tmot=Tamb;
 s.Ttyre+=(Model.tyreTempSS(Tamb,s.v)-s.Ttyre)*(1-Math.exp(-dtS/300));
+/* タイヤの摩耗 [0〜1] (表示だけ。毎晩・タイヤ交換で新品): 走った距離 (寿命 1500 km の目安、道の外の土は 3 倍) とロック (1 秒で 1 %)・横すべり (1 秒で 0.3 %) */
+if(!Number.isFinite(s.tyreWear)) s.tyreWear=0;
+{ const dk=Number.isFinite(s._wearKm)? Math.max(0,s.km-s._wearKm) : 0; s._wearKm=s.km;
+  s.tyreWear=Math.min(1,s.tyreWear+(dk<5? dk : 0)/this.TYRE_LIFE_KM*(s.offroad?3:1)+(s.tireLock?0.01:s.tireSlide?0.003:0)*dtR); }
 Phys.motorRk=Model.motorRk(s.Tmot);
 const rho=Phys.airDensity(prof.elev,Tamb); s.lastRho=rho;
 let Psolar=Model.pv(sol.G,sol.alt,tilted,Tcell);
@@ -594,9 +598,10 @@ if(P.csTilt===false&&!P.event) Radio.push(`CS${cp.n}: 平置きのまま充電 (
 if(P.event) EventGame.onCS(cp,missed);
 if(cp.n===9){ s.absHourAtPA=abs; Radio.push("Port Augusta 通過!大陸横断おめでとう!","Event Official"); }
 },
+TYRE_LIFE_KM:1500,
 enterCamp(){
 const s=this.st;
-s.camp=true; s.v=0;
+s.camp=true; s.v=0; s.tyreWear=0;   // 毎晩タイヤを交換
 Radio.push(`Day${s.day} 走行終了。その場でキャンプ設営、日没までティルト充電を行います。`);
 if(typeof Crew!=="undefined") Crew.onCamp();
 if(typeof Coffee!=="undefined") Coffee.onCamp(s);

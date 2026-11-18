@@ -815,7 +815,7 @@ resetRoad(){
  for(const [,e] of this.lmMap) this.scene.remove(e.mesh); this.lmMap.clear();
  this.ensureRoad(this.s+1500); Horizon.lastKm=-1e9;
  const p=this.roadPoint(this.s);
- this.cx=p.x+Math.cos(p.h)*this.lateral; this.cz=p.z+Math.sin(p.h)*this.lateral; this.ch=p.h; this.tire=null; this.susp=null; this._gt=null; if(typeof Skid!=="undefined") Skid.clear(); this.sink=0; this.pushOn=false; this.stuckT=0; this.soilA=0; this.tipA=0; this.tipW=0; this.iProj=Math.floor(this.s/this.SEG);
+ this.cx=p.x+Math.cos(p.h)*this.lateral; this.cz=p.z+Math.sin(p.h)*this.lateral; this.ch=p.h; this.tire=null; this.susp=null; this._gt=null; if(typeof Skid!=="undefined"){ Skid.clear(); Ruts.clear(); } this.sink=0; this.pushOn=false; this.stuckT=0; this.soilA=0; this.tipA=0; this.tipW=0; this.iProj=Math.floor(this.s/this.SEG);
  this.onBranch=null;
 },
 /* 本線への射影 (直前インデックス近傍のみ探索: 折り返しで反対側に飛ばない) */
@@ -1012,7 +1012,10 @@ this.soilStep(es,pHere0,dtR);
 let carY= br? br.y : site? pHere.y+(site.y||0) : pHere.y;
 if(!Number.isFinite(carY)) carY=pHere.y;   // 高さが壊れても画面全体を道連れにしない
 carY-=(this.sink||0)*0.8;   // 柔らかい土に沈む
-if(typeof Skid!=="undefined") Skid.frame(this.scene,this.cx,carY+(this.sink||0)*0.8,this.cz,this.ch,es.v>2||Math.abs(this.tire&&this.tire.vy||0)>1? es.tireW : null,!es.offroad&&!br);   // タイヤ痕 (舗装の上)
+if(typeof Skid!=="undefined"){ const gy=carY+(this.sink||0)*0.8, slid=es.v>2||Math.abs(this.tire&&this.tire.vy||0)>1;   // タイヤ痕 (舗装の上で滑る)・轍 (道の外の土・砂を転がる)
+ Skid.frame(this.scene,this.cx,gy,this.cz,this.ch,slid&&!es.offroad&&!br? es.tireW : null,Skid.kOf);
+ Ruts.frame(this.scene,this.cx,gy,this.cz,this.ch,es.offroad? (es.tireW||Tire.params().wh) : null,Ruts.kOfSink(this.sink)); }
+if(typeof PushCrew!=="undefined"&&(this.pushOn||PushCrew.g)) PushCrew.update(this.scene,!!this.pushOn,this.cx,carY+(this.sink||0)*0.8,this.cz,this.ch,es.v,carDims()[0],dtR);   // 砂に埋まったとき、押し出すクルー
 const nx=Math.cos(pHere.h), nz=Math.sin(pHere.h);
 const hCar=this.ch;
 this.car.position.set(this.cx, carY, this.cz);
