@@ -2,32 +2,32 @@
 /* ============ イベントモード (来場者体験): 課題クリア型・10 分 ============
  コースを選ぶ:
   オーストラリア: レースモードの仕組み (実際の町並み・信号・ロードトレイン・CS) で課題ごとに場所へ移る。
-   1 交通ルール / 2 省エネ巡航 / 3 ロードトレイン / 4 CS で停車と充電 (ここまで約 5 分)
-   5 Devils Marbles 付近の砂漠 / 6 Port Augusta へ下るアップダウン (最後の 5 分)
+   1 交通ルール / 2 省エネ巡航 / 3 ロードトレイン / 4 CS で停車と充電 (ここまで約 5 分。CS は 450 m 手前から、停車まで 110 秒以内 + 傾ける 25 秒)
+   5 Devils Marbles 付近の砂漠 (110 秒) / 6 Port Augusta へ下るアップダウン (165 秒、町に入った所 2718.0 km で満点。町の中は等倍で遅い)
   ヒドゥンバレー: 車検 (8 の字 / スラローム / 制動) を約 3〜5 分、残りはサーキット走行 (ベストラップで採点)
  難易度: 子ども (速度帯が広い・接触の減点小) / 大人
  その日のランキング (コースごと)・1 位のゴースト (端末に保存)、オーストラリア版は走行のリプレイ URL を QR コードで持ち帰り */
 const EVENT_PUBLIC_URL="https://kentarokiyono.github.io/energy-management/";
 const EventGame={
-DUR:600, practice:true, active:false, level:"adult", course:"aus", replay:null, ghostRun:null, hilly:false,
+DUR:600, TILT_SEC:25, practice:true, active:false, level:"adult", course:"aus", replay:null, ghostRun:null, hilly:false,
 COURSES:{
  aus:[
  {id:"rules", title:"交通ルール", km:0, hour:10.0, cap:100,
   goal:"赤信号では停止線の手前で止まろう。右折の前にはウインカー (C キー / ハンドルのボタン) を出そう。制限速度も守ろう。",
   tip:"ソーラーカーも普通の車と同じ交通ルールで走ります。レース中も信号や制限速度は守らないとペナルティです。"},
- {id:"eco", title:"省エネ巡航", km:40, hour:11.0, cap:70,
+ {id:"eco", title:"省エネ巡航", km:40, hour:11.0, cap:60,
   goal:"速度を 70〜90 km/h に保って電池を節約しよう。途中で雲やスコールが来て発電が減るよ。",
   tip:"空気抵抗は速度の 2 乗で増えるので、速く走るほど電池の減りが一気に大きくなります。一定の速度で走るのがいちばん省エネ。"},
  {id:"train", title:"ロードトレイン", km:null, cap:45,
   goal:"前から全長 53 m の大型トラックが来るよ。左に寄って、速度を落として安全にすれ違おう。",
   tip:"オーストラリアの内陸では、トレーラーを 3 両もつないだ『ロードトレイン』が時速 100 km で走っています。風圧で車体があおられることも。"},
- {id:"cs", title:"CS で停車と充電", km:320.8, hour:13.0, cap:85,
+ {id:"cs", title:"CS で停車と充電", km:321.53, hour:13.0, cap:110,
   goal:"25 km/h 以下でコントロールストップ (Katherine) に入って停車しよう。止まったら太陽に向けてパネルの角度を選んで充電！",
   tip:"コントロールストップでは 30 分止まる決まり。その間、パネルを太陽に向けて傾けて充電します。角度ひとつで発電量が大きく変わります。"},
- {id:"desert", title:"赤い砂漠を走る", km:1070, hour:10.5, cap:150, distFull:170, place:[1087.5,1092.5,"📍 Devils Marbles (Karlu Karlu)"],
+ {id:"desert", title:"赤い砂漠を走る", km:1070, hour:10.5, cap:110, distFull:80, place:[1087.5,1092.5,"📍 Devils Marbles (Karlu Karlu)"],
   goal:"オーストラリアの真ん中、赤い大地の一本道。できるだけ遠くへ、でも電池は残そう。途中の巨大な丸い岩に注目！",
   tip:"Devils Marbles (先住民の言葉で Karlu Karlu) は、直径数 m の花崗岩の丸い岩が積み重なる名所。約 17 億年前の岩が風雨で削られて丸くなりました。先住民の聖地でもあります。"},
- {id:"pa", title:"Port Augusta へ", km:2625, hour:14.5, cap:150, distFull:110, hilly:true, place:[2716,2722,"📍 Port Augusta"],
+ {id:"pa", title:"Port Augusta へ", km:2660, hour:14.5, cap:165, distFull:58, hilly:true, place:[2716,2722,"📍 Port Augusta"],
   goal:"高原から海辺の町へ下るアップダウンの道。上り坂では電池が減り、下り坂では回生ブレーキで取り戻せるよ。町に入ったら制限速度に注意。",
   tip:"Port Augusta はスペンサー湾のいちばん奥にある町で『アウトバックの入口』と呼ばれます。東には Flinders 山脈。ここから南は畑と海の景色に変わり、ゴールの Adelaide まであと約 300 km です。"},
  ],
@@ -145,7 +145,11 @@ frame(dtR){
  } else if(m.id==="cs"){
   const c=RP_CS[0];
   if(this.st.entryOk==null&&s.km>c.km-0.25){ this.st.entryOk=kmh<=26; if(!this.st.entryOk) toast("⚠ CS への進入は 25 km/h 以下","#f59e0b"); }
-  if(this.st.stopped&&s.stopTimer<=0){ this.next(); return; }
+  /* 停車したら実時間 25 秒はパネルの角度を選べる (止まっている間は時間が 300 倍で進み、CS の 30 分が数秒で終わってしまうため、その間は計時を止めておく) */
+  if(this.st.stopped){ this.st.tiltT=(this.st.tiltT||0)+dtR; const left=this.TILT_SEC-this.st.tiltT;
+   if(left>0){ s.stopTimer=Math.max(s.stopTimer,60); const e=document.getElementById("event-mission"); if(e) e.textContent=`MISSION ${this.mi+1}: ${m.title}  ☀ パネルの角度を選ぼう (残り ${Math.ceil(left)} 秒)`; }
+   else if(!this.st.tiltDone){ this.st.tiltDone=true; s.stopTimer=Math.min(s.stopTimer,1); } }
+  if(this.st.stopped&&this.st.tiltDone&&s.stopTimer<=0){ this.next(); return; }
   if(this.mt>m.cap&&!this.st.stopped) this.next();
  } else if(m.distFull){   // 最後の走行区間: 距離と電池残量
   const d=s.km-this.st.km0;
