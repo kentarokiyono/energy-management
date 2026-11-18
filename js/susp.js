@@ -22,7 +22,7 @@ const Susp={
   pF・pR: タイヤの空気圧 [bar] (基準 5 bar。高いほど転がりは軽いが、グリップが少し落ち、縦に硬くなる)、
   前輪のアライメント: caster キャスター角・toe トー (片輪、+ = トーイン)・camber0 静的キャンバー (− = 上が内側) [°]・ack アッカーマン [%]、
   ばね下: muF・muR 前・後の 1 輪あたりのばね下の重さ [kg] (後ろはインホイールモーター込み)・kt タイヤの縦の硬さ [N/m]・roadK 路面の凸凹の大きさ (倍率) */
- DEF:{fHz:4.0, rHz:3.7, zetaC:0.35, zetaR:0.6, antiDive:20, pF:5.0, pR:5.0, lowerL:0.30, upperL:0.22, upH:0.20, upTilt:-0.04, swingL:0.30, rLinkL:0.30, rVw:0.20, rUpH:0.28, rLowDz:0.01, rUpDz:0, rearSide:"R", mr:0.6, travel:0.06, fAirL:0.16, caster:6, ack:60, toe:0.05, camber0:-0.25, muF:8, muR:20, kt:180000, roadK:1},
+ DEF:{fHz:4.0, rHz:3.7, zetaC:0.35, zetaR:0.6, antiDive:20, pF:5.0, pR:5.0, lowerL:0.30, upperL:0.22, upH:0.20, upTilt:-0.04, swingL:0.33, rLinkL:0.33, rVw:0.20, rUpH:0.265, rLowDz:0.01, rUpDz:0, rearSide:"R", mr:0.6, travel:0.06, fAirL:0.16, caster:6, ack:60, toe:0.05, camber0:-0.25, muF:8, muR:20, kt:180000, roadK:1},
  TUNE:[["fHz","前のばね (固有振動数)","Hz",1,6,0.1],["rHz","後ろのばね (固有振動数)","Hz",1,6,0.1],["zetaC","ダンパー: 縮み側 (減衰比)","",0.05,1.5,0.05],["zetaR","ダンパー: 伸び側 (減衰比)","",0.05,1.5,0.05],
   ["antiDive","前: アンチダイブ (ブレーキで前が沈むのをアームが打ち消す割合)","%",0,100,5],["pF","前のタイヤの空気圧","bar",2,9,0.1],["pR","後ろのタイヤの空気圧","bar",2,9,0.1],
   ["lowerL","ロアアームの長さ","m",0.15,0.5,0.01],["upperL","アッパーアームの長さ","m",0.1,0.5,0.01],["upH","アップライトの高さ (ボールジョイントの間隔)","m",0.1,0.3,0.01],
@@ -91,7 +91,7 @@ const Susp={
   車体側の 2 点は同じ前後位置で、アームの軸は左右方向。車輪は車体と一緒に傾く (キャンバーの変化なし)。アームは片側 (rearSide) だけ。
   瞬間中心 (横から見たアームの延長の交点) の高さと距離から、駆動・回生・ブレーキの力の一部がアームを通って車体を持ち上げる/引き下げる (アンチスクワット・アンチリフト) */
  rear(w,v){
-  const R=w.R, up={y:0,z:R+0.22}, lo={y:0,z:R+0.22-v("rUpH")};   // 上の点は車輪の中心より 22 cm 上 (地面から約 48 cm)、アップライトは下へ伸びる (下の点は約 20 cm)
+  const R=w.R, up={y:0,z:R+0.165}, lo={y:0,z:R+0.165-v("rUpH")};   // CAD: 上のアームは車輪の中心より 16.5 cm 上 (地面から約 42 cm)、下のアームは約 16 cm (アップライト 26.5 cm)
   const li={y:v("swingL"),z:lo.z+v("rLowDz")}, ui={y:v("rLinkL"),z:up.z+v("rUpDz")};
   const K=this.linkage(li,ui,lo,up,R,v("travel")*1.5), tab=K.tab.map(t=>({c:t.c,camber:0,scrub:0,pitch:t.rot,L1:t.L1,U1:t.U1,wc:t.wc}));
   const ic=K.ic, anti= ic&&ic.y>0.05? clamp(ic.z/ic.y,-1,1) : 0;   // 接地点から瞬間中心への傾き (tan)。前の力 1 N あたり車体を持ち上げる力
