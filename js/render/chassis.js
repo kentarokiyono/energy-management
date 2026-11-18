@@ -29,21 +29,30 @@ const ChassisMesh={
   /* 縦に立てた板 (x の位置、(z, y) の形と穴) */
   const vplate=(x,outline,holes,m)=>{ const sh=new THREE.Shape(outline.map(([z,y])=>new THREE.Vector2(z,y))); for(const h of holes||[]) sh.holes.push(new THREE.Path(h.map(([z,y])=>new THREE.Vector2(z,y))));
    const geo=new THREE.ExtrudeGeometry(sh,{depth:.012,bevelEnabled:false}); geo.rotateY(-Math.PI/2); const o=add(new THREE.Mesh(geo,m||carbon)); o.position.x=x+.006; return o; };
-  // ---- 前: 足を入れる箱 (前の足回りの取り付け)。前が低く後ろが 1 段高い。下の穴にロアアームが入り (ドライバーの足元をロアアームが通る)、上の切り込みにステアリングのアーム ----
+  // ---- 前: 足回りボックス (足を入れる箱。前の足回りの取り付け、中にブレーキペダル)。前が低く後ろが 1 段高い (中は前の端まで抜けて足を伸ばす)。
+  //  上のアームは天板、下のアームは床の板に付く (どちらも中心寄り)。左右の壁の下の穴をロアアームが通る (ドライバーの足元をロアアームが通る)。
+  //  サスの上端は天板の外側の角。ステアリングは天板の上を左右に横切る ----
   const SP=typeof Susp!=="undefined"? Susp.params() : null, fg=SP&&SP.wh.find(q=>q.geo.kind==="wishbone");
-  let fbx=.14, liY=.2, uiY=.36;
-  if(FW.length===2){ if(fg){ fbx=Math.max(.1,Math.abs(FW[0].x)-Math.abs(fg.geo.li.y)+.03); liY=fg.geo.li.z; uiY=fg.geo.ui.z; }
-   const zw=FW[0].z, zf=zw-.42, zm=zw-.04, zr=zw+.36, yb=bot(zw)+.03, yLo=Math.max(liY+.12,yb+.22), yHi=Math.min(top(zw)-.04,uiY+.14);
-   for(const sg of [-1,1]){   // 左右の壁 (三角の穴、下にロアアームの穴、上の後ろ寄りにステアリングの切り込み)
-    const ol=[[zf,yb],[zr,yb],[zr,yHi],[zw+.14,yHi],[zw+.11,yHi-.05],[zw+.05,yHi-.05],[zw+.02,yHi],[zm,yHi],[zm,yLo],[zf,yLo]];
-    const hl=[[[zw-.06,liY-.035],[zw+.06,liY-.035],[zw+.06,liY+.035],[zw-.06,liY+.035]],   // ロアアームの穴
-     [[zf+.06,yb+.05],[zm-.06,yb+.05],[(zf+zm)/2,yLo-.04]], [[zm+.04,yHi-.06],[zr-.05,yHi-.06],[(zm+zr)/2+.02,liY+.06]]];
+  let fbx=.24, liY=.16, uiY=.32, yHi=.3, pedal=null, fbox=null;
+  if(FW.length===2){ if(fg){ liY=fg.geo.li.z; uiY=fg.geo.ui.z; } fbx=Math.max(.16,Math.abs(FW[0].x)-.18);
+   const zw=FW[0].z, zf=zw-.42, zm=zw-.06, zr=zw+.36, yb=bot(zw)+.02; yHi=Math.min(top(zw)-.04,uiY-.02); const yLo=Math.max(yb+.12,yHi-.08);
+   for(const sg of [-1,1]){   // 左右の壁 (三角の穴、下にロアアームの穴)
+    const ol=[[zf,yb],[zr,yb],[zr,yHi],[zm,yHi],[zm,yLo],[zf,yLo]];
+    const hl=[[[zw-.08,liY-.03],[zw+.08,liY-.03],[zw+.08,liY+.03],[zw-.08,liY+.03]],   // ロアアームの穴
+     [[zf+.06,yb+.03],[zm-.06,yb+.03],[(zf+zm)/2,yLo-.03]]];
     vplate(sg*fbx,ol,hl); }
-   box(fbx*2,.012,zm-zf,carbon,0,yLo,(zf+zm)/2); box(fbx*2,.012,zr-zm,carbon,0,yHi,(zm+zr)/2);   // 天板 (2 段)
-   box(fbx*2,yLo-yb,.012,carbon,0,(yLo+yb)/2,zf); box(fbx*2,yHi-yLo,.012,carbon,0,(yHi+yLo)/2,zm); }   // 中は前の端まで抜けている (足を前の低い段の下まで伸ばす)
+   box(fbx*2,.012,zm-zf,carbon,0,yLo,(zf+zm)/2); box(fbx*2,.012,zr-zm,carbon,0,yHi,(zm+zr)/2);   // 天板 (2 段。後ろの段に上のアーム)
+   box(fbx*2,.008,zr-zf,carbon,0,yb,(zf+zr)/2);                                                    // 床の板 (下のアーム)
+   box(fbx*2,yLo-yb,.012,carbon,0,(yLo+yb)/2,zf); box(fbx*2,yHi-yLo,.012,carbon,0,(yHi+yLo)/2,zm);   // 前の壁 (中は後ろへ抜けている)
+   // ブレーキペダル (床から立つ腕と踏む板) とマスターシリンダー (前へ)
+   pedal=new THREE.Group(); pedal.position.set(0,yb+.02,zf+.16); add(pedal);
+   const arm=new THREE.Mesh(new THREE.BoxGeometry(.025,.16,.02),alu); arm.position.set(0,.08,0); pedal.add(arm); arm.userData.noXray=true;
+   const pad=new THREE.Mesh(new THREE.BoxGeometry(.08,.05,.012),blk); pad.position.set(0,.155,.008); pedal.add(pad); pad.userData.noXray=true;
+   const mc=add(new THREE.Mesh(new THREE.CylinderGeometry(.014,.014,.12,10),alu)); mc.rotation.x=Math.PI/2; mc.position.set(0,yb+.09,zf+.08);
+   fbox={fbx,yTop:yHi,z:zw}; }
   // ---- ステアリングラック・タイロッド・シャフト ----
   let steer=null;
-  if(FW.length===2){ const zR=FW[0].z+.08, yR=Math.min(top(FW[0].z)-.04,uiY+.14)-.03, xr=fbx+.02;   // 箱の上の切り込みを通る
+  if(FW.length===2){ const zR=FW[0].z+.02, yR=yHi+.05, xr=fbx-.02;   // 天板の上を左右に横切る
    const rack=add(new THREE.Mesh(new THREE.CylinderGeometry(.018,.018,xr*2,12),alu)); rack.rotation.z=Math.PI/2; rack.position.set(0,yR,zR);
    const rod=()=>{ const gg=new THREE.CylinderGeometry(.007,.007,1,8); gg.translate(0,.5,0); return add(new THREE.Mesh(gg,alu)); };
    steer={rack,yR,zR,xr,ties:FW.map(w=>({w,m:rod()})),col:rod()};
@@ -86,13 +95,15 @@ const ChassisMesh={
    const sh=new THREE.Shape([[z0,yb],[z1,yb],[z1-.04,yb+.05],[z0+.14,yt],[z0+.02,yt-.03]].map(([z,y])=>new THREE.Vector2(z,y)));   // 前は頭の後ろで高く、後ろへ低く (キャノピーの形に沿う)
    const geo=new THREE.ExtrudeGeometry(sh,{depth:w,bevelEnabled:true,bevelThickness:.02,bevelSize:.02,bevelSegments:3}); geo.rotateY(-Math.PI/2); geo.translate(w/2,0,0);
    const m=add(new THREE.Mesh(geo,M(0x0b0c0e,{roughness:.35,metalness:.2}))); m.name="rollbar"; }
-  body.add(g); return {g,steer};
+  body.add(g); return {g,steer,pedal,fbox};
  },
  _v:null, _up:null,
  link(o,a,b){ const v=this._v||(this._v=new THREE.Vector3()), up=this._up||(this._up=new THREE.Vector3(0,1,0)); v.subVectors(b,a); const L=v.length()||1e-4;
   o.position.copy(a); o.quaternion.setFromUnitVectors(up,v.multiplyScalar(1/L)); o.scale.set(1,L,1); },
  /* 毎フレーム: ラックを舵角に合わせて左右へ、タイロッドを車輪のナックルアームの先へ */
- sync(car){ const C=car&&car.userData.chassis, S=C&&C.steer, W=car&&car.userData.wheels; if(!S||!W) return;
+ sync(car){ const C=car&&car.userData.chassis, S=C&&C.steer, W=car&&car.userData.wheels;
+  if(C&&C.pedal){ const es=typeof Engine!=="undefined"&&Engine.st; C.pedal.rotation.x=-0.35*clamp(es? es.brakePhys||0 : 0,0,1); }   // ブレーキペダル (踏むと前へ倒れる)
+  if(!S||!W) return;
   const fr=W.filter(w=>w.front); if(fr.length<2) return;
   const ry=fr.reduce((a,w)=>a+(w.g.rotation.y||0),0)/fr.length; S.rack.position.x=-ry*.06;   // 舵角 0.1 rad でラックが 6 mm
   for(const t of S.ties){ const w=fr.reduce((b,q)=>Math.abs(q.g.position.x-t.w.x)<Math.abs(b.g.position.x-t.w.x)? q : b,fr[0]), sg=Math.sign(t.w.x)||1, a=w.g.rotation.y||0, arm=.11;

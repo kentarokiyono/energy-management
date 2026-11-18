@@ -28,7 +28,7 @@ const Cockpit={
   for(const sd of [-1,1]) box(.012,wh,oL,carbon,sd*ow,fl+wh/2,ozc);
   box(ow*2,wh,.012,carbon,0,fl+wh/2,oz0); box(ow*2,wh,.012,carbon,0,fl+wh/2,oz1);
   for(const sd of [-1,1]) box(.03,.012,oL,blk,sd*(ow-.012),top-.004,ozc);                 // 開口の縁 (黒いゴム)
-  box(.3,.2,.5,carbon,ex,fl+.1,oz0+.26);                                                   // 足回りボックス (足先を入れる)
+  if(!V.cockOpening) box(.3,.2,.5,carbon,ex,fl+.1,oz0+.26);   // 足回りボックス (形の諸元があるときは chassis.js が作る)
   // ---- 座席: 45° の背板 (クッションなし)。胴体は 腰 (前下) から 頭 (後上) へ 45° ----
   const hipY=E0[1]-.5, hipZ=ez-.3;
   const seat=box(Math.min(ow*1.8,.42),.008,.72,carbon,ex,(E0[1]+hipY)/2-.06,(ez+.12+hipZ)/2+.06); seat.rotation.x=-Math.PI/4;

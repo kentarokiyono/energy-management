@@ -41,7 +41,7 @@ const SuspMesh={
     this.link(o.upr,P(s.L1,0),P(s.U1,0)); this.link(o.spd,P({y:(s.L1.y+s.U1.y)/2,z:(s.L1.z+s.U1.z)/2},0),P(s.wc,0));
     // サス受けのブラケット: ロアアームの 2 本の脚の mr の所をつなぐ横棒。その中ほど → 車体 (静止の位置の真上 0.26 m、少し内側)。上の太い缶、下の細い筒が出入りする
     const bf=P(li,-0.13).lerp(P(s.L1,0),mr), bb=P(li,0.13).lerp(P(s.L1,0),mr); this.link(o.br,bf,bb);
-    const a=V[0].copy(bf).lerp(bb,0.5), b=V[1].set(wx+sg*(li.y+(G.lo.y-li.y)*mr-0.05),li.z+0.26,wz);
+    const FB=car.userData.chassis&&car.userData.chassis.fbox, a=V[0].copy(bf).lerp(bb,0.5), b= FB? V[1].set(sg*FB.fbx,FB.yTop,wz) : V[1].set(wx+sg*(li.y+(G.lo.y-li.y)*mr-0.05),li.z+0.26,wz);   // サスの上端: 足回りボックスの天板の外側の角
     const cb=V[2].copy(b).addScaledVector(V[3].subVectors(a,b).normalize(),0.15); this.link(o.can,b,cb); this.link(o.stan,a,V[4].lerpVectors(a,cb,1.15));
    } else { /* 後ろ (片持ち): アームは車輪の片側 (side: +1 右)。横から見た座標 y (前 +) を車体の z (後ろ +) へ */
     const G=w.geo, s=Susp.geoAt(w,ci), z0=wm.z0!=null? wm.z0 : wz, ax=wx+G.side*0.075, P=(q,k)=>V[k].set(ax,q.z,z0-q.y), mr=p.mr;
