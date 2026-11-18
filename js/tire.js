@@ -15,6 +15,7 @@ const Tire={
  SURF:{road:1, wetK:0.35, shoulder:0.6, dirt:0.5},   // 路面の μ の倍率 (乾いた舗装 = 1)。濡れ: 1 - 0.35·濡れ具合、路肩の砂利・土
  LS:0.15,        // 荷重感度
  SLIDE:0.85,     // 滑っているときの摩擦 (滑り出す直前の μ に対する比)
+ RELAX:0.4,      // タイヤの横の力が追いつくまでに転がる距離 [m]
  FLAT:{corn:0.3, mu:0.6},   // パンクしたタイヤ: 横すべりの硬さ・グリップの倍率
  CAMBER:0.8,     // キャンバーの横力 (1 rad 傾くと荷重の何倍の横力か)
  TRAIL:0.035,    // タイヤの接地面の中心から力のかかる点までの距離 [m] (滑っていないとき、空気圧のトレール)。ハンドルを戻す力のもと。
@@ -108,7 +109,7 @@ const Tire={
 
  /* 1 輪の力 (車輪の向きの座標: 前 + / 右 +)。vl・vt: 接地点の速さ、Fz 荷重、mu 路面の μ、Fxd 前後の力の要求 (前 +)、ws: 車輪の状態 {lock}
   → {fx, fy, slide (横に滑っている), lock (ロック・空転), use (グリップの使い方 0〜1), sat (ハンドルを戻すモーメント [N·m])} */
- wheel(p,vl,vt,Fz,mu,Fxd,ws,gam,kC){
+ wheel(p,vl,vt,Fz,mu,Fxd,ws,gam,kC,h){
   const r0=Fz/p.Fz0-1, muE=mu*Math.max(0.5,1-this.LS*r0), Fmax=muE*Fz;
   if(Fmax<1){ ws.lock=false; return {fx:0,fy:0,slide:Fz>0,lock:false,use:Fz>0?1:0,sat:0}; }
   const brakeReq= Fxd*Math.sign(vl||1)<0;   // 動いている向きと逆の力 = ブレーキ
@@ -122,7 +123,10 @@ const Tire={
   }
   const fx=Fxd, fyMax=Math.sqrt(Math.max(0,Fmax*Fmax-fx*fx));
   // 横すべり + キャンバー (車輪が傾いた向きへ押す力 = CAMBER·荷重·傾き) を合わせた滑りの量
-  const C=p.cornK*(kC||1)*Fz*Math.max(0.3,1-0.5*this.LS*r0), ss=vt/Math.max(Math.abs(vl),0.5)-(gam? this.CAMBER*Fz*gam/Math.max(C,1) : 0), ta=Math.abs(ss);
+  const C=p.cornK*(kC||1)*Fz*Math.max(0.3,1-0.5*this.LS*r0), ss0=vt/Math.max(Math.abs(vl),0.5)-(gam? this.CAMBER*Fz*gam/Math.max(C,1) : 0);
+  /* タイヤの力の立ち上がりの遅れ: 横すべりは、タイヤが RELAX [m] ほど転がる間に追いつく (切った瞬間・突風の直後は力が少し遅れる) */
+  if(!Number.isFinite(ws.ss)||!h) ws.ss=ss0; else ws.ss+=clamp(Math.abs(vl)*h/this.RELAX,0,1)*(ss0-ws.ss);
+  const ss=ws.ss, ta=Math.abs(ss);
   let fy=0, z=0;
   if(fyMax>1e-6){ z=C*ta/(3*fyMax);
    const mag= z<1? fyMax*(3*z-3*z*z+z*z*z) : fyMax*(1-(1-this.SLIDE)*clamp(z-1,0,1));
@@ -146,7 +150,7 @@ const Tire={
   // 滑りのない動き (前輪の向きどおり、後輪は横に滑らない)
   const rK=u*Math.tan(d)/p.L, vyK=rK*p.b;   // (舵角は左右の平均 d で。アッカーマン・トーは低速では向きに効かない)
   if(kDyn<=0){ st.vy=vyK; st.r=rK; st.ay=u*rK; st.sat=0; st.use=0; st.slide=false; st.lockAny=false;
-   for(const ws of st.w) ws.lock=false;
+   for(const ws of st.w){ ws.lock=false; ws.ss=null; }
    const fx=p.wh.reduce((s,w)=>s+this.demand(p,w,inp),0); return {fx,fxReq:fx,ay:st.ay,fy:p.m*st.ay,fxR:p.wh.reduce((s,w)=>s+(w.front?0:this.demand(p,w,inp)),0),fxF:p.wh.reduce((s,w)=>s+(w.front?this.demand(p,w,inp):0),0),wheels:null}; }
   let out=null, fxS=0, fxR=0; const A=this.align(), sc=Math.sin(A.caster), dW=p.wh.map(w=>this.steerOf(p,w,d,A)), PK=this.press(), flat=env.flat==null? -1 : env.flat;
   for(let k=0;k<n;k++){
@@ -156,14 +160,14 @@ const Tire={
     const uF=u-st.r*w.py, vR=st.vy+st.r*w.px, vl=uF*c+vR*s, vt=-uF*s+vR*c;
     // 空気圧 (横の硬さ・グリップ)・パンク (横の硬さ 3 割・グリップ 6 割、潰れたタイヤを引きずる抵抗)
     const pk=PK[i], fl=i===flat, kC=pk.corn*(fl?this.FLAT.corn:1), kM=pk.mu*(fl?this.FLAT.mu:1);
-    const fxd=this.demand(p,w,inp), f=this.wheel(p,vl,vt,Fz[i],this.SURF.road*muOf(i)*p.mu*kM,fxd,st.w[i],(env.camber?env.camber[i]:0)+(w.front? sc*di : 0),kC);   // キャスター: 切った向きへ車輪が傾く
+    const fxd=this.demand(p,w,inp), f=this.wheel(p,vl,vt,Fz[i],this.SURF.road*muOf(i)*p.mu*kM,fxd,st.w[i],(env.camber?env.camber[i]:0)+(w.front? sc*di : 0),kC,h);   // キャスター: 切った向きへ車輪が傾く
     if(fl&&Math.abs(vl)>0.3){ const Fd=0.05*Fz[i]*Math.sign(vl); MZ+=w.py*Fd*c; }   // パンクした側が引きずられて、その側へ向きが変わる (エネルギーは Engine の転がり抵抗)
     const fxb=f.fx*c-f.fy*s, fyb=f.fx*s+f.fy*c;
     FX+=fxb; FY+=fyb; MZ+=w.px*fyb-w.py*fxb; fxR+=fxd; fxW+=f.fx; if(!w.front) fxRr+=f.fx; else fxFf+=f.fx;
     if(w.front) sat+=f.sat+f.fy*A.tm; use=Math.max(use,f.use); slide=slide||f.slide; lockAny=lockAny||f.lock;
     wo.push({Fz:Fz[i],fx:f.fx,fy:f.fy,use:f.use,slide:f.slide,lock:f.lock,front:w.front,px:w.px,py:w.py});
    }
-   const FYt=FY; FY+=env.Fside||0; MZ+=(env.Fside||0)*p.cpX;
+   const FYt=FY; FY+=env.Fside||0; MZ+=(env.Fside||0)*(env.cpX!=null? env.cpX : p.cpX);   // 横風の力は風の力の中心に (角度で動く: VehDyn.cpAt)
    const vyDot=FY/p.m-u*st.r, rDot=MZ/p.Iz;
    st.vy+=vyDot*h; st.r+=rDot*h; st.ay=FY/p.m; st.ax=FX/p.m; fxS+=fxW;
    out={sat,use,slide,lockAny,wo,FYt,fxRr,fxFf};

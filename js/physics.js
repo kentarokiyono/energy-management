@@ -93,7 +93,7 @@ function motorIronW(v){ const w=Math.max(0,v)/PRO.tireR; return PRO.ironK1*w+PRO
 /* モードごとの電流上限 [A]: 諸元にエコ/パワーの上限があればそれ、無ければモーター最大電流 */
 function motorMaxA(power){ const M=PRO.modeMaxA; return M? (power?M[1]:M[0]) : P.motorMaxA; }
 function motorParams(power){
- return {kt: power?PRO.ktPower:PRO.kt, R: PRO.rWinding*(power?1.15:1), rpm: power?PRO.rpmPower:PRO.noLoadRpm};
+ return {kt: power?PRO.ktPower:PRO.kt, R: PRO.rWinding*(power?1.15:1)*(Phys.motorRk||1), rpm: power?PRO.rpmPower:PRO.noLoadRpm};   // motorRk: 巻線の温度 (Engine が今のモーター温度から決める。戦略の先読みも今の温度のまま)
 }
 function motorModel(I,v,soc,power){
 const Vb=VOC(soc), mp=motorParams(power);

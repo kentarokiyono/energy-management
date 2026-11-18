@@ -815,7 +815,7 @@ resetRoad(){
  for(const [,e] of this.lmMap) this.scene.remove(e.mesh); this.lmMap.clear();
  this.ensureRoad(this.s+1500); Horizon.lastKm=-1e9;
  const p=this.roadPoint(this.s);
- this.cx=p.x+Math.cos(p.h)*this.lateral; this.cz=p.z+Math.sin(p.h)*this.lateral; this.ch=p.h; this.tire=null; this.susp=null; this.iProj=Math.floor(this.s/this.SEG);
+ this.cx=p.x+Math.cos(p.h)*this.lateral; this.cz=p.z+Math.sin(p.h)*this.lateral; this.ch=p.h; this.tire=null; this.susp=null; this._gt=null; this.tipA=0; this.tipW=0; this.iProj=Math.floor(this.s/this.SEG);
  this.onBranch=null;
 },
 /* 本線への射影 (直前インデックス近傍のみ探索: 折り返しで反対側に飛ばない) */
@@ -854,14 +854,40 @@ branchAt(x,z){
 /* 横転の危険度: サスペンションの計算の車輪の荷重から、前の左右の荷重の偏り (片輪が浮くと 1)。路面の凸凹で一瞬浮くのは数えない (0.15 秒でならす)。
  片輪が浮いたあとは、転倒させる力と踏ん張る力の比 (VehDyn.roll) で 1 を超えるかを見る。内訳 (風・旋回) は VehDyn.roll から */
 tipRisk(es,vv,shield,dtR){
- const S=this.susp, p=typeof Susp!=="undefined"? Susp.params() : null, Rr=VehDyn.roll(es,-(es.lastCross||0),vv,shield);
+ const S=this.susp, p=typeof Susp!=="undefined"? Susp.params() : null, Rr=VehDyn.roll(es,-((es.lastCross||0)+(es.gustCross||0)),vv,shield);
  if(!S||!S.Fz||!p) return Rr;
  const fr=p.wh.map((w,i)=>({w,i})).filter(o=>o.w.geo.kind==="wishbone"); if(fr.length<2) return Rr;
  const L=fr.find(o=>o.w.py<0), Rt=fr.find(o=>o.w.py>0); if(!L||!Rt) return Rr;
  const fl=S.Fz[L.i], fR=S.Fz[Rt.i], ltr=(fl-fR)/Math.max(1,fl+fR);   // + = 右が重い (左が浮きそう → 右へ倒れる)
  this.ltrF= lerp(Number.isFinite(this.ltrF)?this.ltrF:ltr,ltr,clamp(dtR/0.15,0,1));
  const a=Math.abs(this.ltrF), risk= a<0.98? a : Math.max(a,Rr.risk);
- return {risk,dir:Math.sign(this.ltrF)||Rr.dir,wind:Rr.wind,turn:Rr.turn,lift:Rr.lift,ltr:this.ltrF};
+ /* 片輪が浮いてからの倒れ方: 残りの車輪を結ぶ線のまわりに車体が回る。転倒させる力 (危険度 × 踏ん張る力) と、傾くほど小さくなる踏ん張る力
+  W·(d·cosθ − h·sinθ) の差で回転が速くなる・遅くなる。重心が支点の真上 (θ = atan(d/h)) を越えたら横転、0 に戻れば着地 */
+ const d=Rr.half||0.3, hh=Rr.h||0.25, W=Rr.W||1, I=(Rr.m||270)*(d*d+hh*hh)*1.2, crit=Math.atan2(d,hh);
+ if(!(this.tipA>0)&&a>=0.98&&Rr.risk>1){ this.tipA=1e-4; this.tipW=0; this.tipDirL=Math.sign(this.ltrF)||Rr.dir; }
+ if(this.tipA>0){ const Mo=Rr.risk*W*d, Mr=W*(d*Math.cos(this.tipA)-hh*Math.sin(this.tipA)); this.tipW+=((Mo-Mr)/I)*dtR; this.tipA+=this.tipW*dtR;
+  if(this.tipA<=0){ this.tipA=0; this.tipW=0; } }
+ return {risk:Math.max(risk,this.tipA>0? 1+this.tipA/crit : 0),dir:this.tipA>0? this.tipDirL : Math.sign(this.ltrF)||Rr.dir,wind:Rr.wind,turn:Rr.turn,lift:Rr.lift,ltr:this.ltrF,tipA:this.tipA||0,tipCrit:crit};
+},
+/* 短い突風 [m/s] (横から、右へ吹く向き +): 数秒の連続した揺らぎ (乱れの強さ 20 %) と、ときどき来る一吹き (1.5〜4 秒、平均の風の 3〜8 割)。
+ 実時間で進む (時間の早送りに関係なく、運転の感覚どおり)。天気番号ごとに同じ並び (乱数の turb) */
+gustTurb(es,dtR){
+ const U=Math.max(0,es.windSpeed||0), g=this._gt||(this._gt={t:0,ph:[0,1,2,3].map(()=>Rng.r("turb")*Math.PI*2),next:null,cur:null});
+ g.t+=dtR; const F=[0.07,0.15,0.31,0.6], A=[0.62,0.5,0.4,0.25];
+ let v=0; for(let k=0;k<4;k++) v+=A[k]*Math.sin(2*Math.PI*F[k]*g.t+g.ph[k]); v*=0.2*U;
+ if(g.next==null) g.next=g.t+5+Rng.r("turb")*30;
+ if(g.t>=g.next){ const dur=1.5+Rng.r("turb")*2.5, amp=U*(0.3+0.5*Rng.r("turb"))*(Rng.r("turb")<0.5?-1:1); g.cur={t0:g.t,dur,amp}; g.next=g.t+dur+Math.max(5,150/Math.max(U,1))*(0.3+1.4*Rng.r("turb")); }
+ if(g.cur){ const x=(g.t-g.cur.t0)/g.cur.dur; if(x>=1) g.cur=null; else v+=g.cur.amp*0.5*(1-Math.cos(2*Math.PI*x)); }
+ return v;
+},
+/* ロードトレインとすれ違うときの横の力 [N, 右 +]: 先頭の前の空気に押されて左へ → 車体の横を通る間は吸い寄せられて右へ → 後ろの渦で少し右へ。
+ 相対速度の 2 乗・横の間隔の 2 乗に反比例 */
+trainWake(es,vv){
+ let F=0; for(const rt of this.roadTrains||[]){ const rel=rt.sVis-this.s; if(rel>40||rel<-90) continue;
+  const rp=this.roadPoint(clamp(rt.sVis,0,this.road.builtS-this.SEG)), rl= rp.ow? 60 : (rp.m1||0)+(rp.dual? Math.max(2.6,(rp.L||3.5)-1.75) : 2.6), d=Math.max(2,rl-(this.lateral||0));
+  const V=vv+27, k=0.104*V*V*(5/d)*(5/d);
+  const q=(x,c,w)=>Math.exp(-((x-c)/w)*((x-c)/w)); F+=k*(-q(rel,4,5)+0.6*q(rel,-8,6)+0.4*q(rel,-56,8)); }
+ return Number.isFinite(F)? F : 0;
 },
 /* パンクした車輪 (前のどちらか・後ろ。パンクのたびに決める) */
 flatWheel(es){ return es.burstWheel==null? 0 : es.burstWheel; },
@@ -896,8 +922,11 @@ const vv=es.v;
 const T=this.tire||(this.tire=Tire.init()), u=vv*gearDir(), S=this.susp||(this.susp=Susp.init());
 this.delta=Tire.steerAngle(Input.steer,vv,Input.steerMode);
 /* 横風の力 (レース)。停車して約 8 秒たつと誘導車・追走車の風よけで風速半分 (this.stillT は前のフレームの値) */
-const shieldW=P.mode==="race"&&!P.event&&(this.stillT||0)>8, crossR=-(es.lastCross||0)*(shieldW?0.5:1);
-const wind=P.mode==="race"&&!P.event? VehDyn.aeroSide(crossR,vv,es.lastRho||1.17) : null;
+/* 短い突風 (数秒の揺らぎ・ときどき来る強い一吹き) を横風に足す。ロードトレインとすれ違うときの風圧 (押されて → 吸い寄せられる) も横の力に */
+const raceW=P.mode==="race"&&!P.event, gT=raceW? this.gustTurb(es,dtR) : 0; es.gustCross=gT;
+const shieldW=raceW&&(this.stillT||0)>8, crossR=-((es.lastCross||0)+gT)*(shieldW?0.5:1);
+const wind=raceW? VehDyn.aeroSide(crossR,vv,es.lastRho||1.17) : null;
+if(wind){ wind.Fy+=this.trainWake(es,vv); wind.beta=Math.atan2(Math.abs(crossR),Math.max(1,vv+(es.lastHead||0))); }   // beta: 車から見た風の角度
 /* サスペンション: 実際の加速度 (速度の変化) とタイヤの横力 (前のフレーム) から車体の動きと車輪ごとの荷重・キャンバー。
  止まっているときはタイヤが横風とつり合う (動かない)。風上側の浮き上がりは左右の傾きの力に、クルーが押さえる力は荷重に */
 const moving=vv>0.05, Wd=carDims()[1];
@@ -907,7 +936,7 @@ if(vv>0.05){
  const rq=es.tireReq||{};
  T.ax=(es.gLong||0)*GRAV;
  const R=Tire.step(T,{u,delta:this.delta,drive:rq.drive,brake:rq.brake,regen:rq.regen},
-  {mu:this.wheelMu(es),Fside:wind?wind.Fy:0,Fz:S.Fz,camber:S.camber,flat:es.burst? this.flatWheel(es) : -1},dtR);
+  {mu:this.wheelMu(es),Fside:wind?wind.Fy:0,cpX:wind? VehDyn.cpAt(wind.beta) : null,Fz:S.Fz,camber:S.camber,flat:es.burst? this.flatWheel(es) : -1},dtR);
  this.lastFyT=R.fy; this.lastFxR=R.fxR; this.lastFxF=R.fxF;
  es.tireFx=R.fx; es.tireFxReq=R.fxReq; es.tireW=R.wheels; es.tireUse=T.use; es.tireSlide=T.slide; es.tireLock=T.lockAny; es.tireSat=T.sat;
  if(typeof DrvRec!=="undefined") DrvRec.tire(es,dtR);
@@ -926,8 +955,7 @@ if(P.mode==="race"&&!P.event&&!es.crashed&&!es.camp){
  if(this.tipWarnT>0) this.tipWarnT-=dtR;
  if(R.risk>=0.6&&!(this.tipWarnT>0)){ this.tipWarnT= R.risk>=0.85? 4 : 8; if(R.risk>=0.85) Snd.alarm();
   Radio.push(R.risk>=0.85? `⚠ 片輪が浮いています!すぐに減速、ハンドルはゆっくり (危険度 ${(R.risk*100).toFixed(0)} %)` : `車体が風であおられています。減速してください (横転の危険度 ${(R.risk*100).toFixed(0)} %)`,"後方追走車",{speak:true}); }
- this.tipOver= R.risk>=1? (this.tipOver||0)+dtR : 0;
- if(this.tipOver>=0.25) Engine.rollover(R,vv);
+ if(R.tipA!=null? R.tipA>=R.tipCrit : (this.tipOver= R.risk>=1? (this.tipOver||0)+dtR : 0)>=0.25) Engine.rollover(R,vv);   // 片輪が浮いて重心が支点を越えたら横転 (計算できないときは 0.25 秒続いたら)
 } else es.tipRatio=0;
 { const el=this._rollEl||(this._rollEl=document.getElementById("hud-roll")), r=es.tipRatio||0, show=r>=0.25||(es.scenario==="storm"&&!es.crashed);   // 画面: 横転の危険度
   if(el){ if(show!==this._rollShow){ this._rollShow=show; el.style.display=show?"flex":"none"; }
@@ -988,7 +1016,7 @@ updateHatches(this.car,dtR);
   this.car.rotation.x=slopeA+th;
   if(typeof SuspMesh!=="undefined") SuspMesh.pose(this.car,th,ph,zb,S&&S.zu); }
 this.car.rotation.order="YXZ";
-{ const want= es.rolledOver? 1.75*(es.tipDir||1) : clamp((es.tipRatio||0)*0.06,0,0.08)*(es.tipDir||1);   // 横転: 風下へ倒れる (旋回・横風の傾きはサスペンションの計算 suspRoll)
+{ const want= es.rolledOver? 1.75*(es.tipDir||1) : (this.tipA>0? this.tipA*(es.tipDir||1) : clamp((es.tipRatio||0)*0.06,0,0.08)*(es.tipDir||1));   // 片輪が浮いている間は計算した傾き   // 横転: 風下へ倒れる (旋回・横風の傾きはサスペンションの計算 suspRoll)
   this.carRoll=lerp(this.carRoll||0,want,clamp(dtR*(es.rolledOver?2.2:6),0,1)); this.car.rotation.z=-(this.carRoll+(this.suspRoll||0)); if(es.rolledOver) this.car.position.y+=Math.sin(Math.abs(this.carRoll))*0.5;
   // 横転したら風下へ転がりながら滑り、路肩で止まる (2025 年の映像のように)
   if(es.rolledOver){ const p0=this.roadPoint(this.s), edge=(es.tipDir||1)>0? p0.R+1.2 : -(p0.L+1.2), dl=edge-this.lateral; this.rollSlide=(this.rollSlide||0)+dtR;

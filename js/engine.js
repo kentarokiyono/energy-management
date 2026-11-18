@@ -344,6 +344,11 @@ if(s.TcellDyn==null) s.TcellDyn=TcSS;
 s.TcellDyn+=(TcSS-s.TcellDyn)*(1-Math.exp(-dtS/240));
 const Tcell=s.TcellDyn;
 if(s.Tbat==null) s.Tbat=Tamb;
+/* タイヤとモーターの温度 (ゲーム内時間で)。タイヤ: 走ると温まり 5 分ほどで落ち着く (冷えていると転がり抵抗が大きい)。
+ モーター: 銅損・鉄損で温まり走行風で冷える (熱いと巻線の抵抗が増えて損失が増え、140 °C を超えると電流を絞る) */
+if(!Number.isFinite(s.Ttyre)) s.Ttyre=Tamb; if(!Number.isFinite(s.Tmot)) s.Tmot=Tamb;
+s.Ttyre+=(Model.tyreTempSS(Tamb,s.v)-s.Ttyre)*(1-Math.exp(-dtS/300));
+Phys.motorRk=Model.motorRk(s.Tmot);
 const rho=Phys.airDensity(prof.elev,Tamb); s.lastRho=rho;
 let Psolar=Model.pv(sol.G,sol.alt,tilted,Tcell);
 if(s.fault&&s.fault.type==="solar") Psolar*=0.3;
@@ -355,7 +360,7 @@ const m=massTotal(), mEff=m+PRO.mRot;
 // 勾配は実際の標高 (ルートの標高データ) だけで計算する。見た目の道路の起伏は使わない
 const slope=(P.event&&typeof EventGame!=="undefined"&&EventGame.hilly&&View.road)? Math.atan(View.roadPoint(View.s).g||0) : prof.slope; s.physSlope=slope;   // イベントの Port Augusta 区間は見た目の坂がそのまま効く
 const rw=Model.relWind({ms:s.windSpeed,toward:s.windDirWorld},prof.bearing); s.lastHead=rw.head; s.lastCross=rw.cross;
-const rs=Model.resist(s.v,{m,grade:Math.tan(slope)*(s.gear==="R"?-1:1),head:rw.head,cross:rw.cross,rho,gLat:s.gLat,crrK:s.burst? this.burstCrrK(s) : 1,aeroK:1+((s.damage&&s.damage.aero)||0)});   // 後退では坂の向きが逆。接触による破損で空気抵抗が増える
+const rs=Model.resist(s.v,{m,Tamb,Ttyre:s.Ttyre,grade:Math.tan(slope)*(s.gear==="R"?-1:1),head:rw.head,cross:rw.cross,rho,gLat:s.gLat,crrK:s.burst? this.burstCrrK(s) : 1,aeroK:1+((s.damage&&s.damage.aero)||0)});   // 後退では坂の向きが逆。接触による破損で空気抵抗が増える
 const Froll=rs.roll, Fdrag=rs.drag, Fcorner=rs.corner, Fslope=rs.slope;
 s.lastYawDeg=rs.yaw*180/Math.PI;
 let thr=s.throttleSet;
@@ -367,10 +372,13 @@ if(s.bmsOn){
 if(s.soc<=0.05) ampLimit=Math.min(ampLimit,6);
 if(s.soc<=0.003) ampLimit=0;
 if(s.Tbat>55) ampLimit*=clamp(1-(s.Tbat-55)/10,0,1); // 高温ディレーティング
+if(s.Tmot>140) ampLimit*=clamp(1-(s.Tmot-140)/20,0,1); // モーターの高温
 }
 if(s.gear==="R") ampLimit=Math.min(ampLimit,REVERSE.maxA);   // 後退: 電流を絞る
 I_cmd=thr*ampLimit;
 const mm=motorModel(I_cmd,s.v,s.soc,s.powerMode);
+{ const mp=motorParams(s.powerMode), Ploss=(mm.Iph||0)*(mm.Iph||0)*mp.R+motorIronW(s.v), hA=3+0.6*Math.max(0,s.v);   // モーターの温度 (熱容量 2500 J/K)
+  s.Tmot+=(Ploss-hA*(s.Tmot-Tamb))*dtS/2500; if(s.Tmot<Tamb-5) s.Tmot=Tamb-5; }
 let Ftrac=mm.F;
 if(s.gear==="R"&&s.v>REVERSE.maxV) Ftrac=0;   // 後退の上限速度
 let Fbrake=0, Pregen=0;
@@ -415,7 +423,7 @@ else s.limitTimer=0;
 if(View.redSignalKm!=null && prev<View.redSignalKm && s.km>=View.redSignalKm && s.v*3.6>5){
 Snd.alarm(); toast("🚨 赤信号を通過しました!","#ef4444"); View.redSignalKm=null; if(P.event) EventGame.onRedRun();
 }
-} else { this.brakeHeat(s,0,0,0,dtS,Tamb); const v0=s.v; s.v=Math.max(0,s.v-3*dtR); if(dtR>0){ s.gLong=(s.v-v0)/dtR/GRAV; s.gPitch=s.gLong; } I_cmd=0; Pmotor=0; }
+} else { this.brakeHeat(s,0,0,0,dtS,Tamb); s.Tmot+=(-3*(s.Tmot-Tamb))*Math.min(dtS,600)/2500; const v0=s.v; s.v=Math.max(0,s.v-3*dtR); if(dtR>0){ s.gLong=(s.v-v0)/dtR/GRAV; s.gPitch=s.gLong; } I_cmd=0; Pmotor=0; }
 s.lastAmp=I_cmd; s.lastMotorW=Math.max(0,s.lastMotorNow!=null?s.lastMotorNow:Pmotor); s.lastMotorNow=null;
 let Paux = s.disconnected ? 0 : (s.camp?2:P.auxW);
 if(s.fault&&s.fault.type==="aux") Paux+=150;
