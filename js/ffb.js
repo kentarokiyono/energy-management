@@ -148,7 +148,7 @@ const FFB={
   try{ if(typeof View!=="undefined"&&View.road){ const p=View.roadPoint(View.s); shoulder=View.lateral<-(p.L+0.3)||View.lateral>p.R+0.3;
    rough= (typeof isCity==="function"&&(isCity(es.km)||townProx(es.km)<2.5))? 0.25 : 0.65;
    let best=1e9; for(const rt of View.roadTrains||[]){ const rel=rt.sVis-View.s; if(Math.abs(rel)<Math.abs(best)) best=rel; } if(Math.abs(best)<60) trainRel=best; } }catch(e){}
-  return Object.assign({v:es.v,steer:Input.gamepadOK?Input.gpSteer:Input.steer,offroad:!!es.offroad,shoulder,rough,cross:es.lastCross||0,trainRel,trainV,brake:es.brakePhys||0,gLat:es.gLat||0,dt},this.tireIn(es)); },
+  return Object.assign({v:es.v,steer:Input.gamepadOK?Input.gpSteer:Input.steer,offroad:!!es.offroad,shoulder,rough,cross:(es.lastCross||0)+(es.gustCross||0),trainRel,trainV,brake:es.brakePhys||0,gLat:es.gLat||0,dt},this.tireIn(es)); },
  /* タイヤの状態 (Tire): sat ハンドルを戻すモーメント・use グリップの使い方・slide 横に滑っている・lock ロック / 空転 */
  tireIn(es){ return typeof Tire==="undefined"? {} : {sat:es.tireSat||0,satRef:Tire.satRef(),use:es.tireUse||0,slide:!!es.tireSlide,lock:!!es.tireLock};
  },

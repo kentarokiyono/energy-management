@@ -63,8 +63,8 @@ const Model={
   → {roll (鉄損・前輪のトーとキャンバーの抵抗を含む), drag, slope, corner, total, yaw [rad]} */
  resist(v,e){
   const m=e.m, th=Math.atan(e.grade||0), rho=e.rho||1.17;
-  const T=typeof Tire!=="undefined"? Tire : null;
-  const roll=(e.crrK||1)*(T? T.crrK() : 1)*Phys.crr(v)*m*GRAV*Math.cos(th)+motorIronW(v)/Math.max(v,0.5)+(T? T.alignDrag(m) : 0);   // 空気圧の倍率、+ トー・キャンバーの抵抗
+  const T=typeof Tire!=="undefined"? Tire : null, tt=Number.isFinite(e.Ttyre)? e.Ttyre : this.tyreTempSS(Number.isFinite(e.Tamb)? e.Tamb : 30,v);
+  const roll=(e.crrK||1)*(T? T.crrK() : 1)*this.tyreK(tt)*Phys.crr(v)*m*GRAV*Math.cos(th)+motorIronW(v)/Math.max(v,0.5)+(T? T.alignDrag(m) : 0);   // 空気圧の倍率、+ トー・キャンバーの抵抗
   const cross=e.cross||0, yaw=Math.atan2(Math.abs(cross),Math.max(v,1));
   const va=Math.max(0,v+(e.head||0)), va2=va*va+(e.varH||0);
   const drag=0.5*rho*P.Cd*cdYawFactor(yaw)*(e.aeroK||1)*P.frontal*va2;
@@ -98,6 +98,13 @@ const Model={
   return r.P*LossK.k();
  },
 
+ /* タイヤの温度と転がり抵抗: 冷えたタイヤはゴムが硬く、転がり抵抗が大きい。43 °C (暑い日の巡航くらい) で 1、1 °C 低いと +0.8 % (0.9〜1.3 倍) */
+ TYRE_TREF:43,
+ tyreK(T){ return clamp(1+0.008*(this.TYRE_TREF-(Number.isFinite(T)? T : this.TYRE_TREF)),0.9,1.3); },
+ /* 走り続けたときのタイヤの温度 [°C]: 気温 + 走行の発熱 (速いほど高い) */
+ tyreTempSS(Tamb,v){ return Tamb+0.6*Math.max(0,v); },
+ /* モーターの巻線の温度による抵抗の倍率 (銅: 1 °C で 0.39 %、25 °C で 1) */
+ motorRk(T){ return 1+0.0039*((Number.isFinite(T)? T : 25)-25); },
  /* 電池: 端子電力 Pnet [W] (+ 放電) を dtS 秒 → {soc, I [A], R [Ω]}。内部抵抗の損失・開放電圧の変化を含む */
  battStep(soc,Tbat,Pnet,dtS){
   const Voc=VOC(soc), R=Phys.rInt(Tbat,soc), I=Phys.battCurrent(Voc,R,Pnet);

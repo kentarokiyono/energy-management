@@ -203,6 +203,12 @@ const T0=Date.now();
  const wkC=load(), wk=wkC.run(`(()=>{ VEH.spec.chassis={wheelKg:{FL:60,FR:50,R:90}}; VEH.active=true; Tire._p=null; Susp._p=null; const p=Tire.params();   // (テスト用の値。実車の値ではない)
   return {fs:p.b/p.L, sh:p.wh.map(w=>+w.share.toFixed(3)), yCG:p.wh.reduce((a,w)=>a+w.share*w.py,0)}; })()`);
  check("実測の車輪ごとの重さ (諸元 chassis.wheelKg) から荷重配分と重心の左右のずれ",near(wk.fs,0.55,1e-6)&&near(wk.sh.reduce((a,b)=>a+b,0),1,1e-6)&&Math.abs(wk.yCG)<1e-9,`前 ${(wk.fs*100).toFixed(0)} %・${JSON.stringify(wk.sh)}`);
+ const ph=R(`(()=>{ const kCold=Model.tyreK(20), kWarm=Model.tyreK(Model.tyreTempSS(30,22)), rC=Model.resist(22,{m:270,Ttyre:20}).roll, rW=Model.resist(22,{m:270,Ttyre:43}).roll;
+  const R25=(Phys.motorRk=Model.motorRk(25), motorParams(false).R), R100=(Phys.motorRk=Model.motorRk(100), motorParams(false).R); Phys.motorRk=1;
+  const st0=Tire.init(), st1=Tire.init(), keep=Tire.RELAX; Tire.step(st0,{u:20,delta:0},{mu:1},0.1); Tire.step(st0,{u:20,delta:0.05},{mu:1},0.02); Tire.RELAX=1e-6; Tire.step(st1,{u:20,delta:0},{mu:1},0.1); Tire.step(st1,{u:20,delta:0.05},{mu:1},0.02); Tire.RELAX=keep;
+  return {kCold,kWarm,rC,rW,R25,R100,ay0:st0.ay,ay1:st1.ay,cp0:VehDyn.cpAt(0),cp40:VehDyn.cpAt(0.7)}; })()`);
+ check("冷えたタイヤは転がり抵抗が大きい (暑い日の巡航で 1)・熱いモーターは巻線の抵抗が大きい",ph.kCold>1.15&&near(ph.kWarm,1,0.02)&&ph.rC>ph.rW&&ph.R100>ph.R25*1.25,`タイヤ 20 °C ×${ph.kCold.toFixed(2)}・巡航 ×${ph.kWarm.toFixed(2)}・モーター 100 °C で抵抗 ×${(ph.R100/ph.R25).toFixed(2)}`);
+ check("タイヤの横の力は少し遅れて立ち上がる・横風の力の中心は風の角度が大きいと後ろへ",ph.ay0<ph.ay1*0.95&&ph.ay0>0&&ph.cp40<ph.cp0-0.5,`切って 0.02 秒の横 G ${(ph.ay0/9.79).toFixed(3)} / 遅れなし ${(ph.ay1/9.79).toFixed(3)}・中心 ${ph.cp0.toFixed(2)} → ${ph.cp40.toFixed(2)} m`);
  const ks=R(`(()=>{ const p=Tire.params(), st=Tire.init(); Tire.step(st,{u:1,delta:0.2},{mu:1},0.1); return {r:st.r, k:1*Math.tan(0.2)/p.L}; })()`);
  check("止まる直前 (1 m/s) は前輪の向きどおりに曲がる",near(ks.r,ks.k,1e-9),ks.r.toFixed(4)+" rad/s");
 }

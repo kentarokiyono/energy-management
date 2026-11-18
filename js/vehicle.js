@@ -49,6 +49,9 @@ const LossK={ k(){ if(Number.isFinite(P.lossK)&&P.lossK!==1) return clamp(P.loss
 const ROLL_DEF={ssf:1.2, hold:1500, chassis:{cgHeight:0.42, cgTread:1.0, wheels:4}, aero:{sideArea:2.5, Cy:1.0, CyBeta:1.0, ClCross:0.3, cpK:1.25}};
 /* 走行の挙動 (諸元があるときだけ使う) */
 const VehDyn={
+ /* 横風の力の中心 (重心より前 + [m]) と車から見た風の角度 beta [rad]: 角度が大きくなると車体の横の流れがはがれて、中心が急に後ろへ移る
+  (10° までは既定の位置、10〜36° で 0.6 m 後ろへ)。後ろへ移るほど、鼻先が風上へ向く (風見鶏) */
+ cpAt(beta){ const c0=(typeof Tire!=="undefined"? Tire.params().cpX : 0.1); return c0-0.6*clamp((Math.abs(beta||0)-0.17)/0.45,0,1); },
  /* 横風の力: Fy 横力 [N, 右 +] (車の速度と合わせた相対風。横すべり角の分 CyBeta も)・L 浮き上がり [N] (パネルを横切る風の揚力)。
   タイヤの計算 (Tire) と横転の危険度の両方で使う */
  aeroSide(crossR,v,rho){
@@ -71,7 +74,7 @@ const VehDyn={
   const Mw=Fy*h*A.cpK+Math.sign(crossR)*L*W/4;   // 横風: 横力 + 風上側の浮き上がり
   const Mc=-m*(es.gLat||0)*g*h;   // 旋回の遠心力 (右 +)
   const R=Math.max(1,m*g+hold-L)*half*clamp(1-(C.wheels===3?0.6:0.25)*Math.abs(es.gLong||0),0.4,1);
-  const M=Mw+Mc; return {risk:Math.abs(M)/R,dir:Math.sign(M)||1,wind:Math.abs(Mw)/R,turn:Math.abs(Mc)/R,lift:L}; },
+  const M=Mw+Mc; return {risk:Math.abs(M)/R,dir:Math.sign(M)||1,wind:Math.abs(Mw)/R,turn:Math.abs(Mc)/R,lift:L,W:Math.max(1,m*g+hold-L),half,h,m}; },
  /* 静的な転倒余裕 SSF = トレッド / (2·重心高) から求める横加速度の限界 [m/s²] */
  tipAccel(){ const C=VEH.spec.chassis; return (C.ssf||(C.cgTread/(2*C.cgHeight)))*GRAV; },
 };
