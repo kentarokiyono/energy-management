@@ -9,7 +9,7 @@
  その日のランキング (コースごと)・1 位のゴースト (端末に保存)、オーストラリア版は走行のリプレイ URL を QR コードで持ち帰り */
 const EVENT_PUBLIC_URL="https://kentarokiyono.github.io/energy-management/";
 const EventGame={
-DUR:600, practice:true, active:false, level:"adult", course:"aus", replay:null, ghostRun:null, hilly:false,
+DUR:600, TILT_SEC:25, practice:true, active:false, level:"adult", course:"aus", replay:null, ghostRun:null, hilly:false,
 COURSES:{
  aus:[
  {id:"rules", title:"交通ルール", km:0, hour:10.0, cap:100,
@@ -145,7 +145,11 @@ frame(dtR){
  } else if(m.id==="cs"){
   const c=RP_CS[0];
   if(this.st.entryOk==null&&s.km>c.km-0.25){ this.st.entryOk=kmh<=26; if(!this.st.entryOk) toast("⚠ CS への進入は 25 km/h 以下","#f59e0b"); }
-  if(this.st.stopped&&s.stopTimer<=0){ this.next(); return; }
+  /* 停車したら実時間 25 秒はパネルの角度を選べる (止まっている間は時間が 300 倍で進み、CS の 30 分が数秒で終わってしまうため、その間は計時を止めておく) */
+  if(this.st.stopped){ this.st.tiltT=(this.st.tiltT||0)+dtR; const left=this.TILT_SEC-this.st.tiltT;
+   if(left>0){ s.stopTimer=Math.max(s.stopTimer,60); const e=document.getElementById("event-mission"); if(e) e.textContent=`MISSION ${this.mi+1}: ${m.title}  ☀ パネルの角度を選ぼう (残り ${Math.ceil(left)} 秒)`; }
+   else if(!this.st.tiltDone){ this.st.tiltDone=true; s.stopTimer=Math.min(s.stopTimer,1); } }
+  if(this.st.stopped&&this.st.tiltDone&&s.stopTimer<=0){ this.next(); return; }
   if(this.mt>m.cap&&!this.st.stopped) this.next();
  } else if(m.distFull){   // 最後の走行区間: 距離と電池残量
   const d=s.km-this.st.km0;
