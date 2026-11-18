@@ -15,7 +15,7 @@ async function newPage(b,base,opt={}){
  const p=await ctx.newPage(); p.errs=[]; p.ext=[];
  p.on("pageerror",e=>p.errs.push(e.message)); p.on("console",m=>{ if(m.type()==="error") p.errs.push(m.text()); });
  p.on("request",r=>{ const u=r.url(); if(!u.startsWith(base)&&!/^(data|blob):/.test(u)) p.ext.push(u); });
- await p.goto(base+"index.html"+(opt.q||"")); await p.waitForFunction(()=>typeof startGame==="function"&&typeof THREE!=="undefined");
+ await p.goto(base+"index.html"+(opt.q||""),{timeout:90000}); await p.waitForFunction(()=>typeof startGame==="function"&&typeof THREE!=="undefined",null,{timeout:90000});   // ソフトウェア描画では、前のページの後片付けで読み込みが遅れることがある
  await p.waitForTimeout(500);
  await p.evaluate(()=>{ P.coffee=false; });   // 朝の打ち合わせは別に確認
  if(!opt.gfx) await p.evaluate(()=>{ P.gfx="low"; });   // 速さを見る確認は軽い画質で (ソフトウェア描画は遅い)。高画質は別に確認
