@@ -16,6 +16,9 @@ async function newPage(b,base,opt={}){
  p.on("pageerror",e=>p.errs.push(e.message)); p.on("console",m=>{ if(m.type()==="error") p.errs.push(m.text()); });
  p.on("request",r=>{ const u=r.url(); if(!u.startsWith(base)&&!/^(data|blob):/.test(u)) p.ext.push(u); });
  await p.goto(base+"index.html"+(opt.q||""),{timeout:90000}); await p.waitForFunction(()=>typeof startGame==="function"&&typeof THREE!=="undefined",null,{timeout:90000});   // ソフトウェア描画では、前のページの後片付けで読み込みが遅れることがある
+ /* 描画を止める (既定)。テストは値・画面の部品・エラーを確かめるので 3D の絵は要らない。GPU の無いソフトウェア描画は遅く、テストの大半の時間が描画だった。
+  描いた絵が要る確認 (高画質の効果・スクリーンショット) は render:true */
+ if(!opt.render&&!process.env.SMOKE_RENDER) await p.evaluate(()=>{ THREE.WebGLRenderer.prototype.render=function(){}; });
  await p.waitForTimeout(500);
  await p.evaluate(()=>{ P.coffee=false; });   // 朝の打ち合わせは別に確認
  if(!opt.gfx) await p.evaluate(()=>{ P.gfx="low"; });   // 速さを見る確認は軽い画質で (ソフトウェア描画は遅い)。高画質は別に確認
@@ -28,7 +31,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
  const T0=Date.now();
  try{
  // ---- 画質「高」: ポストプロセスと映り込みの環境がエラーなく動く ----
- { const p=await newPage(b,base,{gfx:true});
+ { const p=await newPage(b,base,{gfx:true,render:true});
   await p.evaluate(()=>{ P.gfx="high"; P.mode="race"; startGame(); }); await p.waitForTimeout(4000);
   const g=await p.evaluate(()=>({post:!!Post.comp&&Post.want(),env:!!EnvLight.rt&&View.scene.environment===EnvLight.rt.texture,pbr:View.car.userData.upperTilt.children[0].children.some(m=>m.material&&m.material.isMeshPhysicalMaterial&&m.material.clearcoat>0.5)}));
   check("画質「高」: ブルーム・映り込み・塗装",g.post&&g.env&&g.pbr&&noErr(p).length===0,JSON.stringify(g)+" "+noErr(p).slice(0,2).join(" | "));
