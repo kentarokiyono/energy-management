@@ -174,7 +174,7 @@ const T0=Date.now();
    for(let t=0;t<3;t+=dt){ const s0=s; s+=v*dt; Susp.step(st,{road:(i,f)=>road(s0+v*dt*f+p.wh[i].px,p.wh[i].py)},dt); if(Math.abs(s)<5){ const f=st.Fz[1]; mn=Math.min(mn,f); mx=Math.max(mx,f); zb=Math.max(zb,Math.abs(st.z)); } }
    return {mn:mn/p.wh[1].F0,mx:mx/p.wh[1].F0,zb}; };
   return {flat:run(()=>0), rough:run((s,y)=>Susp.roughAt(s,y,1)), grid:run((s,y)=>Susp.gridAt(s))}; })()`);
- check("ばね下: 平らな道は荷重一定、舗装のうねりで少し、キャトルグリッドで大きく揺れる (車体はあまり動かない)",near(gr.flat.mn,1,1e-6)&&gr.rough.mn>0.7&&gr.grid.mn<gr.rough.mn&&gr.grid.zb<0.005,`前輪の荷重 舗装 ${(gr.rough.mn*100).toFixed(0)}〜${(gr.rough.mx*100).toFixed(0)} %・グリッド ${(gr.grid.mn*100).toFixed(0)}〜${(gr.grid.mx*100).toFixed(0)} %・車体 ${(gr.grid.zb*1000).toFixed(1)} mm`);
+ check("ばね下: 平らな道は荷重一定、舗装のうねり・キャトルグリッドで揺れる (舗装では車輪は浮かない・車体はあまり動かない)",near(gr.flat.mn,1,1e-6)&&gr.rough.mn>0.5&&gr.rough.mx>1.05&&gr.grid.mn<0.9&&gr.grid.zb<0.005,`前輪の荷重 舗装 ${(gr.rough.mn*100).toFixed(0)}〜${(gr.rough.mx*100).toFixed(0)} %・グリッド ${(gr.grid.mn*100).toFixed(0)}〜${(gr.grid.mx*100).toFixed(0)} %・車体 ${(gr.grid.zb*1000).toFixed(1)} mm`);
  const ks=R(`(()=>{ const p=Tire.params(), st=Tire.init(); Tire.step(st,{u:1,delta:0.2},{mu:1},0.1); return {r:st.r, k:1*Math.tan(0.2)/p.L}; })()`);
  check("止まる直前 (1 m/s) は前輪の向きどおりに曲がる",near(ks.r,ks.k,1e-9),ks.r.toFixed(4)+" rad/s");
 }

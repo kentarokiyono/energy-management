@@ -429,14 +429,14 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   await p.context().close(); }
  // ---- サスペンション: 止まってブレーキでは沈まない・走りながらのブレーキで前が沈む・曲がると外へ傾く・車体を透かすとアームが見える ----
  { const p=await newPage(b,base);
-  const r=await p.evaluate(()=>{ P.mode="race"; P.event=false; P.crewProc=false; startGame(); running=false; modalPause=false;
+  const r=await p.evaluate(()=>{ P.mode="race"; P.event=false; P.crewProc=false; P.susp={roadK:0}; startGame(); running=false; modalPause=false;   // 路面の凸凹なし (曲がって路肩・土に出ても揺れで値がぶれないように)
    const es=Engine.st, run=(sec,f)=>{ for(let t=0;t<sec;t+=1/60){ if(f) f(); Engine.step(1/60,1/60); View.update(1/60); } };
    es.hour=Math.max(es.hour,es.gridStartH+0.01); es.stopTimer=0; es.gear="D";
    es.v=0; run(1.5,()=>{ es.v=0; es.brakePhys=1; es.throttleSet=0; }); const rest={g:es.gPitch,th:View.susp.th};
    es.brakePhys=0; es.v=20; run(1,()=>{ es.throttleSet=0.3; }); run(0.5,()=>{ es.brakePhys=1; }); const brake={g:es.gPitch,th:View.susp.th}; es.brakePhys=0;
    es.v=20; run(1.5,()=>{ es.v=20; Input.steer=0.6; }); const turn={ph:View.susp.ph,gLat:es.gLat}; Input.steer=0;
    P.xray=true; View.update(1/60); const U=View.car.userData.susp, x={vis:!!(U&&U.g.visible),parts:U?U.parts.length:0,tr:(()=>{ let t=false; View.car.userData.body.traverse(o=>{ if(o.isMesh&&o.material&&o.material.transparent&&o.material.opacity<0.2) t=true; }); return t; })()};
-   P.xray=false; View.update(1/60); x.off=!U.g.visible;
+   P.xray=false; View.update(1/60); x.off=!U.g.visible; P.susp={};
    return {rest,brake,turn,x}; });
   check("止まってブレーキを踏んでも車体は沈まない (加速度 0)",Math.abs(r.rest.g)<1e-6&&Math.abs(r.rest.th)<1e-4,`${r.rest.g.toFixed(4)} G・${(r.rest.th*57.3).toFixed(3)}°`);
   check("走りながらブレーキで前が沈む",r.brake.g<-0.2&&r.brake.th<-0.001,`${r.brake.g.toFixed(2)} G・${(r.brake.th*57.3).toFixed(2)}°`);
