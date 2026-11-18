@@ -32,11 +32,18 @@ const Tire={
   if(this._p&&this._key===key) return this._p;
   let zF=Infinity, zR=-Infinity; for(const w of W){ zF=Math.min(zF,w[1]); zR=Math.max(zR,w[1]); }
   const L=C.wheelbase||Math.max(1,zR-zF), zMid=(zF+zR)/2, nF0=W.filter(w=>w[1]<zMid).length||1, nR0=(W.length-nF0)||1;
-  /* 前輪の荷重の割合: 諸元が無ければ、後輪 1 本の荷重が前輪 1 本の 0.85 倍になる配分 (前 2・後 1 なら 0.70)。
+  /* 前輪の荷重の割合: 実測も諸元も無ければ、後輪 1 本の荷重が前輪 1 本の 0.85 倍になる配分 (前 2・後 1 なら 0.70)。
    ソーラーカーは重心を前に置き、後輪が先に滑ってスピンしないようにする (限界で前輪が先に滑る = まっすぐ進む) */
-  const fs=C.frontShare||1/(1+D.rearLoadK*nR0/nF0);
+  /* 実測の車輪ごとの重さ (諸元 chassis.wheelKg: {FL, FR, R} または {FL, FR, RL, RR} [kg]、ドライバー込みの走る状態) があれば、
+   その割合をそのまま使う (左右の偏りも)。無ければ frontShare、それも無ければ一般的な配分 */
+  const WK=C.wheelKg&&typeof C.wheelKg==="object"? C.wheelKg : null;
+  const wkOf=(x,z)=>{ if(!WK) return null; const fr=z<zMid, L_=x<0;
+   const v= fr? (L_? WK.FL : WK.FR) : (WK.R!=null? WK.R : (L_? WK.RL : WK.RR)!=null? (L_? WK.RL : WK.RR) : ((+WK.RL||0)+(+WK.RR||0)));
+   return Number.isFinite(+v)&&+v>0? +v : null; };
+  const wk=W.map(w=>wkOf(w[0],w[1])), wkOk=wk.every(v=>v!=null), wkSum=wkOk? wk.reduce((a,b)=>a+b,0) : 0;
+  const fs= wkOk&&wkSum>0? W.reduce((a,w,i)=>a+(w[1]<zMid? wk[i] : 0),0)/wkSum : C.frontShare||1/(1+D.rearLoadK*nR0/nF0);
   const zCG=zF+(1-fs)*L, a=(1-fs)*L, b=fs*L;   // a: 重心から前の車軸、b: 後ろの車軸
-  const wh=W.map(w=>({px:zCG-w[1], py:w[0], front:w[1]<zMid, R:w[2]||0.26}));
+  const wh=W.map(w=>({px:zCG-w[1], py:w[0], x0:w[0], front:w[1]<zMid, R:w[2]||0.26}));
   const nF=wh.filter(w=>w.front).length||1, nR=(wh.length-nF)||1;
   const axle=f=>{ const g=wh.filter(w=>w.front===f); if(g.length<2) return null; let lo=Infinity,hi=-Infinity; for(const w of g){ lo=Math.min(lo,w.py); hi=Math.max(hi,w.py); } return {track:hi-lo,mid:(hi+lo)/2,share:f?fs:1-fs}; };
   // 重心の高さ: 諸元が無ければ、車輪の配置から静的安定係数 SSF = 1.2 (規則 2.19.4: SSF > 1) になる高さ
@@ -45,7 +52,9 @@ const Tire={
   /* ブレーキの前輪の割合: 諸元が無ければ、1 g で減速したときの前輪の荷重の割合より少し大きく (どの路面でも前輪が先にロック: 規則 2.20.8) */
   const bf=B.frontShare||Math.min(0.95,fs+h/L+0.03);
   const axF=axle(true), axR=axle(false), sh=(axF?axF.share:0)+(axR?axR.share:0)||1;
-  for(const w of wh){ w.share=(w.front? fs/nF : (1-fs)/nR); const ax=w.front?axF:axR;
+  wh.forEach((w,i)=>{ w.share= wkOk&&wkSum>0? wk[i]/wkSum : (w.front? fs/nF : (1-fs)/nR); });
+  const yCG=wh.reduce((a,w)=>a+w.share*w.py,0); if(Math.abs(yCG)>1e-4) for(const w of wh) w.py-=yCG;   // 重心が左右にずれていれば、車輪の横の位置を重心から測り直す
+  for(const w of wh){ const ax=w.front?axF:axR;
    w.lat= ax&&ax.track>0.05? (w.py<ax.mid?1:-1)*(ax.share/sh)/ax.track : 0;   // 横 G 1 m/s² あたりの荷重の増え方 (×m·h)
    w.bk=(w.front? bf/nF : (1-bf)/nR); w.drive=!w.front; }
   return this._key=key, this._p={m, L, a, b, h, bf, Iz:C.Iz||D.izK*m*a*b, wh, nF, nR, nDrive:nR,

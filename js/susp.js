@@ -84,7 +84,7 @@ const Susp={
   const li={y:lo.y-v("lowerL"),z:lo.z}, ui={y:up.y-v("upperL"),z:up.z+v("upTilt")};   // 内側の取り付け (車体側)
   const K=this.linkage(li,ui,lo,up,R,v("travel")*1.5), tab=K.tab.map(t=>({c:t.c,camber:-t.rot,scrub:t.cp.y,L1:t.L1,U1:t.U1,wc:t.wc}));   // camber: 上が外へ傾く向き +
   // ロールセンター (静止): アームの延長の交点 (瞬間中心) と接地点を結ぶ線が、車の中心を通る高さ
-  const ic=K.ic, half=Math.abs(w.py), rc= ic&&Math.abs(ic.y)>1e-6? clamp(-half*ic.z/ic.y,-0.2,0.4) : 0;
+  const ic=K.ic, half=Math.abs(w.x0!=null? w.x0 : w.py), rc= ic&&Math.abs(ic.y)>1e-6? clamp(-half*ic.z/ic.y,-0.2,0.4) : 0;
   return {kind:"wishbone",li,ui,lo,up,tab,rc,ic};
  },
  /* 後輪 (片持ち): 上下 2 本の非対称な V 字のアーム (横から見る。前 +)。アップライトはインホイールモーターに直付け。
