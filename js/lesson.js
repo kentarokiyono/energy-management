@@ -81,7 +81,7 @@ const Lesson={
   s.stopTimer=0; s.stopKind=""; s.stopHold=false; s.camp=false; s.weather=null; s.offRoute=false; s.crashed=false; s.fire=false; s.finished=false;
   s.extensionMin=0; s.extWarned=false; s.extWarned2=false; s.morningPenaltyMin=0; s.gridStartH=0; s.chapter=null;
   s.passedCP=new Set(); for(const c of RP_CS) if(c.km<km) s.passedCP.add(c.km);
-  s.dcDone= RP_RULES.driverChange.km<km+1;
+  s.dcDone= RP_RULES.driverChange.km<km;
   s.teams=[]; s.weatherPlan=[]; s.fc=null; s.stormPlan=[]; s.nextRoadTrainH=99; s.soc=Math.max(s.soc,0.8); s.lesson=this.L().id; s.tipMax=0;
   if(s.damage){ s.damage.aero=0; s.damage.n=0; }
   for(const rt of View.roadTrains) View.scene.remove(rt.mesh); View.roadTrains.length=0;

@@ -7,7 +7,7 @@ const Save={
  KEY:"slot1", pending:null,
  db(){ if(this.p) return this.p; this.p=new Promise(res=>{ try{ const q=indexedDB.open("bwsc-save",1); q.onupgradeneeded=()=>q.result.createObjectStore("save",{keyPath:"id"}); q.onsuccess=()=>res(q.result); q.onerror=()=>res(null); }catch(e){ res(null); } }); return this.p; },
  async tx(mode,fn){ const db=await this.db(); if(!db) return null; return new Promise(res=>{ try{ const t=db.transaction("save",mode), q=fn(t.objectStore("save")); t.oncomplete=()=>res(q&&q.result!==undefined?q.result:true); t.onerror=t.onabort=()=>res(null); }catch(e){ res(null); } }); },
- can(){ return running&&P.mode==="race"&&!P.event&&Engine.st&&!Engine.st.scenario&&!Engine.st.lesson&&!Engine.st.finished&&!Engine.st.crashed&&!Engine.st.fire&&!Test.active; },
+ can(){ return running&&P.mode==="race"&&!P.event&&Engine.st&&(!Engine.st.scenario||Engine.st.scenario==="long")&&!Engine.st.lesson&&!Engine.st.finished&&!Engine.st.crashed&&!Engine.st.fire&&!Test.active; },
  async save(){
   if(!this.can()){ toast("保存できるのはレースの途中だけです (練習シナリオ・ゴール後は不可)","#f59e0b"); return false; }
   const es=Engine.st, rec={id:this.KEY,ver:1,ts:Date.now(),
