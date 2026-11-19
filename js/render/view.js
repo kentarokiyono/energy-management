@@ -1174,14 +1174,15 @@ if(typeof Rain!=="undefined") Rain.update(this,es,dtR);   // 雨 (雨筋・し�
 this.updateLandmarks(es);
 this.updateRoadTrains(es,dtR);
 // 前方誘導車: 通常は150m前。信号で先に抜けて赤で分断されたら、その場でハザードを点けて停車し待機
-{ const want=this.s+150;
-  if(this.leadS===undefined||Math.abs(this.leadS-want)>2000){ this.leadS=want; this.leadV=es.v; }
+{ const want=this.s+150, fix=typeof Lesson!=="undefined"&&Lesson.active? Lesson.leadFix : null;
+  if(this.leadS===undefined||(!fix&&Math.abs(this.leadS-want)>2000)){ this.leadS= fix? this.s+60 : want; this.leadV= fix||es.v; }
   let hold=false, stopAt=Infinity;
   for(const [,ent] of this.lmMap){ if(ent.lm.t!=="signal"||!ent.red) continue;
    const sg=this.sOfKm(ent.lm.km);
    if(sg>this.s && this.leadS>sg) hold=true;                 // ソーラーカーは赤信号の手前、誘導車は通過済み
    else if(sg>this.leadS-2 && sg<want+5) stopAt=Math.min(stopAt,sg-10); } // 誘導車の前が赤 → 停止線で止まる
-  if(hold) this.leadHold=true;
+  if(fix){ hold=false; this.leadHold=false; this.leadV=fix; this.leadS+=fix*dtR; }   // 入門: 前方誘導車が一定の速さで走る
+  else if(hold) this.leadHold=true;
   else { this.leadHold=false; const tgt=Math.min(want,stopAt), gap=tgt-this.leadS, lim=speedLimitAt(clamp(this.kmOfS(this.leadS),0,TOTAL_KM))/3.6;
    // 自車の速さに合わせて走り、150 m 前を保つ。制限速度を守り、止まるときは手前から減速 (急発進・急停止しない)
    let vT= gap<=0.5? 0 : clamp(es.v+(gap-20)*0.08,0,lim); vT=Math.min(vT,Math.sqrt(Math.max(0,2*2.5*(gap-0.5))));
@@ -1252,7 +1253,7 @@ let ent=this.lmMap.get(key);
 if(!ent){
 const mesh=this.mkLandmark(lm);
 ent={mesh,lm,red:false,decided:false};
-if(lm.t==="signal"&&interactive&&(Math.random()<0.4||(P.event&&lm.km>0.4&&lm.km<0.7))){ ent.red=true; }   // イベントの課題 1: McMinn Street の信号は必ず赤
+if(lm.t==="signal"&&interactive&&(Math.random()<0.4||(P.event&&lm.km>0.4&&lm.km<0.7)||(typeof Lesson!=="undefined"&&Lesson.redAt(lm.km)))){ ent.red=true; }   // イベントの課題 1: McMinn Street の信号は必ず赤
 this.lmMap.set(key,ent);
 this.scene.add(mesh);
 }

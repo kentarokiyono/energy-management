@@ -75,7 +75,8 @@ const Traffic={
   return g;
  },
  /* ---------- 出す・動かす ---------- */
- level(){ return typeof PRO!=="undefined"&&PRO.trafficK!=null? Math.max(0,PRO.trafficK) : 1; },
+ noSpawn:false, kMul:1,   // 入門コース: 出さない / 多くする
+ level(){ return (typeof PRO!=="undefined"&&PRO.trafficK!=null? Math.max(0,PRO.trafficK) : 1)*this.kMul; },
  town(km){ return Route.inZone(km); },
  pickKind(town,rural){
   const r=Math.random();
@@ -126,14 +127,14 @@ const Traffic={
   return clamp(a,-8,c.a);
  },
  update(V,es,dtR){
-  const k=this.level(), on=P.mode==="race"&&!P.event&&!es.camp&&!es.fire&&k>0&&V.road;
+  const k=this.level(), on=P.mode==="race"&&!P.event&&!es.camp&&!es.fire&&(k>0||this.noSpawn)&&V.road;
   if(this.lastS!=null&&Math.abs(V.s-this.lastS)>400) this.reset(V);   // 場所が飛んだ (シナリオ・続きから)
   this.lastS=V.s;
   if(!on){ if(this.cars.length) this.reset(V); return; }
   const town=this.town(es.km), rural=!town;
   /* 後ろから来る車 */
   this.tB-=dtR;
-  if(this.tB<=0&&es.stopTimer<=0){
+  if(this.tB<=0&&es.stopTimer<=0&&!this.noSpawn&&k>0){
    this.tB=(town?18:55)*(0.6+0.8*Math.random())/k;
    const kind=this.pickKind(town,rural), sF=V.s-260;
    const clear=!this.cars.some(c=>Math.abs(c.s-sF)<70);
@@ -141,7 +142,7 @@ const Traffic={
     if(c.v0<es.v+2.5){ this.drop(V,c); this.cars.pop(); } }   // 自車より遅い車は追いつかないので出さない
   }
   /* 市街: 前を走る車 (町の中で、前 600 m に 3 台まで) */
-  if(town){ this.tA-=dtR;
+  if(town&&!this.noSpawn&&k>0){ this.tA-=dtR;
    const ahead=this.cars.filter(c=>c.s>V.s+20&&c.s<V.s+700).length;
    if(this.tA<=0&&ahead<3){ this.tA=5+Math.random()*6;
     const sF=V.s+480+Math.random()*180;

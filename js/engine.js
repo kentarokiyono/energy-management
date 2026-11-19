@@ -425,7 +425,7 @@ if(s.v*3.6>lim+5){ s.limitTimer+=dtR;
 if(s.limitTimer>3){ s.limitTimer=0; Radio.push(`制限速度${lim}km/hを超過しています。減速してください。`,"後方追走車"); } }
 else s.limitTimer=0;
 if(View.redSignalKm!=null && prev<View.redSignalKm && s.km>=View.redSignalKm && s.v*3.6>5){
-Snd.alarm(); toast("🚨 赤信号を通過しました!","#ef4444"); View.redSignalKm=null; if(P.event) EventGame.onRedRun();
+Snd.alarm(); toast("🚨 赤信号を通過しました!","#ef4444"); View.redSignalKm=null; if(P.event) EventGame.onRedRun(); if(typeof Lesson!=="undefined") Lesson.onRedRun();
 }
 } else { this.brakeHeat(s,0,0,0,dtS,Tamb); s.Tmot+=(-3*(s.Tmot-Tamb))*Math.min(dtS,600)/2500; const v0=s.v; s.v=Math.max(0,s.v-3*dtR); if(dtR>0){ s.gLong=(s.v-v0)/dtR/GRAV; s.gPitch=s.gLong; } I_cmd=0; Pmotor=0; }
 s.lastAmp=I_cmd; s.lastMotorW=Math.max(0,s.lastMotorNow!=null?s.lastMotorNow:Pmotor); s.lastMotorNow=null;
@@ -503,7 +503,7 @@ if(!s.dcDone&&dc.km-s.km<2&&dc.km>s.km&&!s.radioCd.dc){ s.radioCd.dc=true;
 s.nextAdvice-=dtS;
 if(s.nextAdvice<=0 && s.v>3){
 s.nextAdvice=1200;
-if(!(typeof Orders!=="undefined"&&Orders.on())) Radio.push(Strategy.text());   // 速度指示を出しているときは、別の推奨速度を流さない
+if(!(typeof Orders!=="undefined"&&Orders.on())&&!s.lesson) Radio.push(Strategy.text());   // 速度指示を出しているときは、別の推奨速度を流さない
 }
 if(View.upcomingGrade!==0 && !s.radioCd.gradeMsg){
 s.radioCd.gradeMsg=true;
@@ -556,7 +556,7 @@ if(!s.dcDone){
 }
 // ---- 時間制限 → トレーラー輸送 (競技外として継続) ----
 const abs=(s.day-1)*24+s.hour;
-if(!s.trailering){
+if(!s.trailering&&!s.lesson){   // 入門コースは時間制限なし
  for(const co of RP_RULES.cutoffs){
   if(curr<co.km && abs>Route.absHour(co.by)){ this.trailerTo(Route.csByN(1),`${co.name} を ${fmtAbsH(Route.absHour(co.by)).slice(5)} までに通過できず`); return; }
  }
@@ -596,6 +596,7 @@ else toast(`🛑 CS${cp.n} ${cp.name} 到着 ― 30分の強制点検`,"#fbbf24"
 if(cp.open && abs<Route.absHour(cp.open)) Radio.push(`CS${cp.n} はまだオープン前(${fmtAbsH(Route.absHour(cp.open))})です。`,"Event Official");
 if(P.csTilt===false&&!P.event) Radio.push(`CS${cp.n}: 平置きのまま充電 (CS では傾けない運用)。`); else TiltDecide.open();
 if(P.event) EventGame.onCS(cp,missed);
+if(typeof Lesson!=="undefined") Lesson.onCS(cp,missed);
 if(cp.n===9){ s.absHourAtPA=abs; Radio.push("Port Augusta 通過!大陸横断おめでとう!","Event Official"); }
 },
 TYRE_LIFE_KM:1500,
@@ -611,6 +612,7 @@ TiltDecide.open();
 collision(hit){
  const s=this.st; if(!s||s.crashed||s.fire||hit.level==="touch") return;
  if(P.event){ EventGame.onHit(hit); return; }   // イベント: 減点のみ (リタイアしない)
+ if(typeof Lesson!=="undefined"&&Lesson.active) Lesson.onHit(hit);
  const now=performance.now(); if(now<(s.hitCd||0)&&hit.level==="light") return;
  const what=COLLIDE_WHAT[hit.kind]||"障害物", kmh=(hit.vn*3.6).toFixed(0);
  if(typeof Scenario!=="undefined") Scenario.hit();
