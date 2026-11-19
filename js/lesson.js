@@ -105,7 +105,7 @@ const Lesson={
   if(L.id==="orders"){ Traffic.kMul=3; Traffic.tB=4; st.seq=[78,88,70]; st.oi=-1; st.ot=0; st.in=0; st.tot=0; st.lane=0; st.laneTot=0; }
   if(L.id==="cs"){ const c=RP_CS[L.cs]; st.cp=c; st.entry=null; st.stopped=false; st.missed=false; st.tilt=false; st.left=false; s.v=45/3.6; s.throttleSet=0.3; }
   if(L.id==="camp"){ st.campLat=null; st.ext=0; }
-  if(L.id==="wild"){ Traffic.noSpawn=true; st.plan=[[8,"kangaroo",{side:-1}],[30,"roadkill",{eagle:true,lat:-2.3}],[52,"emu",{side:1}],[54,"emu",{side:1,trig:3.4}],[78,"kangaroo",{side:1,pause:true}],[100,"kangaroo",{side:-1,back:true}]]; st.pi=0; st.seen=[]; }
+  if(L.id==="wild"){ Traffic.noSpawn=true; st.plan=[[8,"kangaroo",{side:-1,trig:4.2}],[30,"roadkill",{eagle:true,lat:-2.3}],[52,"emu",{side:1,trig:4.2}],[54,"emu",{side:1,trig:4.6}],[78,"kangaroo",{side:1,pause:true,trig:4.5}],[100,"kangaroo",{side:-1,back:true,trig:4.2}]];  st.pi=0; st.seen=[]; }   // 入門は少し早め (約 4 秒前) に跳び出す
   this.hud();
   Radio.push(`入門 ${this.i+1}「${L.title}」: ${L.goal}`,"チーフ");
  },

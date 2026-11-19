@@ -607,6 +607,7 @@ s.camp=true; s.v=0; s.tyreWear=0;   // 毎晩タイヤを交換
 Radio.push(`Day${s.day} 走行終了。その場でキャンプ設営、日没までティルト充電を行います。`);
 if(typeof Crew!=="undefined") Crew.onCamp();
 if(typeof Coffee!=="undefined") Coffee.onCamp(s);
+if(s.lesson&&typeof Lesson!=="undefined"){ Lesson.frame(0); return; }   // 入門: ここで課題を終える (傾ける画面は出さない)
 TiltDecide.open();
 },
 /* 当たり判定の結果 (View から): 軽い接触 = 警告 / 破損 = 停車して修理・空力悪化 / 大破 = リタイア */
