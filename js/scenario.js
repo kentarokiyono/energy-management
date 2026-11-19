@@ -25,8 +25,22 @@ const Scenario={
    flat:{at:[1.5,3.5],minKmh:60},
    brief:"Day2 10:12、Daly Waters の手前 600 km。制限速度 130 km/h の開けた道。80 km/h 前後で走っていると、どこかでタイヤがパンクします (どの車輪かは毎回変わる)。車を落ち着かせ、左の路肩に寄せて止めてください。",
    tip:["ハンドルをしっかり持ち、まっすぐを保つ。後輪のパンクは車が振られやすい: 小さく速い当て舵で","急ブレーキは振られを大きくする。アクセルを戻し、回生と軽いブレーキで少しずつ減速","前輪のパンクはパンクした側へ取られる。反対へ当て舵","速度が落ちてからウインカーを出し、左の路肩に寄せて止める (車線の中で止めない)"]},
+ dusk:{name:"夕方の追い込み",km:700,day:2,hour:16.0,soc:0.38,ts:6,dist:200,refV:75,minSoc:0.05,wx:[],wind:null,custom:true,
+   brief:"Day2 16:00、Daly Waters の先 700 km。今日は 17:00 を少し過ぎるまで走れる。夕方で動物が増える。ドライバーは戦略班の速度指示と「止める地点」に従い、言われた所で路肩へ止める。エネマネ班は、どこまで行くか (超過のペナルティと進む距離) を決める。",
+   tip:["17:00 を過ぎた分は翌朝のスタートが遅れる (10 分までは 1 分につき 1 分、それ以降は 2 分)","夕方はカンガルーが多い。止まれる速さで","止める所は路肩の外。後ろの車に注意して早めに減速","エネマネ班: 少し先まで行けば明日が楽。ただし超過 10 分からペナルティは倍"]},
+  rtwind:{name:"ロードトレインと突風",km:1150,day:3,hour:10.5,soc:0.7,ts:3,dist:12,refV:68,minSoc:0.2,wx:[],wind:{ms:11,rel:1,gust:1.5,pulse:30},rt:true,
+   brief:"Day3 10:30、Barrow Creek の手前。東から強い横風 (約 11 m/s) と突風。対向のロードトレインが次々に来て、後ろからも来る。車線を保ち、後ろのロードトレインには左に寄せて道を譲る。12 km 先まで。",
+   tip:["すれ違う瞬間は風がいったん止み、抜けた直後に強く戻る。ハンドルは早めに小さく","後ろのロードトレインの無線が来たら、左に寄せて速度を落とす","横風の中で路肩に寄せるときは、路肩の砂利に注意 (急ハンドルは横転の危険)"]},
+  alice:{name:"Alice Springs を抜ける",km:1493.6,day:3,hour:9.5,soc:0.6,ts:1,dist:12.8,refV:48,extraH:0.5,minSoc:0.4,wx:[],wind:null,town:true,
+   brief:"Day3 9:30、Alice Springs の町の入口。信号・一般車両・制限速度が続く 12.8 km。途中の CS (Alice Springs) では止まって 30 分の点検。町を抜けるまで。",
+   tip:["町の中は 60・50 km/h の所が多い。標識の所までに落とす","信号の手前では前の車に合わせて止まる。黄色・赤は止まる","CS の敷地は 25 km/h 以下で入り、所定の場所で止まる","加速・減速を繰り返すほど電池が減る。前の流れを見て早めにスロットルを戻す"]},
+  long:{name:"長時間 (5 時間)",km:0,day:1,hour:8.5,soc:0.9,ts:1,dist:3100,refV:70,minSoc:0.05,wx:[],wind:null,long:true,dur:5,custom:true,
+   brief:"選んだ区間を 5 時間 (実時間) 走り続ける。一般車両・ロードトレイン・動物・暑さと疲れ・戦略班の速度指示すべてあり。途中で一時停止 (Esc) から保存して、あとで続きから走れる。",
+   tip:["集中力は暑さと運転時間で落ちる。CS や停車で少し戻る","速度指示に合わせ、車線を保つ","眠気でふらついたら、無理せず安全な所で止まる"]},
  },
  cur:null, id:null,
+ /* 長時間の始める区間 (0 = Darwin、n = CS n の先) */
+ longFrom(){ const v=+((document.getElementById("long-from")||{}).value||0); return clamp(v,0,RP_CS.length); },
  /* 暴風雨の難しさ: 実戦 = 実際の強さ / 標準 = 風は約半分 (30〜40 km/h なら耐えられる)・前方誘導車の予告が早い (実時間で約 6 秒前) */
  LEVELS:{real:{name:"実戦",wind:1,lead:3},std:{name:"標準",wind:0.45,lead:6}},
  level(){ const v=(document.getElementById("scn-level")||{}).value; return this.LEVELS[v]? v : "real"; },
@@ -34,6 +48,7 @@ const Scenario={
  /* 走り始めの設定 (Engine.init の後): 場所・時刻・電池・天気・他チーム */
  apply(id){
   const sc=this.LIST[id]; if(!sc) return; const s=Engine.st;
+  if(sc.long){ const n=this.longFrom(), c=n? RP_CS[n-1] : null; sc.km= c? c.km+0.4 : 0.3; sc.day=clamp(Math.floor(sc.km/600)+1,1,5); sc.hour=8.5; sc.from=c? `CS${c.n} ${c.name}` : "Darwin"; }
   s.km=sc.km; s.day=sc.day; s.hour=sc.hour; s.dayOfYear=PRO.dayOfYear+sc.day-1; s.soc=sc.soc;
   for(const q of RP_CS) if(q.km<sc.km) s.passedCP.add(q.km);
   if(RP_RULES.driverChange.km<sc.km) s.dcDone=true;
@@ -46,7 +61,12 @@ const Scenario={
   s.tipMax=0;
   if(sc.flat){ const F=sc.flat; this.cur.flat={atKm:sc.km+F.at[0]+Math.random()*(F.at[1]-F.at[0]),wheel:null,burst:false,abs:null,beta:0,dev:0,lat0:null,locks:0,lockPrev:false,stopT:0,brakeMax:0};
    s.burst=false; s.burstWheel=null; }
-  Radio.push(`練習シナリオ「${sc.name}」${sc.storm&&this.cur.lv==="std"?" (標準: 風は実際の約半分)":""}: ${sc.brief}`,"チーフ");
+  if(id==="dusk"){ const c=this.cur, stopKm=Math.round((sc.km+75*1.08)*2)/2; c.stopKm=stopKm;
+   if(!(typeof EneMan!=="undefined"&&EneMan.active)) setTimeout(()=>Radio.push(`今日は ${stopKm.toFixed(1)} km で止めます。それまで指示の速さで。`,"戦略班",{speak:true}),2500); }
+  if(sc.long){ this.cur.minConc=1; this.cur.red=0; this.cur.over=0; this.cur.km0=sc.km; }
+  if(sc.rt){ this.cur.rtT=8; this.cur.rtB=[50,130]; this.cur.yield=[]; }
+  if(sc.town){ this.cur.red=0; this.cur.over=0; this.cur.csEntry=null; }
+  Radio.push(`練習シナリオ「${sc.name}」${sc.long?` (${sc.from} から)`:""}${sc.storm&&this.cur.lv==="std"?" (標準: 風は実際の約半分)":""}: ${sc.brief}`,"チーフ");
  },
  /* 暴風雨の突風の並びと風速は、レース中の暴風雨と共通 (js/storm.js)。いちばん強いのは雨の降り始め (前縁) */
  mkGusts(st){ return Storm.gusts(st); },
@@ -66,9 +86,11 @@ const Scenario={
   if(!c.sc.storm) for(const w of es.weatherPlan||[]){ const k=w.start.toFixed(3); if(!c.warned[k]&&abs>=w.start-0.17&&abs<w.start){ c.warned[k]=true; Radio.push(w.type==="squall"?"前方にスコール。約 10 分で入ります。":"前方に厚い雲。約 10 分で日射が落ちます。","偵察車"); } }
   if(c.sc.storm) this.stormRadio(c,es,abs);
   c.minSoc=Math.min(c.minSoc,es.soc);
+  if(this.extra(c,es,dtR)) return;
   let shoulder=false; try{ const p=View.roadPoint(View.s); shoulder=View.lateral<-(p.L+0.2)||View.lateral>p.R+0.2; }catch(e){}
   if((es.offroad||shoulder)&&es.v>1) c.off+=dtR;
   if(c.sc.flat){ if(this.flatFrame(c,es,dtR)) return; }
+  if(c.sc.custom) return;
   if(es.km>=c.goal) c.sc.flat? this.finish(es,false,"パンクしたまま走り続けました (止まって交換が必要)") : this.finish(es,true);
   else if(es.soc<=0.02) this.finish(es,false,"電池がなくなりました");
   else if(es.hour>=17) this.finish(es,false,"17 時までに着けませんでした");
@@ -110,9 +132,57 @@ const Scenario={
    ["車線からのずれ (最大)",`${f.dev.toFixed(1)} m`,pD],["タイヤのロック",`${f.locks} 回`,pL],["止めた位置",edge?"左の路肩":"車線の中・道の外",pE],["横転の危険度 (最大)",`${Math.round(tm*100)} %`,pR]]};
  },
  hit(){ if(this.cur) this.cur.hits++; },
+ onRedRun(){ if(this.cur&&this.cur.red!=null) this.cur.red++; },
+ /* 新しいシナリオの毎フレームの処理。true を返すと終わり */
+ extra(c,es,dtR){
+  const sc=c.sc, kmh=es.v*3.6, lim=speedLimitAt(es.km), V=View;
+  if(c.over!=null&&es.stopTimer<=0&&kmh>lim+3) c.over+=dtR;
+  if(sc.rt){   // 対向のロードトレインを 30 秒ごと、後ろから 2 台
+   c.rtT-=dtR; if(c.rtT<=0&&!V.roadTrains.some(r=>r.ev)){ c.rtT=26+Math.random()*10; const t=V.mkRoadTrain(); V.scene.add(t); V.roadTrains.push({mesh:t,sVis:V.s+900,warned:false,ev:true}); Radio.push("前方からロードトレイン。","前方誘導車"); }
+   for(const r of V.roadTrains) if(r.ev&&r.sVis<V.s-250) r.ev=false;
+   if(c.rtB.length&&(performance.now()-c.t0)/1000>c.rtB[0]&&typeof Traffic!=="undefined"){ c.rtB.shift(); const t=Traffic.spawn(V,es,"rt",V.s-230,es.v+1,Traffic.HOME); t.f=1; t.cap=96/3.6; c.yield.push({id:t.id,t0:null,ty:null}); }
+   for(const y of c.yield){ if(y.t0==null&&Traffic.rtMsg===y.id) y.t0=performance.now(); if(y.t0!=null&&y.ty==null&&(V.lateral<-3.4||es.v<20/3.6)) y.ty=performance.now(); }
+  }
+  if(sc.town&&c.csEntry==null){ const cp=RP_CS.find(q=>q.km>sc.km&&q.km<sc.km+sc.dist); if(cp&&es.km>cp.km-0.25) c.csEntry=kmh; }
+  if(sc.long){ const conc=1-(es.fatigue||0); c.minConc=Math.min(c.minConc,conc);
+   es.scnLong={abs0:c.abs0,km0:c.km0,off:c.off,hits:c.hits,minConc:c.minConc,red:c.red,over:c.over,from:sc.from,minSoc:c.minSoc};   // 保存して続きから走れるように
+   const el=document.getElementById("lesson-hud"); const left=c.abs0+sc.dur-((es.day-1)*24+es.hour);
+   if(((es.day-1)*24+es.hour)>=c.abs0+sc.dur){ this.finishLong(c,es); return true; }
+   c.hudT=(c.hudT||0)-dtR; if(c.hudT<=0){ c.hudT=1; this.longHud(c,es,left); } }
+  if(sc.custom&&!sc.long&&es.camp){ this.finishDusk(c,es); return true; }
+  return false;
+ },
+ /* 続きから (Save): 長時間の進み具合を戻す */
+ restoreLong(es){ const L=es.scnLong; if(!L) return; const sc=this.LIST.long; sc.from=L.from; this.id="long";
+  this.cur={sc,abs0:L.abs0,km0:L.km0,goal:1e9,minSoc:L.minSoc,off:L.off,hits:L.hits,minConc:L.minConc,red:L.red,over:L.over,warned:{},done:false,t0:performance.now(),gusts:null,lv:"real"}; },
+ longHud(c,es,left){ let el=document.getElementById("scn-hud"); if(!el){ el=document.createElement("div"); el.id="scn-hud"; el.style.cssText="position:absolute;left:50%;top:104px;transform:translateX(-50%);z-index:30;padding:6px 14px;background:rgba(10,12,14,.82);border:1px solid rgba(250,204,21,.6);color:#f5f5f4;font-size:13px;pointer-events:none;white-space:nowrap"; document.getElementById("game-container").appendChild(el); }
+  const h=Math.max(0,left), hh=Math.floor(h), mm=Math.floor((h-hh)*60); el.style.display="";
+  el.textContent=`長時間 ${c.sc.from} から・残り ${hh}:${String(mm).padStart(2,"0")}・${(es.km-c.km0).toFixed(0)} km・集中力 ${Math.round(100*(1-(es.fatigue||0)))} %`; },
+ finishDusk(c,es){ if(c.done) return; c.done=true; const sc=c.sc, em=typeof EneMan!=="undefined"&&EneMan.active;
+  const d=es.km-sc.km, ext=es.extensionMin||0, pen=es.morningPenaltyMin||0, q=View.roadPoint(View.s), off=View.lateral<=-3.6, rows=[]; let score=100;
+  if(em){ const pD=Math.round(clamp((85-d)*0.8,0,40)); rows.push(["進んだ距離",`${d.toFixed(1)} km (目安 85 km)`,pD]); score-=pD;
+   const pP=Math.round(Math.min(40,pen*1.5)); rows.push(["翌朝の遅れ (17:00 超過)",`${pen.toFixed(0)} 分 (超過 ${ext.toFixed(1)} 分)`,pP]); score-=pP; }
+  else { const err=Math.abs(es.km-c.stopKm), pS=Math.round(Math.min(30,Math.max(0,err-0.3)*20)); rows.push(["止めた所",`${es.km.toFixed(1)} km (指示 ${c.stopKm.toFixed(1)} km)`,pS]); score-=pS;
+   const h=Orders.hist.slice(-12), pr=h.length? h.reduce((a,x)=>a+x.pct,0)/h.length : 1, pO= pr<0.7? 15 : 0; rows.push(["速度指示に合わせた割合",`${(pr*100).toFixed(0)} %`,pO]); score-=pO;
+   const pX= ext>10? Math.round(Math.min(20,(ext-10)*2)) : 0; rows.push(["17:00 の超過",`${ext.toFixed(1)} 分`,pX]); score-=pX; }
+  const pL= off? 0 : 15; rows.push(["止めた位置",off?"路肩":"車線の上",pL]); score-=pL;
+  const pH=Math.min(40,c.hits*20); rows.push(["接触 (動物など)",`${c.hits} 回`,pH]); score-=pH;
+  const pB= es.soc<0.05? 20 : 0; rows.push(["止めたときの電池",`${(es.soc*100).toFixed(0)} %`,pB]); score-=pB;
+  this.showRes(c,es,true,null,Math.max(0,Math.round(score)),rows); },
+ finishLong(c,es){ if(c.done) return; c.done=true; const el=document.getElementById("scn-hud"); if(el) el.style.display="none";
+  const d=es.km-c.km0, rows=[]; let score=100;
+  const h=Orders.hist.filter(x=>x.km>=c.km0), pr=h.length? h.reduce((a,x)=>a+x.pct,0)/h.length : 1, pO=Math.round(clamp((0.8-pr)*60,0,25));
+  rows.push(["走った距離",`${d.toFixed(0)} km (平均 ${(d/c.sc.dur).toFixed(0)} km/h)`,0]);
+  rows.push(["速度指示に合わせた割合",h.length?`${(pr*100).toFixed(0)} % (${h.length} 区間)`:"― (採点した区間なし)",pO]); score-=pO;
+  const pR=Math.min(20,(c.red||0)*10); rows.push(["赤信号の通過",`${c.red||0} 回`,pR]); score-=pR;
+  const pV=Math.min(15,Math.round((c.over||0)/10)); rows.push(["制限速度の超過",`${(c.over||0).toFixed(0)} 秒`,pV]); score-=pV;
+  const pO2=Math.min(20,Math.round(c.off/5)); rows.push(["道の外・路肩",`${c.off.toFixed(0)} 秒`,pO2]); score-=pO2;
+  const pH=Math.min(30,c.hits*10); rows.push(["接触",`${c.hits} 回`,pH]); score-=pH;
+  rows.push(["いちばん低かった集中力",`${Math.round(c.minConc*100)} %`,0]);
+  this.showRes(c,es,true,null,Math.max(0,Math.round(score)),rows); },
  finish(es,ok,why){
   const c=this.cur; if(!c||c.done) return; c.done=true;
-  const sc=c.sc, tAct=(es.day-1)*24+es.hour-c.abs0, tRef=sc.dist/sc.refV;
+  const sc=c.sc, tAct=(es.day-1)*24+es.hour-c.abs0, tRef=sc.dist/sc.refV+(sc.extraH||0);
   let rows=[], score=100;
   if(sc.flat&&c.flat&&c.flat.burst){ const F=this.flatRows(c,es); rows=F.rows; for(const r of rows) score-=r[2]; if(!ok) score=Math.min(score,20); score=Math.max(0,Math.round(score)); return this.showRes(c,es,ok,why,score,rows); }
   if(sc.flat) return this.showRes(c,es,false,why||"パンクする前に終わりました",0,[]);
@@ -131,6 +201,10 @@ const Scenario={
   rows.push(["道の外・路肩",`${c.off.toFixed(0)} 秒`,pO]);
   rows.push(["接触",`${c.hits} 回`,pH]);
   rows.push(["横転の危険度 (最大)",`${Math.round(tm*100)} %${es.rolledOver?" (横転)":""}`,pR]);
+  if(sc.town){ const pr=Math.min(30,(c.red||0)*15), pv=Math.min(15,Math.round((c.over||0)/2)), pc= c.csEntry!=null&&c.csEntry>26? 10 : 0;
+   rows.push(["赤信号の通過",`${c.red||0} 回`,pr]); rows.push(["制限速度の超過",`${(c.over||0).toFixed(0)} 秒`,pv]); rows.push(["CS に入った速さ",c.csEntry!=null?`${c.csEntry.toFixed(0)} km/h`:"―",pc]); score=Math.max(0,score-pr-pv-pc); }
+  if(sc.rt){ const ys=c.yield.filter(y=>y.t0!=null), late=ys.filter(y=>y.ty==null||y.ty-y.t0>20000).length, py=Math.min(20,late*10);
+   rows.push(["後ろのロードトレインに道を譲る",`${ys.length-late} / ${ys.length} 回 (無線から 20 秒以内)`,py]); score=Math.max(0,score-py); }
   this.showRes(c,es,ok,why,score,rows);
  },
  showRes(c,es,ok,why,score,rows){

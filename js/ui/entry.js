@@ -40,7 +40,8 @@ const Entry={
  cur(){ return (document.getElementById("scenario")||{}).value||""; },
  scn(v){ const sel=document.getElementById("scenario"); if(!sel) return; if(sel.value) this.lastScn=sel.value; sel.value=v; sel.dispatchEvent(new Event("change")); this.scnBtns(); },
  scnBtns(){ const v=this.cur(); document.querySelectorAll("#ent-scn button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
-  const lv=document.getElementById("scn-lv-box"); if(lv) lv.style.display= v==="storm"? "" : "none"; },
+  const lv=document.getElementById("scn-lv-box"); if(lv) lv.style.display= v==="storm"? "" : "none";
+  const lb=document.getElementById("long-box"); if(lb) lb.style.display= v==="long"? "" : "none"; },
  go(){ const e=this.ent;
   if(e==="strategy") return Fade.go(()=>Ana.open("trend"));
   if(e==="review") return Fade.go(()=>Ana.open("race"));

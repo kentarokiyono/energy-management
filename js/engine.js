@@ -426,7 +426,7 @@ if(s.v*3.6>lim+5){ s.limitTimer+=dtR;
 if(s.limitTimer>3){ s.limitTimer=0; Radio.push(`制限速度${lim}km/hを超過しています。減速してください。`,"後方追走車"); } }
 else s.limitTimer=0;
 if(View.redSignalKm!=null && prev<View.redSignalKm && s.km>=View.redSignalKm && s.v*3.6>5){
-Snd.alarm(); toast("🚨 赤信号を通過しました!","#ef4444"); View.redSignalKm=null; if(P.event) EventGame.onRedRun(); if(typeof Lesson!=="undefined") Lesson.onRedRun();
+Snd.alarm(); toast("🚨 赤信号を通過しました!","#ef4444"); View.redSignalKm=null; if(P.event) EventGame.onRedRun(); if(typeof Lesson!=="undefined") Lesson.onRedRun(); if(typeof Scenario!=="undefined") Scenario.onRedRun();
 }
 } else { this.brakeHeat(s,0,0,0,dtS,Tamb); s.Tmot+=(-3*(s.Tmot-Tamb))*Math.min(dtS,600)/2500; const v0=s.v; s.v=Math.max(0,s.v-3*dtR); if(dtR>0){ s.gLong=(s.v-v0)/dtR/GRAV; s.gPitch=s.gLong; } I_cmd=0; Pmotor=0; }
 s.lastAmp=I_cmd; s.lastMotorW=Math.max(0,s.lastMotorNow!=null?s.lastMotorNow:Pmotor); s.lastMotorNow=null;
@@ -608,6 +608,7 @@ Radio.push(`Day${s.day} 走行終了。その場でキャンプ設営、日没�
 if(typeof Crew!=="undefined") Crew.onCamp();
 if(typeof Coffee!=="undefined") Coffee.onCamp(s);
 if(s.lesson&&typeof Lesson!=="undefined"){ Lesson.frame(0); return; }   // 入門: ここで課題を終える (傾ける画面は出さない)
+if(s.scenario==="dusk"&&typeof Scenario!=="undefined"&&Scenario.cur){ Scenario.frame(s,0); return; }   // 夕方の追い込み: 止まった所で採点
 TiltDecide.open();
 },
 /* 当たり判定の結果 (View から): 軽い接触 = 警告 / 破損 = 停車して修理・空力悪化 / 大破 = リタイア */
