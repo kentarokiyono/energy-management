@@ -17,7 +17,7 @@ const Traffic={
   suv:{L:4.9, W:1.95, v:[0.9,1.0], a:1.4, b:3.0},
   van:{L:5.2, W:2.0, v:[0.85,0.95], a:1.1, b:2.6},
   caravan:{L:12.2, W:2.3, v:[0.72,0.8], a:0.8, b:2.0},
-  rt:{L:53, W:2.6, v:[0.74,0.77], a:0.45, b:1.3},
+  rt:{L:53, W:2.6, v:[0.95,1.0], a:0.45, b:1.3},   // 上限 100 km/h (cap)
  },
  reset(V){ for(const c of this.cars) this.drop(V,c); this.cars=[]; this.tB=8+Math.random()*10; this.tA=0; this.lastS=null; this.rtMsg=null; },
  drop(V,c){ if(!c.mesh) return; V.scene.remove(c.mesh); c.mesh.traverse(o=>{ if(o.geometry) o.geometry.dispose(); if(o.material) o.material.dispose(); }); c.mesh=null; },

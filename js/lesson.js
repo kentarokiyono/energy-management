@@ -38,8 +38,8 @@ const Lesson={
    goal:"Katherine のコントロールストップ (CS) に入る。25 km/h 以下で敷地に入り、所定の場所で止まる。30 分の点検の間にパネルを傾けて充電。点検が終わったら、出発する。",
    rules:["CS は全チームが 30 分止まる決まり。敷地に入らず通過すると、その場で 30 分の点検","敷地の中は 25 km/h 以下","止まっている間に、アッパーカウルを太陽に向けて傾けて充電する (角度で発電が大きく変わる)"],
    keys:"止まったら角度を選ぶ画面が出る。点検中は時間が早く進む"},
-  {id:"camp", title:"17:00 の停車", km:600, hour:16.87, day:2, v0:80, cap:600,
-   goal:"16:52 から走る。17:00 を過ぎたら、安全な所で路肩へ寄せて止まる (止まった所がその日のキャンプ)。17:00 を過ぎた分は翌朝のスタートが遅れる (10 分まで 1 分につき 1 分、それ以降は 2 分)。",
+  {id:"camp", title:"17:00 の停車", km:600, hour:16.95, day:2, v0:80, cap:600,
+   goal:"16:57 から走る。17:00 を過ぎたら、安全な所で路肩へ寄せて止まる (止まった所がその日のキャンプ)。17:00 を過ぎた分は翌朝のスタートが遅れる (10 分まで 1 分につき 1 分、それ以降は 2 分)。",
    rules:["17:00 を過ぎたら、日没までに止まる。超過は 10 分以内に","止まる所は路肩の外 (車線をふさがない)。後ろの一般車両に注意して減速","キャンプでは日没までパネルを傾けて充電し、翌朝 8:00 に同じ所から出る"],
    keys:"ゆっくり減速しながら A (左) で路肩へ。止まったら終わり"},
  ],
@@ -88,7 +88,7 @@ const Lesson={
   if(L.id==="town"){ st.limits=RN_EVENTS.filter(e=>e.k==="limit"&&e.km>km&&e.km<L.endKm).map(e=>({km:e.km,v:+String(e.v).replace(/\D/g,"")||speedLimitAt(e.km+0.01),done:false})); s.throttleSet=0.6; }
   if(L.id==="train"){ Traffic.noSpawn=true; st.phase=0; }
   if(L.id==="follow"){ Traffic.noSpawn=true; this.leadFix=72/3.6; View.leadS=View.s+60; View.leadV=this.leadFix; st.inBand=0; st.tot=0; st.minGap=1e9; }
-  if(L.id==="orders"){ Traffic.kMul=3; st.seq=[78,88,70]; st.oi=-1; st.ot=0; st.in=0; st.tot=0; st.lane=0; st.laneTot=0; }
+  if(L.id==="orders"){ Traffic.kMul=3; Traffic.tB=4; st.seq=[78,88,70]; st.oi=-1; st.ot=0; st.in=0; st.tot=0; st.lane=0; st.laneTot=0; }
   if(L.id==="cs"){ const c=RP_CS[L.cs]; st.cp=c; st.entry=null; st.stopped=false; st.missed=false; st.tilt=false; st.left=false; s.v=45/3.6; s.throttleSet=0.3; }
   if(L.id==="camp"){ st.campLat=null; st.ext=0; }
   this.hud();
@@ -135,7 +135,7 @@ const Lesson={
   if(st.phase===1){ const rt=V.roadTrains.find(r=>r.ev); if(rt){ const rel=rt.sVis-V.s;
     if(st.meetOk==null&&Math.abs(rel)<14){ st.meetLat=V.lateral; st.meetV=kmh; st.meetOk=V.lateral<=-2.5&&kmh<=83; toast(st.meetOk?"安全にすれ違えた":"⚠ もっと左に寄って減速",st.meetOk?"#34d399":"#f59e0b"); }
     if(rel<-80){ st.phase=2; st.t2=this.t; } } else { st.phase=2; st.t2=this.t; } }
-  if(st.phase===2&&this.t>st.t2+6){ const c=Traffic.spawn(V,s,"rt",V.s-230,s.v+3/3.6,Traffic.HOME); c.f=0.76; c.cap=100/3.6; st.rt=c; st.phase=3; st.t3=this.t; }
+  if(st.phase===2&&this.t>st.t2+6){ const c=Traffic.spawn(V,s,"rt",V.s-230,s.v+3/3.6,Traffic.HOME); c.f=1; c.cap=96/3.6; st.rt=c; st.phase=3; st.t3=this.t; }
   if(st.phase===3){ const c=st.rt;
    if(Traffic.rtMsg===c.id&&st.tMsg==null) st.tMsg=this.t;
    const yielded=V.lateral<-3.4||(st.tMsg!=null&&s.v<c.v0*0.75);
@@ -162,12 +162,13 @@ const Lesson={
   const STEP=this.L().step||55;
   if(st.oi<0||this.t-st.ot>=STEP){ st.oi++; st.ot=this.t;
    if(st.oi>=st.seq.length){ const r=st.tot? st.in/st.tot : 0, lr=st.laneTot? st.lane/st.laneTot : 0, n=[];
-    n.push(`${r>=0.7?"○":"×"} 指示の ±3 km/h に入っていた時間 ${(r*100).toFixed(0)} % (目標 70 % 以上。指示から 10 秒は数えない)`);
+    n.push(`${r>=0.7?"○":"×"} 指示の ±3 km/h に入っていた時間 ${(r*100).toFixed(0)} % (目標 70 % 以上。指示から速度を変え終わるまでは数えない)`);
     n.push(`${lr>=0.9?"○":"×"} 車線の中を保てた時間 ${(lr*100).toFixed(0)} % (目標 90 % 以上)`);
     n.push(`  追い越していった一般車両 ${st.passed||0} 台`);
     return this.finish(r>=0.7&&lr>=0.9&&!st.hits,n); }
-   st.v=st.seq[st.oi]; Radio.push(`時速 ${st.v} km`,"戦略班",{speak:true}); }
-  if(this.t-st.ot>10){ st.tot+=dtR; if(Math.abs(kmh-st.v)<=3) st.in+=dtR; }
+   const pv=st.v||kmh; st.v=st.seq[st.oi]; st.grace=8+Math.abs(st.v-pv)*0.8;   // 速度を変える時間 (ソーラーカーは加速がゆっくり)
+   Radio.push(`時速 ${st.v} km`,"戦略班",{speak:true}); }
+  if(this.t-st.ot>st.grace){ st.tot+=dtR; if(Math.abs(kmh-st.v)<=3) st.in+=dtR; }
   st.laneTot+=dtR; if(View.lateral>-3.4&&View.lateral<-1.4) st.lane+=dtR;
   for(const c of Traffic.cars) if(!c._cnt&&c.s-c.L>View.s+3){ c._cnt=true; if(c.wasBehind) st.passed=(st.passed||0)+1; } else if(c.s<View.s-5) c.wasBehind=true;
  },
