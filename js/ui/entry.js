@@ -8,6 +8,7 @@ const Entry={
  GO:{practice:"START",event:"START",strategy:"戦略を考える",review:"振り返る",team:"チームで見る"},
  init(){ let o=null; try{ o=JSON.parse(localStorage.getItem(this.KEY)||"null"); }catch(e){}
   if(o&&this.GO[o.ent]) this.ent=o.ent; if(o&&["intro","race","test","scn"].includes(o.sub)) this.sub=o.sub;
+  if(typeof EneMan!=="undefined"){ EneMan.load(); document.querySelectorAll("#seg-role button").forEach(b=>b.onclick=()=>EneMan.setRole(b.dataset.role)); EneMan.ui(); }
   if(typeof Lesson!=="undefined"){ try{ Lesson.sel=clamp(+localStorage.getItem(Lesson.KEY+"_sel")||0,0,Lesson.LIST.length-1); }catch(e){} Lesson.ui(); }
   const sel=document.getElementById("scenario"), box=document.getElementById("ent-scn");
   if(sel&&box){ box.innerHTML=""; for(const op of sel.options){ if(!op.value) continue; const b=document.createElement("button"); b.type="button"; b.textContent=op.textContent; b.dataset.v=op.value;
@@ -31,6 +32,7 @@ const Entry={
  setSub(k,quiet){ if(!["intro","race","test","scn"].includes(k)) k="race"; this.sub=k; if(this.ent!=="practice"&&!quiet){ this.ent="practice"; return this.pick("practice"); }
   document.querySelectorAll("#ent-sub button").forEach(b=>b.classList.toggle("on",b.dataset.sub===k));
   document.querySelectorAll(".ent-sub").forEach(d=>d.style.display=d.dataset.for===k?"":"none");
+  { const rb=document.getElementById("role-box"); if(rb) rb.style.display= k==="race"||k==="scn"? "" : "none"; }   // 役割 (ドライバー / エネマネ班) は本戦と練習シナリオ
   if(k==="test"){ selectMode("test"); this.scn(""); }
   else if(k==="intro"){ selectMode("race"); this.scn(""); if(typeof Lesson!=="undefined") Lesson.ui(); }
   else { selectMode("race"); this.scn(k==="scn"? (this.cur()||this.lastScn||"squall") : ""); }

@@ -64,6 +64,7 @@ running=true; paused=false; lastT=performance.now();
 requestAnimationFrame(loop);
 if(P.event) EventGame.begin();
 else if(lsn) Lesson.begin();
+if(typeof EneMan!=="undefined"&&!lsn&&!P.event) EneMan.begin();   // エネマネ班の役割 (自動運転)
 else if(Engine.st.scenario||resumed){}
 else if(Engine.st.chapter){ const c=RP_CS.find(q=>q.n===Engine.st.chapter), es=Engine.st, h=Math.floor(es.hour), mi=Math.floor(es.hour%1*60);
  Radio.push(`チャプター: CS${c.n} ${c.name} の 2 km 手前から。Day${es.day} ${h}:${String(mi).padStart(2,"0")}、電池 ${(es.soc*100).toFixed(0)} % (標準ペース 70 km/h の見積もり)。`); }
@@ -106,7 +107,7 @@ if(eventElapsed>=EVENT_DURATION&&!es.finished){ es.finished=true; showResult(); 
 }
 View.update(dtR);
 if(P.event) EventGame.post();
-Scenario.frame(es,dtR); Orders.frame(es,dtR); Tele.frame(es); Strategy.tick(4);   // 戦略を裏で少しずつ
+Scenario.frame(es,dtR); Orders.frame(es,dtR); if(typeof EneMan!=="undefined") EneMan.frame(dtR); Tele.frame(es); Strategy.tick(4);   // 戦略を裏で少しずつ
 if(typeof Coffee!=="undefined") Coffee.tick(es);   // 臨機応変: 1 時間ごと・CS で走り方を見直す
 if(P.mode==="race"&&!es.finished&&!es.trailering) es.km=View.kmOfS(View.s);   // 走行位置(本線への射影)を正とする
 Snd.update(es.v, es.lastAmp/Math.max(motorMaxA(es.powerMode),1), es.fire);
@@ -124,9 +125,10 @@ if(!paused) lastT=performance.now();
 /* 結果画面: 同じ天気番号で最初から走り直す */
 function replaySameWeather(){ const seed=Engine.st&&Engine.st.seed; if(!seed) return; Fade.go(()=>{ quitToMenu(); Rng.next=seed; startGame(); }); }
 function quitToMenu(){
-if(running&&Engine.st&&!Test.active&&!(typeof Lesson!=="undefined"&&Lesson.active)) DrvRec.record();   // ドライバー成績 (途中でやめた走行も)
+if(running&&Engine.st&&!Test.active&&!(typeof Lesson!=="undefined"&&Lesson.active)&&!(typeof EneMan!=="undefined"&&EneMan.active)) DrvRec.record();   // ドライバー成績 (途中でやめた走行も)
 if(typeof EventGame!=="undefined") EventGame.end();
 if(typeof Lesson!=="undefined") Lesson.end();
+if(typeof EneMan!=="undefined") EneMan.end();
 if(typeof Cabin!=="undefined") Cabin.vig(0);
 if(typeof HVRec!=="undefined") HVRec.flush();   // ヒドゥンバレーの記録を保存
 running=false; paused=false; Test.active=false; if(typeof Coffee!=="undefined") Coffee.close(); document.body.classList.remove("cam-drv"); if(View) View._camCls=null; if(typeof Crew!=="undefined"){ Crew.hideUI(); Crew.phase="drive"; document.body.classList.remove("walking"); }
