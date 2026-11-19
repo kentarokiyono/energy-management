@@ -1,5 +1,5 @@
 "use strict";
-/* ============ 入門コース: オーストラリアを知らないドライバーのための 7 つの課題 ============
+/* ============ 入門コース: オーストラリアを知らないドライバーのための 8 つの課題 ============
  「練習する」→「入門」から。課題ごとに実際のルート上の場所へ移り、時間は等倍 (実寸の道・実際の時間) で走る。
   走る前に説明のカード (現地のルール・操作) → 走る (指示は無線) → 合否と講評 → もう一度 / 次の課題 / メニュー。
  1 市街 (Darwin)           赤信号で止まる・ウインカーを出して右折・60 km/h・前の車と車間をとる
@@ -8,10 +8,11 @@
  4 前方誘導車に付いていく    一定の速さで走る前方誘導車に、車間 30〜70 m で付いていく
  5 無線の速度指示           追い越していく一般車両がいる中で、戦略班の「時速 X km」に ±3 km/h で合わせ、車線を保つ
  6 コントロールストップ      25 km/h 以下で入る・敷地で止まる・パネルを傾ける・点検が終わったら出る
- 7 17:00 の停車             17:00 を過ぎたら、路肩へ寄せて止まる (超過は 10 分まで)
+ 7 夕方の動物               カンガルー・エミュー・路上の死骸。止まれる速さで走り、ぶつからない (急ハンドルで避けない)
+ 8 17:00 の停車             17:00 を過ぎたら、路肩へ寄せて止まる (超過は 10 分まで)
  合格した課題はこの端末に覚えておく (メニューの課題の一覧に ✓) */
 const Lesson={
- KEY:"bwsc_lesson", active:false, sel:0, i:0, st:null, cardOpen:false, finished:false,
+ KEY:"bwsc_lesson", active:false, free:null, sel:0, i:0, st:null, cardOpen:false, finished:false,
  hideLead:false, leadFix:null, redKm:[],
  LIST:[
   {id:"city", title:"市街を走る (Darwin)", km:0.05, hour:9.0, endKm:2.3, cap:480,
@@ -38,6 +39,10 @@ const Lesson={
    goal:"Katherine のコントロールストップ (CS) に入る。25 km/h 以下で敷地に入り、所定の場所で止まる。30 分の点検の間にパネルを傾けて充電。点検が終わったら、出発する。",
    rules:["CS は全チームが 30 分止まる決まり。敷地に入らず通過すると、その場で 30 分の点検","敷地の中は 25 km/h 以下","止まっている間に、アッパーカウルを太陽に向けて傾けて充電する (角度で発電が大きく変わる)"],
    keys:"止まったら角度を選ぶ画面が出る。点検中は時間が早く進む"},
+  {id:"wild", title:"夕方の動物", km:900, hour:16.3, day:2, v0:80, cap:240,
+   goal:"夕方の内陸。カンガルーが道を横切る・エミューが走る・路上に動物の死骸がある。ぶつからずに走り切る。前方誘導車の無線も聞く。",
+   rules:["カンガルーは朝夕に多い。路肩で止まっていても、急に跳び出す・道の真ん中で止まる・引き返すことがある","避けようとして急にハンドルを切らない (ソーラーカーは横転しやすい)。まっすぐ強くブレーキ","路上の死骸には大きなワシが群がっていることがある。近づくと飛び立つ","日没後は動物が多く危険。レースも日没後は走れない"],
+   keys:"スペース ブレーキ・R 回生。路肩の動物が見えたら、早めにスロットル開度を下げる"},
   {id:"camp", title:"17:00 の停車", km:600, hour:16.95, day:2, v0:80, cap:600,
    goal:"16:57 から走る。17:00 を過ぎたら、安全な所で路肩へ寄せて止まる (止まった所がその日のキャンプ)。17:00 を過ぎた分は翌朝のスタートが遅れる (10 分まで 1 分につき 1 分、それ以降は 2 分)。",
    rules:["17:00 を過ぎたら、日没までに止まる。超過は 10 分以内に","止まる所は路肩の外 (車線をふさがない)。後ろの一般車両に注意して減速","キャンプでは日没までパネルを傾けて充電し、翌朝 8:00 に同じ所から出る"],
@@ -55,11 +60,19 @@ const Lesson={
  /* startGame から (Engine.init の前): 等倍で走る */
  prepare(){ this.active=true; P.timeScale=1; this._orders=P.orders; P.orders=false; },
  /* startGame の最後 */
- begin(){ this.finished=false; this.start(this.sel); },
- end(){ if(!this.active) return; this.active=false; this.hideLead=false; this.leadFix=null; this.redKm=[]; if(this._orders!==undefined) P.orders=this._orders; this._orders=undefined;
+ begin(){ this.finished=false; this.start(this.free? 0 : this.sel); },
+ /* ルートの予習から: その場所の手前から走る (採点なし・等倍)。日時は標準ペースのおおよそ */
+ freeRun(km,what){ const d=Math.min(6,Math.floor(km/650)+1), h=clamp(8.5+(km%650)/75,8.5,15.5);
+  this.free={id:"free",title:`予習走行 (${km.toFixed(1)} km から)`,km,hour:h,day:d,cap:1e9,
+   goal:`${what? what+" の手前":"ここ"} (${km.toFixed(1)} km) から走る。採点はない。終わるときは Esc (一時停止) → メニューへ。`,
+   rules:["時間は等倍 (実際の速さ)。一般車両・動物も出る","制限速度・信号は本番と同じ"],keys:"W/S スロットル開度・スペース ブレーキ・A/D ハンドル・Z/C ウインカー"};
+  if(typeof Entry!=="undefined"){ Entry.pick("practice"); Entry.setSub("intro"); }
+  startGame(); },
+ end(){ if(!this.active) return; this.active=false; this.free=null; this.hideLead=false; this.leadFix=null; this.redKm=[]; if(this._orders!==undefined) P.orders=this._orders; this._orders=undefined;
   if(typeof Traffic!=="undefined"){ Traffic.noSpawn=false; Traffic.kMul=1; }
+  if(typeof Wildlife!=="undefined") Wildlife.forceOnly=false;
   this.closeCard(); const h=document.getElementById("lesson-hud"); if(h) h.style.display="none"; },
- L(){ return this.LIST[this.i]; },
+ L(){ return this.free||this.LIST[this.i]; },
  start(i){ this.i=clamp(i,0,this.LIST.length-1); this.st=null; this.showCard(this.L(),()=>this.enter(this.L())); },
  /* 課題の場所へ移る (EventGame.jump と同じ手順) */
  jump(km,hour,day){
@@ -69,7 +82,7 @@ const Lesson={
   s.extensionMin=0; s.extWarned=false; s.extWarned2=false; s.morningPenaltyMin=0; s.gridStartH=0; s.chapter=null;
   s.passedCP=new Set(); for(const c of RP_CS) if(c.km<km) s.passedCP.add(c.km);
   s.dcDone= RP_RULES.driverChange.km<km+1;
-  s.teams=[]; s.weatherPlan=[]; s.fc=null; s.stormPlan=[]; s.nextRoadTrainH=99; s.soc=Math.max(s.soc,0.8); s.lesson=this.L().id;
+  s.teams=[]; s.weatherPlan=[]; s.fc=null; s.stormPlan=[]; s.nextRoadTrainH=99; s.soc=Math.max(s.soc,0.8); s.lesson=this.L().id; s.tipMax=0;
   if(s.damage){ s.damage.aero=0; s.damage.n=0; }
   for(const rt of View.roadTrains) View.scene.remove(rt.mesh); View.roadTrains.length=0;
   if(typeof Traffic!=="undefined") Traffic.reset(View);
@@ -78,6 +91,7 @@ const Lesson={
  enter(L){
   const s=Engine.st; this.t=0; this.finished=false; this.hideLead=false; this.leadFix=null; this.redKm=[];
   if(typeof Traffic!=="undefined"){ Traffic.noSpawn=false; Traffic.kMul=1; }
+  if(typeof Wildlife!=="undefined") Wildlife.forceOnly= L.id!=="free";   // 入門では動物は「夕方の動物」の課題で決まった所にだけ出す (予習走行はふつうに出る)
   if(typeof Crew!=="undefined"){ Crew.reset(); if(Crew.hideUI) Crew.hideUI(); }
   let km=L.km, hour=L.hour, day=L.day||1;
   if(L.cs!=null){ const c=RP_CS[L.cs]; km=c.km-0.9; const a=(c.open? Route.absHour(c.open) : 13)+0.5; day=Math.floor(a/24)+1; hour=a%24; }
@@ -91,6 +105,7 @@ const Lesson={
   if(L.id==="orders"){ Traffic.kMul=3; Traffic.tB=4; st.seq=[78,88,70]; st.oi=-1; st.ot=0; st.in=0; st.tot=0; st.lane=0; st.laneTot=0; }
   if(L.id==="cs"){ const c=RP_CS[L.cs]; st.cp=c; st.entry=null; st.stopped=false; st.missed=false; st.tilt=false; st.left=false; s.v=45/3.6; s.throttleSet=0.3; }
   if(L.id==="camp"){ st.campLat=null; st.ext=0; }
+  if(L.id==="wild"){ Traffic.noSpawn=true; st.plan=[[8,"kangaroo",{side:-1}],[30,"roadkill",{eagle:true,lat:-2.3}],[52,"emu",{side:1}],[54,"emu",{side:1,trig:3.4}],[78,"kangaroo",{side:1,pause:true}],[100,"kangaroo",{side:-1,back:true}]]; st.pi=0; st.seen=[]; }
   this.hud();
   Radio.push(`入門 ${this.i+1}「${L.title}」: ${L.goal}`,"チーフ");
  },
@@ -172,6 +187,16 @@ const Lesson={
   st.laneTot+=dtR; if(View.lateral>-3.4&&View.lateral<-1.4) st.lane+=dtR;
   for(const c of Traffic.cars) if(!c._cnt&&c.s-c.L>View.s+3){ c._cnt=true; if(c.wasBehind) st.passed=(st.passed||0)+1; } else if(c.s<View.s-5) c.wasBehind=true;
  },
+ f_wild(s,st,kmh){
+  const V=View;
+  while(st.pi<st.plan.length&&this.t>=st.plan[st.pi][0]){ const [,k,o]=st.plan[st.pi++]; const a=Wildlife.spawn(V,s,k,Object.assign({s:V.s+(k==="roadkill"?260:Math.max(90,s.v*4.5)+20)},o)); a.told=k==="kangaroo"&&st.pi===1; }
+  for(const a of Wildlife.list) if(!a._seen&&(a.st==="cross"||(a.kind==="roadkill"&&a.s-V.s<60))){ a._seen=true; st.seen.push([a.kind,kmh]); }
+  if(st.pi>=st.plan.length&&this.t>=124){ const n=[], fast=st.seen.filter(x=>x[1]>85);
+   n.push(st.hits? `× 動物・死骸に ${st.hits} 回当たった` : "○ 動物にも死骸にも当たらなかった");
+   n.push(fast.length? `△ 動物が出たとき ${Math.max(...fast.map(x=>x[1])).toFixed(0)} km/h。夕方は止まれる速さ (80 km/h 前後まで) に落とす` : "○ 動物が出たときの速さは止まれる範囲");
+   if(s.tipMax>0.8) n.push(`△ 横転の危険度が ${(s.tipMax*100).toFixed(0)} % まで上がった (急ハンドル)`);
+   this.finish(!st.hits,n); }
+ },
  f_cs(s,st,kmh){
   const c=st.cp;
   if(st.entry==null&&s.km>c.km-0.25){ st.entry=kmh; if(kmh>26) toast("⚠ CS の敷地は 25 km/h 以下","#f59e0b"); }
@@ -193,7 +218,7 @@ const Lesson={
  /* ---------- 外からの通知 ---------- */
  onRedRun(){ if(this.active&&this.st) this.st.red++; },
  onHit(hit){ if(!this.active||!this.st||this.finished) return; if(hit.level==="touch") return; this.st.hits++;
-  if(hit.level!=="light") this.finish(false,[`× ${COLLIDE_WHAT[hit.kind]||"障害物"}に衝突した`]); },
+  if(hit.level!=="light"||this.L().id==="wild") this.finish(false,[`× ${COLLIDE_WHAT[hit.kind]||"障害物"}に衝突した (${(hit.vn*3.6).toFixed(0)} km/h)`]); },
  onCS(cp,missed){ if(!this.active||!this.st||this.L().id!=="cs") return; this.st.stopped=true; this.st.missed=missed; },
  redAt(km){ return this.active&&this.redKm.some(k=>Math.abs(k-km)<0.02); },
  /* ---------- 画面 ---------- */
@@ -205,7 +230,7 @@ const Lesson={
   if(L.id==="follow"&&st.gap!=null) x=`車間 ${Math.max(0,st.gap).toFixed(0)} m (30〜70 m)`;
   if(L.id==="orders"&&st.v) x=`指示 時速 ${st.v} km`;
   if(L.id==="camp"){ const h=Engine.st.hour, mm=Math.floor((h%1)*60); x=`${Math.floor(h)}:${String(mm).padStart(2,"0")}`; }
-  el.style.display=""; el.textContent=`入門 ${this.i+1} / ${this.LIST.length}  ${L.title}${x?"  ・ "+x:""}`; },
+  el.style.display=""; el.textContent=`${this.free?"":`入門 ${this.i+1} / ${this.LIST.length}  `}${L.title}${x?"  ・ "+x:""}`; },
  card(html,btns){
   this.cardOpen=true; modalPause=true;
   let el=document.getElementById("ls-card");
@@ -221,7 +246,7 @@ const Lesson={
   const el=document.getElementById("ls-card"); if(el) el.style.display="none"; },
  showCard(L,go){
   const n=this.i+1, N=this.LIST.length;
-  this.card(`<div class="hd"><span class="lb">入門 ${n} / ${N}</span><img src="assets/img/logo.svg" class="logo" width="64" alt=""></div>
+  this.card(`<div class="hd"><span class="lb">${this.free?"ルートの予習":`入門 ${n} / ${N}`}</span><img src="assets/img/logo.svg" class="logo" width="64" alt=""></div>
    <h2>${L.title}</h2><div style="font-size:15px;line-height:1.85">${L.goal}</div>
    <div class="tip"><b>現地のルール・知っておくこと</b><ul style="margin:6px 0 0 18px;padding:0;list-style:disc">${L.rules.map(r=>`<li>${r}</li>`).join("")}</ul></div>
    <div class="lb" style="margin-top:10px;line-height:1.7">操作: ${L.keys}</div>`,

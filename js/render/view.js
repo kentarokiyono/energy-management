@@ -88,7 +88,7 @@ for(let i=0;i<12;i++){
 this.aiPool=[]; this.aiMeshes=new Map();   // 表示枠 10 台。車の形はチームごとに作って使い回す
 for(let i=0;i<10;i++) this.aiPool.push({mesh:null,team:null,lead:null,chase:null});
 this.relK=0;
-this.roadTrains.length=0; if(typeof Traffic!=="undefined") Traffic.reset(this); this.rollT=0; if(typeof Rain!=="undefined") Rain.reset();
+this.roadTrains.length=0; if(typeof Traffic!=="undefined") Traffic.reset(this); if(typeof Wildlife!=="undefined") Wildlife.reset(this); this.rollT=0; if(typeof Rain!=="undefined") Rain.reset();
 this.lmMap.clear(); this.redSignalKm=null; this.inPit=false; this.pitBlend=0; this.fireOn=false;
 this.resetRoad();
 if(!this._resizeBound){ this._resizeBound=true;   // 1 回だけ (場面ごとに足すと溜まっていく)
@@ -1204,6 +1204,7 @@ this.escortLead.visible=(P.mode==="race"&&!es.camp&&es.stopTimer<=0);
 this.escortChase.visible=(P.mode==="race"&&!es.camp&&es.stopTimer<=0&&this.s>45);
 this.updateAITeams(es,dtR);
 if(typeof Traffic!=="undefined") Traffic.update(this,es,dtR);   // 一般車両 (js/render/traffic.js)
+if(typeof Wildlife!=="undefined") Wildlife.update(this,es,dtR);   // 動物・路上の死骸 (js/render/wildlife.js)
 const fovT= this.cam===4&&this.replayFov? this.replayFov : 70+clamp((es.v*3.6-55)/120,0,1)*8;
 if(Math.abs(fovT-this.camera.fov)>0.15){this.camera.fov=lerp(this.camera.fov,fovT,this.cam===4?0.25:0.12);this.camera.updateProjectionMatrix();}
 const sInt=0
@@ -1287,6 +1288,7 @@ dynColliders(es){
  add(this.escortLead,5.6,2.0,es.v,"vehicle"); add(this.escortChase,5.6,2.0,es.v,"vehicle");
  for(const rt of this.roadTrains) add(rt.mesh,53,2.6,-27,"vehicle");
  if(typeof Traffic!=="undefined") Traffic.colliders(add);
+ if(typeof Wildlife!=="undefined") Wildlife.colliders(add);
  return out;
 },
 updateRoadTrains(es,dtR){

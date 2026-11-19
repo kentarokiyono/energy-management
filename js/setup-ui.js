@@ -63,7 +63,7 @@ const PRO_FIELDS=[
 ["cloudFactor","悪天候係数",0.1],["dayOfYear","開始日(通日)",1],
 ["aiCount","AIチーム数 (0-25)",1],["aiSpdMin","AI速度min km/h",1],
 ["aiSpdMax","AI速度max km/h",1],["aiRetire","AIリタイア率",0.05],
-["trainPerHour","ロードトレイン台/h",0.5],["trafficK","一般車両の多さ (0=なし)",0.25],["faultScale","故障確率係数",0.1],
+["trainPerHour","ロードトレイン台/h",0.5],["trafficK","一般車両の多さ (0=なし)",0.25],["wildK","動物の多さ (0=なし)",0.25],["faultScale","故障確率係数",0.1],
 ["gridRisk","グリッドリスク係数",0.1],
 ];
 function buildProUI(){

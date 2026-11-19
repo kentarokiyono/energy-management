@@ -358,6 +358,7 @@ let Psolar=Model.pv(sol.G,sol.alt,tilted,Tcell);
 if(s.fault&&s.fault.type==="solar") Psolar*=0.3;
 if(s.disconnected) Psolar=0;
 s.lastGeff=sol.G; s.lastTcell=Tcell; s.lastSolar=Psolar; s.sunAlt=sol.alt; s.sunAz=sol.az; s.Tamb=Tamb;
+if(typeof Cabin!=="undefined") Cabin.step(s,dtS);   // 車内温度・ドライバーの疲れ (js/cabin.js)
 let Pmotor=0, I_cmd=0; s.lastRegenW=0;
 if(!parked && (P.mode!=="race"||isRaceHours)){
 const m=massTotal(), mEff=m+PRO.mRot;

@@ -77,6 +77,7 @@ if(typeof Demo!=="undefined"&&Demo.on&&t-lastT<Demo.frameMs()) return;   // デ�
 let dtR=clamp((t-lastT)/1000,0,0.1); lastT=t;
 if(paused||modalPause){ Snd.silence(); FFB.update(null); return; }   // (読み上げは途中で切らない)
 updateInput(dtR);
+if(typeof Cabin!=="undefined") Cabin.input(dtR);   // 疲れ: ハンドルの遅れ・ふらつき・視界
 if(typeof Demo!=="undefined"&&Demo.on) Demo.frame(dtR);   // デモ映像: 自動で運転・場面の切り替え
 if(P.event){ EventGame.frame(dtR); if(!running||modalPause) return; }
 if(typeof Lesson!=="undefined"&&Lesson.active){ Lesson.frame(dtR); if(!running||modalPause) return; }
@@ -125,6 +126,7 @@ function quitToMenu(){
 if(running&&Engine.st&&!Test.active&&!(typeof Lesson!=="undefined"&&Lesson.active)) DrvRec.record();   // ドライバー成績 (途中でやめた走行も)
 if(typeof EventGame!=="undefined") EventGame.end();
 if(typeof Lesson!=="undefined") Lesson.end();
+if(typeof Cabin!=="undefined") Cabin.vig(0);
 if(typeof HVRec!=="undefined") HVRec.flush();   // ヒドゥンバレーの記録を保存
 running=false; paused=false; Test.active=false; if(typeof Coffee!=="undefined") Coffee.close(); document.body.classList.remove("cam-drv"); if(View) View._camCls=null; if(typeof Crew!=="undefined"){ Crew.hideUI(); Crew.phase="drive"; document.body.classList.remove("walking"); }
 document.getElementById("game-container").classList.add("hidden");
