@@ -16,7 +16,7 @@ const Lesson={
  hideLead:false, leadFix:null, redKm:[],
  LIST:[
   {id:"city", title:"市街を走る (Darwin)", km:0.05, hour:9.0, endKm:2.3, cap:480,
-   goal:"Darwin の中心街から出発。赤信号では停止線の手前で止まり、Garramilla Boulevard (1 km 先) ではウインカーを出して右折。制限速度 60 km/h を守り、前を走る車とは車間をとる。",
+   goal:"Darwin の中心街から出発。赤信号では停止線の手前で止まり、Garramilla Boulevard (約 1.3 km 先の信号) ではウインカーを出して右折。制限速度 60 km/h を守り、前を走る車とは車間をとる。",
    rules:["日本と同じ左側通行。交差点の右折は対向車線を横切る","赤信号の通過・制限速度の超過は、レースでもペナルティ (警察も取り締まる)","前の車との車間は 2 秒以上 (60 km/h で約 35 m)。ソーラーカーは止まるのに長い距離がかかる"],
    keys:"W/↑ スロットル開度を上げる・S/↓ 下げる・スペース ブレーキ・A/D ハンドル・Z 左ウインカー・C 右ウインカー"},
   {id:"town", title:"町に入る (Katherine)", km:310.9, hour:10.0, v0:95, endKm:317.0, cap:600,
@@ -98,7 +98,7 @@ const Lesson={
   this.jump(km,hour,day);
   const st=this.st={red:0,over:0,hits:0,notes:[],turns:{},tail:0,limits:[],phase:0};
   if(L.v0){ s.v=L.v0/3.6; s.throttleSet=0.5; }
-  if(L.id==="city"){ this.redKm=[0.56]; }
+  if(L.id==="city"){ const mc=RN_EVENTS.find(e=>e.k==="signal"&&/McMinn/.test(e.t||"")); this.redKm=[mc? mc.km : 0.575]; }   // McMinn Street の信号は必ず赤
   if(L.id==="town"){ st.limits=RN_EVENTS.filter(e=>e.k==="limit"&&e.km>km&&e.km<L.endKm).map(e=>({km:e.km,v:+String(e.v).replace(/\D/g,"")||speedLimitAt(e.km+0.01),done:false})); s.throttleSet=0.6; }
   if(L.id==="train"){ Traffic.noSpawn=true; st.phase=0; }
   if(L.id==="follow"){ Traffic.noSpawn=true; this.leadFix=72/3.6; View.leadS=View.s+60; View.leadV=this.leadFix; st.inBand=0; st.tot=0; st.minGap=1e9; }
@@ -123,7 +123,7 @@ const Lesson={
   this.hud();
  },
  f_city(s,st,kmh){
-  for(const mn of RP_MANEUVERS) if(mn.km<this.L().endKm&&(mn.turn==="R"||mn.turn==="L")){
+  for(const mn of RP_MANEUVERS) if(mn.km>this.L().km+0.05&&mn.km<this.L().endKm&&(mn.turn==="R"||mn.turn==="L")){   // 出発点より先の曲がる所 (町の中は実際の道の形に合わせた位置)
    const k=mn.km, t=st.turns[k]||(st.turns[k]={sig:false,done:false});
    if(s.km>k-0.12&&s.km<k+0.01&&s.signal===(mn.turn==="R"?1:-1)) t.sig=true;
    if(!t.done&&s.km>k+0.03){ t.done=true; toast(t.sig?"ウインカー OK":"⚠ ウインカーを出し忘れた",t.sig?"#34d399":"#f59e0b"); if(t.sig&&s.signal) s.signal=0; } }
