@@ -580,13 +580,16 @@ if(P.mode!=="race"||!es.teams||!this.aiPool){ if(this.aiPool) this.aiPool.forEac
 this.relK= this.relK? this.relK+(Route.scaleAt(es.km)-this.relK)*clamp(dtR*1.2,0,1) : Route.scaleAt(es.km);   // 縮尺の切り替わりで他チームの車が跳ばないよう、ゆっくり変える
 const near=[];
 for(const tm of es.teams){
-tm.sigHold=false;
+tm.sigHold=false; tm.follow=null;
 if(tm.status==="pre") continue;
 const rel=Route.relDist(es.km,tm.km,this.relK), keep=this.aiPool.some(sl=>sl.team===tm);
 if(Math.abs(rel)<(keep?1400:1150)) near.push({tm,rel,keep});   // 出す距離と消す距離に差をつけて、境目で出たり消えたりしない
 }
 near.sort((a,b)=>(b.keep-a.keep)||Math.abs(a.rel)-Math.abs(b.rel));   // いま出ている車を優先 (入れ替わりで消えない)
 const shown=near.slice(0,this.aiPool.length);
+/* 他チームどうしの車間: 前のチームの隊列 (後方車は 24 m 後ろ、自分の前方車は 70 m 前) と 15 m 以上あける (Engine が tm.follow を見る) */
+{ const live=shown.filter(o=>o.tm.status==="run"&&!(o.tm.csT>0)).sort((a,b)=>a.rel-b.rel);
+  for(let i=0;i<live.length-1;i++){ const o=live[i], f=live[i+1], g=f.rel-o.rel; if(!o.tm.passing&&g<200) o.tm.follow={gap:g,v:f.tm.vNow||0}; } }
 for(const sl of this.aiPool){ if(!shown.some(o=>o.tm===sl.team)){ sl.team=null; if(sl.mesh) sl.mesh.visible=false; sl.mesh=null; if(sl.lead){ sl.lead.visible=false; sl.chase.visible=false; } } }
 for(const o of shown){
 let sl=this.aiPool.find(x=>x.team===o.tm)||this.aiPool.find(x=>!x.team);
@@ -1253,7 +1256,7 @@ if(distVis>-80 && distVis<range){
 let ent=this.lmMap.get(key);
 if(!ent){
 const mesh=this.mkLandmark(lm);
-ent={mesh,lm,red:false,decided:false};
+ent={mesh,lm,red:false,decided:false,t0:performance.now()};
 if(lm.t==="signal"&&interactive&&(Math.random()<0.4||(P.event&&lm.km>0.4&&lm.km<0.7)||(typeof Lesson!=="undefined"&&Lesson.redAt(lm.km)))){ ent.red=true; }   // イベントの課題 1: McMinn Street の信号は必ず赤
 this.lmMap.set(key,ent);
 this.scene.add(mesh);
@@ -1264,7 +1267,7 @@ ent.mesh.position.set(rp.x,rp.y,rp.z);
 ent.mesh.rotation.y=-rp.h;
 if(ent.lm.t==="signal"&&ent.mesh.userData.setRed){
 ent.mesh.userData.setRed(ent.red);
-if(ent.red&&!ent.decided&&distVis<50){
+if(ent.red&&!ent.decided&&(distVis<50||performance.now()-ent.t0>15000)){   // 赤は自車が近づくか、出てから 15 秒で数え始める (自車が遠くで止まっていても青に変わる)
 ent.decided=true;
 this.redSignalKm=ent.lm.km;
 setTimeout(()=>{ ent.red=false; if(this.redSignalKm===ent.lm.km) this.redSignalKm=null; },(10+Math.random()*15)*1000);
