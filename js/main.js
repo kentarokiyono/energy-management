@@ -78,6 +78,7 @@ let dtR=clamp((t-lastT)/1000,0,0.1); lastT=t;
 if(paused||modalPause){ Snd.silence(); FFB.update(null); return; }   // (読み上げは途中で切らない)
 updateInput(dtR);
 if(typeof Cabin!=="undefined") Cabin.input(dtR);   // 疲れ: ハンドルの遅れ・ふらつき・視界
+if(typeof AutoDrive!=="undefined") AutoDrive.control(dtR);   // 自動運転 (エネマネ班の役割)
 if(typeof Demo!=="undefined"&&Demo.on) Demo.frame(dtR);   // デモ映像: 自動で運転・場面の切り替え
 if(P.event){ EventGame.frame(dtR); if(!running||modalPause) return; }
 if(typeof Lesson!=="undefined"&&Lesson.active){ Lesson.frame(dtR); if(!running||modalPause) return; }
