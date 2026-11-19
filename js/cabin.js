@@ -32,8 +32,9 @@ const Cabin={
   const t=performance.now()/1000; Input.steer=clamp(this.lag+e*0.035*(Math.sin(t*0.7)+0.6*Math.sin(t*1.9+1)),-1,1);
   this.vig(e); },
  vig(e){ let el=this._el; if(!el){ el=this._el=document.createElement("div"); el.id="fatigue-vig";
-   el.style.cssText="position:absolute;inset:0;pointer-events:none;z-index:5;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 45%,rgba(0,0,0,.85) 100%);opacity:0;transition:opacity 1s";
-   const g=document.getElementById("game-container"); if(g) g.appendChild(el); }
+   el.style.cssText="position:fixed;inset:0;pointer-events:none;z-index:45;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 28%,rgba(0,0,0,.92) 88%);opacity:0;transition:opacity 1s";
+   document.body.appendChild(el); }
+  if(!running&&e>0) e=0;
   const blink= e>0.6&&(performance.now()%9000)<350? 0.25 : 0;   // ときどき視界が暗くなる (まばたき・眠気)
   const o=Math.min(0.95,e*0.75+blink); if(Math.abs(o-(this._o||0))>0.02){ this._o=o; el.style.opacity=o.toFixed(2); } },
 };

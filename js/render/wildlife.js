@@ -16,17 +16,23 @@ const Wildlife={
  level(){ return typeof PRO!=="undefined"&&PRO.wildK!=null? Math.max(0,PRO.wildK) : 1; },
  /* ---------- 見た目 (前方 = -z) ---------- */
  mat(c){ return new THREE.MeshLambertMaterial({color:c}); },
- mkKangaroo(){
-  const g=new THREE.Group(), fur=this.mat(0x8f7458), pale=this.mat(0xc9b296), body=new THREE.Group();
-  const torso=new THREE.Mesh(new THREE.SphereGeometry(0.32,10,8),fur); torso.scale.set(0.9,1.35,1.0); torso.position.set(0,0.95,0); torso.rotation.x=-0.5;
-  const belly=new THREE.Mesh(new THREE.SphereGeometry(0.24,8,6),pale); belly.scale.set(0.85,1.2,0.7); belly.position.set(0,0.88,-0.15); belly.rotation.x=-0.5;
-  const head=new THREE.Mesh(new THREE.SphereGeometry(0.13,8,6),fur); head.scale.set(0.9,0.9,1.5); head.position.set(0,1.48,-0.22);
-  const earL=new THREE.Mesh(new THREE.ConeGeometry(0.05,0.18,5),fur); earL.position.set(-0.07,1.62,-0.16); const earR=earL.clone(); earR.position.x=0.07;
-  const tail=new THREE.Mesh(new THREE.ConeGeometry(0.09,1.0,6),fur); tail.rotation.x=-1.25; tail.position.set(0,0.42,0.62);
-  const thighL=new THREE.Mesh(new THREE.SphereGeometry(0.17,8,6),fur); thighL.scale.set(0.7,1.0,1.4); thighL.position.set(-0.17,0.55,0.05); const thighR=thighL.clone(); thighR.position.x=0.17;
-  const footL=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.06,0.42),this.mat(0x5d4a38)); footL.position.set(-0.17,0.04,-0.08); const footR=footL.clone(); footR.position.x=0.17;
-  const arm=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.025,0.3,5),fur); arm.position.set(0,1.05,-0.33); arm.rotation.x=0.6;
-  body.add(torso,belly,head,earL,earR,tail,thighL,thighR,footL,footR,arm); g.add(body); g.userData.body=body;
+ mkKangaroo(){   // 横から見ると: 前かがみの胴・小さい頭と長い耳・太い後ろ脚・地面に届く尾
+  const g=new THREE.Group(), fur=this.mat(0x8a6c50), pale=this.mat(0xb89c7c), dark=this.mat(0x4e3d2e), body=new THREE.Group();
+  const add=(geo,m,x,y,z,sx,sy,sz,rx)=>{ const o=new THREE.Mesh(geo,m); o.position.set(x,y,z); o.scale.set(sx,sy,sz); if(rx) o.rotation.x=rx; body.add(o); return o; };
+  const S=new THREE.SphereGeometry(0.5,10,8);
+  add(S,fur,0,0.78,0.02,0.42,0.62,0.5,-0.45);          // 胴 (前かがみ)
+  add(S,pale,0,0.74,-0.13,0.3,0.48,0.3,-0.45);         // 腹
+  add(S,fur,0,1.18,-0.2,0.24,0.26,0.26,0);             // 肩・首
+  add(S,fur,0,1.36,-0.3,0.2,0.2,0.32,0.15);            // 頭
+  add(S,dark,0,1.33,-0.47,0.08,0.08,0.08,0);           // 鼻
+  for(const x of [-0.06,0.06]) add(new THREE.ConeGeometry(0.05,0.2,5),fur,x,1.53,-0.24,1,1,1,-0.2);   // 耳
+  for(const x of [-0.13,0.13]){
+   add(S,fur,x,0.5,0.06,0.2,0.36,0.46,-0.2);           // 太もも
+   add(new THREE.BoxGeometry(0.08,0.32,0.1),fur,x,0.22,0.08,1,1,1,0.5);   // すね
+   add(new THREE.BoxGeometry(0.09,0.06,0.42),dark,x,0.03,-0.08,1,1,1,0); }  // 足
+  const tail=new THREE.Mesh(new THREE.ConeGeometry(0.09,1.05,6),fur); tail.rotation.x=-1.9; tail.position.set(0,0.3,0.62); body.add(tail);   // 尾 (地面まで)
+  add(new THREE.CylinderGeometry(0.03,0.025,0.3,5),fur,0,0.98,-0.36,1,1,1,0.7);   // 前脚
+  g.add(body); g.userData.body=body;
   return g;
  },
  mkEmu(){
@@ -41,7 +47,7 @@ const Wildlife={
  mkRoadkill(eagle){
   const g=new THREE.Group();
   const c=new THREE.Mesh(new THREE.SphereGeometry(0.4,8,6),this.mat(0x6e5440)); c.scale.set(1.5,0.28,0.85); c.position.y=0.08; c.rotation.y=Math.random()*3;
-  const st=new THREE.Mesh(new THREE.CircleGeometry(0.75,10),this.mat(0x3d1a14)); st.rotation.x=-Math.PI/2; st.position.y=0.015; st.scale.set(1.3,0.8,1);
+  const st=new THREE.Mesh(new THREE.CircleGeometry(0.75,10),this.mat(0x24100b)); st.rotation.x=-Math.PI/2; st.position.y=0.015; st.scale.set(1.3,0.8,1);
   g.add(st,c);
   if(eagle){ const e=new THREE.Group(), dk=this.mat(0x2a2420), b=new THREE.Mesh(new THREE.SphereGeometry(0.16,8,6),dk); b.scale.set(0.8,0.9,1.6); e.add(b);
    const wL=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.03,0.32),dk); wL.position.set(-0.5,0.05,0); const wR=wL.clone(); wR.position.x=0.5; e.add(wL,wR);
