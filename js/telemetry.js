@@ -58,7 +58,7 @@ const Tele={
  },
  stop(){ for(const c of this.conns) try{ c.close(); }catch(e){} this.conns=[]; if(this.peer) try{ this.peer.destroy(); }catch(e){} this.peer=null; this.on=false;
   if(this.ch){ try{ this.ch.close(); }catch(e){} this.ch=null; this.lid=null; this.lconns.clear(); } this.status("停止中"); this.panel(); if(typeof Orders!=="undefined") Orders.mode="auto"; },
- url(){ return `${location.origin}${location.pathname}?tm=${this.id}${new URLSearchParams(location.search).get("ps")?"&ps="+new URLSearchParams(location.search).get("ps"):""}#k=${this.key}`; },
+ url(){ return `${/^https?:$/.test(location.protocol)? location.origin+location.pathname : EVENT_PUBLIC_URL}?tm=${this.id}${new URLSearchParams(location.search).get("ps")?"&ps="+new URLSearchParams(location.search).get("ps"):""}#k=${this.key}`; },
  accept(c){
   c.ok=false;
   c.on("data",(d)=>{ if(!d||typeof d!=="object") return;

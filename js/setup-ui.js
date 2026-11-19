@@ -17,7 +17,7 @@ const SLIDERS = [
 function vehStatusHtml(){
  if(VEH.active&&VEH.rev<VEH.revNeed) return '<div class="text-[10px] text-rose-300 mt-1">○ vehicle-private.js が旧版です (rev '+VEH.rev+' / 必要 rev '+VEH.revNeed+')。最新版に置き換えてください</div>';
  if(VEH.active) return '<div class="text-[10px] text-amber-300 mt-1">● 実車諸元を使用中 (rev '+VEH.rev+')</div>';
- const local=location.protocol==="file:"||/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+ const local=location.protocol==="file:"||location.protocol==="app:"||/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
  if(!local) return '';
  const why= window.__vehPrivMissing? 'js/data/vehicle-private.js が見つかりません' : 'vehicle-private.js は読めましたが VEHICLE_PRIVATE がありません';
  return '<div class="text-[10px] text-rose-300 mt-1">○ 実車諸元: 未読込 ('+why+')</div>';
