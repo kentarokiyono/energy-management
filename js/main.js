@@ -33,7 +33,9 @@ Engine.st.hour=10.5;
 document.getElementById("event-hud").classList.remove("hidden");
 } else {
 P.timeScale=parseInt(document.getElementById("time-scale").value);
-const scn= P.mode==="race"&&!P.event&&!Save.pending? Scenario.pick() : null; Scenario.reset();
+var lsn= typeof Lesson!=="undefined"&&P.mode==="race"&&!P.event&&!Save.pending&&Lesson.want();   // 入門コース (等倍)
+if(lsn) Lesson.prepare();
+const scn= !lsn&&P.mode==="race"&&!P.event&&!Save.pending? Scenario.pick() : null; Scenario.reset();
 if(scn) P.timeScale=Scenario.LIST[scn].ts;   // 練習シナリオは時間をゆっくり
 document.getElementById("event-hud").classList.add("hidden");
 }
@@ -46,13 +48,13 @@ document.getElementById("tilt-slider").value=Engine.st.tiltDeg;
 document.getElementById("tilt-val").textContent=Engine.st.tiltDeg+"°";
 Radio.log.length=0; document.getElementById("radio-log").innerHTML="";
 Route.build(P.timeScale, P.mode!=="race");   // イベントモードは等倍ゾーンなし
-const chap= P.mode==="race"&&!P.event? parseInt((document.getElementById("chapter")||{}).value||"0") : 0;
-const resumed=P.mode==="race"&&!P.event&&Save.applyEngine();   // 「続きから」: 保存した状態に戻す (シナリオ・チャプターより優先)
-const scnId= !resumed&&P.mode==="race"&&!P.event? Scenario.pick() : null;
+const chap= P.mode==="race"&&!P.event&&!lsn? parseInt((document.getElementById("chapter")||{}).value||"0") : 0;
+const resumed=P.mode==="race"&&!P.event&&!lsn&&Save.applyEngine();   // 「続きから」: 保存した状態に戻す (シナリオ・チャプターより優先)
+const scnId= !resumed&&!lsn&&P.mode==="race"&&!P.event? Scenario.pick() : null;
 if(resumed){}
 else if(scnId) Scenario.apply(scnId);   // 練習シナリオ (チャプターより優先)
 else if(chap>0) Engine.applyChapter(chap);   // チャプター: CS の 2 km 手前から
-if(typeof Coffee!=="undefined"){ if(!resumed) Coffee.reset(); if(!resumed&&!scnId&&!(chap>0)&&Coffee.on()) Engine.st.hour=7; }   // 本戦は 7:00 の朝の打ち合わせから
+if(typeof Coffee!=="undefined"){ if(!resumed) Coffee.reset(); if(!resumed&&!scnId&&!lsn&&!(chap>0)&&Coffee.on()) Engine.st.hour=7; }   // 本戦は 7:00 の朝の打ち合わせから
 if(!resumed&&typeof Storm!=="undefined") Storm.plan(Engine.st);   // レース中の暴風雨の予定 (シナリオでは入れない)
 RunLog.start(); Orders.start(); if(resumed) Save.applyRest(); DrvRec.start();
 View.init(); View.buildCar(); View.buildEscorts();
@@ -61,6 +63,7 @@ initChart(); lastChartPush=0;
 running=true; paused=false; lastT=performance.now();
 requestAnimationFrame(loop);
 if(P.event) EventGame.begin();
+else if(lsn) Lesson.begin();
 else if(Engine.st.scenario||resumed){}
 else if(Engine.st.chapter){ const c=RP_CS.find(q=>q.n===Engine.st.chapter), es=Engine.st, h=Math.floor(es.hour), mi=Math.floor(es.hour%1*60);
  Radio.push(`チャプター: CS${c.n} ${c.name} の 2 km 手前から。Day${es.day} ${h}:${String(mi).padStart(2,"0")}、電池 ${(es.soc*100).toFixed(0)} % (標準ペース 70 km/h の見積もり)。`); }
@@ -74,8 +77,10 @@ if(typeof Demo!=="undefined"&&Demo.on&&t-lastT<Demo.frameMs()) return;   // デ�
 let dtR=clamp((t-lastT)/1000,0,0.1); lastT=t;
 if(paused||modalPause){ Snd.silence(); FFB.update(null); return; }   // (読み上げは途中で切らない)
 updateInput(dtR);
+if(typeof Cabin!=="undefined") Cabin.input(dtR);   // 疲れ: ハンドルの遅れ・ふらつき・視界
 if(typeof Demo!=="undefined"&&Demo.on) Demo.frame(dtR);   // デモ映像: 自動で運転・場面の切り替え
 if(P.event){ EventGame.frame(dtR); if(!running||modalPause) return; }
+if(typeof Lesson!=="undefined"&&Lesson.active){ Lesson.frame(dtR); if(!running||modalPause) return; }
 if(typeof Coffee!=="undefined"&&(Coffee.active||Coffee.want(Engine.st))){ Coffee.frame(dtR); return; }   // 朝の打ち合わせ (7:00〜7:50)
 if(Test.active){ Test.frame(dtR); if(P.event) EventGame.postTest(); Perf.tick(dtR); if(P.event) EventGame.hud(); return; }
 if(P.mode==="event"&&Engine.st){
@@ -118,8 +123,10 @@ if(!paused) lastT=performance.now();
 /* 結果画面: 同じ天気番号で最初から走り直す */
 function replaySameWeather(){ const seed=Engine.st&&Engine.st.seed; if(!seed) return; Fade.go(()=>{ quitToMenu(); Rng.next=seed; startGame(); }); }
 function quitToMenu(){
-if(running&&Engine.st&&!Test.active) DrvRec.record();   // ドライバー成績 (途中でやめた走行も)
+if(running&&Engine.st&&!Test.active&&!(typeof Lesson!=="undefined"&&Lesson.active)) DrvRec.record();   // ドライバー成績 (途中でやめた走行も)
 if(typeof EventGame!=="undefined") EventGame.end();
+if(typeof Lesson!=="undefined") Lesson.end();
+if(typeof Cabin!=="undefined") Cabin.vig(0);
 if(typeof HVRec!=="undefined") HVRec.flush();   // ヒドゥンバレーの記録を保存
 running=false; paused=false; Test.active=false; if(typeof Coffee!=="undefined") Coffee.close(); document.body.classList.remove("cam-drv"); if(View) View._camCls=null; if(typeof Crew!=="undefined"){ Crew.hideUI(); Crew.phase="drive"; document.body.classList.remove("walking"); }
 document.getElementById("game-container").classList.add("hidden");

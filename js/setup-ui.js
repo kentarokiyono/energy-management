@@ -17,7 +17,7 @@ const SLIDERS = [
 function vehStatusHtml(){
  if(VEH.active&&VEH.rev<VEH.revNeed) return '<div class="text-[10px] text-rose-300 mt-1">○ vehicle-private.js が旧版です (rev '+VEH.rev+' / 必要 rev '+VEH.revNeed+')。最新版に置き換えてください</div>';
  if(VEH.active) return '<div class="text-[10px] text-amber-300 mt-1">● 実車諸元を使用中 (rev '+VEH.rev+')</div>';
- const local=location.protocol==="file:"||/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+ const local=location.protocol==="file:"||location.protocol==="app:"||/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
  if(!local) return '';
  const why= window.__vehPrivMissing? 'js/data/vehicle-private.js が見つかりません' : 'vehicle-private.js は読めましたが VEHICLE_PRIVATE がありません';
  return '<div class="text-[10px] text-rose-300 mt-1">○ 実車諸元: 未読込 ('+why+')</div>';
@@ -63,7 +63,7 @@ const PRO_FIELDS=[
 ["cloudFactor","悪天候係数",0.1],["dayOfYear","開始日(通日)",1],
 ["aiCount","AIチーム数 (0-25)",1],["aiSpdMin","AI速度min km/h",1],
 ["aiSpdMax","AI速度max km/h",1],["aiRetire","AIリタイア率",0.05],
-["trainPerHour","ロードトレイン台/h",0.5],["faultScale","故障確率係数",0.1],
+["trainPerHour","ロードトレイン台/h",0.5],["trafficK","一般車両の多さ (0=なし)",0.25],["wildK","動物の多さ (0=なし)",0.25],["faultScale","故障確率係数",0.1],
 ["gridRisk","グリッドリスク係数",0.1],
 ];
 function buildProUI(){

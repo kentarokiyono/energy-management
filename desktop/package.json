@@ -1,0 +1,53 @@
+{
+  "name": "bwsc-3d-simulator-desktop",
+  "productName": "BWSC 3D Simulator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BWSC 3D シミュレーターのパソコン用ソフト (中身はリポジトリのサイトそのもの)",
+  "main": "main.js",
+  "scripts": {
+    "start": "node check-site.js && electron .",
+    "build": "node build.js"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "jp.ac.wakayama-u.solarcar.bwsc3d",
+    "productName": "BWSC 3D Simulator",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "..",
+        "to": "site",
+        "filter": [
+          "index.html",
+          "css/**",
+          "js/**",
+          "assets/**"
+        ]
+      }
+    ],
+    "win": {
+      "icon": "build/icon.png",
+      "artifactName": "BWSC3D-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "BWSC 3D Simulator",
+      "artifactName": "BWSC3D-Setup-${version}.${ext}"
+    },
+    "publish": null
+  }
+}

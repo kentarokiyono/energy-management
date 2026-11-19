@@ -1,13 +1,14 @@
 "use strict";
 /* ============ メニューの入口: 練習する / 戦略を考える / 振り返る / チームで見る / イベント ============
- ・練習する: 本戦・予選と車検・練習シナリオから選んで START。時間加速・天気などは「詳しい設定」(畳んである)
+ ・練習する: 入門 (初めてのドライバー向けの課題)・本戦・予選と車検・練習シナリオから選んで START。時間加速・天気などは「詳しい設定」(畳んである)
  ・戦略を考える = 傾向、振り返る = 分析画面、チームで見る = テレメトリ (押すとすぐ開く)
  ・前回の入口・練習の種類はこの端末に覚えておく */
 const Entry={
  KEY:"bwsc_entry", ent:"practice", sub:"race",
  GO:{practice:"START",event:"START",strategy:"戦略を考える",review:"振り返る",team:"チームで見る"},
  init(){ let o=null; try{ o=JSON.parse(localStorage.getItem(this.KEY)||"null"); }catch(e){}
-  if(o&&this.GO[o.ent]) this.ent=o.ent; if(o&&["race","test","scn"].includes(o.sub)) this.sub=o.sub;
+  if(o&&this.GO[o.ent]) this.ent=o.ent; if(o&&["intro","race","test","scn"].includes(o.sub)) this.sub=o.sub;
+  if(typeof Lesson!=="undefined"){ try{ Lesson.sel=clamp(+localStorage.getItem(Lesson.KEY+"_sel")||0,0,Lesson.LIST.length-1); }catch(e){} Lesson.ui(); }
   const sel=document.getElementById("scenario"), box=document.getElementById("ent-scn");
   if(sel&&box){ box.innerHTML=""; for(const op of sel.options){ if(!op.value) continue; const b=document.createElement("button"); b.type="button"; b.textContent=op.textContent; b.dataset.v=op.value;
    b.onclick=()=>{ this.sub="scn"; sel.value=op.value; sel.dispatchEvent(new Event("change")); this.scnBtns(); this.save(); }; box.appendChild(b); }
@@ -27,10 +28,11 @@ const Entry={
   document.querySelector(".menu").dataset.ent=e; this.save();
   if(act&&(e==="strategy"||e==="review"||e==="team")) this.go(); },
  /* 練習の種類 */
- setSub(k,quiet){ if(!["race","test","scn"].includes(k)) k="race"; this.sub=k; if(this.ent!=="practice"&&!quiet){ this.ent="practice"; return this.pick("practice"); }
+ setSub(k,quiet){ if(!["intro","race","test","scn"].includes(k)) k="race"; this.sub=k; if(this.ent!=="practice"&&!quiet){ this.ent="practice"; return this.pick("practice"); }
   document.querySelectorAll("#ent-sub button").forEach(b=>b.classList.toggle("on",b.dataset.sub===k));
   document.querySelectorAll(".ent-sub").forEach(d=>d.style.display=d.dataset.for===k?"":"none");
   if(k==="test"){ selectMode("test"); this.scn(""); }
+  else if(k==="intro"){ selectMode("race"); this.scn(""); if(typeof Lesson!=="undefined") Lesson.ui(); }
   else { selectMode("race"); this.scn(k==="scn"? (this.cur()||this.lastScn||"squall") : ""); }
   this.save(); this.summary(); },
  cur(){ return (document.getElementById("scenario")||{}).value||""; },
