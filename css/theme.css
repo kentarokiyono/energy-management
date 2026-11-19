@@ -229,6 +229,24 @@ body.touch-on #hud-limit-wrap{ top:8px; }
  #ask-panel{ z-index:31; }
 }
 #three-canvas{ touch-action:none; }
+/* ---- エネマネ班 (js/ui/eneman.js): グラフ・数値の欄 ---- */
+#em-data{ left:50%; transform:translateX(-50%); top:104px; width:min(560px,46vw); z-index:20; padding:4px 6px 6px; pointer-events:auto; }
+#em-tabs{ display:flex; gap:2px; margin-bottom:4px; }
+#em-tabs button{ flex:1; font-size:11px; padding:2px 0; background:transparent; border:1px solid var(--ln); color:var(--dim); cursor:pointer; }
+#em-tabs button.on{ border-color:var(--acc); color:var(--acc); }
+#em-graph{ display:block; width:100%; height:120px; }
+#em-num{ display:grid; grid-template-columns:auto 1fr; gap:1px 10px; font-size:11px; line-height:1.45; max-height:150px; overflow:auto; }
+#em-num span{ color:var(--dim); white-space:nowrap; } #em-num b{ font-weight:600; font-variant-numeric:tabular-nums; }
+/* PC: 無線の欄は高さを抑え (下にエネマネ班の欄)、グラフ・数値は無線の右 */
+body.em-on:not(.touch-on) #hud-radio{ max-height:186px; overflow:hidden; }
+body.em-on:not(.touch-on) #em-data{ left:392px; transform:none; width:min(540px,calc(100vw - 740px)); min-width:300px; }
+/* エネマネ班のときは運転の操作を出さない (車は自動運転) */
+body.em-on #t-steer, body.em-on #t-ped, body.em-on #t-spd, body.em-on #t-fn [data-drv]{ display:none!important; }
+/* スマホ: エネマネ班の欄を左下、グラフ・数値を右下に */
+body.touch-on.em-on #em-panel{ left:8px!important; top:auto!important; bottom:8px; width:min(46vw,330px)!important; font-size:11px!important; padding:6px 8px!important; max-height:calc(100vh - 150px); overflow:auto; }
+body.touch-on.em-on #em-data{ left:auto; right:8px; top:auto; bottom:8px; transform:none; width:min(50vw,440px); }
+body.touch-on.em-on #em-graph{ height:96px; }
+body.touch-on.em-on #em-num{ max-height:112px; }
 #rain-glass{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; display:none; }   /* 画面 (3D) のすぐ上、情報パネルより下 */
 body.touch-on #crew-ui{ right:auto!important; left:8px; top:150px!important; max-width:300px!important; font-size:11px!important; line-height:1.55!important; padding:8px 12px!important; }
 #game-container, #game-container *{ touch-action:none; }

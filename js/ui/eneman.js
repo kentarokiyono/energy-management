@@ -8,7 +8,7 @@
  電池のグラフ: これまでの電池残量 (実線) と、今の指示の速さで走り続けたときの見込み (点線)。CS の位置に印
  役割はメニューで選び、この端末に覚えておく */
 const EneMan={
- KEY:"bwsc_role", role:"driver", active:false, fc:null, job:null, fcT:0, hist:[],
+ KEY:"bwsc_role", role:"driver", active:false, fc:null, job:null, fcT:0, hist:[], view:"batt",
  load(){ try{ const r=localStorage.getItem(this.KEY); if(r==="eneman"||r==="driver") this.role=r; }catch(e){} },
  setRole(r){ this.role=r==="eneman"?"eneman":"driver"; try{ localStorage.setItem(this.KEY,this.role); }catch(e){} this.ui(); },
  ui(){ document.querySelectorAll("#seg-role button").forEach(b=>b.classList.toggle("on",b.dataset.role===this.role));
@@ -18,11 +18,11 @@ const EneMan={
  begin(){
   if(!this.want()) return; this.active=true; this._crew=P.crewProc; P.crewProc=false; this._ord=P.orders; P.orders=true;
   Orders.mode="manual"; Orders.cur=null; AutoDrive.enable(true); this.hist=[]; this.fc=null; this.job=null; this.fcT=0;
-  this.panel(true);
+  this.panel(true); document.body.classList.add("em-on");   // スマホ: 運転の操作を隠し、エネマネ班の欄を下に置く (css/theme.css)
   Radio.push("エネマネ班の役割: 車は自動運転。速度指示を送ってください (左の欄)。指示がない間は時速 70 km で走ります。","チーフ");
   AutoDrive.vSet=70;
  },
- end(){ if(!this.active) return; this.active=false; AutoDrive.enable(false); AutoDrive.vSet=null; if(this._crew!==undefined) P.crewProc=this._crew; if(this._ord!==undefined) P.orders=this._ord; Orders.mode="auto"; this.panel(false); },
+ end(){ if(!this.active) return; this.active=false; AutoDrive.enable(false); AutoDrive.vSet=null; if(this._crew!==undefined) P.crewProc=this._crew; if(this._ord!==undefined) P.orders=this._ord; Orders.mode="auto"; this.panel(false); document.body.classList.remove("em-on"); },
  /* 指示を送る */
  send(v){ const es=Engine.st; v=clamp(Math.round(+v||0),20,130); if(!es) return;
   const I=Orders.current(es,v,es.km,Math.min(10,TOTAL_KM-es.km));
@@ -39,7 +39,7 @@ const EneMan={
   Radio.push(`ドライバー交代: ${n}`,"チーフ"); toast(`ドライバー交代 → ${n}`,"#34d399"); },
  /* ---------- 画面 ---------- */
  panel(on){ let el=document.getElementById("em-panel");
-  if(!on){ if(el) el.style.display="none"; const g=document.getElementById("em-graph"); if(g) g.style.display="none"; return; }
+  if(!on){ if(el) el.style.display="none"; const g=document.getElementById("em-data"); if(g) g.style.display="none"; return; }
   if(!el){ el=document.createElement("div"); el.id="em-panel"; el.className="pn";
    el.style.cssText="left:16px;top:298px;width:330px;padding:8px 10px;font-size:12px;z-index:20;pointer-events:auto";
    el.innerHTML=`<style>#em-panel .btn{padding:2px 8px;font-size:12px;height:auto;min-width:0;line-height:1.6} #em-panel input{font-size:12px}</style><div style="font-weight:700;margin-bottom:6px">エネマネ班 <span id="em-cur" style="font-weight:400;opacity:.7"></span></div>
@@ -56,12 +56,17 @@ const EneMan={
    const si=el.querySelector("#em-stop"); si.addEventListener("keydown",e=>{ e.stopPropagation(); if(e.key==="Enter") this.setStop(si.value); });
    el.querySelector("#em-stop-set").onclick=()=>this.setStop(si.value);
    el.querySelector("#em-charge").onclick=()=>this.charge(); el.querySelector("#em-swap").onclick=()=>this.swap();
-   const g=document.createElement("canvas"); g.id="em-graph"; g.className="pn"; g.style.cssText="left:50%;transform:translateX(-50%);top:104px;width:min(520px,46vw);height:120px;z-index:20";
-   document.getElementById("game-container").appendChild(g); }
-  el.style.display=""; document.getElementById("em-graph").style.display=""; },
+   /* グラフ・数値の欄: 電池 / 速度 / 電力 / 数値 を切り替える */
+   const g=document.createElement("div"); g.id="em-data"; g.className="pn";
+   g.innerHTML=`<div id="em-tabs">${[["batt","電池"],["spd","速度"],["pow","電力"],["num","数値"]].map(([k,t])=>`<button type="button" data-v="${k}">${t}</button>`).join("")}</div>
+    <canvas id="em-graph"></canvas><div id="em-num"></div>`;
+   document.getElementById("game-container").appendChild(g);
+   g.querySelectorAll("#em-tabs button").forEach(b=>b.onclick=()=>{ this.view=b.dataset.v; this.draw(); }); }
+  el.style.display=""; document.getElementById("em-data").style.display=""; },
  /* 毎フレーム (main.js): 記録・見込みの計算・表示 */
  frame(dtR){ if(!this.active) return; const es=Engine.st; if(!es) return;
-  const last=this.hist[this.hist.length-1]; if(!last||Math.abs(es.km-last[0])>=0.5) this.hist.push([es.km,es.soc]);
+  // 記録 (0.5 km ごと): [km, 電池, 速度 km/h, 指示 km/h, 制限速度, 発電 W, モーター W, 収支 W]
+  const last=this.hist[this.hist.length-1]; if(!last||Math.abs(es.km-last[0])>=0.5) this.hist.push([es.km,es.soc,es.v*3.6,(Orders.cur&&Orders.cur.v)||AutoDrive.vSet||0,speedLimitAt(es.km),es.lastSolar||0,es.lastMotorW||0,es.lastNet||0]);
   // 見込み: 今の指示の速さで走り続けたとき (2 km ごと)。15 秒ごとに作り直し、1 フレーム 3 ms まで
   this.fcT-=dtR;
   if(this.fcT<=0&&!this.job){ const v=(Orders.cur&&Orders.cur.v)||AutoDrive.vSet||70; this.job=Strategy.simulateGen(v,{abs:(es.day-1)*24+es.hour,km:es.km,soc:es.soc,trace:true}); this.fcT=15; }
@@ -76,17 +81,42 @@ const EneMan={
    if(AutoDrive.stopAt!=null){ const need=(AutoDrive.stopAt-es.km)/v-left; t+=` / 停車 ${AutoDrive.stopAt.toFixed(0)} km: ${need>0? `17:00 を約 ${(need*60).toFixed(0)} 分超過` : "17:00 前に着く"}`; }
    sh.textContent=t; }
   const cb=document.getElementById("em-charge"); if(cb) cb.textContent= AutoDrive.chargeReq||AutoDrive.charging? "再開" : "充電停車";
-  this.graph(); },
- graph(){ const cv=document.getElementById("em-graph"); if(!cv) return; const r=cv.getBoundingClientRect(), dpr=Math.min(2,devicePixelRatio||1);
-  if(cv.width!==Math.round(r.width*dpr)){ cv.width=Math.round(r.width*dpr); cv.height=Math.round(r.height*dpr); }
-  const c=cv.getContext("2d"), W=r.width, H=r.height, es=Engine.st; c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,W,H);
-  const k0=Math.max(0,(this.hist[0]||[es.km])[0]), tr=this.fc&&this.fc.trace||[], k1=Math.min(TOTAL_KM,Math.max(es.km+300,tr.length? tr[tr.length-1][0] : es.km+300));
-  const X=k=>34+(k-k0)/(k1-k0||1)*(W-44), Y=s=>8+(1-s)*(H-24);
+  document.querySelectorAll("#em-tabs button").forEach(b=>b.classList.toggle("on",b.dataset.v===this.view));
+  const num=this.view==="num", cv=document.getElementById("em-graph"), nd=document.getElementById("em-num");
+  if(cv) cv.style.display= num? "none" : ""; if(nd) nd.style.display= num? "" : "none";
+  if(num) this.numbers(); else this.graph(); },
+ /* 数値の表 */
+ numbers(){ const es=Engine.st, el=document.getElementById("em-num"); if(!el) return;
+  const v=es.v*3.6, ord=(Orders.cur&&Orders.cur.v)||AutoDrive.vSet, lim=speedLimitAt(es.km), f=(x,d=0)=>Number.isFinite(x)? x.toFixed(d) : "―";
+  const nx=RP_CS.find(c=>!es.passedCP.has(c.km)&&c.km>es.km-0.2), abs=(es.day-1)*24+es.hour, hm=a=>{ const d=Math.floor(a/24)+1, h=a-(d-1)*24; return `Day${d} ${Math.floor(h)}:${String(Math.floor(h%1*60)).padStart(2,"0")}`; };
+  let csTxt="―"; if(nx){ const d=nx.km-es.km, eta=abs+d/Math.max(20,ord||v||60), close=Route.absHour(nx.close); csTxt=`CS${nx.n} ${nx.name} まで ${f(d)} km・着 ${hm(eta)}・閉まるまで ${f((close-eta)*60)} 分`; }
+  const left=17-es.hour, at= left>0? es.km+(ord||v||0)*left : es.km;
+  const rows=[["速度",`${f(v)} km/h`],["指示",ord? `${ord} km/h${Orders.cur?`・${f(Orders.cur.I,1)} A`:""}` : "―"],["制限速度",`${lim} km/h`],["自動運転",`${AutoDrive.why||"―"}・スロットル ${f((es.throttleSet||0)*100)} %${es.brakePhys>0.05?"・ブレーキ":es.brakeRegen>0.05?"・回生":""}`],
+   ["発電",`${f(es.lastSolar)} W`],["モーター",`${f(es.lastMotorW)} W`],["収支",`${(es.lastNet>0?"+":"")}${f(es.lastNet)} W`],["電池",`${f(es.soc*100,1)} %・${f(es.soc*P.batteryWh)} Wh`],
+   ["電圧・電流",`${f(es.lastVterm,1)} V・${f(es.lastIbat,1)} A`],["日射",`${f(es.lastGeff)} W/m²・${es.weather? (es.weather.type==="squall"?"スコール":"曇り") : "晴れ"}`],["風 (向かい・横)",`${f(es.lastHead,1)}・${f(Math.abs(es.lastCross||0),1)} m/s`],
+   ["気温・車内",`${f(es.Tamb)} °C・${f(es.Tcab)} °C`],["集中力",`${f(100*(1-(es.fatigue||0)))} %`],["次の CS",csTxt],["17:00 の位置 (見込み)",`${f(at)} km${AutoDrive.stopAt!=null?`・停車 ${f(AutoDrive.stopAt)} km`:""}`],["今日の残り",left>0? `${Math.floor(left)}:${String(Math.floor(left%1*60)).padStart(2,"0")}` : "17:00 を過ぎた"]];
+  el.innerHTML=rows.map(r=>`<span>${r[0]}</span><b>${r[1]}</b>`).join(""); },
+ graph(){ const cv=document.getElementById("em-graph"); if(!cv) return; const r=cv.getBoundingClientRect(), dpr=Math.min(2,devicePixelRatio||1); if(r.width<10) return;
+  if(cv.width!==Math.round(r.width*dpr)||cv.height!==Math.round(r.height*dpr)){ cv.width=Math.round(r.width*dpr); cv.height=Math.round(r.height*dpr); }
+  const c=cv.getContext("2d"), W=r.width, H=r.height, es=Engine.st, mode=this.view; c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,W,H);
+  const tr=this.fc&&this.fc.trace||[], h0=(this.hist[0]||[es.km])[0];
+  // 横軸: 電池はこの先の見込みまで、速度・電力はこれまでの 150 km
+  const k0= mode==="batt"? Math.max(0,h0) : Math.max(h0,es.km-150), k1= mode==="batt"? Math.min(TOTAL_KM,Math.max(es.km+300,tr.length? tr[tr.length-1][0] : es.km+300)) : Math.max(es.km+2,k0+5);
+  let lo=0, hi=1, unit="%", fmt=y=>`${Math.round(y*100)}%`;
+  if(mode==="spd"){ hi=130; fmt=y=>`${Math.round(y)}`; }
+  if(mode==="pow"){ let m=1000; for(const h of this.hist) if(h[0]>=k0) m=Math.max(m,Math.abs(h[5]),Math.abs(h[6]),Math.abs(h[7])); hi=Math.ceil(m/500)*500; lo=-hi; fmt=y=>`${(y/1000).toFixed(1)}k`; }
+  const X=k=>38+(k-k0)/(k1-k0||1)*(W-48), Y=y=>8+(hi-y)/(hi-lo)*(H-24);
   c.strokeStyle="#333"; c.fillStyle="#999"; c.font="10px sans-serif"; c.lineWidth=1;
-  for(const s of [0,0.5,1]){ c.beginPath(); c.moveTo(34,Y(s)); c.lineTo(W-10,Y(s)); c.stroke(); c.fillText(`${s*100}%`,4,Y(s)+3); }
-  c.fillStyle="#f5b81c"; for(const q of RP_CS){ if(q.km<k0||q.km>k1) continue; c.fillRect(X(q.km)-0.5,Y(1),1,H-24); c.fillText(`CS${q.n}`,X(q.km)+2,H-4); }
-  c.strokeStyle="#34d399"; c.lineWidth=2; c.beginPath(); this.hist.forEach((h,i)=>i? c.lineTo(X(h[0]),Y(h[1])) : c.moveTo(X(h[0]),Y(h[1]))); c.stroke();
-  if(tr.length){ c.strokeStyle="#93c5fd"; c.setLineDash([4,3]); c.beginPath(); c.moveTo(X(es.km),Y(es.soc)); for(const t of tr) if(t[0]>es.km&&t[0]<=k1) c.lineTo(X(t[0]),Y(t[2])); c.stroke(); c.setLineDash([]); }
-  c.fillStyle="#e5e7eb"; c.beginPath(); c.arc(X(es.km),Y(es.soc),3,0,7); c.fill();
-  c.fillStyle="#9ca3af"; c.fillText(`電池 (実線: これまで / 点線: 時速 ${(Orders.cur&&Orders.cur.v)||AutoDrive.vSet||70} km で走り続けた見込み)`,40,12); },
+  for(const y of [lo,(lo+hi)/2,hi]){ c.beginPath(); c.moveTo(38,Y(y)); c.lineTo(W-10,Y(y)); c.stroke(); c.fillText(fmt(y),2,Y(y)+3); }
+  c.fillStyle="#f5b81c"; for(const q of RP_CS){ if(q.km<k0||q.km>k1) continue; c.fillRect(X(q.km)-0.5,8,1,H-24); c.fillText(`CS${q.n}`,X(q.km)+2,H-4); }
+  const H2=this.hist.filter(h=>h[0]>=k0);
+  const line=(idx,col,w,dash)=>{ c.strokeStyle=col; c.lineWidth=w; c.setLineDash(dash||[]); c.beginPath(); H2.forEach((h,i)=>i? c.lineTo(X(h[0]),Y(h[idx])) : c.moveTo(X(h[0]),Y(h[idx]))); c.stroke(); c.setLineDash([]); };
+  let title="";
+  if(mode==="batt"){ line(1,"#34d399",2);
+   if(tr.length){ c.strokeStyle="#93c5fd"; c.setLineDash([4,3]); c.beginPath(); c.moveTo(X(es.km),Y(es.soc)); for(const t of tr) if(t[0]>es.km&&t[0]<=k1) c.lineTo(X(t[0]),Y(t[2])); c.stroke(); c.setLineDash([]); }
+   c.fillStyle="#e5e7eb"; c.beginPath(); c.arc(X(es.km),Y(es.soc),3,0,7); c.fill();
+   title=`電池 (実線: これまで / 点線: 時速 ${(Orders.cur&&Orders.cur.v)||AutoDrive.vSet||70} km で走り続けた見込み)`; }
+  if(mode==="spd"){ line(4,"#6b7280",1.5); line(3,"#f5b81c",1.5,[4,3]); line(2,"#34d399",2); title="速度 km/h (緑: 実際 / 黄点線: 指示 / 灰: 制限速度)"; }
+  if(mode==="pow"){ c.strokeStyle="#444"; c.beginPath(); c.moveTo(38,Y(0)); c.lineTo(W-10,Y(0)); c.stroke(); line(5,"#facc15",1.5); line(6,"#f87171",1.5); line(7,"#34d399",2); title="電力 W (黄: 発電 / 赤: モーター / 緑: 収支)"; }
+  c.fillStyle="#9ca3af"; c.fillText(title,42,12); },
 };
