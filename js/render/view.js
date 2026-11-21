@@ -88,7 +88,7 @@ for(let i=0;i<12;i++){
 this.aiPool=[]; this.aiMeshes=new Map();   // 表示枠 10 台。車の形はチームごとに作って使い回す
 for(let i=0;i<10;i++) this.aiPool.push({mesh:null,team:null,lead:null,chase:null});
 this.relK=0;
-this.roadTrains.length=0; if(typeof Traffic!=="undefined") Traffic.reset(this); if(typeof Wildlife!=="undefined") Wildlife.reset(this); this.rollT=0; if(typeof Rain!=="undefined") Rain.reset();
+this.roadTrains.length=0; if(typeof Traffic!=="undefined") Traffic.reset(this); if(typeof TeamCars!=="undefined") TeamCars.reset(); if(typeof Wildlife!=="undefined") Wildlife.reset(this); this.rollT=0; if(typeof Rain!=="undefined") Rain.reset();
 this.lmMap.clear(); this.redSignalKm=null; this.inPit=false; this.pitBlend=0; this.fireOn=false;
 this.resetRoad();
 if(!this._resizeBound){ this._resizeBound=true;   // 1 回だけ (場面ごとに足すと溜まっていく)
@@ -577,39 +577,18 @@ lighten(){
 aiMesh(tm){ let m=this.aiMeshes.get(tm); if(!m){ m=this.mkAICar(tm); m.visible=false; this.scene.add(m); this.aiMeshes.set(tm,m); } return m; },
 updateAITeams(es,dtR){
 if(P.mode!=="race"||!es.teams||!this.aiPool){ if(this.aiPool) this.aiPool.forEach(sl=>{ if(sl.mesh) sl.mesh.visible=false; if(sl.lead){ sl.lead.visible=false; sl.chase.visible=false; } }); return; }
-this.relK= this.relK? this.relK+(Route.scaleAt(es.km)-this.relK)*clamp(dtR*1.2,0,1) : Route.scaleAt(es.km);   // 縮尺の切り替わりで他チームの車が跳ばないよう、ゆっくり変える
-const near=[];
-for(const tm of es.teams){
-tm.sigHold=false; tm.follow=null;
-if(tm.status==="pre") continue;
-const rel=Route.relDist(es.km,tm.km,this.relK), keep=this.aiPool.some(sl=>sl.team===tm);
-if(Math.abs(rel)<(keep?1400:1150)) near.push({tm,rel,keep});   // 出す距離と消す距離に差をつけて、境目で出たり消えたりしない
-}
-near.sort((a,b)=>(b.keep-a.keep)||Math.abs(a.rel)-Math.abs(b.rel));   // いま出ている車を優先 (入れ替わりで消えない)
-const shown=near.slice(0,this.aiPool.length);
-/* 他チームどうしの車間: 前のチームの隊列 (後方車は 24 m 後ろ、自分の前方車は 70 m 前) と 15 m 以上あける (Engine が tm.follow を見る) */
-{ const live=shown.filter(o=>o.tm.status==="run"&&!(o.tm.csT>0)).sort((a,b)=>a.rel-b.rel);
-  for(let i=0;i<live.length-1;i++){ const o=live[i], f=live[i+1], g=f.rel-o.rel; if(!o.tm.passing&&g<200) o.tm.follow={gap:g,v:f.tm.vNow||0}; } }
+this.relK=Route.scaleAt(es.km);
+for(const tm of es.teams){ tm.sigHold=false; tm.follow=null; }
+/* 位置と速さは TeamCars (js/render/teams.js): 近くのチームは画面上の車として動く */
+const shown=TeamCars.update(this,es,dtR);
 for(const sl of this.aiPool){ if(!shown.some(o=>o.tm===sl.team)){ sl.team=null; if(sl.mesh) sl.mesh.visible=false; sl.mesh=null; if(sl.lead){ sl.lead.visible=false; sl.chase.visible=false; } } }
 for(const o of shown){
 let sl=this.aiPool.find(x=>x.team===o.tm)||this.aiPool.find(x=>!x.team);
 if(!sl) break;
 if(sl.team!==o.tm){ sl.team=o.tm; sl.mesh=this.aiMesh(o.tm); }
 sl.mesh.visible=true; sl._s=this.s+o.rel; sl._sL=sl._sC=null;
-// 赤信号: 画面の中で信号の手前にいる他チームの車は止まる (Engine が tm.sigHold を見る)
-{ const sA=this.s+o.rel; let hold=false; for(const [,ent] of this.lmMap){ if(ent.lm.t!=="signal"||!ent.red) continue; const sg=this.sOfKm(ent.lm.km); if(sg>sA+2&&sg<sA+40) hold=true; } o.tm.sigHold=hold; }
-// 自車の真後ろに詰めて見えない (追い越し中でなければ 7 m より近づけない)
-if(o.rel<0&&o.rel>-7&&!o.tm.passing&&Math.abs(this.lateral-(o.tm.latV||-2.4))<1.8) o.rel=-7;
 const rp=this.roadPoint(clamp(this.s+o.rel,0,this.road.builtS-this.SEG));
-let latT=-2.4;
-const multi=rp.m1>0.3||rp.ow||rp.L>6;   // 片側2車線以上・分離帯あり: 追い越しは自分側の空いている車線
-const stopped=o.tm.status==="run"&&!(o.tm.vNow>0.5), pStop=es.v<1||es.stopTimer>0||es.camp;
-if(o.tm.status==="dnf") latT=-(rp.L+6);
-else if(stopped) latT=-(rp.L+4.5);   // CS・夜・充電: 道の外に止めて、アッパーカウルを傾ける
-else if(pStop&&Math.abs(o.rel)<45&&!o.tm.passing) latT= multi? -(rp.L-1.75) : 2.4;   // 止まっている自車の横を抜ける
-else if(o.tm.yieldT>0) latT=-(rp.L-0.1);
-else if(o.tm.passing) latT= multi? (this.lateral>-rp.L/2? -(rp.L-1.75) : -1.75) : 2.4;
-o.tm.latV=lerp(o.tm.latV,latT,clamp(dtR*1.5,0,1));
+const stopped=o.tm.status==="run"&&!(o.tm.vNow>0.5)&&o.tm.latV<-(rp.L+1);   // CS・夜: 道の外に止めて、アッパーカウルを傾ける
 const nx=Math.cos(rp.h), nz=Math.sin(rp.h);
 sl.mesh.position.set(rp.x+nx*o.tm.latV,rp.y,rp.z+nz*o.tm.latV);
 sl.mesh.rotation.y=-rp.h;
@@ -622,17 +601,7 @@ if(!sl.lead){ sl.lead=this.mkVan(0xf4f4f4); sl.chase=this.mkVan(0xc9ced6); this.
   if(same&&o.rel<0) dL=Math.min(dL,-o.rel-12); if(same&&o.rel>0) dC=Math.max(dC,-(o.rel-12));
   put(sl.lead,dL,latC); put(sl.chase,dC,latC); sl._sL=sl._s+dL; sl._sC=sl._s+dC; if(dL<8) sl.lead.visible=false; if(dC>-8) sl.chase.visible=false; }
 const top=sl.mesh.userData.top; if(top){ const tw=stopped&&o.tm.status==="run"? 0.6*(sl.mesh.userData.tiltSign||-1) : 0; top.rotation.z=lerp(top.rotation.z,tw,clamp(dtR*2,0,1)); }   // 充電: アッパーカウルだけ傾ける
-// 自車との接触: 前後 4.6 m・左右 1.7 m 以内に入ったら当たり (近づく速さで 軽い接触 / 破損 / 大破)
-if(o.tm.status!=="dnf"&&Math.abs(o.rel)<4.6&&Math.abs(this.lateral-o.tm.latV)<1.7&&!es.crashed){
- const vAi=(o.tm.vNow||0)/3.6, vn=Math.abs(es.v-vAi);
- if(o.rel>0&&es.v>vAi){   // 自車が前の車に追いついて当たった場合 (後ろの車は車間をとって付いてくる)
-  const level= vn<Collide.LIGHT? "light" : vn<Collide.HEAVY? "damage" : "heavy";
-  Engine.collision({level,kind:"team",vn});
-  es.v=Math.min(es.v,vAi*0.95); } }
-if(o.tm.yieldT>0) o.tm.yieldT-=dtR;
-if(o.tm.holdT>0) o.tm.holdT-=dtR;
-if(o.tm.passing&&o.rel>70){ o.tm.passing=false; o.tm.boost=false; }
-}
+}   // 自車との接触は当たり判定 (dynColliders) が見る
 if(es.camp||es.stopTimer>0||es.fire) return;
 const ahead=shown.find(o=>o.rel>6&&o.rel<130&&o.tm.status==="run"&&!o.tm.passing);
 if(ahead&&es.v*3.6>ahead.tm.spd+2){
