@@ -205,6 +205,12 @@ if(tm.decT<0||absH-tm.decT>0.05){   // 速度の判断 (3 分ごと): 今の発�
  if(this.aiDrivePower(tm,hi)<=budget) lo=hi; else for(let k=0;k<18;k++){ const m=(lo+hi)/2; if(this.aiDrivePower(tm,m)<=budget) lo=m; else hi=m; }
  tm.vSet=lo*3.6;
 }
+if(tm.agent){   // 画面上の車として動いている (js/render/teams.js): km と速さは画面側が決める。電池と CS だけここで
+ tm.soc=clamp(tm.soc+(tm.psol-this.aiDrivePower(tm,(tm.vNow||0)/3.6))*dtS/3600/Wh,0,1); if(tm.soc<=0.01){ tm.soc=0.01; tm.decT=-1; }
+ for(const cp of ROUTE) if(cp.cp&&!tm.cs.has(cp.km)&&tm.km>=cp.km){ tm.cs.add(cp.km); tm.csT=1800; break; }
+ if(tm.retireKm&&tm.km>=tm.retireKm) tm.status="dnf";
+ continue;
+}
 let spd=Math.max(0,(tm.vSet||0)*(tm.boost?1.15:1));
 // 自車に後ろから追いついたら、追い越しの許可が出るまで車間 (約 35 m) をとって自車の速さで付いて走る。
 // 自車が止まっているとき (停車・CS・夜) は横を抜ける。距離は画面の距離 (早送りの区間も同じ尺度)
