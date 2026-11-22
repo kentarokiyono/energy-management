@@ -6,7 +6,7 @@
   ・自車が止まって時間を早送りしている間 (スタート待ち・CS・キャンプ・充電停車) は画面上の車を全部やめ、エンジン側で進める
   ・出すときに自車や他チームの隊列と重なるなら、その後ろに置く
  隊列 (前方車 70 m 前 + ソーラーカー + 後方車 24 m 後ろ) を 1 台として扱う: 前端 = s+72、後端 = s−26。
- 自車を追い越すのは「Can I overtake?」で許可が出たとき (tm.passing)。他チームどうしは速い方が見通しのよい所で抜く。
+ 自車を追い越すのは「Can I overtake?」で許可が出たとき (tm.passing) だけ。他チームどうしは速い方が見通しのよい所で抜く (許可がなければ自車の隊列の手前まで)。
  画面の部品 (車体・隊列の誘導車・充電で傾ける見た目) は View.updateAITeams が描く */
 const TeamCars={
  ag:new Map(), FRONT:72, REAR:26, MAX:10,
@@ -62,6 +62,8 @@ const TeamCars={
    if(o.sig&&front>o.f-1.5&&a.v>3) continue;   // 停止線を越えかけている: そのまま行く
    if(!best||o.r<best.r) best=o; }
   return best; },
+ /* 自車の隊列の後端 (自分の中央より前にあるとき)。なければ null */
+ meRear(obs,a){ const mid=a.s+(this.FRONT-this.REAR)/2; let r=null; for(const o of obs) if(o.me&&(o.f+o.r)/2>mid&&(r==null||o.r<r)) r=o.r; return r; },
  idm(a,ld,v0){ const A=1.2, B=3, T=1.6, s0=6;
   if(v0<0.2) return a.v>0? -Math.min(B,a.v*2+0.5) : 0;   // 止まる (路肩・CS・夜)
   let acc=A*(1-Math.pow(Math.max(0,a.v)/Math.max(1,v0),4));
@@ -88,10 +90,18 @@ const TeamCars={
      const oncoming=!multi&&(V.roadTrains||[]).some(rt=>rt.sVis>a.s-80&&rt.sVis<a.s+1500);
      const town=Route.inZone(km)&&!multi;
      const others=!multi&&[...this.ag.values()].some(b=>b!==a&&b.mode==="pass");
-     if(free&&side&&!town&&!others&&(multi||(straight&&!oncoming))){ a.mode="pass"; a.passLat=passLat; } } }
+     // 許可なしで他チームを抜くときは、抜いた相手と自車の隊列の間に入る空きが要る (自車の隊列は抜かない)
+     const meR=this.meRear(obs,a), room=homeLd.me||tm.passing||meR==null||meR-homeLd.f>this.FRONT+this.REAR+40;
+     if(free&&side&&!town&&!others&&room&&(multi||(straight&&!oncoming))){ a.mode="pass"; a.passLat=passLat; a.passOf=homeLd.team||null; } } }
    if(a.mode==="pass"){ v0+=2; a.latT=a.passLat; ld=this.leader(tm,a,obs,a.passLat,true);
-    const back=!obs.some(o=>o.team!==tm&&!o.sig&&this.inLane(o,home)&&o.f>a.s-this.REAR-12&&o.r<a.s+this.FRONT+40);
-    if(back){ a.mode="lane"; a.latT=home; if(tm.passing){ tm.passing=false; tm.boost=false; } } } }
+    if(!tm.passing){   // 許可がない: 自車の隊列より前に出ない。近づいたら抜いている相手の後ろへ下がる
+     const meR=this.meRear(obs,a);
+     if(meR!=null){ const meO={r:meR,v:es.v,me:true}; if(!ld||meR<ld.r) ld=meO;
+      if(meR-(a.s+this.FRONT)<60){ const b=a.passOf&&this.ag.get(a.passOf); v0=Math.min(v0,Math.max(0,(b? b.v : es.v)-2)); } } }
+    // 戻る: 元の車線が空いていて、抜いている相手より完全に前 (またはやめて完全に後ろ)
+    const pb=a.passOf&&this.ag.get(a.passOf), clearOf=!pb||pb.s+this.FRONT<a.s-this.REAR-12||pb.s-this.REAR>a.s+this.FRONT+15;
+    const back=clearOf&&!obs.some(o=>o.team!==tm&&!o.sig&&this.inLane(o,home)&&o.f>a.s-this.REAR-12&&o.r<a.s+this.FRONT+40);
+    if(back){ a.mode="lane"; a.latT=home; a.passOf=null; if(tm.passing&&this.meRear(obs,a)==null){ tm.passing=false; tm.boost=false; } } } }
   const acc=this.idm(a,ld,v0); a.v=Math.max(0,a.v+acc*dtR); a.s+=a.v*dtR;
   const vl= stop? 1.2 : Math.min(1.3,0.08*a.v+0.4), dl=clamp(a.latT-a.lat,-vl*dtR,vl*dtR); a.lat+=dl;
   if(tm.yieldT>0) tm.yieldT-=dtR; if(tm.holdT>0) tm.holdT-=dtR;
