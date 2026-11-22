@@ -12,6 +12,10 @@ const results=[]; let failed=0;
 function check(name,ok,info){ results.push(`${ok?"PASS":"FAIL"}  ${name}${info?"  ("+info+")":""}`); if(!ok) failed++; }
 /* ブラウザ: 読み込みが止まったら新しいブラウザに替える (BR.b)。最初のブラウザ (BR.orig) を渡された確認は、替えた後のブラウザを使う */
 const GL_ARGS=["--use-gl=swiftshader","--enable-webgl","--ignore-gpu-blocklist"], BR={b:null,orig:null};
+/* 同じページで開き直す (ルート・初期スクリプトを付けたページ用)。読み込みが止まったら 1 回だけ開き直す */
+async function gotoRetry(p,url,ready){
+ for(let i=0;;i++){ try{ await p.goto(url,{timeout:i? 90000 : 60000}); await p.waitForFunction(ready,null,{timeout:i? 90000 : 60000}); return; }
+  catch(e){ if(i) throw e; console.log("(読み込みが止まったので開き直します: "+String(e.message).split("\n")[0]+")"); } } }
 async function newPage(b,base,opt={},retry=1){
  if(b===BR.orig) b=BR.b;
  const ctx=await b.newContext({viewport:opt.vp||{width:1280,height:720},hasTouch:!!opt.touch,isMobile:!!opt.touch});
@@ -69,7 +73,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
   await p.route("https://generativelanguage.googleapis.com/**",async rt=>{ const body=rt.request().postData()||""; bodies.push(body); const sys=JSON.parse(body).systemInstruction.parts[0].text;
    const text= sys.includes("JSON 配列")? JSON.stringify([{role:"tm",text:"AIテスト1"},{role:"elec",text:"AIテスト2"}]) : sys.includes("分析する")? "AI分析" : "AI戦略";
    await rt.fulfill({status:200,contentType:"application/json",body:JSON.stringify({candidates:[{content:{parts:[{text}]}}],usageMetadata:{promptTokenCount:10,candidatesTokenCount:5}})}); });
-  await p.goto(base+"index.html",{timeout:90000}); await p.waitForFunction(()=>typeof startGame==="function"&&typeof AI!=="undefined",null,{timeout:90000}); await p.waitForTimeout(500);
+  await gotoRetry(p,base+"index.html",()=>typeof startGame==="function"&&typeof AI!=="undefined"); await p.waitForTimeout(500);
   const off=await p.evaluate(()=>{ AI.setKey(""); return AI.on(); });
   await p.evaluate(()=>{ AI.setKey("dummy"); P.aiOn=true; P.coffee=true; P.gfx="low"; P.mode="race"; P.event=false; P.crewProc=false; DRIVER_NAMES=["名前テスト甲","名前テスト乙"]; startGame(); });
   await p.waitForFunction(()=>Coffee.active&&Coffee.scene&&Coffee.est&&Coffee.est.flex&&!Coffee.job,null,{timeout:120000}).catch(()=>{});
@@ -394,7 +398,7 @@ async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screens
    const pad={id:"Fake",index:0,connected:true,axes:[0,0,0,0],buttons:[{pressed:false}],vibrationActuator:{playEffect:(t,o)=>{ window._rum.push([o.strongMagnitude,o.weakMagnitude]); return Promise.resolve("complete"); }}};
    navigator.getGamepads=()=>[pad]; });
   const p=await ctx.newPage(); p.errs=[]; p.on("pageerror",e=>p.errs.push(e.message));
-  await p.goto(base+"index.html",{timeout:90000}); await p.waitForFunction(()=>typeof FFB==="object",null,{timeout:90000}); await p.waitForTimeout(300);
+  await gotoRetry(p,base+"index.html",()=>typeof FFB==="object"); await p.waitForTimeout(300);
   const f=await p.evaluate(async()=>{ const hid=[]; FFB.hid={sendReport:(id,d)=>{ hid.push([...d]); return Promise.resolve(); }}; P.ffb="high"; P.ffbTune={};
    const base={v:25,steer:0,offroad:false,shoulder:false,rough:0.65,cross:0,trainRel:null,brake:0,gLat:0,dt:1/60};
    const run=async(mod)=>{ window._rum.length=0; hid.length=0; FFB.on=false; for(let i=0;i<30;i++){ FFB.tSend=0; FFB.update(Object.assign({},base,mod)); await new Promise(r=>setTimeout(r,2)); }

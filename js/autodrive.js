@@ -46,7 +46,11 @@ const AutoDrive={
   { const lat=V.lateral; let ld=null;
    const cand=[]; if(typeof Traffic!=="undefined") for(const c of Traffic.cars) cand.push({r:c.s-c.L,lat:c.lat,v:c.v});
    if(V.escortLead&&V.escortLead.visible&&V.leadS!=null) cand.push({r:V.leadS-2.4,lat:-2.4,v:V.leadV||0});
-   for(const sl of V.aiPool||[]) if(sl.team&&sl.mesh&&sl.mesh.visible&&sl._s!=null) cand.push({r:sl._s-2.4,lat:sl.team.latV||-2.4,v:(sl.team.vNow||0)/3.6});
+   for(const sl of V.aiPool||[]) if(sl.team&&sl.mesh&&sl.mesh.visible&&sl._s!=null){   // 他チームの隊列 (ソーラーカー・誘導車・後方車)
+    const lat=sl.team.latV||-2.4, tv=(sl.team.vNow||0)/3.6;
+    cand.push({r:sl._s-2.4,lat,v:tv});
+    if(sl.lead&&sl.lead.visible&&sl._sL!=null) cand.push({r:sl._sL-2.8,lat,v:tv});
+    if(sl.chase&&sl.chase.visible&&sl._sC!=null) cand.push({r:sl._sC-2.8,lat,v:tv}); }
    for(const o of cand){ const g=o.r-(V.s+2.3); if(g<-1||Math.abs(o.lat-lat)>1.9) continue; if(!ld||g<ld.g) ld={g,v:o.v}; }
    if(ld) set(Math.max(0,Math.min(ld.v+(ld.g-8-2*v)*0.25,this.stopV(ld.g-6,2.0)+ld.v)),"前の車"); }
   // 動物・路上の死骸
