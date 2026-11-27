@@ -298,6 +298,7 @@ if(rcLens.length){ body.updateMatrixWorld(true); const hm=[]; body.traverse(o=>{
   ln.geometry.dispose(); ln.geometry=new THREE.BoxGeometry(ln.geometry.parameters.width,0.03,0.008); ln.quaternion.identity();   // 薄いレンズ。常に真後ろへ向ける
   if(h){ const p=body.worldToLocal(h.point.clone()); ln.position.set(p0.x,p0.y+h.dy,p.z+0.004);
    if(h.object.userData.upper){ h.object.updateMatrixWorld(true); h.object.attach(ln); } } } }   // アッパーカウルの後端に付くものは、傾けたときも一緒に動く
+if(typeof Glare!=="undefined") Glare.build(g);   // 灯火のグレア
 g.userData.body=body; if(typeof SuspMesh!=="undefined") SuspMesh.build(g);   // サスペンションの部品 (車体を透かすと見える)
 return {group:g, body, canopy:g.userData.canopy};
 },
@@ -1193,7 +1194,8 @@ if(this.farRidge){ const b=biomeAt(es.km), fu=this.farRidge.material.uniforms; t
  fu.uHaze.value.copy(hor); fu.uCol.value.setHex(b.soil).multiplyScalar(0.55*clamp(0.25+dayK,0,1)); }
 this.hemiLight.intensity=clamp(0.14+0.66*dayK+0.12*t1,0.12,0.8)*(1-0.4*WX);
 { const sp=this.car.userData.headSpot; if(sp){ const amb=dayK*(1-0.65*WX), dk=clamp((0.45-amb)/0.4,0,1);   // 暗さ: 夜は 1、ひどい荒天で少し
-  sp.intensity= this.car.userData.headLit? 3*dk : 0; } }
+  sp.intensity= this.car.userData.headLit? 3*dk : 0; }
+  if(typeof Glare!=="undefined"){ const amb=dayK*(1-0.65*WX); Glare.update(this.car,this.camera,es,clamp((0.6-amb)/0.55,0,1)); } }
 // 空からの光の色: 空そのものの色で照らす (朝夕は暖かく、曇りは灰色、昼は青み)。白を混ぜて色が付きすぎないように
 this.hemiLight.color.copy(top).lerp(hor,0.35).lerp(_WHITE,0.45);
 // 車体などに映る空 (時刻・天気・土地の色に合わせて作り直す。画質「低」は作らない)
