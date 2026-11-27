@@ -247,6 +247,9 @@ const decal=(cx,cz,poly,mat,o)=>{ if(!hullMeshes.length) return null; o=o||{}; c
 const lensMat=new THREE.MeshStandardMaterial({color:0x7d8792,metalness:0.9,roughness:0.28,emissive:0xffffff,emissiveIntensity:0.03,envMapIntensity:1.0,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3});
 const rimMat=new THREE.MeshStandardMaterial({color:0x15181c,roughness:0.5,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});   // レンズの縁取り
 g.userData.headMat=lensMat;   // 前照灯のレンズ: モタコンが入っている間だけ光る (updateWinkers)
+{ // 前照灯の光: 夜・極端に暗いときだけ前の路面を少し照らす (明るさは View の明るさの所で決める。光源の数は変えず強さだけ変える)
+ const zN=Math.min(...drlPos.map(q=>q[1])), yN=drlPos[0][2]!=null? drlPos[0][2] : 0.5, sp=new THREE.SpotLight(0xfff0d8,0,55,0.42,0.65,1.0);
+ sp.position.set(0,yN,zN); sp.target.position.set(0,0,zN-18); sp.castShadow=false; g.add(sp,sp.target); g.userData.headSpot=sp; }
 for(const [sx,sz,sy] of drlPos){ const sd=Math.sign(sx)||1;
   const poly=[[-0.07*sd,-0.075],[0.02*sd,-0.075],[0.09*sd,0.075],[-0.07*sd,0.075]]; if(sd<0) poly.reverse();
   if(isW&&decal(sx,sz,poly.map(([x,z])=>[x*1.14,z*1.14]),rimMat,{lift:0.003,edge:0.04})){ decal(sx,sz,poly,lensMat,{lift:0.0045,edge:0.04}); continue; }   // 上面の外の端に寄せる (写真では黒とオレンジの境の角)
@@ -1189,6 +1192,8 @@ if(this.farRidge){ const b=biomeAt(es.km), fu=this.farRidge.material.uniforms; t
  fu.uHill.value=lerp(fu.uHill.value,P.mode==="race"&&!b.urban? clamp((b.hill-0.5)/2.5,0,1) : 0,0.02); fu.uShift.value=es.km*0.004;
  fu.uHaze.value.copy(hor); fu.uCol.value.setHex(b.soil).multiplyScalar(0.55*clamp(0.25+dayK,0,1)); }
 this.hemiLight.intensity=clamp(0.14+0.66*dayK+0.12*t1,0.12,0.8)*(1-0.4*WX);
+{ const sp=this.car.userData.headSpot; if(sp){ const amb=dayK*(1-0.65*WX), dk=clamp((0.45-amb)/0.4,0,1);   // 暗さ: 夜は 1、ひどい荒天で少し
+  sp.intensity= this.car.userData.headLit? 3*dk : 0; } }
 // 空からの光の色: 空そのものの色で照らす (朝夕は暖かく、曇りは灰色、昼は青み)。白を混ぜて色が付きすぎないように
 this.hemiLight.color.copy(top).lerp(hor,0.35).lerp(_WHITE,0.45);
 // 車体などに映る空 (時刻・天気・土地の色に合わせて作り直す。画質「低」は作らない)

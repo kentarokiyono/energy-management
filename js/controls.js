@@ -121,7 +121,7 @@ let _winkPhase=null;
 function updateWinkers(carGroup,es){
 const hm=carGroup&&carGroup.userData.headMat;
 if(hm){ const motor=typeof Crew==="undefined"||!Crew.st||Crew.st.motor, lit=motor&&!(es&&(es.camp||es.disconnected));   // 前照灯: モタコンが入っていると光る (明るすぎない)
- hm.emissive.setHex(lit?0xfff2dc:0xffffff); hm.emissiveIntensity=lit?0.55:0.03; }
+ hm.emissive.setHex(lit?0xfff2dc:0xffffff); hm.emissiveIntensity=lit?0.55:0.03; carGroup.userData.headLit=lit; }
 if(!carGroup||!carGroup.userData.winkL) return;
 const on=(performance.now()%800)<400;
 const L=es.signal===-1||es.signal===2, R=es.signal===1||es.signal===2;
