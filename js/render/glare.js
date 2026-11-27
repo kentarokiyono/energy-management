@@ -2,7 +2,7 @@
 /* ============ 自車の灯火のグレア (光のにじみ) ============
  前照灯・ウインカー (前・横)・後端のランプ (ブレーキ兼ウインカー)・ブレーキランプが光っているとき、ランプの上に光のにじみ (加算合成の板) を重ねる。
   ・ランプの向きとカメラの向きで濃さが変わる (正面から見ると濃い。横・後ろからは見えない)
-  ・暗いほど大きく濃い (昼は控えめ)。車体に隠れる所は隠れる (奥行きを見る)
+  ・暗いほど大きく濃い (昼は控えめ)。雨が強いほど大きく濃い (雨粒・しぶきで光が散る)。車体に隠れる所は隠れる (奥行きを見る)
  作る所: View.mkCar の最後 (Glare.build)。毎フレーム: View の明るさの所 (Glare.update) */
 const Glare={
  tex:null,
@@ -44,6 +44,7 @@ const Glare={
  /* 毎フレーム。dk = 暗さ (0 昼 〜 1 夜) */
  update(car,camera,es,dk){
   const L0=car&&car.userData.glare; if(!L0||!es) return;
+  const rk=typeof Rain!=="undefined"? clamp(Rain.I||0,0,1) : 0;   // 雨: 雨粒・しぶきで光が散って、にじみが大きく濃くなる
   const on=(performance.now()%800)<400, L=es.signal===-1||es.signal===2, R=es.signal===1||es.signal===2, brk=es.brakePhys>0.05||es.brakeRegen>0.05, head=!!car.userData.headLit;
   for(const q of L0){
    let col=null, k=0;
@@ -56,7 +57,7 @@ const Glare={
    this._s.copy(camera.position).sub(this._p); const dist=this._s.length(); this._s.multiplyScalar(1/Math.max(dist,1e-3));
    const look=clamp((this._f.dot(this._s)-0.05)/0.45,0,1);   // 正面から見るほど濃い
    if(look<=0){ q.sp.visible=false; continue; }
-   const size=0.32*(0.7+0.9*dk)*(1+Math.min(dist,80)/50);   // 遠くでも見えるよう、離れると少し大きく
-   q.sp.visible=true; q.sp.material.color.setHex(col); q.sp.material.opacity=k*look*(0.35+0.65*dk); q.sp.scale.set(size,size,1); }
+   const size=0.32*(0.7+0.9*dk)*(1+Math.min(dist,80)/50)*(1+1.3*rk);   // 遠くでも見えるよう、離れると少し大きく
+   q.sp.visible=true; q.sp.material.color.setHex(col); q.sp.material.opacity=Math.min(1,k*look*(0.35+0.65*dk)*(1+0.9*rk)); q.sp.scale.set(size,size,1); }
  },
 };
