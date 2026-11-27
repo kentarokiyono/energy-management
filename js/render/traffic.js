@@ -70,6 +70,7 @@ const Traffic={
   for(const sx of [-tailX,tailX]){ const l=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.16,0.05),tail); l.position.set(sx,tailY,tailZ+0.03); g.add(l); }
   const hl=new THREE.MeshBasicMaterial({color:0xf3f1e6});
   for(const sx of [-0.62,0.62]){ const l=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.12,0.05),hl); l.position.set(sx,kind==="van"?0.95:0.78,zf-0.02); g.add(l); }
+  if(typeof Glare!=="undefined") Glare.attach(g,[-tailX,tailX].map(x=>({p:[x,tailY,tailZ+0.07],f:[0,0,1],role:"tail",mat:tail})).concat([-0.62,0.62].map(x=>({p:[x,kind==="van"?0.95:0.78,zf-0.06],f:[0,0,-1],role:"head"}))));   // 灯火のグレア
   g.userData.zf=zf; g.userData.tail=tail;
   g.traverse(o=>{ if(o.isMesh) o.castShadow=true; });
   return g;

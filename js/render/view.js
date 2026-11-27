@@ -370,6 +370,9 @@ for(const sx of [-0.85,0.85]){ const tl=new THREE.Mesh(new THREE.BoxGeometry(0.1
 const hz=new THREE.MeshBasicMaterial({color:0x7a5512});
 for(const [x,z] of [[-0.9,-2.44],[0.9,-2.44],[-0.9,2.44],[0.9,2.44]]){ const l=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.12,0.05),hz); l.position.set(x,0.62,z); v.add(l); }
 v.userData.hazMat=hz;
+if(typeof Glare!=="undefined") Glare.attach(v,[   // 灯火のグレア
+ ...[-0.7,0.7].map(x=>({p:[x,0.82,-2.5],f:[0,0,-1],role:"head"})), ...[-0.85,0.85].map(x=>({p:[x,0.9,2.48],f:[0,0,1],role:"tail"})),
+ ...[[-0.9,-2.5,-1],[0.9,-2.5,-1],[-0.9,2.5,1],[0.9,2.5,1]].map(([x,z,f])=>({p:[x,0.62,z],f:[0,0,f],role:"haz",mat:hz,s:0.8}))]);
 return v;
 },
 buildEscorts(){
@@ -417,6 +420,7 @@ for(let i=0;i<3;i++){
 bs.get("solid").add(tpl("box"),M4(0,1.7,-33.8,1.2,0.6,0.04),linCol(0xf6c400));     // ROAD TRAIN 表示板
 bs.toGroup(t);
 t.traverse(o=>{ if(o.isMesh) o.matrixAutoUpdate=false; });
+if(typeof Glare!=="undefined") Glare.attach(t,[[-0.95,1],[0.95,1]].map(([x,s])=>({p:[x,1.05,9.45],f:[0,0,1],role:"head",s:1.3})).concat([[-1.1],[1.1]].map(([x])=>({p:[x,1.15,-39.2],f:[0,0,-1],role:"tail"}))));   // 灯火のグレア (前照灯・最後尾の尾灯)
 t.rotation.order="YXZ";
 return t;
 },
@@ -612,6 +616,7 @@ c.fillText(String(tm&&(tm.no||(tm.car||"").replace(/[^A-Za-z0-9]/g,"").slice(0,3
 const tx=new THREE.CanvasTexture(cv); tx.encoding=THREE.sRGBEncoding;
 for(const sd of [-1,1]){ const pl=new THREE.Mesh(new THREE.PlaneGeometry(0.46,0.17),new THREE.MeshBasicMaterial({map:tx})); pl.position.set(sd*(cat? cd+hw*cs+0.02 : hw+0.03),0.36,0.1); pl.rotation.y=sd*Math.PI/2; g.add(pl); }
 g.userData.top=Y.tilt; g.userData.hullM=null; g.userData.tiltSign=-1;
+if(typeof Glare!=="undefined") Glare.attach(g,[-0.22,0.22].map(x=>({p:[x,0.45,-L/2+0.35],f:[0,0,-1],role:"head",s:0.8})).concat([-0.25,0.25].map(x=>({p:[x,0.55,L/2+0.02],f:[0,0,1],role:"tail",s:0.8}))));   // 灯火のグレア
 return g;
 },
 /* 画質を「低」に下げたとき: 物理ベースの材質 (クリア塗装・透過) を軽い材質に置き換え、路面の凹凸マップを外す */
@@ -1195,7 +1200,7 @@ if(this.farRidge){ const b=biomeAt(es.km), fu=this.farRidge.material.uniforms; t
 this.hemiLight.intensity=clamp(0.14+0.66*dayK+0.12*t1,0.12,0.8)*(1-0.4*WX);
 { const sp=this.car.userData.headSpot; if(sp){ const amb=dayK*(1-0.65*WX), dk=clamp((0.45-amb)/0.4,0,1);   // 暗さ: 夜は 1、ひどい荒天で少し
   sp.intensity= this.car.userData.headLit? 3*dk : 0; }
-  if(typeof Glare!=="undefined"){ const amb=dayK*(1-0.65*WX); Glare.update(this.car,this.camera,es,clamp((0.6-amb)/0.55,0,1)); } }
+  if(typeof Glare!=="undefined"){ const amb=dayK*(1-0.65*WX); const gdk=clamp((0.6-amb)/0.55,0,1); Glare.update(this.car,this.camera,es,gdk); Glare.updateExt(this.camera,gdk); } }
 // 空からの光の色: 空そのものの色で照らす (朝夕は暖かく、曇りは灰色、昼は青み)。白を混ぜて色が付きすぎないように
 this.hemiLight.color.copy(top).lerp(hor,0.35).lerp(_WHITE,0.45);
 // 車体などに映る空 (時刻・天気・土地の色に合わせて作り直す。画質「低」は作らない)
