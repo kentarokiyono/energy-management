@@ -1092,7 +1092,10 @@ const nearWater=flatTown&&[-0.3,-0.15,0,0.15,0.3,0.45].some(d=>OsmRoute.waterAt(
 // 右左折の区間 (平らに作る所: CS の出入りなど) も同じ。折れ目で地形の帯が重なってできる隙間から、深い穴が見えていた
 const flatZone=!flatTown&&P.mode==="race"&&[-0.25,0,0.25,0.5,0.75].some(d=>Route.zoneFade(es.km+d)<=0.02);
 { const gT= flatTown?(nearWater?7:0.3):flatZone?0.5:60; this.gDrop= flatTown||!Number.isFinite(this.gDrop)||this._gKm==null||Math.abs(es.km-this._gKm)>0.2? gT : lerp(this.gDrop,gT,clamp(dtR*3,0,1)); this._gKm=es.km; }   /* 走行中はなめらかに、開始・移動の直後はすぐに */
-this.ground.position.set(pHere.x,(pHere.y-(pHere.bh||0))-this.gDrop,pHere.z);
+// 平らな板なので、道が前後で下っていると板が路面より上に出る。見える範囲 (後ろ 200 m〜前 800 m) の路面の一番低い所より下に置く
+let gY=(pHere.y-(pHere.bh||0))-this.gDrop;
+if(this.gDrop<5){ for(let d=-200;d<=800;d+=25){ const q=this.roadPoint(clamp(this.s+d,0,this.road.builtS-this.SEG)); if(Number.isFinite(q.y)) gY=Math.min(gY,q.y-this.gDrop); } }
+this.ground.position.set(pHere.x,gY,pHere.z);
 const alt=es.sunAlt||0, az=(es.sunAz||0);
 // 太陽の向き: 画面の道の向き (pHere.h) と実際の道の方位 (bearing) のずれ を足して画面の方位にする。
 // 町 (実際の道の形) とそれ以外 (作った道) でずれが変わるので、急に回らないよう走った距離に応じてゆっくり合わせる
