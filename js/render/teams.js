@@ -78,7 +78,7 @@ const TeamCars={
   if(stop){ a.latT= tm.status==="dnf"? -(rp.L+6) : -(rp.L+4.5); a.mode="lane"; a.off=a.v<0.5; }   // CS・夜・リタイア: 道の外
   else { a.off=false;
    if(tm.yieldT>0){ a.latT=-(rp.L-0.1); v0=Math.min(v0,Math.max(3,es.v*0.8)); }   // 自車に道を譲る
-   const homeLd=this.leader(tm,a,obs,home);
+   const homeLd=this.leader(tm,a,obs,tm.yieldT>0&&a.mode==="lane"? a.latT : home);   // 道を譲っている間は寄せた先の車線で前を見る (抜いていく自車を前の車と見て止まらない)
    if(a.mode==="lane"){ a.latT= tm.yieldT>0? a.latT : home; ld=homeLd;
     // 追い越し: 自車の隊列は許可 (tm.passing) があるとき、他チームの隊列はこちらが速いとき
     const slow=homeLd&&!homeLd.sig&&homeLd.v<v0-1.5&&homeLd.r-(a.s+this.FRONT)<60;

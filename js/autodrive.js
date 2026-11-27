@@ -40,25 +40,32 @@ const AutoDrive={
   { const c=RP_CS.find(q=>!es.passedCP.has(q.km)&&q.km>km-0.12);
    if(c){ const d=(c.km+0.02-km)*1000; if(d<1000) set(40/3.6,"CS"); if(d<300) set(20/3.6,"CS"); if(d<60) set(this.stopV(d,1.0),"CS 停車"); } }
   // 強制ドライバー交代 (路肩の駐車帯)
-  { const dc=RP_RULES.driverChange; if(!es.dcDone){ const d=(dc.km+dc.len*0.6-km)*1000; if(d<800&&d>-dc.len*400){ set(30/3.6,"ドライバー交代"); if(d<300) set(15/3.6,"ドライバー交代");
-     if(km>=dc.km+0.01){ latT=-(V.ROAD_W+1.3); set(Math.min(10/3.6,this.stopV(d,1.0)),"ドライバー交代"); } } } }   // 駐車帯 (区間の中) に入ってから左へ寄せる
+  // 駐車帯 (区間の中) に入ってから左へ寄せる。駐車帯に入りきるまでは止まらない (車線の上で止まると交代にならず、そのまま動けなくなる)
+  let bay=false;
+  { const dc=RP_RULES.driverChange; if(!es.dcDone){ const d=(dc.km+dc.len*0.6-km)*1000; if(d<800&&km<dc.km+dc.len){ set(30/3.6,"ドライバー交代"); if(d<300) set(15/3.6,"ドライバー交代");
+     if(km>=dc.km+0.01){ bay=true; latT=-(V.ROAD_W+1.3); const inBay=V.lateral<-V.ROAD_W-1;
+      set(inBay? Math.min(10/3.6,this.stopV(d,1.0)) : 10/3.6,"ドライバー交代"); } } } }
   // 前の車 (一般車両・誘導車・他チーム): 車間 2 秒 + 8 m
-  { const lat=V.lateral; let ld=null;
+  { const lat=V.lateral; let ld=null, yieldNear=false;
    const cand=[]; if(typeof Traffic!=="undefined") for(const c of Traffic.cars) cand.push({r:c.s-c.L,lat:c.lat,v:c.v});
    if(V.escortLead&&V.escortLead.visible&&V.leadS!=null) cand.push({r:V.leadS-2.4,lat:-2.4,v:V.leadV||0});
    for(const sl of V.aiPool||[]) if(sl.team&&sl.mesh&&sl.mesh.visible&&sl._s!=null){   // 他チームの隊列 (ソーラーカー・誘導車・後方車)
     const lat=sl.team.latV||-2.4, tv=(sl.team.vNow||0)/3.6;
+    // 「Can I overtake?」に Yes の隊列は左へ寄って落とす。こちらは車線の右寄りを通って抜く (後ろに付くと相手と一緒に落ちていく)
+    const rC=sl.chase&&sl.chase.visible&&sl._sC!=null? sl._sC : sl._s, fL=sl.lead&&sl.lead.visible&&sl._sL!=null? sl._sL : sl._s;
+    if((sl.team.yieldT>0||(lat<-3.2&&tv>1))&&rC-V.s<150&&fL-V.s>-15) yieldNear=true;
     cand.push({r:sl._s-2.4,lat,v:tv});
     if(sl.lead&&sl.lead.visible&&sl._sL!=null) cand.push({r:sl._sL-2.8,lat,v:tv});
     if(sl.chase&&sl.chase.visible&&sl._sC!=null) cand.push({r:sl._sC-2.8,lat,v:tv}); }
+   if(yieldNear&&!bay) latT=-1.1;
    for(const o of cand){ const g=o.r-(V.s+2.3); if(g<-1||Math.abs(o.lat-lat)>1.9) continue; if(!ld||g<ld.g) ld={g,v:o.v}; }
    if(ld) set(Math.max(0,Math.min(ld.v+(ld.g-8-2*v)*0.25,this.stopV(ld.g-6,2.0)+ld.v)),"前の車"); }
   // 動物・路上の死骸
   if(typeof Wildlife!=="undefined") for(const a of Wildlife.list){ const d=a.s-V.s; if(d<-3||d>160) continue;
-   if(a.kind==="roadkill"){ if(Math.abs(a.lat-V.lateral)<1.5&&d<120){ latT= a.lat<-1.2? Math.min(-0.4,a.lat+2.0) : -3.3; set(55/3.6,"死骸をよける"); } }
+   if(a.kind==="roadkill"){ if(Math.abs(a.lat-V.lateral)<1.5&&d<120){ if(!bay) latT= a.lat<-1.2? Math.min(-0.4,a.lat+2.0) : -3.3; set(55/3.6,"死骸をよける"); } }
    else if((a.st==="cross"&&Math.abs(a.lat-V.lateral)<5)||(a.st==="wait"&&d<v*4)){ set(a.st==="cross"? this.stopV(d-4,4.5) : Math.min(v,60/3.6),"動物"); } }
   // 後ろのロードトレインに道を譲る
-  if(typeof Traffic!=="undefined"&&Traffic.rtMsg&&Traffic.rtMsg!=="done"){ const rt=Traffic.cars.find(c=>c.id===Traffic.rtMsg); if(rt&&rt.s-rt.L<V.s+20){ latT=-4.1; set(rt.v0*0.65,"道を譲る"); } }
+  if(typeof Traffic!=="undefined"&&Traffic.rtMsg&&Traffic.rtMsg!=="done"){ const rt=Traffic.cars.find(c=>c.id===Traffic.rtMsg); if(rt&&rt.s-rt.L<V.s+20){ if(!bay) latT=-4.1; set(rt.v0*0.65,"道を譲る"); } }
   // 止まる: 指示 (km / now)・17:00 以降・充電・パンク・暴風雨
   let pull=null;
   if(this.stopAt==="now") pull=0;
@@ -67,7 +74,7 @@ const AutoDrive={
   const need= es.hour>=17? 60 : this.chargeReq||this.menuReq? 50 : es.burst? 30 : (typeof Storm!=="undefined"&&Storm.active&&Storm.active(es))? 40 : null;
   if(need==null) this.pullS=null; else if(this.pullS==null) this.pullS=V.s+Math.max(need,v*v/(2*1.2)+10);
   if(this.pullS!=null) pull= pull==null? this.pullS-V.s : Math.min(pull,this.pullS-V.s);   // 近いほうで止まる
-  if(pull!=null&&pull<400){ latT=-4.4; set(this.stopV(Math.max(0,pull),1.2),"停車"); if(pull<1&&v>0.3) set(0,"停車"); }
+  if(pull!=null&&pull<400){ if(!bay) latT=-4.4; set(this.stopV(Math.max(0,pull),1.2),"停車"); if(pull<1&&v>0.3) set(0,"停車"); }
   this.latT=latT; this.why=why;
   // 止まったあとの処理
   if(v<0.3&&pull!=null&&V.lateral<-3.6){

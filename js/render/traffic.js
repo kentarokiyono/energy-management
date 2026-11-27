@@ -101,7 +101,7 @@ const Traffic={
   if(V.escortChase&&V.escortChase.visible) out.push({f:V.s-32+2.4,r:V.s-32-2.4,lat:-2.4,v:es.v,convoy:true});
   if(V.escortLead&&V.escortLead.visible&&V.leadS!=null) out.push({f:V.leadS+2.4,r:V.leadS-2.4,lat:-2.4,v:V.leadV||0,convoy:true});
   for(const sl of V.aiPool||[]) if(sl.team&&sl.mesh&&sl.mesh.visible&&sl._s!=null){
-   const v=(sl.team.vNow||0)/3.6, lat=sl.team.latV||-2.4;
+   const v=(sl.team.vNow||0)/3.6, lat=sl.team.yieldT>0&&sl.team.latV<-3.2? -4.4 : sl.team.latV||-2.4;   // 自車に道を譲って路肩へ寄る隊列は、寄せた先で見る (寄る途中で後ろの一般車が止まらない)
    out.push({f:sl._s+2.4,r:sl._s-2.4,lat,v,convoy:true});
    if(sl.lead&&sl.lead.visible&&sl._sL!=null) out.push({f:sl._sL+2.4,r:sl._sL-2.4,lat,v,convoy:true});
    if(sl.chase&&sl.chase.visible&&sl._sC!=null) out.push({f:sl._sC+2.4,r:sl._sC-2.4,lat,v,convoy:true});
