@@ -18,6 +18,7 @@ const AI={
  /* 1 回の問い合わせ。json=true なら JSON で返させる。失敗したら null */
  async ask(system,user,{json=false,maxTokens=900,temp=0.8,timeout=20000}={}){
   if(!this.on()) return null; const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),timeout); this.busy++;
+  if(typeof I18N!=="undefined"&&I18N.en()) system+="\nIMPORTANT: Write every reply (including the text fields in JSON) in natural English, not Japanese. Keep the same length limits (count about 2 English words per 3 Japanese characters).";   // 英語版
   try{
    const body={systemInstruction:{parts:[{text:system}]},contents:[{role:"user",parts:[{text:user}]}],
     generationConfig:{temperature:temp,maxOutputTokens:maxTokens,...(json?{responseMimeType:"application/json"}:{})}};
