@@ -70,6 +70,9 @@ const I18N={
    .observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:this.ATTR});
  },
 };
+/* キャンバスに描く文字 (グラフ・コックピットの表示・看板など) も、英語のときは描く前に訳す */
+if(I18N.lang==="en"&&typeof CanvasRenderingContext2D!=="undefined"){ const C=CanvasRenderingContext2D.prototype;
+ for(const k of ["fillText","strokeText","measureText"]){ const f=C[k]; C[k]=function(t,...a){ return f.call(this,typeof t==="string"&&I18N.JP.test(t)? I18N.t(t) : t,...a); }; } }
 /* 短く書くため */
 function T(s){ return I18N.t(s); }
 if(typeof document!=="undefined"){ if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",()=>I18N.start()); else setTimeout(()=>I18N.start(),0); }
