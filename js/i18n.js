@@ -36,6 +36,7 @@ const I18N={
  t0(s){
   const m=s.match(/^(\s*)([\s\S]*?)(\s*)$/), k=m[2];
   let r=this.one(k);
+  if(r==null){ const sp=k.match(/^([^:：]{1,24}): ([\s\S]+)$/); if(sp){ const a=this.t(sp[1]), b=this.t(sp[2]); if(!this.JP.test(a+b)) r=a+": "+b; } }   // 「送り手: 本文」
   if(r==null){   // 文ごと: 改行・「。」・「: 」・「・」などで分けて訳す。全部訳せたときだけ置き換える (日本語と英語が混ざらないように)
    const parts=k.split(/(\n|。\s*|！\s*|？\s*|: |\s*・\s*|\s+―\s+|\s+→\s+)/);
    const sep=p=>/^。\s*$/.test(p)? ". " : /^！/.test(p)? "! " : /^？/.test(p)? "? " : /^\s*・\s*$/.test(p)? " · " : p;
