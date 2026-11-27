@@ -136,8 +136,6 @@ function sampleCond(r,R,years){ const u=(k)=>{ const x=R[k]; return x.fix!=null?
  const late=u("late"), stP=u("stormP"); let storm=null; if(r()<stP){ const d=3+Math.floor(r()*4); storm={start:(d-1)*24+12+r()*4.5,dur:0.4+r()*0.3,max:u("stormMax")}; }
  const Wh=C.Wh*u("batK"), gustK=R.gustK? u("gustK") : 1;
  return {year,daySd,fcLv,dayK,fcDayK,fcM,late,stormP:stP,storm,stormMax:storm?storm.max:0,solarK:u("solarK"),windK:u("windK"),tOff:u("tOff"),effK:u("effK"),lossK:u("lossK"),cdaK:u("cdaK"),batK:Wh/C.Wh,Wh,auxD:u("auxD"),auxW:C.auxW+u("auxD"),gustK,grid:Math.round(u("grid")),csWait:u("csWait")}; }
-function samplePolicy(r,R){ const u=(k)=>{ const x=R[k]; return x.fix!=null? x.fix : x.min+(x.max-x.min)*r(); };
- return {vcap:u("vcap"),floor:u("floor"),fcBias:u("fcBias"),lateBias:u("lateBias"),gradeK:u("gradeK"),cloudSlow:u("cloudSlow"),fullBoost:u("fullBoost"),replanH:Math.round(u("replanH")),stormLead:Math.round(u("stormLead")),csExtra:Math.round(u("csExtra"))}; }
 /* 結果の 1 行: [方針, 完走, ゴール, 電池の最低, km, 平均速度, 使った電力量, 発電量, 理由, ...条件] */
 function row(out,o,pi,res,cd){ out[o]=pi; out[o+1]=res.ok?1:0; out[o+2]=res.ok?res.fin:NaN; out[o+3]=res.minSoc; out[o+4]=res.km; out[o+5]=res.avgV; out[o+6]=res.eUse; out[o+7]=res.eSun; out[o+8]=WHY.indexOf(res.why);
  let q=9; for(const k of CKEYS) out[o+(q++)]= k==="year"? cd.year : k==="storm"? (cd.storm?1:0) : cd[k]; }

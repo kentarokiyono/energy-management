@@ -378,7 +378,6 @@ banner.position.set(-3,2.6,8); g.add(banner);
 g.visible=false;
 this.pitGroup=g; this.scene.add(g);
 },
-enterPit(){}, exitPit(){},
 buildBay(){
 const g=new THREE.Group();
 const pad=new THREE.Mesh(new THREE.BoxGeometry(16,0.05,44),new THREE.MeshLambertMaterial({color:0x3a3d44}));

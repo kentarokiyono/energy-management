@@ -42,7 +42,6 @@ function townSize(km){ let d=1e9, t0=0; for(const t of TOWNS){ const x=Math.abs(
 function townProx(km){ let d=1e9; for(const t of TOWNS) d=Math.min(d,Math.abs(km-t)); return d; }
 function isCity(km){ return km<14 || km>2992; }
 /* 速度制限・ランドマークは Route Notes 2025 (js/data/route-2025.js) から */
-const SPEED_LIMITS=null;
 function speedLimitAt(km){ return Route.limitAt(km); }
 const _LM_KIND={signal:"signal",pedlight:"pedlight",bridge:"bridge",river:"river",grid:"grid",bay:"camp",services:"roadhouse",
  floodway:"floodway",rail:"rail",tower:"tower",solarfarm:"solarfarm",hwmarker:"hwmarker",distsign:"distsign",warn:"warn",

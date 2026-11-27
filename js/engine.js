@@ -517,25 +517,6 @@ Radio.push(View.upcomingGrade>0?"この先、登り区間入ります。電流�
 setTimeout(()=>s.radioCd.gradeMsg=false, 25000);
 }
 },
-recommendSpeed(){
-const s=this.st;
-let next=null;
-for(const c of ROUTE) if(c.cp&&!s.passedCP.has(c.km)&&c.km>s.km){ next=c; break; }
-const dist=next?(next.km-s.km):(TOTAL_KM-s.km);
-const m=massTotal();
-let out={v:45,pred:0,cs:next?next.name.replace(/\s*\(CS\d\)/,""):"ゴール"};
-for(let v=90;v>=40;v-=5){
-const vm=v/3.6;
-const va=Math.max(0,vm+(s.lastHead||0));
-const F=Phys.crr(vm)*m*GRAV+0.5*(s.lastRho||1.17)*P.Cd*P.frontal*va*va;
-const Pd=F*vm+motorIronW(vm)+(F/PRO.kt)**2*PRO.rWinding+PRO.ctrlW+0.01*F*vm+P.auxW;
-const dWh=(Pd-s.lastSolar)*(dist/v);
-const pred=s.soc-dWh/P.batteryWh;
-out={v,pred:clamp(pred,0,1),cs:out.cs};
-if(pred>=0.5) break;
-}
-return out;
-},
 checkEvents(prev,curr,dtS,dtR){
 const s=this.st;
 if(P.mode!=="race") return;
