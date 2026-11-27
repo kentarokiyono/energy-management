@@ -146,11 +146,8 @@ body.add(Y.group);
 if(Y.canopy) canopyWindow(Y.canopy);
 g.userData.canopy=Y.canopy; g.userData.upperTilt=Y.tilt;
 // 車輪 (諸元にある場合): [x, z(車体中心基準, 前方 -), 半径, 幅]
-if(SB&&SB.wheels){ const tm=new THREE.MeshStandardMaterial({color:0x111316,roughness:.85}), hm=new THREE.MeshStandardMaterial({color:0x8a8f96,roughness:.4,metalness:.6});
- g.userData.wheels=[];
- for(const [x,z,r,w] of SB.wheels){ const wg=new THREE.Group(); wg.position.set(x,r,z);
-  const t=new THREE.Mesh(new THREE.CylinderGeometry(r,r,w,28),tm); t.rotation.z=Math.PI/2; wg.add(t);
-  const h=new THREE.Mesh(new THREE.CylinderGeometry(r*0.55,r*0.55,w+0.01,20),hm); h.rotation.z=Math.PI/2; wg.add(h);
+if(SB&&SB.wheels){ g.userData.wheels=[];
+ for(const [x,z,r,w] of SB.wheels){ const wg=new THREE.Group(); wg.position.set(x,r,z); wg.add(this.mkWheel(r,w||0.1,x<0?-1:1));
   g.add(wg); g.userData.wheels.push({g:wg,r,front:z<0}); } }
 // ---- コックピット内装(ドライバーカメラで体感) ----
 const cock=new THREE.Group();
@@ -211,7 +208,7 @@ else { const bl=new THREE.Mesh(new THREE.BoxGeometry(isW?0.22:0.7,isW?0.035:0.05
 bl.position.set(0,isW?0.50:0.53,isW?2.52:2.18);body.add(bl); } // アレイ直下の細いブレーキライト
 g.userData.brakeMat=brakeMat;
 g.userData.winkL=[];g.userData.winkR=[];
-const winkPos=LP&&LP.wink? LP.wink : PUB? [[-0.47,nose+1.0],[0.47,nose+1.0],[-0.76,nose+1.64],[0.76,nose+1.64]] : isW?[[-0.60,-1.05],[0.60,-1.05],[-0.40,1.90],[0.40,1.90]]
+const winkPos=LP&&LP.wink? LP.wink : PUB? [[-0.47,nose+1.18],[0.47,nose+1.18],[-0.76,nose+1.64],[0.76,nose+1.64]] : isW?[[-0.60,-1.05],[0.60,-1.05],[-0.40,1.90],[0.40,1.90]]
   :[[-0.57,-1.05],[0.57,-1.05],[-0.94,1.95],[0.94,1.95]];
 const hullMeshes=[]; if(isW&&(LP||PUB)&&g.userData.canopy){ body.updateMatrixWorld(true); body.traverse(m=>{ if(m.isMesh&&m!==g.userData.canopy&&m.geometry.type==="BufferGeometry"&&!(m.material&&m.material.colorWrite===false)) hullMeshes.push(m); }); }
 /* 車体の上面に沿わせた薄いレンズ (前照灯・前のウインカー)。poly は上から見た形 [横, 前後] (前が -)。真上から当てて面の高さに合わせる */
@@ -219,8 +216,14 @@ const decal=(cx,cz,poly,mat,o)=>{ if(!hullMeshes.length) return null; o=o||{}; c
  const cast=(p,d)=>{ rc.set(p,d); return rc.intersectObjects(hullMeshes,false)[0]||null; };
  if(o.edge!=null){ // 上面の外の端 (面が横を向き始める所) を探し、そこから o.edge だけ内側に置く
   const sd=Math.sign(cx)||1, up=new THREE.Vector3(0,1,0).transformDirection(body.matrixWorld), dn0=up.clone().negate(); let ex=null;
-  let obj=null; for(let x=0;x<1.2;x+=0.01){ const h=cast(body.localToWorld(new THREE.Vector3(sd*x,4,cz)),dn0); if(!h) break; if(!obj) obj=h.object; const nn=h.face.normal.clone().transformDirection(h.object.matrixWorld); if(h.object!==obj||Math.abs(nn.dot(up))<0.3) break; ex=x; }   // 同じ面 (ノーズ上面の黒) が続く所まで
+  let obj=null; for(let x=o.edgeFrom? Math.abs(cx) : 0;x<1.2;x+=o.edgeFrom? 0.003 : 0.01){ const h=cast(body.localToWorld(new THREE.Vector3(sd*x,4,cz)),dn0); if(!h) break; if(!obj) obj=h.object; const nn=h.face.normal.clone().transformDirection(h.object.matrixWorld); if((h.object!==obj&&!(o.edgeFrom&&h.object.userData.upper&&obj.userData.upper))||Math.abs(nn.dot(up))<0.3) break; ex=x; }   // 同じ面 (ノーズ上面の黒) が続く所まで
   if(ex!=null) cx=sd*Math.max(Math.abs(cx),ex-o.edge); }
+ if(o.fit){ // 形の全体が同じ上向きの面に載るまで、内側・後ろへずらす (角からはみ出して宙に浮かない)
+  const up=new THREE.Vector3(0,1,0).transformDirection(body.matrixWorld), dnF=up.clone().negate(), sd=Math.sign(cx)||1;
+  const onTop=(x,z,obj)=>{ const h=cast(body.localToWorld(new THREE.Vector3(x,4,z)),dnF); if(!h||(obj&&h.object!==obj&&!(h.object.userData.upper&&obj.userData.upper&&h.object.parent===obj.parent))) return null; return Math.abs(h.face.normal.clone().transformDirection(h.object.matrixWorld).dot(up))>0.6? h : null; };   // 面が裏向き (両面の材質) でも上向きの面と見る
+  const fits=(x,z)=>{ const c=onTop(x,z); return !!c&&poly.every(([px,pz])=>onTop(x+px*1.04,z+pz*1.04,c.object)); };
+  for(let k=0;k<25&&!fits(cx,cz);k++){ cx-=sd*0.006; cz+=0.006; }   // まず載る所まで内側・後ろへ
+  for(let it=0;it<3;it++){ for(let j=0;j<80&&fits(cx+sd*0.003,cz);j++) cx+=sd*0.003; for(let j=0;j<80&&fits(cx,cz-0.003);j++) cz-=0.003; } }   // そこから外の端・前の端ぎりぎりまで寄せる
  const h0=cast(body.localToWorld(new THREE.Vector3(cx,4,cz)),new THREE.Vector3(0,-1,0).transformDirection(body.matrixWorld)); if(!h0) return null;
  const par=h0.object.userData.upper? h0.object : body;
  // 当たった所の面の向きに沿った平面に形を置き、面の向きの逆から当て直す (角の丸みの上でも面に沿う)
@@ -251,8 +254,11 @@ for(const [wx,wz,wy] of winkPos){
   const wm=new THREE.MeshBasicMaterial({color:0x7a5512});
   // 前のウインカー (内寄り): パネル上面の外寄りに、角の丸い横長のレンズ
   if(isW&&Math.abs(wx)<0.6){ const sd=Math.sign(wx)||1, r=0.014, poly=[[-0.07*sd,-0.046],[0.06*sd,-0.06],[0.085*sd,-0.06+r],[0.08*sd,0.048],[-0.07*sd,0.06]]; if(sd<0) poly.reverse();   // パネル前端の角の丸みに載る、角の丸い台形のレンズ
-   wm.polygonOffset=true; wm.polygonOffsetFactor=-2; wm.polygonOffsetUnits=-2;
-   if(decal(wx,wz,poly,wm)){ (wx<0?g.userData.winkL:g.userData.winkR).push(wm); continue; } }
+   // 前照灯と同じ部品 (縁取り + レンズ、同じ色) を、パネル上面の外の端ぎりぎりに置く。点滅するときだけレンズが橙に光る
+   const hp=[[-0.07*sd,-0.075],[0.02*sd,-0.075],[0.09*sd,0.075],[-0.07*sd,0.075]]; if(sd<0) hp.reverse();
+   const lm=lensMat.clone(); lm.userData.lens=true;
+   const rp=hp.map(([x,z])=>[x*sd>0? x+sd*0.002 : x*1.14,z*1.14]);   // 縁取り: 外の端の側は細く (レンズを端ぎりぎりに置く)
+   if(decal(wx,wz,rp,rimMat,{lift:0.003,edge:0.094,edgeFrom:true})){ decal(wx,wz,hp,lm,{lift:0.0045,edge:0.094,edgeFrom:true}); (wx<0?g.userData.winkL:g.userData.winkR).push(lm); continue; } }
   const wk=new THREE.Mesh(new THREE.BoxGeometry(isW?0.05:0.10,0.045,0.32),wm);
   wk.position.set(wx,wy!=null?wy:(isW?0.50:0.55),wz);
   // 横のウインカー: 外側から車体へ向けて当て、側面に沿わせた薄いレンズにする
@@ -286,9 +292,53 @@ if(rcLens.length){ body.updateMatrixWorld(true); const hm=[]; body.traverse(o=>{
   for(const dy of [0,-0.015,0.015,-0.03,0.03]){ rc.set(body.localToWorld(new THREE.Vector3(p0.x,p0.y+dy,p0.z+1.5)),new THREE.Vector3(0,0,-1).transformDirection(body.matrixWorld));
    const q=rc.intersectObjects(hm,false)[0]; if(q&&Math.abs(body.worldToLocal(q.point.clone()).z-p0.z)<0.12){ h=q; h.dy=dy; break; } }   // 後端の面に当たったものだけ (奥まで抜けたものは使わない)
   ln.geometry.dispose(); ln.geometry=new THREE.BoxGeometry(ln.geometry.parameters.width,0.03,0.008); ln.quaternion.identity();   // 薄いレンズ。常に真後ろへ向ける
-  if(h){ const p=body.worldToLocal(h.point.clone()); ln.position.set(p0.x,p0.y+h.dy,p.z+0.004); } } }
+  if(h){ const p=body.worldToLocal(h.point.clone()); ln.position.set(p0.x,p0.y+h.dy,p.z+0.004);
+   if(h.object.userData.upper){ h.object.updateMatrixWorld(true); h.object.attach(ln); } } } }   // アッパーカウルの後端に付くものは、傾けたときも一緒に動く
 g.userData.body=body; if(typeof SuspMesh!=="undefined") SuspMesh.build(g);   // サスペンションの部品 (車体を透かすと見える)
 return {group:g, body, canopy:g.userData.canopy};
+},
+/* 自車の車輪 (タイヤ + ホイール)。r = タイヤの外半径、w = 幅、side = 外側の向き (+1 右 / -1 左)。軸は X。
+ タイヤ: 断面は角の丸い楕円 (肩が丸く、サイドウォールがふくらむ)。トレッドは中央が平滑、肩に小さな点の模様。
+ ホイール: 赤いアルマイトのリム、細い直線スポーク 10 本、中央は大きな穴のあいたリング (肉抜き穴 12 個)、バルブ (青いキャップ) */
+mkWheel(r,w,side){
+ const C=this._wheelC||(this._wheelC={}), key=r.toFixed(3)+"/"+w.toFixed(3);
+ if(!C[key]){
+  const rb=Math.min(0.2032,r*0.86), a=(r-rb)/1.746,   // 16 インチのリム (ビード座の直径 406.4 mm)
+  rc=r-a, b=w/2, n=2.6, pw=(v)=>Math.sign(v)*Math.pow(Math.abs(v),2/n), tp=[];
+  for(let i=0;i<=40;i++){ const t=-(Math.PI/2+0.7)+i/40*(Math.PI+1.4); tp.push(new THREE.Vector2(rc+a*pw(Math.cos(t)),b*pw(Math.sin(t)))); }   // 内側のビードから外側のビードまで (ほぼ半周より少し多く回り込む)
+  const tire=new THREE.LatheGeometry(tp,64);
+  const rim=[[rb+0.010,-0.43*w],[rb+0.002,-0.44*w],[rb-0.004,-0.38*w],[rb-0.014,-0.33*w],[rb-0.014,0.33*w],[rb-0.004,0.38*w],[rb+0.002,0.44*w],[rb+0.010,0.43*w]].map(([x,y])=>new THREE.Vector2(x,y));
+  const rimG=new THREE.LatheGeometry(rim,64);
+  const rIn=r*0.17, rOut=r*0.31, ht=0.009;
+  // 中央のリング: 平らな板に、中央の大きな穴と肉抜き穴 12 個 (半径方向に長い楕円) を抜く
+  const hs=new THREE.Shape(); hs.absarc(0,0,rOut,0,Math.PI*2,false);
+  const bore=new THREE.Path(); bore.absarc(0,0,rIn,0,Math.PI*2,true); hs.holes.push(bore);
+  const rm=(rIn+rOut)/2; for(let i=0;i<12;i++){ const an=(i+0.5)/12*Math.PI*2, ho=new THREE.Path(); ho.absellipse(Math.cos(an)*rm,Math.sin(an)*rm,(rOut-rIn)*0.3,(rOut-rIn)*0.2,0,Math.PI*2,true,an); hs.holes.push(ho); }
+  const hubG=new THREE.ExtrudeGeometry(hs,{depth:ht*2,bevelEnabled:true,bevelThickness:0.002,bevelSize:0.002,bevelSegments:1,curveSegments:40}); hubG.translate(0,0,-ht); hubG.rotateX(-Math.PI/2);
+  const spL=(rb-0.014)-rOut+0.01, spG=new THREE.BoxGeometry(spL,0.014,0.013); spG.translate(rOut-0.005+spL/2,0,0);   // 半径方向 (+X) に伸びる
+  // トレッドの模様: u = 周、v = 断面 (0 内側のビード → 0.5 クラウン → 1 外側のビード)
+  if(!View._tireTex){ const cv=document.createElement("canvas"); cv.width=512; cv.height=128; const c=cv.getContext("2d");
+   c.fillStyle="#151618"; c.fillRect(0,0,512,128);
+   const gr=c.createLinearGradient(0,0,0,128); gr.addColorStop(0.36,"rgba(40,42,44,0)"); gr.addColorStop(0.5,"rgba(40,42,44,0.55)"); gr.addColorStop(0.64,"rgba(40,42,44,0)"); c.fillStyle=gr; c.fillRect(0,0,512,128);   // 接地面は少し明るい (すり減り)
+   c.fillStyle="#08090a"; for(const v0 of [0.35,0.39,0.61,0.65]) for(let i=0;i<128;i++){ c.beginPath(); c.ellipse(i*4+(v0>0.5?2:0),v0*128,0.9,1.4,0,0,Math.PI*2); c.fill(); }   // 肩の小さな点
+   c.strokeStyle="rgba(0,0,0,0.6)"; c.lineWidth=1; for(const v0 of [0.12,0.2,0.8,0.88]){ c.beginPath(); c.moveTo(0,v0*128); c.lineTo(512,v0*128); c.stroke(); }   // サイドウォールの細い線
+   View._tireTex=new THREE.CanvasTexture(cv); View._tireTex.anisotropy=4; }
+  C[key]={tire,rimG,hubG,spG,rb,rIn,rOut};
+ }
+ const K=C[key], M=View._wheelM||(View._wheelM={
+  tire:new THREE.MeshStandardMaterial({map:View._tireTex,roughness:0.86,metalness:0}),
+  rim:new THREE.MeshStandardMaterial({color:0xb01722,roughness:0.32,metalness:0.55,side:THREE.DoubleSide}),
+  hub:new THREE.MeshStandardMaterial({color:0x6e1c22,roughness:0.4,metalness:0.5,side:THREE.DoubleSide}),
+  valve:new THREE.MeshStandardMaterial({color:0x9aa0a6,roughness:0.3,metalness:0.8}), cap:new THREE.MeshStandardMaterial({color:0x2f6fd6,roughness:0.5}) });
+ const rot=new THREE.Group(); rot.rotation.z= side<0? Math.PI/2 : -Math.PI/2;   // 中の +Y = 車輪の外側
+ const t=new THREE.Mesh(K.tire,M.tire); t.castShadow=true; rot.add(t);
+ rot.add(new THREE.Mesh(K.rimG,M.rim));
+ const off=0.22*w, hub=new THREE.Mesh(K.hubG,M.hub); hub.position.y=off; rot.add(hub);
+ for(let i=0;i<10;i++){ const s=new THREE.Mesh(K.spG,M.rim); s.position.y=off; s.rotation.y=i/10*Math.PI*2; rot.add(s); }
+ const holeG=View._holeG||(View._holeG=new THREE.CylinderGeometry(1,1,1,12));
+ const va=new THREE.Mesh(holeG,M.valve); va.scale.set(0.004,0.03,0.004); va.position.set(K.rb-0.03,0.1*w,0); va.rotation.z=Math.PI/2; rot.add(va);
+ const cp=new THREE.Mesh(holeG,M.cap); cp.scale.set(0.006,0.012,0.006); cp.position.set(K.rb-0.05,0.1*w,0); cp.rotation.z=Math.PI/2; rot.add(cp);
+ return rot;
 },
 mkVan(color){ // 随伴車: 4WDワゴン(ブルバー・ルーフラック・回転灯)  前方=-z
 const v=new THREE.Group(), bs=new BatchSet();
