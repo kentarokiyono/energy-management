@@ -5,16 +5,19 @@
     見つからない所は日本語のまま
   ・画面: 英語のとき、本文の文字とツールチップ (title など) を置き換え、後から書き換わった所も見張って置き換える (MutationObserver)
   ・訳は js/i18n-en.js (EN・PAT)
- 言語はメニューの切り替えで選び、この端末に覚える (bwsc_lang)。切り替えると読み込み直す */
+ 言語はメニューの切り替え (または URL の ?lang=en) で選び、この端末に覚える (bwsc_lang)。切り替えると読み込み直す。既定は日本語 */
 const I18N={
  JP:/[぀-ヿ㐀-鿿！-｠]/,
- lang:(()=>{ try{ const v=localStorage.getItem("bwsc_lang"); if(v==="en"||v==="ja") return v; }catch(e){} return /^ja/i.test((typeof navigator!=="undefined"&&navigator.language)||"ja")? "ja" : "en"; })(),
+ lang:(()=>{   // 既定は日本語。英語はメニューの切り替え (この端末に覚える) か、URL の ?lang=en
+  try{ const q=new URLSearchParams(location.search).get("lang"); if(q==="en"||q==="ja"){ localStorage.setItem("bwsc_lang",q); return q; } }catch(e){}
+  try{ const v=localStorage.getItem("bwsc_lang"); if(v==="en"||v==="ja") return v; }catch(e){} return "ja"; })(),
  EN:Object.create(null), PAT:[],
  add(map){ Object.assign(this.EN,map); this._fk=null; this._c.clear(); },
  _fk:null, _c:new Map(),
  pat(list){ for(const p of list) this.PAT.push(p); },
  en(){ return this.lang==="en"; },
- set(l){ if(l!=="en"&&l!=="ja") return; try{ localStorage.setItem("bwsc_lang",l); }catch(e){} location.reload(); },
+ set(l){ if(l!=="en"&&l!=="ja") return; try{ localStorage.setItem("bwsc_lang",l); }catch(e){}
+  try{ const u=new URL(location.href); if(u.searchParams.has("lang")){ u.searchParams.delete("lang"); location.href=u.toString(); return; } }catch(e){} location.reload(); },
  /* 1 つの文 (前後の空白は保つ) */
  one(k){
   let e=this.EN[k]; if(e!=null) return e;
