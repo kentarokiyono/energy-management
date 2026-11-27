@@ -216,7 +216,7 @@ const decal=(cx,cz,poly,mat,o)=>{ if(!hullMeshes.length) return null; o=o||{}; c
  const cast=(p,d)=>{ rc.set(p,d); return rc.intersectObjects(hullMeshes,false)[0]||null; };
  if(o.edge!=null){ // 上面の外の端 (面が横を向き始める所) を探し、そこから o.edge だけ内側に置く
   const sd=Math.sign(cx)||1, up=new THREE.Vector3(0,1,0).transformDirection(body.matrixWorld), dn0=up.clone().negate(); let ex=null;
-  let obj=null; for(let x=o.edgeFrom? Math.abs(cx) : 0;x<1.2;x+=0.01){ const h=cast(body.localToWorld(new THREE.Vector3(sd*x,4,cz)),dn0); if(!h) break; if(!obj) obj=h.object; const nn=h.face.normal.clone().transformDirection(h.object.matrixWorld); if(h.object!==obj||Math.abs(nn.dot(up))<0.3) break; ex=x; }   // 同じ面 (ノーズ上面の黒) が続く所まで
+  let obj=null; for(let x=o.edgeFrom? Math.abs(cx) : 0;x<1.2;x+=o.edgeFrom? 0.003 : 0.01){ const h=cast(body.localToWorld(new THREE.Vector3(sd*x,4,cz)),dn0); if(!h) break; if(!obj) obj=h.object; const nn=h.face.normal.clone().transformDirection(h.object.matrixWorld); if((h.object!==obj&&!(o.edgeFrom&&h.object.userData.upper&&obj.userData.upper))||Math.abs(nn.dot(up))<0.3) break; ex=x; }   // 同じ面 (ノーズ上面の黒) が続く所まで
   if(ex!=null) cx=sd*Math.max(Math.abs(cx),ex-o.edge); }
  if(o.fit){ // 形の全体が同じ上向きの面に載るまで、内側・後ろへずらす (角からはみ出して宙に浮かない)
   const up=new THREE.Vector3(0,1,0).transformDirection(body.matrixWorld), dnF=up.clone().negate(), sd=Math.sign(cx)||1;
@@ -257,7 +257,8 @@ for(const [wx,wz,wy] of winkPos){
    // 前照灯と同じ部品 (縁取り + レンズ、同じ色) を、パネル上面の外の端ぎりぎりに置く。点滅するときだけレンズが橙に光る
    const hp=[[-0.07*sd,-0.075],[0.02*sd,-0.075],[0.09*sd,0.075],[-0.07*sd,0.075]]; if(sd<0) hp.reverse();
    const lm=lensMat.clone(); lm.userData.lens=true;
-   if(decal(wx,wz,hp.map(([x,z])=>[x*1.14,z*1.14]),rimMat,{lift:0.003,edge:0.106,edgeFrom:true})){ decal(wx,wz,hp,lm,{lift:0.0045,edge:0.106,edgeFrom:true}); (wx<0?g.userData.winkL:g.userData.winkR).push(lm); continue; } }
+   const rp=hp.map(([x,z])=>[x*sd>0? x+sd*0.002 : x*1.14,z*1.14]);   // 縁取り: 外の端の側は細く (レンズを端ぎりぎりに置く)
+   if(decal(wx,wz,rp,rimMat,{lift:0.003,edge:0.094,edgeFrom:true})){ decal(wx,wz,hp,lm,{lift:0.0045,edge:0.094,edgeFrom:true}); (wx<0?g.userData.winkL:g.userData.winkR).push(lm); continue; } }
   const wk=new THREE.Mesh(new THREE.BoxGeometry(isW?0.05:0.10,0.045,0.32),wm);
   wk.position.set(wx,wy!=null?wy:(isW?0.50:0.55),wz);
   // 横のウインカー: 外側から車体へ向けて当て、側面に沿わせた薄いレンズにする
