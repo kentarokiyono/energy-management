@@ -122,8 +122,9 @@ function updateWinkers(carGroup,es){
 if(!carGroup||!carGroup.userData.winkL) return;
 const on=(performance.now()%800)<400;
 const L=es.signal===-1||es.signal===2, R=es.signal===1||es.signal===2;
-carGroup.userData.winkL.forEach(m=>m.color.setHex(L&&on?0xffb020:0x7a5512));
-carGroup.userData.winkR.forEach(m=>m.color.setHex(R&&on?0xffb020:0x7a5512));
+const wk=(m,lit)=>{ if(m.userData.lens){ m.color.setHex(lit?0xff8a00:0x7d8792); m.emissive.setHex(lit?0xff7a00:0xffffff); m.emissiveIntensity=lit?0.7:0.03; } else m.color.setHex(lit?0xffb020:0x7a5512); };   // 前照灯と同じレンズ: 消えているときは前照灯と同じ色
+carGroup.userData.winkL.forEach(m=>wk(m,L&&on));
+carGroup.userData.winkR.forEach(m=>wk(m,R&&on));
 if(es.signal!==0){
 if(on!==_winkPhase){ _winkPhase=on; Snd.relay(on); }   // ウインカーのリレー (カチ・コチ)
 } else _winkPhase=null;

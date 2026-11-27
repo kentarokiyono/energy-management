@@ -208,7 +208,7 @@ else { const bl=new THREE.Mesh(new THREE.BoxGeometry(isW?0.22:0.7,isW?0.035:0.05
 bl.position.set(0,isW?0.50:0.53,isW?2.52:2.18);body.add(bl); } // アレイ直下の細いブレーキライト
 g.userData.brakeMat=brakeMat;
 g.userData.winkL=[];g.userData.winkR=[];
-const winkPos=LP&&LP.wink? LP.wink : PUB? [[-0.47,nose+1.0],[0.47,nose+1.0],[-0.76,nose+1.64],[0.76,nose+1.64]] : isW?[[-0.60,-1.05],[0.60,-1.05],[-0.40,1.90],[0.40,1.90]]
+const winkPos=LP&&LP.wink? LP.wink : PUB? [[-0.47,nose+1.18],[0.47,nose+1.18],[-0.76,nose+1.64],[0.76,nose+1.64]] : isW?[[-0.60,-1.05],[0.60,-1.05],[-0.40,1.90],[0.40,1.90]]
   :[[-0.57,-1.05],[0.57,-1.05],[-0.94,1.95],[0.94,1.95]];
 const hullMeshes=[]; if(isW&&(LP||PUB)&&g.userData.canopy){ body.updateMatrixWorld(true); body.traverse(m=>{ if(m.isMesh&&m!==g.userData.canopy&&m.geometry.type==="BufferGeometry"&&!(m.material&&m.material.colorWrite===false)) hullMeshes.push(m); }); }
 /* 車体の上面に沿わせた薄いレンズ (前照灯・前のウインカー)。poly は上から見た形 [横, 前後] (前が -)。真上から当てて面の高さに合わせる */
@@ -216,12 +216,14 @@ const decal=(cx,cz,poly,mat,o)=>{ if(!hullMeshes.length) return null; o=o||{}; c
  const cast=(p,d)=>{ rc.set(p,d); return rc.intersectObjects(hullMeshes,false)[0]||null; };
  if(o.edge!=null){ // 上面の外の端 (面が横を向き始める所) を探し、そこから o.edge だけ内側に置く
   const sd=Math.sign(cx)||1, up=new THREE.Vector3(0,1,0).transformDirection(body.matrixWorld), dn0=up.clone().negate(); let ex=null;
-  let obj=null; for(let x=0;x<1.2;x+=0.01){ const h=cast(body.localToWorld(new THREE.Vector3(sd*x,4,cz)),dn0); if(!h) break; if(!obj) obj=h.object; const nn=h.face.normal.clone().transformDirection(h.object.matrixWorld); if(h.object!==obj||Math.abs(nn.dot(up))<0.3) break; ex=x; }   // 同じ面 (ノーズ上面の黒) が続く所まで
+  let obj=null; for(let x=o.edgeFrom? Math.abs(cx) : 0;x<1.2;x+=0.01){ const h=cast(body.localToWorld(new THREE.Vector3(sd*x,4,cz)),dn0); if(!h) break; if(!obj) obj=h.object; const nn=h.face.normal.clone().transformDirection(h.object.matrixWorld); if(h.object!==obj||Math.abs(nn.dot(up))<0.3) break; ex=x; }   // 同じ面 (ノーズ上面の黒) が続く所まで
   if(ex!=null) cx=sd*Math.max(Math.abs(cx),ex-o.edge); }
  if(o.fit){ // 形の全体が同じ上向きの面に載るまで、内側・後ろへずらす (角からはみ出して宙に浮かない)
   const up=new THREE.Vector3(0,1,0).transformDirection(body.matrixWorld), dnF=up.clone().negate(), sd=Math.sign(cx)||1;
-  const onTop=(x,z,obj)=>{ const h=cast(body.localToWorld(new THREE.Vector3(x,4,z)),dnF); if(!h||(obj&&h.object!==obj)) return null; return h.face.normal.clone().transformDirection(h.object.matrixWorld).dot(up)>0.6? h : null; };
-  for(let k=0;k<25;k++){ const c=onTop(cx,cz); if(c&&poly.every(([px,pz])=>onTop(cx+px*1.15,cz+pz*1.15,c.object))) break; cx-=sd*0.006; cz+=0.006; } }
+  const onTop=(x,z,obj)=>{ const h=cast(body.localToWorld(new THREE.Vector3(x,4,z)),dnF); if(!h||(obj&&h.object!==obj&&!(h.object.userData.upper&&obj.userData.upper&&h.object.parent===obj.parent))) return null; return Math.abs(h.face.normal.clone().transformDirection(h.object.matrixWorld).dot(up))>0.6? h : null; };   // 面が裏向き (両面の材質) でも上向きの面と見る
+  const fits=(x,z)=>{ const c=onTop(x,z); return !!c&&poly.every(([px,pz])=>onTop(x+px*1.04,z+pz*1.04,c.object)); };
+  for(let k=0;k<25&&!fits(cx,cz);k++){ cx-=sd*0.006; cz+=0.006; }   // まず載る所まで内側・後ろへ
+  for(let it=0;it<3;it++){ for(let j=0;j<80&&fits(cx+sd*0.003,cz);j++) cx+=sd*0.003; for(let j=0;j<80&&fits(cx,cz-0.003);j++) cz-=0.003; } }   // そこから外の端・前の端ぎりぎりまで寄せる
  const h0=cast(body.localToWorld(new THREE.Vector3(cx,4,cz)),new THREE.Vector3(0,-1,0).transformDirection(body.matrixWorld)); if(!h0) return null;
  const par=h0.object.userData.upper? h0.object : body;
  // 当たった所の面の向きに沿った平面に形を置き、面の向きの逆から当て直す (角の丸みの上でも面に沿う)
@@ -252,8 +254,10 @@ for(const [wx,wz,wy] of winkPos){
   const wm=new THREE.MeshBasicMaterial({color:0x7a5512});
   // 前のウインカー (内寄り): パネル上面の外寄りに、角の丸い横長のレンズ
   if(isW&&Math.abs(wx)<0.6){ const sd=Math.sign(wx)||1, r=0.014, poly=[[-0.07*sd,-0.046],[0.06*sd,-0.06],[0.085*sd,-0.06+r],[0.08*sd,0.048],[-0.07*sd,0.06]]; if(sd<0) poly.reverse();   // パネル前端の角の丸みに載る、角の丸い台形のレンズ
-   wm.polygonOffset=true; wm.polygonOffsetFactor=-2; wm.polygonOffsetUnits=-2;
-   if(decal(wx,wz,poly,wm,{fit:true})){ (wx<0?g.userData.winkL:g.userData.winkR).push(wm); continue; } }
+   // 前照灯と同じ部品 (縁取り + レンズ、同じ色) を、パネル上面の外の端ぎりぎりに置く。点滅するときだけレンズが橙に光る
+   const hp=[[-0.07*sd,-0.075],[0.02*sd,-0.075],[0.09*sd,0.075],[-0.07*sd,0.075]]; if(sd<0) hp.reverse();
+   const lm=lensMat.clone(); lm.userData.lens=true;
+   if(decal(wx,wz,hp.map(([x,z])=>[x*1.14,z*1.14]),rimMat,{lift:0.003,edge:0.106,edgeFrom:true})){ decal(wx,wz,hp,lm,{lift:0.0045,edge:0.106,edgeFrom:true}); (wx<0?g.userData.winkL:g.userData.winkR).push(lm); continue; } }
   const wk=new THREE.Mesh(new THREE.BoxGeometry(isW?0.05:0.10,0.045,0.32),wm);
   wk.position.set(wx,wy!=null?wy:(isW?0.50:0.55),wz);
   // 横のウインカー: 外側から車体へ向けて当て、側面に沿わせた薄いレンズにする
