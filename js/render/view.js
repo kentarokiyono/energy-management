@@ -246,6 +246,7 @@ const decal=(cx,cz,poly,mat,o)=>{ if(!hullMeshes.length) return null; o=o||{}; c
 // 前照灯: ノーズ上面の左右に埋め込んだ透明レンズ (中はメッキの反射板)。上から見て、奥が広く手前がすぼまる台形 (内側の辺はまっすぐ)
 const lensMat=new THREE.MeshStandardMaterial({color:0x7d8792,metalness:0.9,roughness:0.28,emissive:0xffffff,emissiveIntensity:0.03,envMapIntensity:1.0,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3});
 const rimMat=new THREE.MeshStandardMaterial({color:0x15181c,roughness:0.5,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});   // レンズの縁取り
+g.userData.headMat=lensMat;   // 前照灯のレンズ: モタコンが入っている間だけ光る (updateWinkers)
 for(const [sx,sz,sy] of drlPos){ const sd=Math.sign(sx)||1;
   const poly=[[-0.07*sd,-0.075],[0.02*sd,-0.075],[0.09*sd,0.075],[-0.07*sd,0.075]]; if(sd<0) poly.reverse();
   if(isW&&decal(sx,sz,poly.map(([x,z])=>[x*1.14,z*1.14]),rimMat,{lift:0.003,edge:0.04})){ decal(sx,sz,poly,lensMat,{lift:0.0045,edge:0.04}); continue; }   // 上面の外の端に寄せる (写真では黒とオレンジの境の角)
