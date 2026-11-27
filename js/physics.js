@@ -3,7 +3,6 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
 const massBallast=()=>Math.max(0, 80-P.massDriver);
 const massTotal=()=>P.massDry+P.massDriver+massBallast();
-const V_NOM=91;
 // ---- Li-ion OCV曲線(正規化) / 実効公称電圧 ----
 // リチウムポリマーの定格 (0.5C 放電の平均電圧 = 公称) に、内部抵抗の分を足した開放電圧の平均に合うよう、中ほどを少し下げた形 (両端は満充電・放電終止のまま)
 const OCV_TBL=[[0,0],[0.05,0.190],[0.10,0.292],[0.20,0.397],[0.30,0.467],[0.40,0.521],[0.50,0.569],[0.60,0.631],[0.70,0.707],[0.80,0.797],[0.90,0.892],[1.0,1.0]];

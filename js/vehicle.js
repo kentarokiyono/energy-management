@@ -75,6 +75,4 @@ const VehDyn={
   const Mc=-m*(es.gLat||0)*g*h;   // 旋回の遠心力 (右 +)
   const R=Math.max(1,m*g+hold-L)*half*clamp(1-(C.wheels===3?0.6:0.25)*Math.abs(es.gLong||0),0.4,1);
   const M=Mw+Mc; return {risk:Math.abs(M)/R,dir:Math.sign(M)||1,wind:Math.abs(Mw)/R,turn:Math.abs(Mc)/R,lift:L,W:Math.max(1,m*g+hold-L),half,h,m}; },
- /* 静的な転倒余裕 SSF = トレッド / (2·重心高) から求める横加速度の限界 [m/s²] */
- tipAccel(){ const C=VEH.spec.chassis; return (C.ssf||(C.cgTread/(2*C.cgHeight)))*GRAV; },
 };

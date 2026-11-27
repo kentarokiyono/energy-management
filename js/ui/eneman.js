@@ -31,6 +31,8 @@ const EneMan={
   else { AutoDrive.stopAt=km; Radio.push(`今日は ${km.toFixed(1)} km 地点で止めます。`,"戦略班",{speak:true}); } this.draw(); },
  charge(){ const es=Engine.st; if(!es) return; if(AutoDrive.chargeReq||AutoDrive.charging){ AutoDrive.resume(); Radio.push("充電停車を終えて出発します。","戦略班"); }
   else { AutoDrive.chargeReq=true; Radio.push("充電のため路肩に止めてください。","戦略班",{speak:true}); } this.draw(); },
+ /* 点検・修理: 路肩に止めて停車メニュー (タイヤ交換・機器チェック・充電) を開く */
+ repair(){ const es=Engine.st; if(!es) return; AutoDrive.repair(); Radio.push("点検のため路肩に止めてください。","戦略班",{speak:true}); this.draw(); },
  swap(){ const es=Engine.st; if(!es) return;
   const stopped= es.v<0.3&&(es.stopTimer>0||es.camp||AutoDrive.charging);
   if(!stopped){ toast("ドライバー交代は止まっている間 (CS・充電停車・キャンプ) だけ","#f59e0b"); return; }
@@ -47,7 +49,8 @@ const EneMan={
     <div id="em-hint" style="opacity:.7;margin-bottom:6px"></div>
     <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px"><span style="white-space:nowrap">17:00 停車</span> <input id="em-stop" type="number" step="1" style="width:70px;background:#111;color:#eee;border:1px solid #444;padding:2px 4px"> km <button class="btn" id="em-stop-set">決める</button></div>
     <div id="em-stop-hint" style="opacity:.7;margin-bottom:6px"></div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn" id="em-charge">充電停車</button><button class="btn" id="em-swap">ドライバー交代</button></div>`;
+    <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn" id="em-charge">充電停車</button><button class="btn" id="em-repair">点検・修理</button><button class="btn" id="em-swap">ドライバー交代</button></div>
+    <div id="em-fault" style="margin-top:4px"></div>`;
    document.getElementById("game-container").appendChild(el);
    const vi=el.querySelector("#em-v");
    el.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>{ vi.value=clamp((+vi.value||70)+(+b.dataset.d),20,130); });
@@ -55,7 +58,7 @@ const EneMan={
    vi.addEventListener("keydown",e=>{ e.stopPropagation(); if(e.key==="Enter") this.send(vi.value); });
    const si=el.querySelector("#em-stop"); si.addEventListener("keydown",e=>{ e.stopPropagation(); if(e.key==="Enter") this.setStop(si.value); });
    el.querySelector("#em-stop-set").onclick=()=>this.setStop(si.value);
-   el.querySelector("#em-charge").onclick=()=>this.charge(); el.querySelector("#em-swap").onclick=()=>this.swap();
+   el.querySelector("#em-charge").onclick=()=>this.charge(); el.querySelector("#em-repair").onclick=()=>this.repair(); el.querySelector("#em-swap").onclick=()=>this.swap();
    /* グラフ・数値の欄: 電池 / 速度 / 電力 / 数値 を切り替える */
    const g=document.createElement("div"); g.id="em-data"; g.className="pn";
    g.innerHTML=`<div id="em-tabs">${[["batt","電池"],["spd","速度"],["pow","電力"],["num","数値"]].map(([k,t])=>`<button type="button" data-v="${k}">${t}</button>`).join("")}</div>
@@ -81,6 +84,8 @@ const EneMan={
    if(AutoDrive.stopAt!=null){ const need=(AutoDrive.stopAt-es.km)/v-left; t+=` / 停車 ${AutoDrive.stopAt.toFixed(0)} km: ${need>0? `17:00 を約 ${(need*60).toFixed(0)} 分超過` : "17:00 前に着く"}`; }
    sh.textContent=t; }
   const cb=document.getElementById("em-charge"); if(cb) cb.textContent= AutoDrive.chargeReq||AutoDrive.charging? "再開" : "充電停車";
+  const fe=document.getElementById("em-fault"); if(fe){ const bad=[es.burst&&"タイヤのバースト (止まってタイヤ交換)",es.fault&&"電装系の不具合 (点検・修理 → 機器チェック)"].filter(Boolean);
+   fe.textContent= bad.length? "⚠ "+bad.join(" / ") : (AutoDrive.menuReq? "点検のため止まります" : ""); fe.style.color= bad.length? "#f59e0b" : ""; }
   document.querySelectorAll("#em-tabs button").forEach(b=>b.classList.toggle("on",b.dataset.v===this.view));
   const num=this.view==="num", cv=document.getElementById("em-graph"), nd=document.getElementById("em-num");
   if(cv) cv.style.display= num? "none" : ""; if(nd) nd.style.display= num? "" : "none";

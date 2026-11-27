@@ -10,20 +10,22 @@ document.getElementById("stopmenu-status").textContent=
 `SOC ${(s.soc*100).toFixed(1)}% / ${s.burst?"⚠タイヤバースト中":"タイヤ正常"} / ${s.fault?"⚠電装系不具合の疑い":"機器正常"}`;
 show("stopmenu-overlay",true);
 },
-close(){ this.active=false; this.mode=null; show("stopmenu-overlay",false); Engine.st&&View.exitPit(); },
+close(){ this.active=false; this.mode=null; show("stopmenu-overlay",false); },
 pick(kind){
 const s=Engine.st;
 show("stopmenu-overlay",false);
-if(kind==="tire"){ s.stopTimer=5*60; s.stopKind="tire"; this.active=false; }
-else if(kind==="check"){ s.stopTimer=(s.fault?30:10)*60; s.stopKind="check"; this.active=false; }
+if(kind==="tire"){ s.stopTimer=5*60; s.stopKind="tire"; this.active=false; this.mode=null; }
+else if(kind==="check"){ s.stopTimer=(s.fault?30:10)*60; s.stopKind="check"; this.active=false; this.mode=null; }
 else if(kind==="charge"){
 this.mode="charge";
+if(typeof AutoDrive!=="undefined"&&AutoDrive.on) AutoDrive.charging=true;   // エネマネ欄の「再開」で走り出せるように
 if(!Engine.chargingAllowed()) toast("⚠ 現時刻は静止充電許可時間外です(発電はしますが規則違反想定)","#f59e0b");
 TiltDecide.open();
 }
 },
 resume(){
 if(this.mode==="charge"){ this.mode=null; this.active=false; Engine.st.tiltLocked=false; }
+if(typeof AutoDrive!=="undefined"&&AutoDrive.on){ AutoDrive.resume(); if(typeof EneMan!=="undefined"&&EneMan.draw) EneMan.draw(); }   // 自動運転 (エネマネ班): 充電停車の指示も取り消す
 },
 };
 function show(id,on){ const e=document.getElementById(id); e.classList.toggle("hidden",!on); e.classList.toggle("flex",on); }

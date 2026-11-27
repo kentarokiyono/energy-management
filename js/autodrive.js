@@ -11,8 +11,8 @@
   ・止まる: 停車の指示 (stopAt: km / 'now')、17:00 を過ぎたら、充電停車、パンク、暴風雨の間は、路肩へ寄せて止まる
  呼ぶ所: main.js の loop (updateInput の後)。es.throttleSet・es.brakePhys・es.brakeRegen・Input.steer・es.signal を上書きする */
 const AutoDrive={
- on:false, vSet:null, stopAt:null, why:"", latT:-2.4, I:0, held:false, chargeReq:false,
- enable(b){ this.on=!!b; this.I=0; this.pullS=null; this.stopAt=null; this.chargeReq=false; this.why=""; },
+ on:false, vSet:null, stopAt:null, why:"", latT:-2.4, I:0, held:false, chargeReq:false, menuReq:false, menuShown:false,
+ enable(b){ this.on=!!b; this.I=0; this.pullS=null; this.stopAt=null; this.chargeReq=false; this.menuReq=false; this.menuShown=false; this.why=""; },
  /* 先の制限速度 [m/s]: 今の速さで減速 (0.8 m/s²) が間に合う距離の中で最も低いもの */
  limAhead(V,es){ const v=es.v, D=Math.max(60,v*v/(2*0.8)+40); let m=1e9;
   for(let d=0;d<=D;d+=Math.max(10,D/20)){ const lim=(speedLimitAt(V.kmOfS(V.s+d))-1.5)/3.6; const room=Math.sqrt(lim*lim+2*0.8*Math.max(0,d-15)); m=Math.min(m,room); }
@@ -46,7 +46,11 @@ const AutoDrive={
   { const lat=V.lateral; let ld=null;
    const cand=[]; if(typeof Traffic!=="undefined") for(const c of Traffic.cars) cand.push({r:c.s-c.L,lat:c.lat,v:c.v});
    if(V.escortLead&&V.escortLead.visible&&V.leadS!=null) cand.push({r:V.leadS-2.4,lat:-2.4,v:V.leadV||0});
-   for(const sl of V.aiPool||[]) if(sl.team&&sl.mesh&&sl.mesh.visible&&sl._s!=null) cand.push({r:sl._s-2.4,lat:sl.team.latV||-2.4,v:(sl.team.vNow||0)/3.6});
+   for(const sl of V.aiPool||[]) if(sl.team&&sl.mesh&&sl.mesh.visible&&sl._s!=null){   // 他チームの隊列 (ソーラーカー・誘導車・後方車)
+    const lat=sl.team.latV||-2.4, tv=(sl.team.vNow||0)/3.6;
+    cand.push({r:sl._s-2.4,lat,v:tv});
+    if(sl.lead&&sl.lead.visible&&sl._sL!=null) cand.push({r:sl._sL-2.8,lat,v:tv});
+    if(sl.chase&&sl.chase.visible&&sl._sC!=null) cand.push({r:sl._sC-2.8,lat,v:tv}); }
    for(const o of cand){ const g=o.r-(V.s+2.3); if(g<-1||Math.abs(o.lat-lat)>1.9) continue; if(!ld||g<ld.g) ld={g,v:o.v}; }
    if(ld) set(Math.max(0,Math.min(ld.v+(ld.g-8-2*v)*0.25,this.stopV(ld.g-6,2.0)+ld.v)),"前の車"); }
   // 動物・路上の死骸
@@ -60,7 +64,7 @@ const AutoDrive={
   if(this.stopAt==="now") pull=0;
   else if(this.stopAt!=null&&this.stopAt>km-0.05) pull=(this.stopAt-km)*1000/(Route.scaleAt(km));
   // 17:00・充電・パンク・暴風雨: 決めた時の少し先に止まる所を置き、そこへ向けて止まる
-  const need= es.hour>=17? 60 : this.chargeReq? 50 : es.burst? 30 : (typeof Storm!=="undefined"&&Storm.active&&Storm.active(es))? 40 : null;
+  const need= es.hour>=17? 60 : this.chargeReq||this.menuReq? 50 : es.burst? 30 : (typeof Storm!=="undefined"&&Storm.active&&Storm.active(es))? 40 : null;
   if(need==null) this.pullS=null; else if(this.pullS==null) this.pullS=V.s+Math.max(need,v*v/(2*1.2)+10);
   if(this.pullS!=null) pull= pull==null? this.pullS-V.s : Math.min(pull,this.pullS-V.s);   // 近いほうで止まる
   if(pull!=null&&pull<400){ latT=-4.4; set(this.stopV(Math.max(0,pull),1.2),"停車"); if(pull<1&&v>0.3) set(0,"停車"); }
@@ -68,7 +72,10 @@ const AutoDrive={
   // 止まったあとの処理
   if(v<0.3&&pull!=null&&V.lateral<-3.6){
    if(this.chargeReq&&typeof StopMenu!=="undefined"&&!StopMenu.active){ StopMenu.active=true; StopMenu.mode="charge"; this.charging=true; TiltDecide.open(); }   // 傾ける角度を選ぶ画面
+   // 点検・修理 (エネマネ欄のボタン、またはタイヤのバースト): 停車メニューを 1 回開く (タイヤ交換・機器チェック・充電を選ぶ)
+   else if((this.menuReq||es.burst)&&!this.menuShown&&typeof StopMenu!=="undefined"&&!StopMenu.active){ this.menuReq=false; this.menuShown=true; StopMenu.open(); }
   }
+  if(v>2) this.menuShown=false;
   // 速度の制御 (スロットル開度の比例・積分 + 回生・ブレーキ)
   const err=vT-v;
   this.I=clamp(this.I+err*dtR*0.02,-0.2,0.6);
@@ -83,6 +90,8 @@ const AutoDrive={
   // 疲れたドライバー (集中力 50 % 未満) は少しふらつく
   const fe=typeof Cabin!=="undefined"? Cabin.eff(es) : 0; if(fe>0){ const t=performance.now()/1000; Input.steer=clamp(Input.steer+fe*0.05*(Math.sin(t*0.7)+0.6*Math.sin(t*1.9+1)),-1,1); }
  },
+ /* 点検・修理のため路肩に止めて停車メニューを開く */
+ repair(){ this.menuReq=true; this.menuShown=false; },
  /* 充電停車をやめて走り出す */
  resume(){ this.chargeReq=false; this.charging=false; if(this.stopAt==="now") this.stopAt=null; if(typeof StopMenu!=="undefined"&&StopMenu.mode==="charge"){ StopMenu.mode=null; StopMenu.active=false; } if(Engine.st) Engine.st.tiltLocked=false; },
 };

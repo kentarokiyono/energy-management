@@ -378,7 +378,6 @@ banner.position.set(-3,2.6,8); g.add(banner);
 g.visible=false;
 this.pitGroup=g; this.scene.add(g);
 },
-enterPit(){}, exitPit(){},
 buildBay(){
 const g=new THREE.Group();
 const pad=new THREE.Mesh(new THREE.BoxGeometry(16,0.05,44),new THREE.MeshLambertMaterial({color:0x3a3d44}));
@@ -578,7 +577,6 @@ aiMesh(tm){ let m=this.aiMeshes.get(tm); if(!m){ m=this.mkAICar(tm); m.visible=f
 updateAITeams(es,dtR){
 if(P.mode!=="race"||!es.teams||!this.aiPool){ if(this.aiPool) this.aiPool.forEach(sl=>{ if(sl.mesh) sl.mesh.visible=false; if(sl.lead){ sl.lead.visible=false; sl.chase.visible=false; } }); return; }
 this.relK=Route.scaleAt(es.km);
-for(const tm of es.teams){ tm.sigHold=false; tm.follow=null; }
 /* 位置と速さは TeamCars (js/render/teams.js): 近くのチームは画面上の車として動く */
 const shown=TeamCars.update(this,es,dtR);
 for(const sl of this.aiPool){ if(!shown.some(o=>o.tm===sl.team)){ sl.team=null; if(sl.mesh) sl.mesh.visible=false; sl.mesh=null; if(sl.lead){ sl.lead.visible=false; sl.chase.visible=false; } } }
