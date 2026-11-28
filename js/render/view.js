@@ -1302,7 +1302,8 @@ updateEnvironment(es,pHere,alt,hor){
  // 逃げ水: 晴天・日中・高温ほど強い
  const heat=clamp(((es.Tamb||25)-22)/12,0,1)*clamp((alt-0.35)/0.4,0,1)*(1-0.85*(this.wxMix||0));
  const t=performance.now()/1000;
- SceneMats.eachRoad(u=>{ u.uMirage.value=heat*(bio.urban?0.3:1); u.uSkyCol.value.copy(hor).multiplyScalar(1.05); u.uTime.value=t; });
+ { const sd=this.sun.position.clone().sub(this.car.position).normalize(), sc=this.sunLight.color.clone().multiplyScalar(this.sunLight.intensity*(sd.y>0?1:0));
+  SceneMats.eachRoad(u=>{ u.uMirage.value=heat*(bio.urban?0.3:1); u.uSkyCol.value.copy(hor).multiplyScalar(1.05); u.uTime.value=t; u.uSunDir.value.copy(sd); u.uSunCol.value.copy(sc); }); }
  Horizon.update(this,es);
 },
 updateLandmarks(es){
