@@ -65,8 +65,14 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   serve();
   const s = session.defaultSession;
-  /* ハンコン (Logitech) の力の出力: ブラウザの「機器を選ぶ」画面の代わりに、見つかった最初の機器を使う */
-  s.on("select-hid-device", (e, details, cb) => { e.preventDefault(); cb(details.deviceList[0] ? details.deviceList[0].deviceId : ""); });
+  /* ハンコン (Logitech) の力の出力: ブラウザの「機器を選ぶ」画面の代わりに、ハンコンを選ぶ。
+     機種番号 (G29・G27・G25・Driving Force GT / Pro / EX・MOMO・G923 PS 版) が合うもの > 名前がハンドルらしいもの > 1 台だけならそれ。
+     マウス・キーボードの受信機を選ばない (ページ側でもジョイスティック類だけに絞って頼む) */
+  const WHEEL_PIDS = [0xc24f, 0xc29b, 0xc299, 0xc29a, 0xc298, 0xc294, 0xc295, 0xca03, 0xc266, 0xc267];
+  s.on("select-hid-device", (e, details, cb) => { e.preventDefault();
+    const L = details.deviceList || [];
+    const d = L.find(x => x.vendorId === 0x046d && WHEEL_PIDS.includes(x.productId)) || L.find(x => /wheel|racing|driving|momo|g2\d|g9\d/i.test(x.name || "")) || (L.length === 1 ? L[0] : null);
+    cb(d ? d.deviceId : ""); });
   s.setPermissionCheckHandler((wc, perm, origin) => origin.startsWith(ORIGIN) || perm === "hid");
   s.setDevicePermissionHandler((d) => d.deviceType === "hid" && d.origin.startsWith(ORIGIN));
   s.setPermissionRequestHandler((wc, perm, cb) => cb(new URL(wc.getURL()).origin === ORIGIN));
