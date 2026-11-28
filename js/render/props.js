@@ -24,7 +24,7 @@ tree(bs,x,y,z,kind,sc=1,lod=0){
    const a=ry+b*6.283/nB+rnd()*0.7, t=rndr(0.3,0.62), len=H*rndr(0.2,0.3)*(kind==="mango"?0.7:1);
    bs.get("bark").add(tpl("trunk"),M4(x,y+hb,z,tr*0.42,len,tr*0.42,a,t,0),linCol(cfg.bark,0.08));
    const tx=x+len*Math.sin(t)*Math.sin(a), ty=y+hb+len*Math.cos(t), tz=z+len*Math.sin(t)*Math.cos(a);
-   const k=5+Math.floor(rnd()*4);
+   const k=5+Math.floor(rnd()*3);
    { const r=rndr(cfg.cr[0],cfg.cr[1])*sc*0.32;   // 枝の途中にも房 (枝がむき出しに見えない)
     bs.get("veg").add(tpl("leaves"),M4(x+(tx-x)*0.55,y+hb+(ty-y-hb)*0.6,z+(tz-z)*0.55,r,r*0.7,r,rnd()*6,rnd()*0.4,0),linCol(cfg.crown,0.16).clone().multiplyScalar(0.8)); }
    for(let j=0;j<k;j++){

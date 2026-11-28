@@ -410,9 +410,9 @@ rural(ctx){
     if(sp==="woodland" && vnoise(q.x*0.01+3.1,q.z*0.01-7.7)<0.2) continue;
     const y=q.y-0.05;
     switch(sp){
-     case "woodland": PR.tree(bs,q.x,y,q.z,"woodland",1,Math.abs(off)>220?1:0); break;
-     case "ghost": PR.tree(bs,q.x,y,q.z,"ghost",1,Math.abs(off)>220?1:0); break;
-     case "redgum": PR.tree(bs,q.x,y,q.z,"redgum",1,Math.abs(off)>220?1:0); break;
+     case "woodland": PR.tree(bs,q.x,y,q.z,"woodland",1,Math.abs(off)>150?1:0); break;
+     case "ghost": PR.tree(bs,q.x,y,q.z,"ghost",1,Math.abs(off)>150?1:0); break;
+     case "redgum": PR.tree(bs,q.x,y,q.z,"redgum",1,Math.abs(off)>150?1:0); break;
      case "mango": PR.tree(bs,q.x,y,q.z,"mango"); break;
      case "desertoak": PR.desertoak(bs,q.x,y,q.z); break;
      case "mulga": PR.mulga(bs,q.x,y,q.z); break;
