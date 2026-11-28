@@ -104,11 +104,20 @@ const FFB={
  async connect(){
   if(!this.hidOK()){ toast("このブラウザはハンコンの反力 (WebHID) に対応していません。パソコン版の Chrome / Edge を使ってください","#f59e0b"); return; }
   try{
-   const list=await navigator.hid.requestDevice({filters:[{vendorId:0x046d}]});   // Logicool
-   if(!list||!list.length){ this.status("未接続"); return; }
-   await this.open(list[0]);
+   const list=await navigator.hid.requestDevice({filters:[{vendorId:0x046d,usagePage:1,usage:4},{vendorId:0x046d,usagePage:1,usage:5}]});   // Logicool のジョイスティック・ゲームパッド類だけ (マウス・キーボードは出さない)
+   const d=this.pickWheel(list,true); if(!d){ this.status("未接続"); return; }
+   await this.open(d);
   }catch(e){ this.status("接続できませんでした"); toast("ハンコンに接続できませんでした: "+escHtml(String(e.message||e)).slice(0,80),"#ef4444"); }
  },
+ /* Logicool のハンコンの機種番号 (USB の製品 ID): G29・G27・G25・Driving Force GT / Pro / EX・MOMO・G923 (PS 版) */
+ WHEEL_PIDS:[0xc24f,0xc29b,0xc299,0xc29a,0xc298,0xc294,0xc295,0xca03,0xc266,0xc267],
+ /* 機器の中からハンコンを選ぶ: 機種番号が合うもの > ジョイスティック/ゲームパッドとして見えるもの > 名前にハンドルらしい語。any=true なら最後に 1 台目 */
+ pickWheel(list,any){ if(!list||!list.length) return null;
+  const sc=(d)=>{ if(d.vendorId!==0x046d) return 0; if(this.WHEEL_PIDS.includes(d.productId)) return 3;
+   if((d.collections||[]).some(c=>c.usagePage===1&&(c.usage===4||c.usage===5))) return 2;
+   return /wheel|racing|driving|momo|g2\d|g9\d/i.test(d.productName||"")? 1 : 0; };
+  let best=null, bs=0; for(const d of list){ const v=sc(d); if(v>bs){ bs=v; best=d; } }
+  return best||(any? list[0] : null); },
  async open(dev){
   if(!dev.opened) await dev.open();
   this.hid=dev; this.hidX=-1;
@@ -136,7 +145,7 @@ const FFB={
  },
  init(){
   if(this.hidOK()){
-   navigator.hid.getDevices().then(ds=>{ const d=ds.find(x=>x.vendorId===0x046d); if(d) this.open(d).catch(()=>{}); }).catch(()=>{});   // 前に許可した機器は自動でつなぐ
+   navigator.hid.getDevices().then(ds=>{ const d=this.pickWheel(ds,false); if(d) this.open(d).catch(()=>{}); }).catch(()=>{});   // 前に許可したハンコンは自動でつなぐ (マウス・キーボードは選ばない)
    navigator.hid.addEventListener("disconnect",e=>{ if(e.device===this.hid){ this.hid=null; this.status("未接続 (外れました)"); } });
   } else this.status("このブラウザは非対応");
   const inv=document.getElementById("ffb-inv"); if(inv) inv.checked=!!P.ffbInv;
