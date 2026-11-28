@@ -111,10 +111,13 @@ const T0=Date.now();
  const v=R(`(()=>{ const sg=Strategy.segAt(1000), e=Strategy.segEnv(sg,8+24*2+3,0.7); return Math.min(...[0.001,0.01,0.05].map(mu=>Strategy.segBestV(sg,mu,e,120))); })()`);
  check("戦略の速度は 60 km/h 以上 (電力の値打ちが大きくても)",v>=60,v.toFixed(1)+" km/h");
  const m=R(`(()=>{ const s=Engine.st, run=(kmh,km,opt)=>{ const dt=1; let d=0; while(d<km){ s.v=kmh/3.6; Object.assign(s,opt||{}); const dk=s.v*dt/1000; d+=dk; Engine.trackMinSpeed(s,dk,dt,110); } };
-  const o=[]; s.competing=true; s.minSpd=null; run(55,10.5); o.push(s.competing,s.minSpd.warn); run(70,10.5); o.push(s.minSpd.warn);
+  P.nlcStrict=true; const o=[]; s.competing=true; s.minSpd=null; run(55,10.5); o.push(s.competing,s.minSpd.warn); run(70,10.5); o.push(s.minSpd.warn);
   run(55,10.5,{fault:{type:"accel"}}); o.push(s.competing); s.fault=null; run(55,21); o.push(s.competing);
   s.competing=true; s.minSpd=null; for(let i=0;i<5000;i++){ s.v=0; Engine.trackMinSpeed(s,0,60,110); } run(65,10.5); o.push(s.competing,s.minSpd.warn); return o; })()`);
- check("最低速度: 1 回目は警告、続くと競技外。故障中・止まっている時間は数えない",JSON.stringify(m)===JSON.stringify([true,1,0,true,false,true,0]),JSON.stringify(m));
+ check("最低速度 (規則どおりの設定): 1 回目は警告、続くと競技外。故障中・止まっている時間は数えない",JSON.stringify(m)===JSON.stringify([true,1,0,true,false,true,0]),JSON.stringify(m));
+ const w=R(`(()=>{ const s=Engine.st; P.nlcStrict=false; s.competing=true; s.minSpd=null; s.slowWins=0; s.slowMin=null; s.fault=null; s.burst=false;
+  for(let d=0;d<31.5;){ s.v=50/3.6; const dk=s.v/1000; d+=dk; Engine.trackMinSpeed(s,dk,1,110); } return [s.competing,s.slowWins,Math.round(s.slowMin)]; })()`);
+ check("最低速度 (既定 = 警告だけ): 競技外にならず、低速の区間を数える",JSON.stringify(w)===JSON.stringify([true,3,50]),JSON.stringify(w));
 }
 
 { // ---- タイヤの滑り・操縦 (規則 2.18.6 回転半径・2.19 8 の字とスラローム・2.20.7〜8 ブレーキ) ----
