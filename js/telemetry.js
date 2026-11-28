@@ -123,7 +123,8 @@ const Tele={
  radio(msg,who){ if(this.conns.length) this.all({t:"radio",who,msg:String(msg).replace(/<[^>]*>/g,"").slice(0,200),hour:Engine.st?Engine.st.hour:0}); },
  /* 画面 (メニュー / 一時停止 / 走行中の小さな表示) */
  status(m){ this.msg=m; const el=document.getElementById("tm-status"); if(el) el.textContent=m; const hb=document.getElementById("hud-tm"); if(hb){ hb.style.display=this.on?"":"none"; hb.classList.toggle("live",this.conns.length>0); hb.title=m; } },
- panel(){ show("tm-dlg",true); const box=document.getElementById("tm-qr"), u=document.getElementById("tm-url");
+ panel(){ { const dl=document.getElementById("tm-dlg"); if(dl&&dl.parentElement!==document.body) document.body.appendChild(dl); }   // メニューから開くとき: ゲーム画面 (隠れている) の外へ出す
+  show("tm-dlg",true); const box=document.getElementById("tm-qr"), u=document.getElementById("tm-url");
   const rs=document.getElementById("tm-role"); if(rs&&!rs._b){ rs._b=1; rs.onclick=(e)=>{ const b=e.target.closest("button"); if(!b) return; this.role=b.dataset.r; rs.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b)); }; }
   document.getElementById("tm-start").style.display=this.peer?"none":""; document.getElementById("tm-stop").style.display=(this.peer||this.ch)?"":"none"; document.getElementById("tm-copy").style.display=(this.peer&&this.peer.open)?"":"none";
   if(!this.peer||!this.peer.open){ box.innerHTML=""; u.textContent=""; this.status(this.msg||"停止中"); return; }
