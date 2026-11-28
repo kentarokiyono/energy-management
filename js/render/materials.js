@@ -8,6 +8,17 @@ if(srgb) t.encoding=THREE.sRGBEncoding;
 return t;
 }
 const TEX={};
+/* 影の 2 段: 平行光源の影が 2 枚のとき (View.farSun)、近くの細かい影 [0] の範囲内はそれを、外は遠くの粗い影 [1] を使う (境目はなめらかに) */
+THREE.ShaderChunk.shadowmask_pars_fragment=THREE.ShaderChunk.shadowmask_pars_fragment.replace("#if NUM_DIR_LIGHT_SHADOWS > 0\n\tDirectionalLightShadow directionalLight;",
+`#if NUM_DIR_LIGHT_SHADOWS == 2
+ if(receiveShadow){
+  float s0=getShadow(directionalShadowMap[0],directionalLightShadows[0].shadowMapSize,directionalLightShadows[0].shadowBias,directionalLightShadows[0].shadowRadius,vDirectionalShadowCoord[0]);
+  float s1=getShadow(directionalShadowMap[1],directionalLightShadows[1].shadowMapSize,directionalLightShadows[1].shadowBias,directionalLightShadows[1].shadowRadius,vDirectionalShadowCoord[1]);
+  vec3 p0=vDirectionalShadowCoord[0].xyz/vDirectionalShadowCoord[0].w; vec2 e0=min(p0.xy,1.0-p0.xy);
+  shadow*=mix(s1,s0,smoothstep(0.0,0.1,min(e0.x,e0.y)));
+ }
+ #elif NUM_DIR_LIGHT_SHADOWS > 0
+\tDirectionalLightShadow directionalLight;`);
 /* 空気遠近 (three.js の霧の計算を差し替え): 近くから少しずつ青白くかすむ指数の霞 + 遠くの端で景色を消す霧。
  カメラより高い所 (丘の上・木の上) は空気が薄いのでかすみにくい。霞の強さは霧の距離 (fogFar) から決めるので、雨で霧を近くしたときもそのまま濃くなる */
 THREE.ShaderChunk.fog_pars_vertex="#ifdef USE_FOG\n varying float fogDepth; varying float vFogDY;\n#endif";

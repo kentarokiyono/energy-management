@@ -62,6 +62,12 @@ this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 { const e=GFX.ultra()?70:45; Object.assign(this.sunLight.shadow.camera,{left:-e,right:e,top:e,bottom:-e,near:800,far:2600}); this.sunLight.shadow.camera.updateProjectionMatrix(); }
 this.sunLight.shadow.bias=-0.0006; this.sunLight.shadow.normalBias=0.02;
 this.scene.add(this.sunLight.target);
+// 遠くの影 (粗い 2 枚目): 強さ 0 の平行光源で影だけ作る。地面・景色 (Lambert) で近くの影の外側に使う (getShadowMask の差し替えは materials.js)。
+// 重いので 12 フレームに 1 回だけ作り直す (前方へずらして範囲を取る)
+this.farSun=null;
+if(GFX.cur().shadow>0){ const f=new THREE.DirectionalLight(0xffffff,0), sz=GFX.key()==="mid"?1024:2048, e=GFX.key()==="mid"?220:320;
+ f.castShadow=true; f.shadow.mapSize.set(sz,sz); Object.assign(f.shadow.camera,{left:-e,right:e,top:e,bottom:-e,near:600,far:2600}); f.shadow.camera.updateProjectionMatrix();
+ f.shadow.bias=-0.0015; f.shadow.normalBias=0.4; f.shadow.autoUpdate=false; f.shadow.needsUpdate=true; this.scene.add(f); this.scene.add(f.target); this.farSun=f; this._fsN=99; }
 this.sun=new THREE.Mesh(new THREE.SphereGeometry(22,16,16),
 new THREE.MeshBasicMaterial({color:0xfff1b0}));
 this.sun.visible=false; this.scene.add(this.sun);
@@ -1191,6 +1197,8 @@ this.sunLight.intensity=clamp(1.25*dayK,0.02,1.2)*(1-0.65*WX);
 { const warm=clamp(alt/0.3,0,1); this.sunLight.color.setRGB(1.0,0.62+0.33*warm,0.38+0.5*warm); }
 this.sunLight.target.position.copy(this.car.position);
 this.sunLight.position.sub(this.car.position).normalize().multiplyScalar(1400).add(this.car.position);
+if(this.farSun&&++this._fsN>=12){ this._fsN=0; const f=this.farSun, c=this.car.position.clone().add(new THREE.Vector3(Math.sin(this.ch),0,-Math.cos(this.ch)).multiplyScalar(f.shadow.camera.right*0.45));
+ f.target.position.copy(c); f.position.copy(this.sunLight.position).sub(this.car.position).add(c); f.target.updateMatrixWorld(); f.updateMatrixWorld(); f.shadow.needsUpdate=true; }
 const dayTop=new THREE.Color(0x2f7fc4),dayHor=new THREE.Color(0xbdd7ea);
 const setTop=new THREE.Color(0x27356b),setHor=new THREE.Color(0xe8814f);
 const nigTop=new THREE.Color(0x040914),nigHor=new THREE.Color(0x0a1226);
