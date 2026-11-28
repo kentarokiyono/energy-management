@@ -10,14 +10,14 @@
 const Orders={
  TOL:3, STEP:10, cur:null, hist:[], nextKm:0, el:null, last:null,
  mode:"auto",   // 指示の出し方 (テレメトリの監視側で切り替え): auto = 自動 / manual = 監視側が入力して送る / voice = 監視側が声で伝える (アプリは出さない)
- setMode(m){ if(this.mode===m) return; this.mode=m; if(m!=="auto"&&this.cur&&!this.cur.manual) this.cur=null; if(m==="voice") this.cur=null; if(Engine.st) this.nextKm=Engine.st.km;
+ setMode(m){ if(typeof XT==="function"&&XT()&&m==="auto") m="voice"; if(this.mode===m) return; this.mode=m; if(m!=="auto"&&this.cur&&!this.cur.manual) this.cur=null; if(m==="voice") this.cur=null; if(Engine.st) this.nextKm=Engine.st.km;
   Radio.push(m==="auto"?"速度指示: 自動に切り替え":m==="manual"?"速度指示: 監視端末から送ります":"速度指示: 監視端末から声で伝えます","戦略班"); this.ui(); },
  /* 監視側が入力した指示 */
  manual(v,I){ const es=Engine.st; if(!es||!this.on()) return; if(this.cur) this.close(es);
   const dist=Math.min(this.STEP,TOTAL_KM-es.km); this.cur={v,I,k0:es.km,k1:es.km+Math.max(0.5,dist),in:0,tot:0,dev:0,iSum:0,react:null,t0:performance.now(),manual:true};
   Radio.push(`時速 ${v} km・電流 ${(+I).toFixed(1)} A`,"戦略班",{speak:true}); this.ui(); },
  on(){ return P.mode==="race"&&!P.event&&P.orders!==false; },
- start(){ this.cur=null; this.hist=[]; this.last=null; this.limDone=new Set(); this.mode=(typeof Tele!=="undefined"&&Tele.conns&&Tele.conns.length)? this.mode : "auto"; this.nextKm=Engine.st?Engine.st.km:0; this.ui(); },
+ start(){ this.cur=null; this.hist=[]; this.last=null; this.limDone=new Set(); this.mode=(typeof XT==="function"&&XT())? (this.mode==="manual"?"manual":"voice") : (typeof Tele!=="undefined"&&Tele.conns&&Tele.conns.length)? this.mode : "auto"; this.nextKm=Engine.st?Engine.st.km:0; this.ui(); },   // エクストリーム: 自動の指示なし
  frame(es,dtR){
   this.limitNotice(es);
   if(!this.on()||!es||es.finished){ this.ui(); return; }

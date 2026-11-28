@@ -56,7 +56,7 @@ else if(scnId) Scenario.apply(scnId);   // 練習シナリオ (チャプター�
 else if(chap>0) Engine.applyChapter(chap);   // チャプター: CS の 2 km 手前から
 if(typeof Coffee!=="undefined"){ if(!resumed) Coffee.reset(); if(!resumed&&!scnId&&!lsn&&!(chap>0)&&Coffee.on()) Engine.st.hour=7; }   // 本戦は 7:00 の朝の打ち合わせから
 if(!resumed&&typeof Storm!=="undefined") Storm.plan(Engine.st);
-if(resumed&&Engine.st.scenario==="long") Scenario.restoreLong(Engine.st);   // 長時間の練習を続きから   // レース中の暴風雨の予定 (シナリオでは入れない)
+if(resumed&&(Engine.st.scenario==="long"||Engine.st.scenario==="extreme")) Scenario.restoreLong(Engine.st);   // 長時間の練習を続きから   // レース中の暴風雨の予定 (シナリオでは入れない)
 RunLog.start(); Orders.start(); if(resumed) Save.applyRest(); DrvRec.start();
 View.init(); View.buildCar(); View.buildEscorts();
 if(!MapUI.built) MapUI.build(); MapUI.reset(); MapUI.toggle(false);

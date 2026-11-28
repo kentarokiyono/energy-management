@@ -69,18 +69,19 @@ const Tele={
  send(c,m){ try{ if(c.open) c.send(m); }catch(e){} },
  all(m){ for(const c of this.conns) this.send(c,m); },
  /* 監視からの操作 */
- recv(d){
-  if(d.t==="mode"&&["auto","manual","voice"].includes(d.mode)){ Orders.setMode(d.mode); this.all({t:"mode",mode:Orders.mode}); }
+ recv(d){ Radio.mon=true; try{ this.recv0(d); } finally{ Radio.mon=false; } },   // 監視側から来たものの間だけ印 (エクストリームでも読み上げる)
+ recv0(d){
+  if(d.t==="mode"&&["auto","manual","voice"].includes(d.mode)){ if(XT()&&d.mode==="auto") d.mode="voice"; Orders.setMode(d.mode); this.all({t:"mode",mode:Orders.mode}); }
   else if(d.t==="order"&&Number.isFinite(+d.v)&&Number.isFinite(+d.I)) Orders.manual(clamp(Math.round(+d.v),10,160),clamp(+d.I,0,200));
   else if(d.t==="warn"&&typeof d.msg==="string"&&d.msg.trim()){   // 監視側 (前方誘導車・後方追走車・戦略班) からの警告 → 無線で読み上げ
    const who=Tele.WHO[d.role]||"戦略班", msg=d.msg.replace(/[<>]/g,"").trim().slice(0,120);
-   Radio.push(msg,who,{speak:true}); if(d.u){ Snd.alarm(); toast(`⚠ ${who}: ${escHtml(msg)}`,"#f59e0b"); } else if(Snd.radioBeep) Snd.radioBeep(); }
+   Radio.push(msg,who,{speak:true}); if(d.u){ Snd.alarm(); if(!XT()) toast(`⚠ ${who}: ${escHtml(msg)}`,"#f59e0b"); } else if(Snd.radioBeep) Snd.radioBeep(); }
  },
  WHO:{base:"戦略班",lead:"前方誘導車",chase:"後方追走車"},
  /* つないだときに送るもの: ドライバー名・これまでの軌跡 (約 200 m ごと) */
  init(){ const es=Engine.st, R=RunLog.rows, C=RunLog.COLS, ix=(n)=>C.indexOf(n), iA=ix("経過h"), iK=ix("km"), iV=ix("速度km/h"), iS=ix("SOC%");
   const pts=[]; let lastK=-1; for(const r of R){ if(r[iK]-lastK>=0.2||r===R[R.length-1]){ pts.push([+r[iK].toFixed(2),+(r[iA]+8).toFixed(4),+(r[iV]||0).toFixed(1),+(r[iS]||0).toFixed(1)]); lastK=r[iK]; } }
-  return {t:"init",drivers:typeof Crew!=="undefined"?Crew.drivers.map(d=>d.name):[],pts,mode:Orders.mode,day0:PRO.dayOfYear,real:RealWx.on(),fcErr:P.fcErr,total:TOTAL_KM}; },
+  return {t:"init",drivers:typeof Crew!=="undefined"?Crew.drivers.map(d=>d.name):[],pts,mode:Orders.mode,day0:PRO.dayOfYear,real:RealWx.on(),fcErr:P.fcErr,total:TOTAL_KM,x:XT()}; },
  /* 毎フレーム (main の loop): 1 秒ごとに値、30 秒ごとに予報と戦略 */
  frame(es){
   if(!this.conns.length||!es) return; const now=performance.now();
@@ -90,10 +91,10 @@ const Tele={
   if(now-this.t30>=30000){ this.t30=now; try{ this.all(this.forecast(es)); }catch(e){} }
  },
  snap(es){ const o=Orders.cur, L=Orders.last, pr=profileAt(es.km);
-  let rec=null; try{ const p=Strategy.plan(false), d=Math.min(10,TOTAL_KM-es.km); if(p&&d>0.5){ const Z=Orders.limitZone(es.km,d), v=Math.min(Math.round(Strategy.speedFor(p,es.km,Z.end-es.km,es.soc,es.lastSolar||0)),Z.lim); rec={v,I:+Orders.current(es,v,es.km,Z.end-es.km).toFixed(1),fin:p.r&&p.r.finishAbs}; } }catch(e){}
+  let rec=null; if(!XT()) try{ const p=Strategy.plan(false), d=Math.min(10,TOTAL_KM-es.km); if(p&&d>0.5){ const Z=Orders.limitZone(es.km,d), v=Math.min(Math.round(Strategy.speedFor(p,es.km,Z.end-es.km,es.soc,es.lastSolar||0)),Z.lim); rec={v,I:+Orders.current(es,v,es.km,Z.end-es.km).toFixed(1),fin:p.r&&p.r.finishAbs}; } }catch(e){}
   return {t:"snap",abs:(es.day-1)*24+es.hour,day:es.day,hour:es.hour,km:es.km,v:es.v*3.6,soc:es.soc*100,ps:es.lastSolar||0,pm:es.lastMotorW||0,net:(es.lastSolar||0)-(es.lastMotorW||0),
    lim:speedLimitAt(es.km),lat:pr.lat,lon:pr.lon,st:RunLog.state(es),wx:es.weather?es.weather.type:null,drv:typeof Crew!=="undefined"?Crew.drivers[Crew.driverIdx].name:"",
-   ord:o?{v:o.v,I:o.I,k1:o.k1}:null,ahead:this.ahead(es),tip:es.tipRatio||0,shield:!!es.shielded,tire:(t=>({use:es.tireUse||0,lock:!!es.tireLock,slide:!!es.tireSlide,lockN:t.lockN,slideN:t.slideN}))(typeof DrvRec!=="undefined"? DrvRec.tireSum() : {lockN:0,slideN:0}),last:L&&!L.na?{g:L.grade,pct:L.pct,dev:L.dev}:null,mode:Orders.mode,rec,amp:es.lastAmp||0,tc:es.lastTcell,head:es.lastHead||0,cross:es.lastCross||0,camp:!!es.camp,stop:es.stopTimer>0?es.stopKind:null,
+   x:XT(),ord:o?{v:o.v,I:o.I,k1:o.k1}:null,ahead:this.ahead(es),tip:es.tipRatio||0,shield:!!es.shielded,tire:(t=>({use:es.tireUse||0,lock:!!es.tireLock,slide:!!es.tireSlide,lockN:t.lockN,slideN:t.slideN}))(typeof DrvRec!=="undefined"? DrvRec.tireSum() : {lockN:0,slideN:0}),last:L&&!L.na&&!XT()?{g:L.grade,pct:L.pct,dev:L.dev}:null,mode:Orders.mode,rec,amp:es.lastAmp||0,tc:es.lastTcell,head:es.lastHead||0,cross:es.lastCross||0,camp:!!es.camp,stop:es.stopTimer>0?es.stopKind:null,
    // 計測画面用: 端子電圧・電池電流 (正=放電)・電池温度・ソーラー積算 Ah・電池の積算 Wh (負=放電)・電池残量 Ah
    vl:es.lastVterm||0,ib:es.lastIbat||0,tb:es.Tbat,ahs:es.ahSol||0,whb:(es.whGen||0)-(es.whUsed||0),ahb:P.batteryWh/((PRO.vFull+PRO.vEmpty)/2)*es.soc}; },
  /* この先 (前方誘導車の画面用): 制限速度が変わる地点 (20 km 先まで)・次の CS・次の右左折 */
@@ -104,7 +105,7 @@ const Tele={
   return {storm:sa?{min:Math.round(sa.tMin)}:null,lim,cs:cs?{n:cs.n,name:cs.name,d:+(cs.km-es.km).toFixed(1)}:null,man:nm&&nm.name&&!nm.name.startsWith("(")&&nm.km-es.km<30?{d:+(nm.km-es.km).toFixed(2),act:act[nm.turn]||"",name:nm.name}:null,fin:+(TOTAL_KM-es.km).toFixed(1)}; },
  /* 予報 (ドライバー側の「予報」を使う。実際の天気そのものは送らない): この先 9 時間の 1 時間ごと */
  forecast(es){
-  const p=Strategy.plan(false), abs0=(es.day-1)*24+es.hour, out=[];
+  const p=XT()? null : Strategy.plan(false), abs0=(es.day-1)*24+es.hour, out=[];   // エクストリーム: 戦略の推奨・見込みは送らない (天気の列だけ)
   let tr=null; try{ if(p) tr=Strategy.simulate(p.f||p.v,{abs:abs0,km:es.km,soc:es.soc,trace:true}).trace; }catch(e){}   // 推奨で走った場合の見込み (地点・電池・速度)
   const kmAt=(a)=>{ if(!tr||!tr.length) return Math.min(TOTAL_KM,es.km+(Math.max(0,a-abs0))*70); let lo=0,hi=tr.length-1; if(a<=tr[0][1]) return tr[0][0]; if(a>=tr[hi][1]) return tr[hi][0];
    while(hi-lo>1){ const m=(lo+hi)>>1; if(tr[m][1]<=a) lo=m; else hi=m; } return tr[lo][0]; };

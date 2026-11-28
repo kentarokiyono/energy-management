@@ -11,7 +11,7 @@ const Entry={
   if(typeof EneMan!=="undefined"){ EneMan.load(); document.querySelectorAll("#seg-role button").forEach(b=>b.onclick=()=>EneMan.setRole(b.dataset.role)); EneMan.ui(); }
   if(typeof Lesson!=="undefined"){ try{ Lesson.sel=clamp(+localStorage.getItem(Lesson.KEY+"_sel")||0,0,Lesson.LIST.length-1); }catch(e){} Lesson.ui(); }
   const sel=document.getElementById("scenario"), box=document.getElementById("ent-scn");
-  if(sel&&box){ box.innerHTML=""; for(const op of sel.options){ if(!op.value) continue; const b=document.createElement("button"); b.type="button"; b.textContent=op.textContent; b.dataset.v=op.value;
+  if(sel&&box){ box.innerHTML=""; for(const op of sel.options){ if(!op.value||op.value==="extreme") continue; const b=document.createElement("button"); b.type="button"; b.textContent=op.textContent; b.dataset.v=op.value;
    b.onclick=()=>{ this.sub="scn"; sel.value=op.value; sel.dispatchEvent(new Event("change")); this.scnBtns(); this.save(); }; box.appendChild(b); }
    if(o&&o.scn&&[...sel.options].some(x=>x.value===o.scn)) this.lastScn=o.scn; }
   document.querySelectorAll(".menu .ent").forEach(el=>el.addEventListener("click",()=>this.pick(el.dataset.ent,true)));
@@ -29,19 +29,22 @@ const Entry={
   document.querySelector(".menu").dataset.ent=e; this.save();
   if(act&&(e==="strategy"||e==="review"||e==="team")) this.go(); },
  /* 練習の種類 */
- setSub(k,quiet){ if(!["intro","race","test","scn"].includes(k)) k="race"; this.sub=k; if(this.ent!=="practice"&&!quiet){ this.ent="practice"; return this.pick("practice"); }
+ setSub(k,quiet){ if(!["intro","race","test","scn","extreme"].includes(k)) k="race"; this.sub=k; if(this.ent!=="practice"&&!quiet){ this.ent="practice"; return this.pick("practice"); }
   document.querySelectorAll("#ent-sub button").forEach(b=>b.classList.toggle("on",b.dataset.sub===k));
   document.querySelectorAll(".ent-sub").forEach(d=>d.style.display=d.dataset.for===k?"":"none");
-  { const rb=document.getElementById("role-box"); if(rb) rb.style.display= k==="race"||k==="scn"? "" : "none"; }   // 役割 (ドライバー / エネマネ班) は本戦と練習シナリオ
+  { const rb=document.getElementById("role-box"); if(rb) rb.style.display= k==="race"||k==="scn"? "" : "none"; }
+  if(k==="extreme"){ selectMode("race"); this.scn("extreme"); if(typeof EneMan!=="undefined"&&EneMan.role!=="driver") EneMan.setRole("driver"); this.save(); this.summary(); return; }   // 補助なし: 役割はドライバー (エネマネ班は別の端末)   // 役割 (ドライバー / エネマネ班) は本戦と練習シナリオ
   if(k==="test"){ selectMode("test"); this.scn(""); }
   else if(k==="intro"){ selectMode("race"); this.scn(""); if(typeof Lesson!=="undefined") Lesson.ui(); }
-  else { selectMode("race"); this.scn(k==="scn"? (this.cur()||this.lastScn||"squall") : ""); }
+  else { selectMode("race"); this.scn(k==="scn"? ((this.cur()!=="extreme"&&this.cur())||(this.lastScn!=="extreme"&&this.lastScn)||"squall") : ""); }
   this.save(); this.summary(); },
  cur(){ return (document.getElementById("scenario")||{}).value||""; },
  scn(v){ const sel=document.getElementById("scenario"); if(!sel) return; if(sel.value) this.lastScn=sel.value; sel.value=v; sel.dispatchEvent(new Event("change")); this.scnBtns(); },
  scnBtns(){ const v=this.cur(); document.querySelectorAll("#ent-scn button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
   const lv=document.getElementById("scn-lv-box"); if(lv) lv.style.display= v==="storm"? "" : "none";
-  const lb=document.getElementById("long-box"); if(lb) lb.style.display= v==="long"? "" : "none"; },
+  const lb=document.getElementById("long-box"); if(lb) lb.style.display= v==="long"||v==="extreme"? "" : "none";
+  if(lb&&v==="extreme"){ const box=document.querySelector('.ent-sub[data-for="extreme"]'); if(box&&lb.parentElement!==box) box.insertBefore(lb,box.querySelector(".opts")); }
+  else if(lb&&v==="long"){ const box=document.querySelector('.ent-sub[data-for="scn"]'); if(box&&lb.parentElement!==box) box.insertBefore(lb,box.querySelector("p:last-of-type")); } },
  go(){ const e=this.ent;
   if(e==="strategy") return Fade.go(()=>Ana.open("trend"));
   if(e==="review") return Fade.go(()=>Ana.open("race"));
