@@ -32,6 +32,11 @@ const EneMan={
  charge(){ const es=Engine.st; if(!es) return; if(AutoDrive.chargeReq||AutoDrive.charging){ AutoDrive.resume(); Radio.push("充電停車を終えて出発します。","戦略班"); }
   else { AutoDrive.chargeReq=true; Radio.push("充電のため路肩に止めてください。","戦略班",{speak:true}); } this.draw(); },
  /* 点検・修理: 路肩に止めて停車メニュー (タイヤ交換・機器チェック・充電) を開く */
+ /* 前のチームを追い越す: 隊列の後端まで 500 m 以内のいちばん近いチームに「Can I overtake?」と聞く (Yes なら相手が路肩へ寄り、自動運転が右寄りで抜く) */
+ overtake(){ const es=Engine.st; if(!es||typeof View==="undefined") return; const o=View.teamAhead(500);
+  if(!o){ toast("前に追い越せるチームがいません","#f59e0b"); return; }
+  if(o.tm.yieldT>0){ toast(`${o.tm.name} は道を譲っています`,"#34d399"); return; }
+  if(!View.askOvertake(o.tm)) toast("返事を待っています","#f59e0b"); },
  repair(){ const es=Engine.st; if(!es) return; AutoDrive.repair(); Radio.push("点検のため路肩に止めてください。","戦略班",{speak:true}); this.draw(); },
  swap(){ const es=Engine.st; if(!es) return;
   const stopped= es.v<0.3&&(es.stopTimer>0||es.camp||AutoDrive.charging);
@@ -49,7 +54,7 @@ const EneMan={
     <div id="em-hint" style="opacity:.7;margin-bottom:6px"></div>
     <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px"><span style="white-space:nowrap">17:00 停車</span> <input id="em-stop" type="number" step="1" style="width:70px;background:#111;color:#eee;border:1px solid #444;padding:2px 4px"> km <button class="btn" id="em-stop-set">決める</button></div>
     <div id="em-stop-hint" style="opacity:.7;margin-bottom:6px"></div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn" id="em-charge">充電停車</button><button class="btn" id="em-repair">点検・修理</button><button class="btn" id="em-swap">ドライバー交代</button></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn" id="em-charge">充電停車</button><button class="btn" id="em-repair">点検・修理</button><button class="btn" id="em-swap">ドライバー交代</button><button class="btn" id="em-ot">追い越し</button></div>
     <div id="em-fault" style="margin-top:4px"></div>`;
    document.getElementById("game-container").appendChild(el);
    const vi=el.querySelector("#em-v");
@@ -58,7 +63,7 @@ const EneMan={
    vi.addEventListener("keydown",e=>{ e.stopPropagation(); if(e.key==="Enter") this.send(vi.value); });
    const si=el.querySelector("#em-stop"); si.addEventListener("keydown",e=>{ e.stopPropagation(); if(e.key==="Enter") this.setStop(si.value); });
    el.querySelector("#em-stop-set").onclick=()=>this.setStop(si.value);
-   el.querySelector("#em-charge").onclick=()=>this.charge(); el.querySelector("#em-repair").onclick=()=>this.repair(); el.querySelector("#em-swap").onclick=()=>this.swap();
+   el.querySelector("#em-charge").onclick=()=>this.charge(); el.querySelector("#em-repair").onclick=()=>this.repair(); el.querySelector("#em-swap").onclick=()=>this.swap(); el.querySelector("#em-ot").onclick=()=>this.overtake();
    /* グラフ・数値の欄: 電池 / 速度 / 電力 / 数値 を切り替える */
    const g=document.createElement("div"); g.id="em-data"; g.className="pn";
    g.innerHTML=`<div id="em-tabs">${[["batt","電池"],["spd","速度"],["pow","電力"],["num","数値"]].map(([k,t])=>`<button type="button" data-v="${k}">${t}</button>`).join("")}</div>

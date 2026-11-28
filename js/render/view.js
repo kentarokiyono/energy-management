@@ -669,13 +669,7 @@ if(ahead&&wantKmh>(ahead.tm.vNow||0)+5){
 const tm=ahead.tm;
 tm.askCd-=dtR;
 if(tm.askCd<=0&&!tm.otPending&&tm.yieldT<=0){
-tm.otPending=true; tm.askCd=40;
-Radio.push(`Can I overtake? (→${tm.name})`,"我々");
-const trainNear=this.roadTrains.some(rt=>Math.abs(rt.sVis-this.s)<650);
-setTimeout(()=>{ tm.otPending=false;
-if(trainNear){ Radio.push("No! ロードトレイン接近中。待ってください。",tm.name); }
-else { Radio.push("Yes, go ahead!",tm.name); tm.yieldT=25; }
-},1600);
+this.askOvertake(tm);
 }
 }
 if(!OT.active){
@@ -688,6 +682,24 @@ OT.ask(behind.tm, this.roadTrains.some(rt=>rt.sVis>this.s-150&&rt.sVis<this.s+70
 }
 }
 }
+},
+/* 前のチームに「Can I overtake?」と聞く (自動で、またはエネマネ欄のボタンから)。Yes なら相手は路肩へ寄って減速し、抜き終わるまで待つ */
+askOvertake(tm){
+ if(!tm||tm.otPending) return false;
+ tm.otPending=true; tm.askCd=40;
+ Radio.push(`Can I overtake? (→${tm.name})`,"我々");
+ const trainNear=this.roadTrains.some(rt=>Math.abs(rt.sVis-this.s)<650);
+ setTimeout(()=>{ tm.otPending=false;
+  if(trainNear){ Radio.push("No! ロードトレイン接近中。待ってください。",tm.name); }
+  else { Radio.push("Yes, go ahead!",tm.name); tm.yieldT=25; tm.yieldAge=0; }
+ },1600);
+ return true;
+},
+/* 前にいるいちばん近いチーム (隊列の後端まで range m 以内、走っていて道を譲っていない) */
+teamAhead(range){
+ let best=null; if(typeof TeamCars==="undefined") return null;
+ for(const [tm,a] of TeamCars.ag){ if(a.off||tm.status!=="run"||tm.passing) continue; const g=a.s-TeamCars.REAR-this.s; if(g<=0||g>range) continue; if(!best||g<best.g) best={tm,g}; }
+ return best;
 },
 /* ---- 視覚距離 s ⇔ ルート km ---- */
 kmOfS(s){ return clamp(Route.kmAtVis(this.visOrigin+s),0,TOTAL_KM); },

@@ -639,3 +639,5 @@ I18N.pat([
   (m,n,fx,r,q)=>`Sections used (3 km / 5 min averages): ${n}. ${fx?"Speed range is narrow, so rolling resistance is fixed at the current setting. ":""}Fit R² ${r} (${q.replace(/^低い: 速度の幅が狭い・風や加速の影響が大きい$/,"low: narrow speed range, large wind/acceleration effects").replace(/^高い$/,"high").replace(/^ふつう$/,"fair")}). “Current” consumption = the current model run at this run's speeds and grades. CdA = drag coefficient × frontal area; Crr estimated with η = 0.95. Solar is the effective value including temperature and angle effects.`],
 ]);
 I18N.add({"まだ抜けません。車線に戻ってください。":"It can't pass yet. Return to the lane."});
+I18N.add({"追い越し":"Overtake","前に追い越せるチームがいません":"No team ahead to overtake","返事を待っています":"Waiting for a reply"});
+I18N.pat([[/^(.+?) は道を譲っています$/,"$1 is giving way"]]);
