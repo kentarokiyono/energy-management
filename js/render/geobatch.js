@@ -92,18 +92,21 @@ _gbC.convertSRGBToLinear();
 return _gbC;
 }
 class GeoBatch{
-constructor(){ this.p=[]; this.n=[]; this.c=[]; this.uv=[]; }
+constructor(ao=0){ this.p=[]; this.n=[]; this.c=[]; this.uv=[]; this.ao=ao; }
 /* t: tpl()/boxMetric() / m: Matrix4 / col: THREE.Color(linear) */
 add(t,m,col,uvs=1){
 const e=m.elements; _gbN.getNormalMatrix(m); const ne=_gbN.elements;
 const P=t.p,N=t.n,U=t.uv, r=col.r,g=col.g,b=col.b;
+// 根元の暗がり (焼き込み): 置いた物の一番下から少しの高さまで色を暗くする (地面との接地感・葉の房の下側の陰)
+let y0=0, zone=0; if(this.ao){ let lo=Infinity, hi=-Infinity; for(let i=1;i<P.length;i+=3){ const wy=e[1]*P[i-1]+e[5]*P[i]+e[9]*P[i+1]+e[13]; if(wy<lo) lo=wy; if(wy>hi) hi=wy; }
+ if(hi-lo>0.3){ y0=lo; zone=Math.min(0.7,(hi-lo)*0.3); } }
 for(let i=0,j=0;i<P.length;i+=3,j+=2){
- const x=P[i],y=P[i+1],z=P[i+2];
- this.p.push(e[0]*x+e[4]*y+e[8]*z+e[12], e[1]*x+e[5]*y+e[9]*z+e[13], e[2]*x+e[6]*y+e[10]*z+e[14]);
+ const x=P[i],y=P[i+1],z=P[i+2], wy=e[1]*x+e[5]*y+e[9]*z+e[13];
+ this.p.push(e[0]*x+e[4]*y+e[8]*z+e[12], wy, e[2]*x+e[6]*y+e[10]*z+e[14]);
  const nx=N[i],ny=N[i+1],nz=N[i+2];
  let ax=ne[0]*nx+ne[3]*ny+ne[6]*nz, ay=ne[1]*nx+ne[4]*ny+ne[7]*nz, az=ne[2]*nx+ne[5]*ny+ne[8]*nz;
  const l=Math.hypot(ax,ay,az)||1; this.n.push(ax/l,ay/l,az/l);
- this.c.push(r,g,b);
+ if(zone>0){ const t=Math.min(1,(wy-y0)/zone), k=1-this.ao*(1-t*t*(3-2*t)); this.c.push(r*k,g*k,b*k); } else this.c.push(r,g,b);
  if(U) this.uv.push(U[j]*uvs,U[j+1]*uvs); else this.uv.push(0,0);
 }
 }
@@ -122,7 +125,7 @@ return m;
 /* マテリアル名→GeoBatch の束 */
 class BatchSet{
 constructor(){ this.b={}; }
-get(name){ return this.b[name]||(this.b[name]=new GeoBatch()); }
+get(name){ return this.b[name]||(this.b[name]=new GeoBatch(BatchSet.AO[name]||0)); }
 toGroup(grp){
 for(const k in this.b){ const bt=this.b[k]; if(bt.empty) continue;
  const def=SceneMats.get(k);
@@ -130,3 +133,4 @@ for(const k in this.b){ const bt=this.b[k]; if(bt.empty) continue;
 return grp;
 }
 }
+BatchSet.AO={veg:0.4,bark:0.35,solid:0.32,solidDS:0.25,brick:0.3,corr:0.25,resi:0.3,shop:0.3,office:0.25};   // 根元の暗さ (材質ごと)

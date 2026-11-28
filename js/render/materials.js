@@ -8,6 +8,16 @@ if(srgb) t.encoding=THREE.sRGBEncoding;
 return t;
 }
 const TEX={};
+/* 色調 (全画質): ACES の後に、暗い所を少し青く・明るい所を少し暖かく、明暗をわずかに締めて、鮮やかさを少し上げる (乾いた強い日差しの感じ) */
+THREE.ShaderChunk.tonemapping_pars_fragment=THREE.ShaderChunk.tonemapping_pars_fragment
+ .replace(/vec3 ACESFilmicToneMapping\( vec3 color \) \{/,`vec3 gradeCol(vec3 c){
+ float l=dot(c,vec3(0.2126,0.7152,0.0722));
+ c*=mix(vec3(0.965,0.99,1.05),vec3(1.035,1.0,0.955),smoothstep(0.05,0.6,l));
+ c=mix(vec3(l),c,1.06);
+ c=mix(c,c*c*(3.0-2.0*c),0.10);
+ return clamp(c,0.0,1.0); }
+vec3 ACESFilmicToneMapping( vec3 color ) {`)
+ .replace(/color = ACESOutputMat \* color;\s*return saturate\( color \);/,"color = ACESOutputMat * color;\n\treturn gradeCol( saturate( color ) );");
 /* 影の 2 段: 平行光源の影が 2 枚のとき (View.farSun)、近くの細かい影 [0] の範囲内はそれを、外は遠くの粗い影 [1] を使う (境目はなめらかに) */
 THREE.ShaderChunk.shadowmask_pars_fragment=THREE.ShaderChunk.shadowmask_pars_fragment.replace("#if NUM_DIR_LIGHT_SHADOWS > 0\n\tDirectionalLightShadow directionalLight;",
 `#if NUM_DIR_LIGHT_SHADOWS == 2
