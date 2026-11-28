@@ -109,17 +109,22 @@ termite(bs,x,y,z,sc=1){
  for(let i=0;i<2;i++){ const a=rnd()*6.28;
   bs.get("solid").add(tpl("cone5"),M4(x+Math.cos(a)*r*0.6,y-0.1,z+Math.sin(a)*r*0.6,r*0.55,H*rndr(0.4,0.75),r*0.55,rnd()*6),linCol(col,0.1)); }
 },
-rock(bs,x,y,z,sc=1,col=0x8b4426){
- const r=rndr(0.3,1.4)*sc;
- bs.get("solid").add(tpl("dode"),M4(x,y+r*0.1,z,r*rndr(0.9,1.5),r*rndr(0.5,0.9),r,rnd()*6,rnd(),rnd()),linCol(col,0.12));
+rock(bs,x,y,z,sc=1,col=0x8b4426){   // 割れて角ばった岩 (4 種の形)。乱数の使う回数は前と同じ (景色の並びを変えない)。大きい岩のまわりに小さな欠片
+ const r=rndr(0.3,1.4)*sc, sx=rndr(0.9,1.5), sy=rndr(0.5,0.9), ry=rnd()*6, rx=rnd(), rz=rnd();
+ const h=Math.abs(Math.sin(x*12.9898+z*78.233)*43758.5453)%1, kind="rock"+Math.floor(h*4);
+ bs.get("solid").add(tpl(kind),M4(x,y+r*0.25,z,r*sx,r*sy*1.1,r,ry,(rx-0.5)*0.25,(rz-0.5)*0.25),PR._rockCol(col,h));
+ if(r>0.7){ const n=1+Math.floor(h*7)%3;
+  for(let i=0;i<n;i++){ const a=h*40+i*2.3, d=r*(1.3+0.5*((h*(i+3)*17)%1)), q=r*(0.15+0.15*((h*(i+5)*13)%1));
+   bs.get("solid").add(tpl("rock"+((Math.floor(h*4)+i+1)%4)),M4(x+Math.cos(a)*d,y+q*0.2,z+Math.sin(a)*d,q*1.2,q*0.7,q,a,0,0),PR._rockCol(col,h)); } }
 },
+_rockCol(col,h){ const c=linCol(col,0.1), l=(c.r+c.g+c.b)/3, k=0.3+0.3*((h*31)%1); c.r+=(l-c.r)*k; c.g+=(l-c.g)*k; c.b+=(l-c.b)*k; return c.multiplyScalar(l<0.05? 1.7 : 1.3); },   // 型の陰で暗くなる分を戻す (黒っぽい岩は黒くつぶれないように)   // 岩の色をくすませる (岩ごとに少し違う)
 marbles(bs,x,y,z,sc=1){ // デビルズマーブル: 丸く風化した花崗岩の積み重なり
  const n=2+Math.floor(rnd()*4);
  let yy=y;
  for(let i=0;i<n;i++){
   const r=rndr(1.6,3.8)*sc*(i?0.75:1);
   const a=rnd()*6.28, d=i?rnd()*r*0.4:0;
-  bs.get("solid").add(tpl("ico1"),M4(x+Math.cos(a)*d,yy+r*0.85,z+Math.sin(a)*d,r*rndr(1,1.3),r*rndr(0.85,1),r,rnd()*6),linCol(rnd()<0.5?0xa45a38:0x9a6046,0.1));
+  bs.get("solid").add(tpl(i%2?"boulder1":"boulder0"),M4(x+Math.cos(a)*d,yy+r*0.85,z+Math.sin(a)*d,r*rndr(1,1.3),r*rndr(0.85,1),r,rnd()*6),PR._rockCol(rnd()<0.5?0xa45a38:0x9a6046,(x*0.37+i*0.21)%1));   // 丸く風化した花崗岩
   if(rnd()<0.5) yy+=r*1.5;
  }
 },
