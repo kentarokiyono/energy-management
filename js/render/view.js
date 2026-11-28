@@ -661,8 +661,11 @@ if(!sl.lead){ sl.lead=this.mkVan(0xf4f4f4); sl.chase=this.mkVan(0xc9ced6); this.
 const top=sl.mesh.userData.top; if(top){ const tw=stopped&&o.tm.status==="run"? 0.6*(sl.mesh.userData.tiltSign||-1) : 0; top.rotation.z=lerp(top.rotation.z,tw,clamp(dtR*2,0,1)); }   // 充電: アッパーカウルだけ傾ける
 }   // 自車との接触は当たり判定 (dynColliders) が見る
 if(es.camp||es.stopTimer>0||es.fire) return;
-const ahead=shown.find(o=>o.rel>6&&o.rel<130&&o.tm.status==="run"&&!o.tm.passing);
-if(ahead&&es.v*3.6>ahead.tm.spd+2){
+/* 前の遅いチームに「Can I overtake?」: 相手の今の速さと、自車が出したい速さ (指示の速さ・自動運転の設定) で比べる。
+ 相手の隊列の後端 (後方車) まで 200 m 以内なら、間に自車の前方誘導車がいても聞く (自車が既に相手に合わせて遅くなっていても聞ける) */
+const wantKmh=Math.max(es.v*3.6,(typeof Orders!=="undefined"&&Orders.cur&&Orders.cur.v)||0,typeof AutoDrive!=="undefined"&&AutoDrive.on? (AutoDrive.vSet||70) : 0);
+const ahead=shown.find(o=>o.rel-TeamCars.REAR>0&&o.rel-TeamCars.REAR<200&&o.tm.status==="run"&&!o.tm.passing&&Math.abs((o.tm.latV??-2.4)+2.4)<1.5);
+if(ahead&&wantKmh>(ahead.tm.vNow||0)+5){
 const tm=ahead.tm;
 tm.askCd-=dtR;
 if(tm.askCd<=0&&!tm.otPending&&tm.yieldT<=0){
@@ -1222,6 +1225,10 @@ this.updateRoadTrains(es,dtR);
   else { this.leadHold=false; const tgt=Math.min(want,stopAt), gap=tgt-this.leadS, lim=speedLimitAt(clamp(this.kmOfS(this.leadS),0,TOTAL_KM))/3.6;
    // 自車の速さに合わせて走り、150 m 前を保つ。制限速度を守り、止まるときは手前から減速 (急発進・急停止しない)
    let vT= gap<=0.5? 0 : clamp(es.v+(gap-20)*0.08,0,lim); vT=Math.min(vT,Math.sqrt(Math.max(0,2*2.5*(gap-0.5))));
+   // 前を走る他チームの隊列をすり抜けない: 後方車の 25 m 後ろより前に出ない (道を譲っている・自車を抜いている隊列は見ない)
+   if(typeof TeamCars!=="undefined") for(const [tm,a] of TeamCars.ag){ if(a.off||tm.status!=="run"||tm.passing||tm.yieldT>0||Math.abs(a.lat+2.4)>1.5) continue;
+    const rear=a.s-TeamCars.REAR, g=rear-this.leadS; if(g<-3||g>300) continue;
+    vT=Math.min(vT,Math.max(0,a.v+(g-25)*0.3),Math.sqrt(Math.max(0,2*3*(g-12)))+a.v); }
    const v0=this.leadV||0; this.leadV= vT>v0? Math.min(vT,v0+2.0*dtR) : Math.max(vT,v0-4.0*dtR);
    this.leadS+=this.leadV*dtR; }
   if(hold) this.leadV=0;
