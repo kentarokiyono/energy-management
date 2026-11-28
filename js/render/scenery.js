@@ -597,9 +597,12 @@ signMesh(ctx,q,kind,text,w,h,postH,off){
  if(!this._signMats) this._signMats=new Map();
  const key=kind+"|"+text;
  let mat=this._signMats.get(key);
- if(!mat){ mat=new THREE.MeshLambertMaterial({map:signTex(kind,text),side:THREE.DoubleSide}); this._signMats.set(key,mat); }
+ if(!mat){ mat=new THREE.MeshLambertMaterial({map:signTex(kind,text)}); this._signMats.set(key,mat); }   // 表だけ (裏は下のアルミ板)
  const m=new THREE.Mesh(new THREE.PlaneGeometry(1,1),mat);
  m.scale.set(w,h,1); m.position.set(q.x,q.y+postH+h/2-0.1,q.z); m.rotation.y=ry; m.castShadow=true;
+ { const bx=-Math.sin(ry)*0.014, bz=-Math.cos(ry)*0.014, y0=q.y+postH-0.1;   // 裏: 灰色のアルミ板と、柱に留める横の金具 2 本
+  bs.get("solid").add(tpl("box"),M4(q.x+bx,y0,q.z+bz,w,h,0.018,ry),linCol(0x8d9093));
+  for(const t of [0.22,0.78]) bs.get("solid").add(tpl("box"),M4(q.x+bx*2.6,y0+h*t-0.03,q.z+bz*2.6,w*0.92,0.06,0.03,ry),linCol(0x6f7275)); }
  ctx.signs.push(m);
 },
 roadSigns(ctx){

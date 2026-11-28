@@ -402,15 +402,18 @@ const cab=rndPick([0xaa2222,0x1f4f9c,0xe8e8e8,0xd8a21c,0x1d1d1d,0x2f6b3a]);
 const chrome=0xd0d4d8, tyre=0x141414;
 // トラクタ (前方=+z: すれ違い用に後で反転)
 bs.get("solid").add(tpl("box"),M4(0,0.9,4.6,2.5,0.35,8.5),linCol(0x222222));
-bs.get("solid").add(tpl("box"),M4(0,1.25,7.6,2.3,1.35,2.6),linCol(cab));            // ボンネット
-bs.get("solid").add(tpl("box"),M4(0,1.25,5.0,2.5,2.65,2.6),linCol(cab));            // キャブ
-bs.get("solid").add(tpl("box"),M4(0,3.9,4.4,2.5,1.0,1.6),linCol(cab));              // スリーパー
+bs.get("paint").add(tpl("box"),M4(0,1.25,7.6,2.3,1.35,2.6),linCol(cab));            // ボンネット
+bs.get("paint").add(tpl("box"),M4(0,1.25,5.0,2.5,2.65,2.6),linCol(cab));            // キャブ
+for(const sx of [-1,1]) bs.get("glass").add(tpl("box"),M4(sx*1.255,2.6,5.3,0.02,0.85,1.3),linCol(0x1a2228));   // 横の窓
+for(const sx of [-1,1]) bs.get("chrome").add(tpl("box"),M4(sx*1.45,2.5,6.2,0.08,0.7,0.25),linCol(chrome));   // 大きなミラー
+bs.get("paint").add(tpl("box"),M4(0,3.9,4.4,2.5,1.0,1.6),linCol(cab));              // スリーパー
 bs.get("glass").add(tpl("box"),M4(0,2.75,6.31,2.3,0.9,0.05),linCol(0x1a2228));
-bs.get("solid").add(tpl("box"),M4(0,1.1,8.95,2.3,1.15,0.15),linCol(chrome));       // グリル
-bs.get("solid").add(tpl("box"),M4(0,0.55,9.25,2.6,1.25,0.35),linCol(0xb9bcbf));    // ブルバー
-for(const sx of [-1.15,1.15]) bs.get("solid").add(tpl("cyl8"),M4(sx,1.6,3.75,0.09,3.6,0.09),linCol(chrome)); // 排気スタック
-for(const sx of [-0.95,0.95]) bs.get("solid").add(tpl("cyl12"),M4(sx,0.95,3.9,0.36,1.5,0.36,0,Math.PI/2,0),linCol(chrome)); // 燃料タンク (車体の下・前後方向)
-const wheel=(x,z)=>bs.get("solid").add(tpl("cyl12"),M4(x,0.52,z,0.52,0.3,0.52,0,0,Math.PI/2),linCol(tyre));
+bs.get("chrome").add(tpl("box"),M4(0,1.1,8.95,2.3,1.15,0.15),linCol(chrome));       // グリル
+for(let k=0;k<6;k++) bs.get("rubber").add(tpl("box"),M4(0,1.22+k*0.17,9.03,2.1,0.06,0.02),linCol(0x202224));   // グリルの横桟
+bs.get("chrome").add(tpl("box"),M4(0,0.55,9.25,2.6,1.25,0.35),linCol(0xb9bcbf));    // ブルバー
+for(const sx of [-1.15,1.15]) bs.get("chrome").add(tpl("cyl8"),M4(sx,1.6,3.75,0.09,3.6,0.09),linCol(chrome)); // 排気スタック
+for(const sx of [-0.95,0.95]) bs.get("chrome").add(tpl("cyl12"),M4(sx,0.95,3.9,0.36,1.5,0.36,0,Math.PI/2,0),linCol(chrome)); // 燃料タンク (車体の下・前後方向)
+const wheel=(x,z)=>{ bs.get("rubber").add(tpl("cyl12"),M4(x,0.52,z,0.52,0.3,0.52,0,0,Math.PI/2),linCol(tyre)); bs.get("chrome").add(tpl("cyl12"),M4(x*1.01,0.52,z,0.3,0.305,0.3,0,0,Math.PI/2),linCol(0xc4c8cc)); };   // タイヤ + アルミホイール
 for(const z of [8.2,2.6,1.2]) for(const x of [-1.1,1.1]) wheel(x,z);
 // トレーラ ×3 (サイドティッパー/バン)
 const trCol=rndPick([0xb4b7ba,0x9aa0a6,0xc9c9c2,0x7a8288]);
@@ -422,6 +425,8 @@ for(let i=0;i<3;i++){
  if(i<2) bs.get("solid").add(tpl("box"),M4(0,0.6,zc-7.1,0.2,0.2,2.2),linCol(0x333333));  // ドーリー連結
  for(const dz of [-4.8,-3.4,-2.0,4.4,5.8]) for(const x of [-1.1,1.1]) wheel(x,zc+dz);
  bs.get("solid").add(tpl("box"),M4(0,0.9,zc-6.2,2.4,0.25,0.06),linCol(0xd11a1a));
+ for(const sx of [-1,1]){ for(let k=0;k<4;k++) bs.get("emis").add(tpl("box"),M4(sx*1.26,1.15,zc-5.5+k*3.6,0.03,0.08,0.12),linCol(0xff9a1a));   // 横の車幅灯 (橙)
+  bs.get("rubber").add(tpl("box"),M4(sx*1.1,0.12,zc-5.6,0.5,0.6,0.03),linCol(0x161616)); }   // 泥よけ
 }
 bs.get("solid").add(tpl("box"),M4(0,1.7,-33.8,1.2,0.6,0.04),linCol(0xf6c400));     // ROAD TRAIN 表示板
 bs.toGroup(t);

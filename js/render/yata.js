@@ -46,9 +46,17 @@ const rd=g.createRadialGradient(128,64,10,128,64,120);
 rd.addColorStop(0,"rgba(0,0,0,.5)");rd.addColorStop(1,"rgba(0,0,0,0)");
 g.fillStyle=rd;g.fillRect(0,0,256,128);
 // セルの模様 (明るい地に細い線): 色はマテリアル側で付ける (物理ベースの見た目用)
-const cv2=document.createElement("canvas"); cv2.width=cv2.height=256; const g2=cv2.getContext("2d"); g2.fillStyle="#ffffff"; g2.fillRect(0,0,256,256);
-g2.strokeStyle="#5a6070"; g2.lineWidth=3; for(let i=0;i<=8;i++){ g2.beginPath(); g2.moveTo(i*32,0); g2.lineTo(i*32,256); g2.stroke(); g2.beginPath(); g2.moveTo(0,i*32); g2.lineTo(256,i*32); g2.stroke(); }
-g2.strokeStyle="rgba(200,205,220,.55)"; g2.lineWidth=1; for(let i=0;i<32;i++){ g2.beginPath(); g2.moveTo(i*8+4,0); g2.lineTo(i*8+4,256); g2.stroke(); }
+// 物理ベース用のセル (色ごと描く): 実車に合わせて、ほぼ黒の濃紺のセル (セルごとにわずかに違う) + 細く暗い灰色のすき間 + 角の小さな点。
+// 母線は積層の下で目立たないので描かない。タイルの端 (8 セルごと) はモジュールの継ぎ目として少し明るい線。1 セル 128 画素
+const N2=1024, C2=N2/8, cv2=document.createElement("canvas"); cv2.width=cv2.height=N2; const g2=cv2.getContext("2d");
+g2.fillStyle="#2b3038"; g2.fillRect(0,0,N2,N2);   // すき間
+let sd2=7; const r2=()=>((sd2=(sd2*16807)%2147483647)/2147483647);
+for(let j=0;j<8;j++) for(let i=0;i<8;i++){ const x=i*C2+2, y=j*C2+2, w=C2-4, k=7, v=0.85+r2()*0.3;
+ g2.fillStyle=`rgb(${Math.round(11*v)},${Math.round(14*v)},${Math.round(22*v)})`;
+ g2.beginPath(); g2.moveTo(x+k,y); g2.lineTo(x+w-k,y); g2.lineTo(x+w,y+k); g2.lineTo(x+w,y+w-k); g2.lineTo(x+w-k,y+w); g2.lineTo(x+k,y+w); g2.lineTo(x,y+w-k); g2.lineTo(x,y+k); g2.closePath(); g2.fill();
+ g2.strokeStyle="rgba(70,76,88,.18)"; g2.lineWidth=1; for(const b of [0.25,0.5,0.75]){ g2.beginPath(); g2.moveTo(x+w*b,y+3); g2.lineTo(x+w*b,y+w-3); g2.stroke(); } }   // ごく薄い母線
+g2.fillStyle="#3c424c"; for(let j=0;j<=8;j++) for(let i=0;i<=8;i++){ g2.beginPath(); g2.arc(i*C2,j*C2,3.5,0,7); g2.fill(); }   // 角の点
+g2.fillStyle="#555b66"; g2.fillRect(0,0,N2,2); g2.fillRect(0,0,2,N2);   // モジュールの継ぎ目
 const ct2=new THREE.CanvasTexture(cv2); ct2.wrapS=ct2.wrapT=THREE.RepeatWrapping; ct2.anisotropy=8; ct2.encoding=THREE.sRGBEncoding;
 // 接地の陰: 車体の下の輪郭に沿った濃い陰 (中ほど濃く、外へ柔らかく抜ける)。重ね塗りでぼかす (ブラウザのぼかし機能に頼らない)
 const cs=document.createElement("canvas"); cs.width=128; cs.height=512; const gs=cs.getContext("2d");
@@ -83,7 +91,7 @@ const matOrange=paint(BD.accent!=null?BD.accent:BD.livery?0xe2560a:0xf27316);
 const matSkirt=PBR? new THREE.MeshPhysicalMaterial({color:0x101216,metalness:.1,roughness:.3,clearcoat:.8,clearcoatRoughness:.1,side:DS,envMapIntensity:.8}) : new THREE.MeshStandardMaterial({color:0x101216,roughness:.5,side:DS});
 const matBare=PBR? new THREE.MeshPhongMaterial({color:0x07090c,specular:0x08090a,shininess:60,side:DS}) : new THREE.MeshStandardMaterial({color:0x07090c,roughness:.5,side:DS});   // 電池を貼っていない上面 (つやを抑えた黒)
 const matTip=PBR? new THREE.MeshPhongMaterial({color:BD.accent!=null?BD.accent:0xa63a06,specular:0x020202,shininess:30,side:DS}) : matOrange;   // 鼻先の上面のオレンジ (空の映り込みで白っぽくならないように)
-const matArray=PBR? new THREE.MeshPhysicalMaterial({color:0x141b4d,metalness:.85,roughness:.2,reflectivity:.9,clearcoat:.6,clearcoatRoughness:.08,map:T.cellL,side:DS,envMapIntensity:1})
+const matArray=PBR? new THREE.MeshPhysicalMaterial({color:0xffffff,metalness:0,roughness:.3,reflectivity:.5,clearcoat:.7,clearcoatRoughness:.05,map:T.cellL,side:DS,envMapIntensity:.5})
  : new THREE.MeshPhysicalMaterial({color:0x0b0e12,roughness:.42,clearcoat:.5,clearcoatRoughness:.25,map:T.cell,side:DS,envMapIntensity:.35});
 // キャノピーの窓: 透過 (外から中が少し見える濃い色のガラス)
 const glassMat=(c,fallback)=> PBR? new THREE.MeshPhysicalMaterial({color:c,transmission:.9,transparent:true,opacity:1,ior:1.5,roughness:.05,metalness:0,clearcoat:1,clearcoatRoughness:.03,side:DS,envMapIntensity:1,depthWrite:false}) : fallback;

@@ -23,6 +23,11 @@ case "blade": g=new THREE.ConeGeometry(1,1,3,1,true); g.translate(0,0.5,0); brea
 case "box": g=new THREE.BoxGeometry(1,1,1); g.translate(0,0.5,0); break;
 case "boxC": g=new THREE.BoxGeometry(1,1,1); break;
 case "plane": g=new THREE.PlaneGeometry(1,1); break;
+case "cabin": { // 車の客室: 幅 1・高さ 1・長さ 1 の箱の上面を前後左右にすぼめた形 (前のガラスは寝て、後ろは少し立つ)。底面中心が原点
+ const B=[[-0.5,0,-0.5],[0.5,0,-0.5],[0.5,0,0.5],[-0.5,0,0.5]], T=[[-0.42,1,-0.1],[0.42,1,-0.1],[0.42,1,0.32],[-0.42,1,0.32]], pos=[];
+ const q=(a,b,c,d)=>pos.push(...a,...b,...c,...a,...c,...d);
+ q(T[0],T[3],T[2],T[1]); q(B[0],B[1],B[2],B[3]); q(B[0],T[0],T[1],B[1]); q(B[2],T[2],T[3],B[3]); q(B[1],T[1],T[2],B[2]); q(B[3],T[3],T[0],B[0]);
+ g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); break; }
 case "leaves": { // 葉の房: 細長い葉 (ひし形) を半径 1 の球の中に向きばらばらに散らす。法線は房の外向き (塊に見えず、ふんわり明暗)
  const pos=[],nor=[]; let sd=12345; const R=()=>{ sd=(sd*1664525+1013904223)>>>0; return sd/4294967296; };
  for(let i=0;i<26;i++){
@@ -106,7 +111,7 @@ for(let i=0,j=0;i<P.length;i+=3,j+=2){
  const nx=N[i],ny=N[i+1],nz=N[i+2];
  let ax=ne[0]*nx+ne[3]*ny+ne[6]*nz, ay=ne[1]*nx+ne[4]*ny+ne[7]*nz, az=ne[2]*nx+ne[5]*ny+ne[8]*nz;
  const l=Math.hypot(ax,ay,az)||1; this.n.push(ax/l,ay/l,az/l);
- if(zone>0){ const t=Math.min(1,(wy-y0)/zone), k=1-this.ao*(1-t*t*(3-2*t)); this.c.push(r*k,g*k,b*k); } else this.c.push(r,g,b);
+ if(zone>0){ const t=Math.min(1,(wy-y0)/zone), k=1-this.ao*(1-t*t*(3-2*t)); if(this.dust) this.c.push(r*k,g*Math.pow(k,1.35),b*Math.pow(k,1.8)); else this.c.push(r*k,g*k,b*k); } else this.c.push(r,g,b);   // 壁は赤土の汚れ色で
  if(U) this.uv.push(U[j]*uvs,U[j+1]*uvs); else this.uv.push(0,0);
 }
 }
@@ -125,7 +130,7 @@ return m;
 /* マテリアル名→GeoBatch の束 */
 class BatchSet{
 constructor(){ this.b={}; }
-get(name){ return this.b[name]||(this.b[name]=new GeoBatch(BatchSet.AO[name]||0)); }
+get(name){ if(!this.b[name]){ const g=new GeoBatch(BatchSet.AO[name]||0); g.dust=BatchSet.DUST.includes(name); this.b[name]=g; } return this.b[name]; }
 toGroup(grp){
 for(const k in this.b){ const bt=this.b[k]; if(bt.empty) continue;
  const def=SceneMats.get(k);
@@ -134,3 +139,4 @@ return grp;
 }
 }
 BatchSet.AO={veg:0.4,bark:0.35,solid:0.32,solidDS:0.25,brick:0.3,corr:0.25,resi:0.3,shop:0.3,office:0.25};   // 根元の暗さ (材質ごと)
+BatchSet.DUST=["solid","brick","corr","resi","shop"];   // 根元を赤土の色で汚す材質

@@ -2,6 +2,19 @@
 /* ============ 個別プロップ (BatchSetへ書き込む) ============
  座標はワールド。ry は道路方向(-h)基準で回す。乱数は rnd() (チャンクごとに srand 済み) */
 const PR={
+/* 建物の細部: 雨どい (軒の前後)・縦どい・玄関ドア・エアコン室外機・窓枠。配置の乱数 rnd() は使わない (景色の並びを変えない)
+ L: ローカル→ワールド, w/d/h: 壁の幅・奥行・高さ, ew/ed: 軒の幅・奥行 (屋根の下端), y: 地面 */
+_detail(bs,L,ry,x,y,z,w,d,h,ew,ed,opt={}){
+ let sd=(Math.abs(Math.floor(x*13.7+z*7.1))%9973)+1; const r=()=>((sd=(sd*16807)%2147483647)/2147483647);
+ const gc=linCol(opt.gutter||0xd7d8d2,0.04).clone(), ey=y+h-0.06;
+ for(const sz of [-1,1]){ const [gx,gz]=L(0,sz*ed/2); bs.get("solid").add(tpl("box"),M4(gx,ey-0.12,gz,ew,0.14,0.14,ry),gc); }   // 雨どい
+ for(const sx of [-1,1]){ const [px,pz]=L(sx*(w/2-0.15),-d/2-0.08); bs.get("solid").add(tpl("cyl5"),M4(px,y,pz,0.05,h,0.05,ry),gc); }   // 縦どい
+ if(!opt.noDoor){ const [dx,dz]=L(opt.doorX||0,-d/2-0.04); bs.get("solid").add(tpl("box"),M4(dx,y,dz,1.0,2.1,0.08,ry),linCol(opt.door||[0x6b4a32,0x3d4a52,0xe8e4da,0x7a2e22][Math.floor(r()*4)],0.05)); }   // 玄関ドア
+ if(r()<0.75){ const sx=r()<0.5?-1:1, [ax,az]=L(sx*(w/2+0.25),r()*d*0.6-d*0.3);   // エアコン室外機 (横の壁)
+  bs.get("solid").add(tpl("box"),M4(ax,y+0.35,az,0.32,0.62,0.85,ry),linCol(0xdcdcd6,0.03));
+  bs.get("solid").add(tpl("box"),M4(ax+Math.cos(ry)*sx*0.17,y+0.42,az-Math.sin(ry)*sx*0.17,0.02,0.45,0.45,ry),linCol(0x4a4c4e)); }
+},
+_frame(bs,wx,wy,wz,ry,fw,fh){ bs.get("solid").add(tpl("box"),M4(wx,wy-0.08,wz,fw+0.16,fh+0.16,0.07,ry),linCol(0xeeeeea)); },   // 窓枠 (ガラスの後ろの白い枠)
 /* ---------- 植物 ---------- */
 tree(bs,x,y,z,kind,sc=1,lod=0){
  const ry=rnd()*6.28;
@@ -133,6 +146,7 @@ houseBrick(bs,x,y,z,ry,sc=1){
  if(rnd()<0.7){ const [vx,vz]=L(0,-d/2-1.4);
   bs.get("corr").add(tpl("box"),M4(vx,y+2.55,vz,w*0.55,0.08,2.8,ry,-0.06,0),linCol(rc,0.05));
   for(const lx of [-w*0.26,w*0.26]){ const [px,pz]=L(lx,-d/2-2.6); bs.get("solid").add(tpl("box"),M4(px,y,pz,0.12,2.55,0.12,ry),linCol(0xeeeeea)); } }
+ PR._detail(bs,L,ry,x,y,z,w,d,h,w+1.0,d+1.0,{doorX:0});
  // 庭の芝・ドライブウェイ・低い塀
  const [gx,gz]=L(0,-d/2-6); bs.get("solid").add(tpl("box"),M4(gx,y-0.12,gz,w+4,0.14,11,ry),linCol(0x6f8a3c,0.12));
  const [dx,dz]=L(w/2+1.8,-d/2-5.5); bs.get("solid").add(tpl("box"),M4(dx,y-0.08,dz,3.2,0.12,12,ry),linCol(0xb9b4a8,0.05));
@@ -151,7 +165,9 @@ houseTropical(bs,x,y,z,ry){
   bs.get("solid").add(tpl("box"),M4(px,y,pz,0.25,stilt,0.25,ry),linCol(0xd8d4c8)); }
  bs.get("solid").add(tpl("box"),M4(x,y+stilt,z,w,h,d,ry),linCol(rndPick([0xf1eee4,0xe8e1c9,0xdfe8e2,0xf3e7d3]),0.03));
  for(let i=0;i<3;i++){ const [wx,wz]=L(-w*0.32+i*w*0.32,-d/2-0.05);
+  PR._frame(bs,wx+Math.sin(ry)*0.03,y+stilt+0.7,wz+Math.cos(ry)*0.03,ry,2.1,1.3);
   bs.get("glass").add(tpl("box"),M4(wx,y+stilt+0.7,wz,2.1,1.3,0.08,ry),linCol(0x3a4a50)); }
+ PR._detail(bs,L,ry,x,y+stilt,z,w,d,h,w+1.6,d+2.4,{doorX:w*0.16});
  bs.get("corr").add(tpl("gable"),M4(x,y+stilt+h,z,d+2.4,1.1,w+1.6,ry+Math.PI/2),linCol(rndPick([0xe4e2d5,0xd9d6c8,0x8a9a93,0x6c7a83]),0.04),4);
  const [gx,gz]=L(0,-d/2-5); bs.get("solid").add(tpl("box"),M4(gx,y-0.12,gz,w+6,0.14,10,ry),linCol(0x5d7f31,0.12));
  if(rnd()<0.5){ const [cx,cz]=L(-w/2+1.5,0); PR.car(bs,cx,y,cz,ry); }
@@ -167,7 +183,9 @@ houseOutback(bs,x,y,z,ry){
  for(const lx of [-w/2-1.8,w/2+1.8]) for(const lz of [-d/2-1.8,d/2+1.8]){ const [px,pz]=L(lx,lz);
   bs.get("solid").add(tpl("box"),M4(px,y,pz,0.12,h,0.12,ry),linCol(0xe8e6e0)); }
  for(const lx of [-w*0.28,w*0.28]){ const [wx,wz]=L(lx,-d/2-0.05);
+  PR._frame(bs,wx+Math.sin(ry)*0.03,y+0.9,wz+Math.cos(ry)*0.03,ry,1.4,1.2);
   bs.get("glass").add(tpl("box"),M4(wx,y+0.9,wz,1.4,1.2,0.08,ry),linCol(0x2c363a)); }
+ PR._detail(bs,L,ry,x,y,z,w,d,h,w+4,d+4);
  const [tx,tz]=L(w/2+4,d/2-1); PR.tank(bs,tx,y,tz,1);
  const [yx,yz]=L(0,-d/2-6); bs.get("solid").add(tpl("box"),M4(yx,y-0.12,yz,w+8,0.14,10,ry),linCol(0x9a7a55,0.15));
  if(rnd()<0.5){ const [cx,cz]=L(-w/2-4,-2); PR.car(bs,cx,y,cz,ry,true); }
@@ -318,15 +336,26 @@ guidePost(bs,x,y,z,ry,left){ // 白いガイドポスト: 左側=赤反射板 / 
  bs.get("solid").add(tpl("box"),M4(x,y+0.78,z,0.125,0.16,0.075,ry),linCol(left?0xd11a1a:0xf6f6f6));
  bs.get("solid").add(tpl("box"),M4(x,y+0.86,z,0.125,0.03,0.075,ry),linCol(0x1a1a1a));
 },
-fencePost(bs,x,y,z,ry){ bs.get("solid").add(tpl("box"),M4(x,y,z,0.06,1.25,0.06,ry),linCol(0x5a4a3a,0.15)); },
+fencePost(bs,x,y,z,ry){   // 柵の杭: 4 本に 1 本は太い木の杭、ほかは鋼の星形の杭 (Y 字の断面・黒っぽい緑、先が白)。少し傾く
+ const h=Math.abs(Math.sin(x*12.9898+z*78.233)*43758.5)%1, lean=(h-0.5)*0.08;
+ if(h<0.25){ bs.get("bark").add(tpl("cyl5"),M4(x,y,z,0.07,1.3,0.07,ry,lean,0),linCol(0x6a5a48,0.15)); return; }
+ for(let k=0;k<3;k++) bs.get("solid").add(tpl("box"),M4(x,y,z,0.045,1.2,0.006,ry+k*2.094,lean,0),linCol(0x2f3a30,0.1));
+ bs.get("solid").add(tpl("box"),M4(x+Math.sin(ry)*lean*1.15,y+1.12,z+Math.cos(ry)*lean*1.15,0.05,0.09,0.05,ry),linCol(0xe8e8e2)); },
+// 電柱の腕木の上の碍子 (3 個) と、腕木を支える斜めの金具
+_insul(bs,x,y,z,ry,half){ const cx=Math.cos(ry+Math.PI/2), cz=-Math.sin(ry+Math.PI/2);
+ for(const t of [-0.85,0,0.85]){ const px=x+cx*t*half, pz=z+cz*t*half; bs.get("solid").add(tpl("cyl8"),M4(px,y+0.06,pz,0.045,0.16,0.045),linCol(0x6e4a32)); bs.get("solid").add(tpl("cyl8"),M4(px,y+0.12,pz,0.07,0.035,0.07),linCol(0x6e4a32)); }
+ for(const sd of [-1,1]) bs.get("solid").add(tpl("boxC"),M4(x+cx*sd*half*0.3,y-0.35,z+cz*sd*half*0.3,0.03,0.85,0.03,ry+Math.PI/2,0,-sd*0.75),linCol(0x6b6e70)); },
 stobie(bs,x,y,z,ry){ // アデレード名物のストビーポール(鋼+コンクリート)
  bs.get("solid").add(tpl("trunk"),M4(x,y,z,0.22,10,0.14,ry),linCol(0x9d9b95,0.04));
  bs.get("solid").add(tpl("boxC"),M4(x,y+9.4,z,2.4,0.12,0.12,ry+Math.PI/2),linCol(0x6b6b6b));
+ PR._insul(bs,x,y+9.46,z,ry,1.2);
  return y+9.5;
 },
 woodPole(bs,x,y,z,ry){
  bs.get("bark").add(tpl("cyl5"),M4(x,y,z,0.13,9.5,0.13,ry),linCol(0x5d4a38,0.1));
  bs.get("solid").add(tpl("boxC"),M4(x,y+9.0,z,2.0,0.12,0.12,ry+Math.PI/2),linCol(0x5d4a38));
+ PR._insul(bs,x,y+9.06,z,ry,1.0);
+ bs.get("solid").add(tpl("cyl8"),M4(x,y+9.5,z,0.14,0.04,0.14),linCol(0x6b6e70));   // 頭の金属キャップ
  return y+9.1;
 },
 streetLight(bs,x,y,z,dx,dz){ // (dx,dz)=道路方向の単位ベクトル

@@ -429,6 +429,9 @@ get(name){
  case "resi": def={mat:L({map:resiTex()}),cast:true}; break;
  case "shop": def={mat:L({map:shopTex()}),cast:true}; break;
  case "glass": def={mat:new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.12,metalness:0.6,envMapIntensity:1.0}),cast:false}; break;
+ case "paint": def={mat:new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.3,metalness:0.45,envMapIntensity:1.1}),cast:true}; break;   // 車の塗装 (空が映る)
+ case "chrome": def={mat:new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.18,metalness:1.0,envMapIntensity:1.2}),cast:true}; break;   // めっき・アルミホイール
+ case "rubber": def={mat:new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.92,metalness:0,envMapIntensity:0.3}),cast:true}; break;   // タイヤ・樹脂バンパー
  case "water": def={mat:new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.08,metalness:0.2,envMapIntensity:1.2}),cast:false}; break;
  case "emis": def={mat:new THREE.MeshBasicMaterial({vertexColors:true}),cast:false}; break;
  case "ground": def={mat:makeGroundMaterial(),cast:false}; break;
