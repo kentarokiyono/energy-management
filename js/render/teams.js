@@ -106,7 +106,7 @@ const TeamCars={
   const acc=this.idm(a,ld,v0); a.v=Math.max(0,a.v+acc*dtR); a.s+=a.v*dtR;
   const vl= stop? 1.2 : Math.min(1.3,0.08*a.v+0.4), dl=clamp(a.latT-a.lat,-vl*dtR,vl*dtR); a.lat+=dl;
   if(tm.yieldT>0){   // 道を譲っている: 自車がまだ自分の隊列より後ろの近くにいる間は続ける (追いつく前に切れて車線に戻らない)。最長 90 秒
-   tm.yieldAge=(tm.yieldAge||0)+dtR; const behind=V.s<a.s+this.FRONT&&a.s-V.s<300;
+   tm.yieldAge=(tm.yieldAge||0)+dtR; const behind=V.s<a.s+this.FRONT&&a.s-V.s<600;
    if(!(behind&&tm.yieldAge<90&&tm.yieldT<3)) tm.yieldT-=dtR; if(tm.yieldT<=0) tm.yieldAge=0; }
   if(tm.holdT>0) tm.holdT-=dtR;
  },
