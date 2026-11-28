@@ -867,3 +867,9 @@ body.touch-on #sb-reload{ left:auto!important; right:2px!important; margin-left:
 #pv #pv-map{ touch-action:pan-y; }
 @media (max-width:820px){ #pv .pv-left{ flex-basis:36%; } #pv > div:first-child{ padding:8px 12px!important; } #pv > div:first-child span:nth-child(2){ font-size:12px; } }
 @media (max-width:560px){ #pv .pv-main{ flex-direction:column; } #pv .pv-left{ flex:0 0 38%; border-right:0; border-bottom:1px solid #2a2d31; } }
+/* エクストリーム (補助なし): ドライバーに出る情報はハンドルの液晶だけ。HUD・無線の文字・トーストを隠す */
+body.xt-on #hud-top, body.xt-on #hud-limit-wrap, body.xt-on #hud-map, body.xt-on #hud-radio, body.xt-on #hud-batt, body.xt-on #hud-order, body.xt-on #hud-roll,
+body.xt-on #m-bar, body.xt-on #bottom-hud, body.xt-on #chart-panel, body.xt-on #toast, body.xt-on #radio-pop, body.xt-on #scn-hud, body.xt-on #lesson-hud,
+body.xt-on #ot-pop, body.xt-on #map-ov, body.xt-on #t-spd, body.xt-on #em-panel, body.xt-on #hud-tm, body.xt-on #fps-meter,
+body.xt-on #hud-netp, body.xt-on #detail-tog, body.xt-on #hud-detail, body.xt-on #event-hud, body.xt-on #ask-panel, body.xt-on #test-hud{ display:none!important; }
+body.mon-x #mon-mode button[data-m="auto"], body.mon-x #mon-plan{ display:none!important; }   /* エクストリームの監視画面: 自動の指示・戦略のまとめは出さない */

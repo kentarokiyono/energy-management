@@ -150,11 +150,14 @@ const Cockpit={
   const c=V.dashCanvas.getContext("2d"), W=512, H=128, on=true;
   const g=c.createLinearGradient(0,0,0,H); g.addColorStop(0,"#2443d6"); g.addColorStop(1,"#1a33b8"); c.fillStyle=on?g:"#0b0f1e"; c.fillRect(0,0,W,H);
   if(!on){ V.dashTex.needsUpdate=true; return; }
+  /* 計測画面と同じ名前の値を 4 つずつ (8 文字 × 2 列 × 2 行)。I キー / ハンコンのボタンでページ送り */
   const pad=(s)=>(s+"                ").slice(0,16), f1=(x,d)=>Number.isFinite(x)?x.toFixed(d):"--";
-  const V_=es.lastVterm!=null?es.lastVterm:VOC(es.soc), I=es.lastIbat||0, kmh=Math.round(es.v*3.6), h=Math.floor(es.hour), m=Math.floor(es.hour%1*60);
-  const pages=[[`Bz ${f1(es.ahUsed,1)}Ah ${f1(V_,1)}V`,`BA${f1(-I,2)}A ${kmh}km/h`],
-   [`SOC${f1(es.soc*100,1)}% ${es.powerMode?"PWR":"ECO"}`,`PV${Math.round(es.lastSolar||0)}W M${Math.round(es.lastMotorW||0)}W`],
-   [`Tc${f1(es.lastTcell,0)}C Tb${f1(es.Tbat,0)}C`,`D${es.day} ${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")} ${es.gear==="R"?"R":"D"}`]];
+  const Vt=es.lastVterm>1? es.lastVterm : VOC(es.soc), h=Math.floor(es.hour), m=Math.floor(es.hour%1*60);
+  const it=(n,lb,v,u)=>{ const s=lb+String(v).padStart(n-lb.length-u.length)+u; return s.slice(-n); }, row=(a,b)=>a+" "+b;   // 左 7 文字・空白・右 8 文字
+  const capAh=P.batteryWh/((PRO.vFull+PRO.vEmpty)/2);
+  const pages=[[row(it(7,"V",Math.round(es.v*3.6),"km"),it(8,"MO",f1((es.lastMotorW||0)/Vt,1),"A")), row(it(7,"BA",f1(es.lastIbat||0,1),"A"),it(8,"L",f1(Vt,1),"V"))],
+   [row(it(7,"SO",Math.round(es.lastSolar||0),"W"),it(8,"MO",Math.round(es.lastMotorW||0),"W")), row(it(7,"SO",f1((es.lastSolar||0)/Vt,1),"A"),it(8,"Bz",f1(capAh*es.soc,1),"Ah"))],
+   [row(it(7,"SO",f1(es.ahSol||0,1),"Ah"),it(8,"BA",Math.round((es.whGen||0)-(es.whUsed||0)),"Wh")), row(it(7,"Tb",f1(es.Tbat,0),"C"),it(8,"",`${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`,""))]];
   const L=pages[this.page%this.PAGES], cw=W/16;
   // 文字の升目 (液晶らしさ)
   c.fillStyle="rgba(255,255,255,.07)"; for(let r=0;r<2;r++) for(let i=0;i<16;i++) c.fillRect(i*cw+3,10+r*58,cw-6,48);
@@ -162,5 +165,6 @@ const Cockpit={
   for(let r=0;r<2;r++){ const s=pad(L[r]); for(let i=0;i<16;i++) c.fillText(s[i],i*cw+cw/2,48+r*58); }
   V.dashTex.needsUpdate=true;
  },
+ next(){ this.page=(this.page+1)%this.PAGES; Snd.click&&Snd.click(); },
 };
-addEventListener("keydown",e=>{ if(e.key.toLowerCase()==="i"&&typeof running!=="undefined"&&running){ Cockpit.page=(Cockpit.page+1)%Cockpit.PAGES; Snd.click&&Snd.click(); } });
+addEventListener("keydown",e=>{ if(e.key.toLowerCase()==="i"&&typeof running!=="undefined"&&running) Cockpit.next(); });

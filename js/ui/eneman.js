@@ -13,7 +13,7 @@ const EneMan={
  setRole(r){ this.role=r==="eneman"?"eneman":"driver"; try{ localStorage.setItem(this.KEY,this.role); }catch(e){} this.ui(); },
  ui(){ document.querySelectorAll("#seg-role button").forEach(b=>b.classList.toggle("on",b.dataset.role===this.role));
   const d=document.getElementById("role-desc"); if(d) d.textContent= this.role==="eneman"? "車は自動運転。速度指示・17:00 の停車地点・パネル角度・充電停車・ドライバー交代を決める。電池のグラフを見ながら" : "自分で運転する。速度は戦略班 (自動) が無線で指示"; },
- want(){ return this.role==="eneman"&&P.mode==="race"&&!P.event&&!(typeof Lesson!=="undefined"&&Lesson.active); },
+ want(){ return this.role==="eneman"&&P.mode==="race"&&!P.event&&!(typeof Scenario!=="undefined"&&Scenario.pick()==="extreme")&&!(typeof Lesson!=="undefined"&&Lesson.active); },
  /* startGame の最後 (課題・イベントでないとき) */
  begin(){
   if(!this.want()) return; this.active=true; this._crew=P.crewProc; P.crewProc=false; this._ord=P.orders; P.orders=true;

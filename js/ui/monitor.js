@@ -50,6 +50,8 @@ const Monitor={
   if(this.conn&&this.conn.open) this.conn.send(m); else toast("ドライバー側とつながっていません","#f59e0b"); }catch(e){} },
  recv(d){
   if(!d||typeof d!=="object") return;
+  if((d.t==="init"||d.t==="snap")&&!!d.x!==!!this.xt){ this.xt=!!d.x; document.body.classList.toggle("mon-x",this.xt);   // エクストリーム: 推奨・見込み・自動の指示は来ない。計測ページから始める
+   if(this.xt&&!new URLSearchParams(location.search).get("page")) this.setPage("meter"); }
   if(d.t==="init"){ this.drivers=d.drivers||[]; this.pts=Array.isArray(d.pts)? d.pts.slice() : []; this.modeUI(d.mode); this.drawAll(); }
   else if(d.t==="snap"){ this.record(d); this.snap=d; if(typeof MonMeter!=="undefined") MonMeter.push(d); const L=this.pts[this.pts.length-1]; if(!L||d.km-L[0]>=0.2) this.pts.push([d.km,d.abs,d.v,d.soc]); this.modeUI(d.mode); this.top(); this.order(); this.drawMap(); this.drawChart(); }
   else if(d.t==="fc"){ this.fc=d; this.forecast(); this.drawChart(); }

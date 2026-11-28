@@ -34,6 +34,8 @@ const Scenario={
   alice:{name:"Alice Springs を抜ける",km:1493.6,day:3,hour:9.5,soc:0.6,ts:1,dist:12.8,refV:48,extraH:0.5,minSoc:0.4,wx:[],wind:null,town:true,
    brief:"Day3 9:30、Alice Springs の町の入口。信号・一般車両・制限速度が続く 12.8 km。途中の CS (Alice Springs) では止まって 30 分の点検。町を抜けるまで。",
    tip:["町の中は 60・50 km/h の所が多い。標識の所までに落とす","信号の手前では前の車に合わせて止まる。黄色・赤は止まる","CS の敷地は 25 km/h 以下で入り、所定の場所で止まる","加速・減速を繰り返すほど電池が減る。前の流れを見て早めにスロットルを戻す"]},
+  extreme:{name:"エクストリーム",km:0,day:1,hour:8.5,soc:1.0,ts:1,dist:3100,refV:70,minSoc:0.05,wx:[],wind:null,long:true,dur:2,custom:true,extreme:true,
+   brief:"補助なし。ドライバーはハンドルの液晶だけを見て走り、エネマネ班は別の端末のテレメトリで指示を出す。",tip:[]},
   long:{name:"長時間 (5 時間)",km:0,day:1,hour:8.5,soc:0.9,ts:1,dist:3100,refV:70,minSoc:0.05,wx:[],wind:null,long:true,dur:5,custom:true,
    brief:"選んだ区間を 5 時間 (実時間) 走り続ける。一般車両・ロードトレイン・動物・暑さと疲れ・戦略班の速度指示すべてあり。途中で一時停止 (Esc) から保存して、あとで続きから走れる。",
    tip:["集中力は暑さと運転時間で落ちる。CS や停車で少し戻る","速度指示に合わせ、車線を保つ","眠気でふらついたら、無理せず安全な所で止まる"]},
@@ -49,6 +51,7 @@ const Scenario={
  apply(id){
   const sc=this.LIST[id]; if(!sc) return; const s=Engine.st;
   if(sc.long){ const n=this.longFrom(), c=n? RP_CS[n-1] : null; sc.km= c? c.km+0.4 : 0.3; sc.day=clamp(Math.floor(sc.km/600)+1,1,5); sc.hour=8.5; sc.from=c? `CS${c.n} ${c.name}` : "Darwin"; }
+  if(sc.extreme){ const v=(document.getElementById("xt-dur")||{}).value||"2"; sc.dur= v==="goal"? 1e6 : v==="17"? Math.max(0.5,17-sc.hour) : clamp(+v||2,0.5,12); }   // 走る時間 (ゴールまで / その日の 17:00 まで / n 時間)
   s.km=sc.km; s.day=sc.day; s.hour=sc.hour; s.dayOfYear=PRO.dayOfYear+sc.day-1; s.soc=sc.soc;
   for(const q of RP_CS) if(q.km<sc.km) s.passedCP.add(q.km);
   if(RP_RULES.driverChange.km<sc.km) s.dcDone=true;
@@ -64,6 +67,7 @@ const Scenario={
   if(id==="dusk"){ const c=this.cur, stopKm=Math.round((sc.km+75*1.08)*2)/2; c.stopKm=stopKm;
    if(!(typeof EneMan!=="undefined"&&EneMan.active)) setTimeout(()=>Radio.push(`今日は ${stopKm.toFixed(1)} km で止めます。それまで指示の速さで。`,"戦略班",{speak:true}),2500); }
   if(sc.long){ this.cur.minConc=1; this.cur.red=0; this.cur.over=0; this.cur.km0=sc.km; }
+  if(sc.extreme){ this.cur.ans={rows:[]}; XTmode.on(); }
   if(sc.rt){ this.cur.rtT=8; this.cur.rtB=[50,130]; this.cur.yield=[]; }
   if(sc.town){ this.cur.red=0; this.cur.over=0; this.cur.csEntry=null; }
   Radio.push(`練習シナリオ「${sc.name}」${sc.long?` (${sc.from} から)`:""}${sc.storm&&this.cur.lv==="std"?" (標準: 風は実際の約半分)":""}: ${sc.brief}`,"チーフ");
@@ -145,16 +149,18 @@ const Scenario={
   }
   if(sc.town&&c.csEntry==null){ const cp=RP_CS.find(q=>q.km>sc.km&&q.km<sc.km+sc.dist); if(cp&&es.km>cp.km-0.25) c.csEntry=kmh; }
   if(sc.long){ const conc=1-(es.fatigue||0); c.minConc=Math.min(c.minConc,conc);
-   es.scnLong={abs0:c.abs0,km0:c.km0,off:c.off,hits:c.hits,minConc:c.minConc,red:c.red,over:c.over,from:sc.from,minSoc:c.minSoc};   // 保存して続きから走れるように
+   es.scnLong={abs0:c.abs0,km0:c.km0,off:c.off,hits:c.hits,minConc:c.minConc,red:c.red,over:c.over,from:sc.from,minSoc:c.minSoc,x:!!sc.extreme,dur:sc.dur,ans:c.ans};   // 保存して続きから走れるように
+   if(sc.extreme) Answer.tick(c,es);
    const el=document.getElementById("lesson-hud"); const left=c.abs0+sc.dur-((es.day-1)*24+es.hour);
-   if(((es.day-1)*24+es.hour)>=c.abs0+sc.dur){ this.finishLong(c,es); return true; }
-   c.hudT=(c.hudT||0)-dtR; if(c.hudT<=0){ c.hudT=1; this.longHud(c,es,left); } }
+   if(((es.day-1)*24+es.hour)>=c.abs0+sc.dur||(sc.extreme&&es.km>=TOTAL_KM-0.05)){ this.finishLong(c,es); return true; }
+   c.hudT=(c.hudT||0)-dtR; if(c.hudT<=0&&!sc.extreme){ c.hudT=1; this.longHud(c,es,left); } }
   if(sc.custom&&!sc.long&&es.camp){ this.finishDusk(c,es); return true; }
   return false;
  },
  /* 続きから (Save): 長時間の進み具合を戻す */
- restoreLong(es){ const L=es.scnLong; if(!L) return; const sc=this.LIST.long; sc.from=L.from; this.id="long";
-  this.cur={sc,abs0:L.abs0,km0:L.km0,goal:1e9,minSoc:L.minSoc,off:L.off,hits:L.hits,minConc:L.minConc,red:L.red,over:L.over,warned:{},done:false,t0:performance.now(),gusts:null,lv:"real"}; },
+ restoreLong(es){ const L=es.scnLong; if(!L) return; const id=L.x?"extreme":"long", sc=this.LIST[id]; sc.from=L.from; if(L.dur) sc.dur=L.dur; this.id=id;
+  this.cur={sc,abs0:L.abs0,km0:L.km0,goal:1e9,minSoc:L.minSoc,off:L.off,hits:L.hits,minConc:L.minConc,red:L.red,over:L.over,warned:{},done:false,t0:performance.now(),gusts:null,lv:"real",ans:L.ans||null};
+  if(L.x) XTmode.on(); },
  longHud(c,es,left){ let el=document.getElementById("scn-hud"); if(!el){ el=document.createElement("div"); el.id="scn-hud"; el.style.cssText="position:absolute;left:50%;top:104px;transform:translateX(-50%);z-index:30;padding:6px 14px;background:rgba(10,12,14,.82);border:1px solid rgba(250,204,21,.6);color:#f5f5f4;font-size:13px;pointer-events:none;white-space:nowrap"; document.getElementById("game-container").appendChild(el); }
   const h=Math.max(0,left), hh=Math.floor(h), mm=Math.floor((h-hh)*60); el.style.display="";
   el.textContent=`長時間 ${c.sc.from} から・残り ${hh}:${String(mm).padStart(2,"0")}・${(es.km-c.km0).toFixed(0)} km・集中力 ${Math.round(100*(1-(es.fatigue||0)))} %`; },
@@ -169,7 +175,7 @@ const Scenario={
   const pH=Math.min(40,c.hits*20); rows.push(["接触 (動物など)",`${c.hits} 回`,pH]); score-=pH;
   const pB= es.soc<0.05? 20 : 0; rows.push(["止めたときの電池",`${(es.soc*100).toFixed(0)} %`,pB]); score-=pB;
   this.showRes(c,es,true,null,Math.max(0,Math.round(score)),rows); },
- finishLong(c,es){ if(c.done) return; c.done=true; const el=document.getElementById("scn-hud"); if(el) el.style.display="none";
+ finishLong(c,es){ if(c.done) return; if(c.sc.extreme){ c.done=true; XTmode.off(); return Answer.show(c,es); } c.done=true; const el=document.getElementById("scn-hud"); if(el) el.style.display="none";
   const d=es.km-c.km0, rows=[]; let score=100;
   const h=Orders.hist.filter(x=>x.km>=c.km0), pr=h.length? h.reduce((a,x)=>a+x.pct,0)/h.length : 1, pO=Math.round(clamp((0.8-pr)*60,0,25));
   rows.push(["走った距離",`${d.toFixed(0)} km (平均 ${(d/c.sc.dur).toFixed(0)} km/h)`,0]);
@@ -211,13 +217,55 @@ const Scenario={
   const sc=c.sc;
   const el=document.getElementById("scn-result")||(()=>{ const d=document.createElement("div"); d.id="scn-result"; d.className="scn-res"; document.body.appendChild(d); return d; })();
   el.innerHTML=`<div class="box"><div class="lb">練習シナリオ</div><h3>${escHtml(sc.name)}${sc.storm?` (${this.LEVELS[c.lv||"real"].name})`:""} ${ok?"":"― 失敗"}</h3>
-   ${why?`<div class="why">${escHtml(why)}</div>`:""}<div class="score"><b>${score}</b><span>/ 100</span></div>
-   <div class="rows">${rows.map(r=>`<span>${r[0]}</span><span>${r[1]}</span><span class="${r[2]?"bad":"good"}">${r[2]?"-"+r[2]:"OK"}</span>`).join("")}</div>
-   <div class="lb" style="margin-top:12px">ポイント</div><ul>${sc.tip.map(t=>`<li>${escHtml(t)}</li>`).join("")}</ul>
+   ${why?`<div class="why">${escHtml(why)}</div>`:""}${score==null?"":`<div class="score"><b>${score}</b><span>/ 100</span></div>`}
+   <div class="rows">${rows.map(r=>`<span>${r[0]}</span><span>${r[1]}</span><span class="${r[2]==null?"":r[2]?"bad":"good"}">${r[2]==null?"":r[2]?"-"+r[2]:"OK"}</span>`).join("")}</div>
+   ${sc.tip.length?`<div class="lb" style="margin-top:12px">ポイント</div><ul>${sc.tip.map(t=>`<li>${escHtml(t)}</li>`).join("")}</ul>`:""}<div id="scn-res-extra"></div>
    <div class="btns"><button class="btn" onclick="Scenario.closeRes();quitToMenu()">メニューへ</button><button class="btn pri" onclick="Scenario.closeRes();startGame()">もう一度</button></div></div>`;
   el.classList.add("on"); modalPause=true; Snd.silence(); if(typeof FFB!=="undefined") FFB.update(null); Snd.chime&&Snd.chime();
   this.last={id:this.id,score,ok}; DrvRec.record(); DrvRec.scenario(this.id,score);
  },
  closeRes(){ const el=document.getElementById("scn-result"); if(el) el.classList.remove("on"); modalPause=false; },
- reset(){ this.cur=null; this.id=null; },
+ reset(){ this.cur=null; this.id=null; if(typeof XTmode!=="undefined") XTmode.off(); },
+};
+/* ============ エクストリーム (補助なし): ドライバーに出す情報はハンドルの液晶 (ZP の表示) だけ ============
+ ・画面: HUD・無線の文字・トーストを隠す (css: body.xt-on)。見えるのはコックピット視点のハンドルの液晶だけ
+ ・無線: 自動の助言・警告は流さない。テレメトリの監視側 (エネマネ班) から来た指示・警告だけを読み上げる
+ ・速度指示: 自動では出さない (声 / 監視側で入力して送る)
+ ・テレメトリ: 推奨・見込み・評価・戦略のまとめは送らない */
+const XTmode={
+ active:false,
+ on(){ this.active=true; document.body.classList.add("xt-on"); if(typeof Orders!=="undefined"){ Orders.mode="voice"; Orders.cur=null; }
+  if(typeof Tele!=="undefined"&&!Tele.on) setTimeout(()=>{ try{ Tele.panel(); }catch(e){} },600); },   // エネマネ班がつなげるように、テレメトリの窓を出す
+ off(){ if(!this.active) return; this.active=false; document.body.classList.remove("xt-on"); },
+};
+function XT(){ return XTmode.active; }
+/* 答え合わせ: 走っている間、裏で 1 km ごとに「ゲームの推奨速度」と実際を記録し、終わったら比べる (走っている間は誰にも見せない) */
+const Answer={
+ tick(c,es){ const A=c.ans||(c.ans={rows:[]}), k=Math.floor(es.km); if(A.k===k) return; A.k=k;
+  let rec=null; try{ const p=Strategy.plan(false); if(p){ const Z=Orders.limitZone(es.km,1); rec=Math.min(Math.round(Strategy.speedFor(p,es.km,Z.end-es.km,es.soc,es.lastSolar||0)),Z.lim); } }catch(e){}
+  A.rows.push([+es.km.toFixed(2),+((es.day-1)*24+es.hour).toFixed(4),+(es.v*3.6).toFixed(1),rec,+(es.soc*100).toFixed(2)]);
+  if(A.rows.length>4000) A.rows.splice(0,A.rows.length-4000); },
+ show(c,es){
+  const R=(c.ans&&c.ans.rows)||[], d=es.km-c.km0, hrs=(es.day-1)*24+es.hour-c.abs0;
+  const W=R.filter(r=>r[3]!=null&&r[2]>5), dv=W.length? W.reduce((a,r)=>a+(r[2]-r[3]),0)/W.length : null;
+  const avgRec=W.length? W.reduce((a,r)=>a+r[3],0)/W.length : null;
+  const rows=[["走った距離",`${d.toFixed(1)} km (${Math.floor(hrs)}:${String(Math.round(hrs%1*60)).padStart(2,"0")})`,null],
+   ["平均速度",`${(d/Math.max(hrs,1e-3)).toFixed(1)} km/h`,null],
+   ["ゲームの推奨の平均",avgRec!=null?`${avgRec.toFixed(1)} km/h (あなたたちは平均 ${dv>0?"+":""}${dv.toFixed(1)} km/h)`:"―",null],
+   ["終わったときの電池",`${(es.soc*100).toFixed(1)} % (いちばん低いとき ${(c.minSoc*100).toFixed(1)} %)`,null],
+   ["接触・道の外",`${c.hits} 回・${c.off.toFixed(0)} 秒`,null]];
+  Scenario.showRes(c,es,true,null,null,rows);
+  setTimeout(()=>this.chart(R),50); },
+ /* 結果画面に、距離に対する 実際の速度 / 推奨の速度 / 電池 のグラフ */
+ chart(R){
+  const box=document.getElementById("scn-res-extra"); if(!box||!R.length) return;
+  box.innerHTML=`<div style="font-weight:700;margin:6px 0">答え合わせ (距離に対する速度と電池)</div><canvas id="xt-ans-cv" style="width:100%;height:220px;background:#0e1013;border:1px solid #2a2e33"></canvas>
+   <div style="font-size:12px;color:#9aa0a6;margin-top:4px"><span style="color:#f5b51c">■</span> 実際の速度 <span style="color:#22d3ee">■</span> ゲームの推奨 <span style="color:#e6e6e3">■</span> 電池 %</div>`;
+  const cv=document.getElementById("xt-ans-cv"), r=cv.getBoundingClientRect(), dpr=Math.min(devicePixelRatio||1,2); cv.width=r.width*dpr; cv.height=r.height*dpr;
+  const g=cv.getContext("2d"); g.setTransform(dpr,0,0,dpr,0,0); const Wd=r.width, H=r.height, L=36, k0=R[0][0], k1=Math.max(k0+1,R[R.length-1][0]);
+  const X=(k)=>L+(k-k0)/(k1-k0)*(Wd-L-8), Yv=(v)=>8+(1-clamp(v/130,0,1))*(H-30), Ys=(s)=>8+(1-clamp(s/100,0,1))*(H-30);
+  g.font="10px sans-serif"; g.fillStyle="#8b9097"; g.textAlign="right"; for(const v of [0,40,80,120]){ g.strokeStyle="#1d2126"; g.beginPath(); g.moveTo(L,Yv(v)); g.lineTo(Wd-8,Yv(v)); g.stroke(); g.fillText(v,L-4,Yv(v)+3); }
+  g.textAlign="center"; for(let i=0;i<=4;i++){ const k=k0+(k1-k0)*i/4; g.fillText(k.toFixed(0)+" km",X(k),H-6); }
+  const ln=(f,col,y)=>{ g.strokeStyle=col; g.lineWidth=1.5; g.beginPath(); let st=false; for(const q of R){ const v=f(q); if(v==null){ st=false; continue; } const x=X(q[0]), yy=y(v); if(!st) g.moveTo(x,yy); else g.lineTo(x,yy); st=true; } g.stroke(); };
+  ln(q=>q[4],"#e6e6e3",Ys); ln(q=>q[3],"#22d3ee",Yv); ln(q=>q[2],"#f5b51c",Yv); },
 };

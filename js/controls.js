@@ -289,6 +289,7 @@ Input.gpSteer=clamp(st,-1,1);
 Input.gpThrottle=m.accel?axisToPedal(gp,m.accel):0;
 Input.gpBrake=m.brake?axisToPedal(gp,m.brake):0;
 Input.gpRegen=gp.buttons[0]&&gp.buttons[0].pressed;
+if(m.lcd!=null&&gp.buttons[m.lcd]){ const pr=gp.buttons[m.lcd].pressed; if(pr&&!Input._lcdPrev&&typeof Cockpit!=="undefined"&&typeof running!=="undefined"&&running) Cockpit.next(); Input._lcdPrev=pr; }   // 液晶のページ送り (押した瞬間だけ)
 }
 function updateInput(dt){
 pollGamepad();
@@ -330,12 +331,21 @@ const m=Input.map;
 document.getElementById("map-steer").textContent="軸"+m.steer.axis+(m.steer.inv?"(反転)":"");
 document.getElementById("map-accel").textContent=m.accel?("軸"+m.accel.axis):"未設定";
 document.getElementById("map-brake").textContent=m.brake?("軸"+m.brake.axis):"未設定";
+{ const e=document.getElementById("map-lcd"); if(e) e.textContent=m.lcd!=null?("ボタン"+m.lcd):"未設定"; }
 }
 function calibrate(kind){
 const msg=document.getElementById("wheel-msg");
 const gps=navigator.getGamepads?navigator.getGamepads():[];
 let gp=null; for(const g of gps) if(g&&g.connected){gp=g;break;}
 if(!gp){ msg.textContent="⚠ コントローラーが見つかりません。接続して一度ボタンを押してください。"; return; }
+if(kind==="lcd"){   // 液晶のページ送りのボタン: 押されたボタンを覚える
+ msg.textContent="🕐 液晶のページ送りに使うボタンを押してください"; const base=gp.buttons.map(b=>b.pressed), t0=performance.now();
+ if(calibrating) clearInterval(calibrating);
+ calibrating=setInterval(()=>{ const g=(navigator.getGamepads())[gp.index]; if(!g) return; const i=g.buttons.findIndex((b,k)=>b.pressed&&!base[k]);
+  if(i>=0||performance.now()-t0>6000){ clearInterval(calibrating); calibrating=null;
+   if(i<0){ msg.textContent="⚠ ボタンを検出できませんでした。"; return; }
+   Input.map.lcd=i; localStorage.setItem("bwsc_wheelmap",JSON.stringify(Input.map)); msg.textContent=`✅ ボタン${i} を液晶のページ送りにしました`; refreshWheelLabels(); } },50);
+ return; }
 const base=[...gp.axes];
 const label={steer:"ハンドルを左右いっぱいに回してください",accel:"アクセルペダルを一度奥まで踏んでください",brake:"ブレーキペダルを一度奥まで踏んでください"}[kind];
 msg.textContent="🕐 "+label;

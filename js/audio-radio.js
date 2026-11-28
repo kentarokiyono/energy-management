@@ -2,6 +2,8 @@
 const Radio={
 log:[], popTimer:null,
 push(msg, who="戦略班", opt){
+if(typeof XT==="function"&&XT()&&!this.mon){ if(typeof RunLog!=="undefined") RunLog.note(`[${who}] ${msg}`); return; }   // エクストリーム: 自動の無線は流さない (記録だけ)。監視側 (エネマネ班) から来たものだけ読み上げる
+if(typeof XT==="function"&&XT()){ Speech.say(msg); Snd.radioBeep(); if(typeof RunLog!=="undefined") RunLog.note(`[${who}] ${msg}`); return; }
 if(opt&&opt.speak||P.tts==="all") Speech.say(msg);
 if(typeof Tele!=="undefined") Tele.radio(msg,who);   // テレメトリの監視端末へも
 Snd.radioBeep(); if(typeof RunLog!=="undefined") RunLog.note(`[${who}] ${msg}`);
