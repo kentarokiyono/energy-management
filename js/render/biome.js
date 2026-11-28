@@ -77,9 +77,12 @@ return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;
 /* 道路から離れるほど起伏が出る地形高さ [m] (常に>=0) */
 function terrainH(x,z,off,hill){
 const a=Math.min(1,Math.max(0,(Math.abs(off)-11)/55));
-if(a<=0||hill<=0) return 0;
+if(a<=0) return 0;
 const n=1.4*vnoise(x*0.007,z*0.007)+0.55*vnoise(x*0.029+5.3,z*0.029-1.7);
-return hill*a*n*(1+Math.abs(off)/260);
+// 道から 40 m より外: 数百 m の波のゆるい大きな起伏 (平らな土地でも 1〜2 m、丘の多い土地は 6 m ほど)。くぼみもある
+const b=Math.min(1,Math.max(0,(Math.abs(off)-40)/200));
+const big= b>0? (3.0+11.0*hill)*b*(vnoise(x*0.0017+11.3,z*0.0017-4.2)*1.3+0.35*vnoise(x*0.0052-3.1,z*0.0052+8.4)-0.75) : 0;
+return (hill>0? hill*a*n*(1+Math.abs(off)/260) : 0)+big;
 }
 let _rngState=1;
 function srand(seed){ _rngState=(Math.floor(seed)%2147483647+2147483647)%2147483647||1; }
