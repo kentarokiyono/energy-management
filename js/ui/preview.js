@@ -40,8 +40,8 @@ const Preview={
   let el=document.getElementById("pv");
   if(!el){ el=document.createElement("div"); el.id="pv"; el.style.cssText="position:fixed;inset:0;z-index:70;background:rgba(8,9,11,.96);color:#e7e5e4;display:flex;flex-direction:column;font-size:14px";
    el.innerHTML=`<div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid #2a2d31"><b style="font-size:17px">ルートの予習</b><span style="opacity:.6">Darwin → Adelaide 3,027 km・CS ごとの区間。気になる所を押すと、その手前から走れる (等倍・採点なし)</span><span style="flex:1"></span><button type="button" class="btn" id="pv-x">閉じる</button></div>
-    <div style="flex:1;display:flex;min-height:0;flex-wrap:wrap"><div style="flex:0 0 260px;max-width:100%;overflow:auto;border-right:1px solid #2a2d31" id="pv-list"></div>
-    <div style="flex:1 1 360px;display:flex;flex-direction:column;min-width:0;min-height:0"><canvas id="pv-map" style="width:100%;height:220px;display:block"></canvas><div id="pv-body" style="flex:1;overflow:auto;padding:12px 18px"></div></div></div>`;
+    <div class="pv-main"><div class="pv-scroll pv-left" id="pv-list"></div>
+    <div class="pv-scroll pv-right"><canvas id="pv-map" style="width:100%;height:220px;display:block;flex:none"></canvas><div id="pv-body" style="padding:12px 18px"></div></div></div>`;
    document.body.appendChild(el); el.querySelector("#pv-x").onclick=()=>this.close(); }
   el.style.display="flex"; this.render(); },
  close(){ const el=document.getElementById("pv"); if(el) el.style.display="none"; },
