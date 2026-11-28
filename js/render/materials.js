@@ -8,6 +8,21 @@ if(srgb) t.encoding=THREE.sRGBEncoding;
 return t;
 }
 const TEX={};
+/* 空気遠近 (three.js の霧の計算を差し替え): 近くから少しずつ青白くかすむ指数の霞 + 遠くの端で景色を消す霧。
+ カメラより高い所 (丘の上・木の上) は空気が薄いのでかすみにくい。霞の強さは霧の距離 (fogFar) から決めるので、雨で霧を近くしたときもそのまま濃くなる */
+THREE.ShaderChunk.fog_pars_vertex="#ifdef USE_FOG\n varying float fogDepth; varying float vFogDY;\n#endif";
+THREE.ShaderChunk.fog_vertex="#ifdef USE_FOG\n fogDepth=-mvPosition.z; vFogDY=(vec4(mvPosition.xyz,0.0)*viewMatrix).y;\n#endif";
+THREE.ShaderChunk.fog_pars_fragment="#ifdef USE_FOG\n uniform vec3 fogColor; varying float fogDepth; varying float vFogDY;\n #ifdef FOG_EXP2\n uniform float fogDensity;\n #else\n uniform float fogNear; uniform float fogFar;\n #endif\n#endif";
+THREE.ShaderChunk.fog_fragment=`#ifdef USE_FOG
+ #ifdef FOG_EXP2
+  float fogFactor=1.0-exp(-fogDensity*fogDensity*fogDepth*fogDepth);
+ #else
+  float fh=max(vFogDY,0.0)/60.0, fk= fh>0.001? (1.0-exp(-fh))/fh : 1.0;
+  float haze=(1.0-exp(-fogDepth*(1.5/fogFar)*fk))*0.8;
+  float fogFactor=max(haze,pow(smoothstep(fogNear,fogFar,fogDepth),1.4));
+ #endif
+ gl_FragColor.rgb=mix(gl_FragColor.rgb,fogColor,fogFactor);
+#endif`;
 /* 道路: 横方向=全幅(2*ROAD_W) / 縦方向=12m (白線3m+間隔9m) */
 function roadTex(kind){
 const key="road_"+kind; if(TEX[key]) return TEX[key];
