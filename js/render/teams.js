@@ -49,7 +49,7 @@ const TeamCars={
   const out=[], [cL]=carDims();
   out.push({f:V.s+cL/2,r:V.s-cL/2,lat:V.lateral,v:es.v,me:true});
   if(V.escortChase&&V.escortChase.visible) out.push({f:V.s-32+2.4,r:V.s-32-2.4,lat:-2.4,v:es.v,me:true});
-  if(V.escortLead&&V.escortLead.visible&&V.leadS!=null) out.push({f:V.leadS+2.4,r:V.leadS-2.4,lat:-2.4,v:V.leadV||0,me:true});
+  if(V.escortLead&&V.escortLead.visible&&V.leadS!=null) out.push({f:V.leadS+2.4,r:V.leadS-2.4,lat:-2.4,v:V.leadV||0,me:true,lead:true});
   for(const [tm,a] of this.ag) out.push({f:a.s+this.FRONT,r:a.s-this.REAR,lat:a.lat,lat2:a.latT,v:a.v,team:tm});
   if(typeof Traffic!=="undefined") for(const c of Traffic.cars) out.push({f:c.s,r:c.s-c.L,lat:c.lat,lat2:c.latT,v:c.v,car:true});
   for(const [,ent] of V.lmMap||[]) if(ent.lm.t==="signal"&&ent.red){ const sg=V.sOfKm(ent.lm.km)-4; out.push({f:sg,r:sg-0.1,lat:null,v:0,sig:true}); }
@@ -60,6 +60,7 @@ const TeamCars={
  leader(tm,a,obs,lat,skipSig){ const front=a.s+this.FRONT, mid=a.s+(this.FRONT-this.REAR)/2; let best=null;
   for(const o of obs){ if(o.team===tm) continue; if(o.sig&&(skipSig||front>o.f+0.5)) continue; if(!o.sig&&(o.f+o.r)/2<=mid) continue; if(!this.inLane(o,lat)) continue;
    if(o.sig&&front>o.f-1.5&&a.v>3) continue;   // 停止線を越えかけている: そのまま行く
+   if(o.lead&&o.r<front&&o.f>a.s-this.REAR) continue;   // 自車の前方誘導車が自分の隊列の中にいる (すり抜けの途中): 前の車と見ない (止まり合わない)
    if(!best||o.r<best.r) best=o; }
   return best; },
  /* 自車の隊列の後端 (自分の中央より前にあるとき)。なければ null */
@@ -104,6 +105,9 @@ const TeamCars={
     if(back){ a.mode="lane"; a.latT=home; a.passOf=null; if(tm.passing&&this.meRear(obs,a)==null){ tm.passing=false; tm.boost=false; } } } }
   const acc=this.idm(a,ld,v0); a.v=Math.max(0,a.v+acc*dtR); a.s+=a.v*dtR;
   const vl= stop? 1.2 : Math.min(1.3,0.08*a.v+0.4), dl=clamp(a.latT-a.lat,-vl*dtR,vl*dtR); a.lat+=dl;
-  if(tm.yieldT>0) tm.yieldT-=dtR; if(tm.holdT>0) tm.holdT-=dtR;
+  if(tm.yieldT>0){   // 道を譲っている: 自車がまだ自分の隊列より後ろの近くにいる間は続ける (追いつく前に切れて車線に戻らない)。最長 90 秒
+   tm.yieldAge=(tm.yieldAge||0)+dtR; const behind=V.s<a.s+this.FRONT&&a.s-V.s<300;
+   if(!(behind&&tm.yieldAge<90&&tm.yieldT<3)) tm.yieldT-=dtR; if(tm.yieldT<=0) tm.yieldAge=0; }
+  if(tm.holdT>0) tm.holdT-=dtR;
  },
 };
