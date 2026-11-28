@@ -12,9 +12,9 @@ const TEX={};
 THREE.ShaderChunk.tonemapping_pars_fragment=THREE.ShaderChunk.tonemapping_pars_fragment
  .replace(/vec3 ACESFilmicToneMapping\( vec3 color \) \{/,`vec3 gradeCol(vec3 c){
  float l=dot(c,vec3(0.2126,0.7152,0.0722));
- c*=mix(vec3(0.965,0.99,1.05),vec3(1.035,1.0,0.955),smoothstep(0.05,0.6,l));
- c=mix(vec3(l),c,1.06);
- c=mix(c,c*c*(3.0-2.0*c),0.10);
+ c*=mix(vec3(0.86,0.96,1.16),vec3(1.1,1.0,0.86),smoothstep(0.03,0.55,l));
+ c=mix(vec3(l),c,1.18);
+ c=mix(c,c*c*(3.0-2.0*c),0.32);
  return clamp(c,0.0,1.0); }
 vec3 ACESFilmicToneMapping( vec3 color ) {`)
  .replace(/color = ACESOutputMat \* color;\s*return saturate\( color \);/,"color = ACESOutputMat * color;\n\treturn gradeCol( saturate( color ) );");
