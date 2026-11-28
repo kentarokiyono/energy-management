@@ -798,3 +798,42 @@ body.coffee-on #game-container>*:not(#three-canvas):not(#coffee):not(#pause-over
 body.cam-drv #hud-order{ bottom:auto; top:calc(108px + clamp(110px,12vw,170px)*0.5625); }   /* 画面の上のバックビューの下 */
 body.cam-drv #ghost-tag{ bottom:auto; top:calc(158px + clamp(110px,12vw,170px)*0.5625); }
 body.touch-on.cam-drv #hud-order{ top:calc(84px + clamp(110px,12vw,170px)*0.5625); } body.touch-on.cam-drv #ghost-tag{ top:calc(128px + clamp(110px,12vw,170px)*0.5625); }
+
+/* ============ スマホの画面 (タッチ操作のとき): いつも出すものを絞り、ほかはボタンで開く (js/ui/mobile-ui.js) ============
+ 上: 1 行の帯 (時刻・距離・次の CS・順位) + 制限速度 + 小さな地図。その下: 速さ・電池・収支 + 開くボタン、速度指示。
+ 無線・エネマネ班の欄・グラフはボタンで開く */
+#m-bar{ display:none; }
+body.touch-on #m-bar{ display:flex; position:fixed; top:36px; left:4px; z-index:22; gap:6px; align-items:stretch; pointer-events:auto; }
+#m-chip{ display:flex; gap:10px; align-items:center; padding:2px 10px; background:rgba(13,14,16,.78); border:1px solid var(--ln); font:600 12px var(--fn); color:var(--tx); white-space:nowrap; }
+#m-chip b{ font-size:15px; font-variant-numeric:tabular-nums; } #m-chip i{ font-style:normal; font-size:10px; color:var(--tx2); margin-left:2px; }
+#m-chip > span{ display:flex; align-items:center; gap:3px; } #m-chip .ic{ width:13px; height:13px; color:var(--dim); }
+body:not(.em-on) #m-chip .m-spd{ display:none; }   /* 運転するときは速度計が下にある */
+#m-bar .m-btns{ display:flex; gap:4px; }
+#m-bar .m-btns button{ position:relative; min-width:34px; height:30px; padding:0 8px; display:flex; align-items:center; justify-content:center; gap:4px; background:rgba(13,14,16,.78); border:1px solid var(--ln); color:var(--tx); font:600 11px var(--fn); }
+#m-bar .m-btns button.on{ border-color:var(--acc); color:var(--acc); }
+#m-bar .m-btns .ic{ width:15px; height:15px; }
+#m-bar .m-btns em{ display:none; position:absolute; top:3px; right:3px; width:7px; height:7px; border-radius:50%; background:#f59e0b; }
+#m-bar.new .m-btns button[data-k="radio"] em{ display:block; }   /* たたんでいる間に新しい無線 */
+body:not(.em-on) #m-bar .em-only{ display:none; }
+/* 上の帯: 1 行・小さめ。ラベルを出さない */
+body.touch-on #hud-top{ transform:none!important; top:4px; left:4px; max-width:calc(100vw - 190px); }
+body.touch-on #hud-top .lg{ display:none; }
+body.touch-on #hud-top .c{ padding:3px 9px; flex-direction:row; align-items:baseline; gap:6px; }
+body.touch-on #hud-top .lb{ display:none; }
+body.touch-on #hud-top .v{ font-size:13px; gap:4px; line-height:1.4; }
+body.touch-on #hud-top .v .ic{ width:12px; height:12px; }
+body.touch-on #hud-csclose{ font-size:10px; color:var(--tx2); white-space:nowrap; }
+body.touch-on #hud-map{ transform:scale(.42)!important; transform-origin:top right; top:4px!important; right:4px!important; }
+body.touch-on #hud-limit-wrap{ top:4px!important; right:134px!important; transform:scale(.45)!important; transform-origin:top right; }
+body.touch-on #fps-meter{ top:auto; bottom:4px; left:auto; right:6px; transform:none; font-size:10px; }
+/* 速度指示: 帯の下の左 */
+body.touch-on #hud-order, body.touch-on.cam-drv #hud-order{ top:70px!important; bottom:auto!important; left:4px; transform:none; width:270px; padding:3px 10px!important; }
+body.touch-on #hud-order b{ font-size:16px; } body.touch-on #hud-order .r{ font-size:10px; }
+/* 無線: ボタンで開く */
+body.touch-on:not(.m-radio) #hud-radio{ display:none!important; }
+body.touch-on.m-radio #hud-radio{ transform:none!important; top:136px; left:4px; width:min(330px,46vw); max-height:calc(100vh - 150px); overflow:auto; }
+body.touch-on.m-radio #hud-radio #radio-log .msg:not(:first-child){ display:block; }
+/* エネマネ班の欄・グラフ: ボタンで開く */
+body.touch-on.em-on:not(.m-em) #em-panel{ display:none!important; }
+body.touch-on.em-on:not(.m-graph) #em-data{ display:none!important; }
+body.touch-on #sb-reload{ left:auto!important; right:2px!important; margin-left:0!important; top:2px!important; }   /* 長押しで読み直す小さなボタン: 帯と重ならない右上の隅へ */
