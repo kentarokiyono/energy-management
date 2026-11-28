@@ -10,7 +10,7 @@ window.CalDrive={
   // 乱数 (突風・ほかのチーム・道の車など) を決まった種で: 同じ条件なら毎回同じ走りになり、合わせ込みの結果がぶれない (見えない枠の中だけ)
   { let a=0x9e3779b9>>>0; Math.random=()=>{ a=(a+0x6D2B79F5)>>>0; let t=a; t=Math.imul(t^(t>>>15),t|1); t^=t+Math.imul(t^(t>>>7),t|61); return ((t^(t>>>14))>>>0)/4294967296; }; }
   window.pushChart=()=>{}; DrvRec.record=()=>{}; window.showResult=()=>{ running=false; };   // 成績・結果画面は出さない
-  P.gfx="low"; P.mode="race"; P.event=false; P.crewProc=false; P.realWeather=true; P.fcErr="off"; P.tts="off"; P.raceStorm=false; PRO.faultScale=0;
+  P.gfx="low"; P.mode="race"; P.event=false; P.crewProc=false; P.realWeather=true; P.fcErr="off"; P.tts="off"; P.raceStorm=false; P.nlcStrict=true; PRO.faultScale=0;   // nlcStrict: 最低速度の警告を毎回出さない (無線の音で乱数の並びが変わり、合わせ込みの走りが変わらないように)
   startGame(); running=false; const es=Engine.st; es.gridStartH=8; if(typeof StopMenu!=="undefined") StopMenu.active=false;
   const dc=RP_RULES.driverChange, DT=1, ECO_TOP=Strategy.topSpeed(false), N=Math.ceil(TOTAL_KM/2)+2, S=[];
   const vAt=(km)=> sp? (sp[Math.min(N-1,Math.floor(km/2))]||60) : (Orders.cur? Orders.cur.v : 70);
