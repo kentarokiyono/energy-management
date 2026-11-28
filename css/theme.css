@@ -465,6 +465,28 @@ body.mon-on #setup-screen, body.mon-on #game-container, body.mon-on #fade{ displ
 #mon .k.bad b{ color:#ef6a5a; } #mon .k.good b{ color:var(--ok); } #mon .k.dim b{ color:var(--tx2); }
 #mon .state{ grid-column:1/-1; font-size:11.5px; color:var(--tx2); }
 #mon .card{ background:var(--pn); border:1px solid var(--ln); padding:10px 12px; min-width:0; }
+/* 計測ページ (明るい背景・濃い文字。日なたの車内で読める) */
+body:not(.mon-meter) #mon-meter{ display:none; }
+body.mon-meter #mon > section:not(#mon-meter){ display:none; }
+body.mon-meter #mon{ max-width:none; }
+#mon #mon-meter{ grid-column:1/-1; background:#e9e9e9; color:#111; border-color:#bbb; }
+#mon #mon-meter label{ color:#222; }
+#mon #mon-meter .mt{ display:grid; grid-template-columns:240px 1fr; gap:10px; }
+#mon #mon-meter .mt-vals{ display:flex; flex-direction:column; gap:4px; }
+#mon #mon-meter .mt-r{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+#mon #mon-meter .mt-r span{ font:600 19px var(--fn); color:#333; }
+#mon #mon-meter .mt-r b{ font:700 30px var(--fn); font-variant-numeric:tabular-nums; background:#fff; border:1px solid #999; min-width:120px; text-align:right; padding:0 8px; line-height:1.25; color:#111; }
+#mon #mon-meter .mt-r.l span{ color:#1f4fd1; } #mon #mon-meter .mt-r.s span{ color:#2e7d32; } #mon #mon-meter .mt-r.b span{ color:#b0306a; }
+#mon #mon-meter .mt-g{ display:flex; flex-direction:column; min-width:0; }
+#mon #mon-meter .mt-ctl{ display:flex; flex-wrap:wrap; gap:6px 12px; font-size:13px; color:#222; margin-bottom:6px; align-items:center; }
+#mon #mon-meter select{ background:#fff!important; color:#111!important; border:1px solid #999!important; font-size:13px; padding:1px 4px; }
+#mon #mon-meter canvas{ width:100%; height:460px; border:1px solid #999; background:#fff; }
+#mon #mon-meter .mt-lap{ display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:10px; align-items:center; }
+#mon #mon-meter .mt-lap div{ display:flex; align-items:center; gap:6px; }
+#mon #mon-meter .mt-lap span{ font:600 15px var(--fn); color:#333; }
+#mon #mon-meter .mt-lap b{ font:700 20px var(--fn); font-variant-numeric:tabular-nums; background:#fff; border:1px solid #999; padding:0 8px; min-width:52px; text-align:right; color:#111; }
+#mon #mon-meter .btn{ background:#f6f6f6; color:#111; border:1px solid #888; }
+@media (max-width:760px){ #mon #mon-meter .mt{ grid-template-columns:1fr; } #mon #mon-meter .mt-vals{ display:grid; grid-template-columns:1fr 1fr; } #mon #mon-meter .mt-r span{ font-size:14px; } #mon #mon-meter .mt-r b{ font-size:21px; min-width:80px; } #mon #mon-meter canvas{ height:300px; } }
 #mon .ch{ display:flex; align-items:center; gap:8px; font:600 12px var(--fn); letter-spacing:.06em; color:var(--tx2); margin-bottom:8px; flex-wrap:wrap; }
 #mon .ch .seg{ margin-left:auto; } #mon .ch .seg>button{ padding:4px 10px; font-size:12px; }
 #mon canvas{ display:block; width:100%; }

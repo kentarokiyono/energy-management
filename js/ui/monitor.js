@@ -51,7 +51,7 @@ const Monitor={
  recv(d){
   if(!d||typeof d!=="object") return;
   if(d.t==="init"){ this.drivers=d.drivers||[]; this.pts=Array.isArray(d.pts)? d.pts.slice() : []; this.modeUI(d.mode); this.drawAll(); }
-  else if(d.t==="snap"){ this.record(d); this.snap=d; const L=this.pts[this.pts.length-1]; if(!L||d.km-L[0]>=0.2) this.pts.push([d.km,d.abs,d.v,d.soc]); this.modeUI(d.mode); this.top(); this.order(); this.drawMap(); this.drawChart(); }
+  else if(d.t==="snap"){ this.record(d); this.snap=d; if(typeof MonMeter!=="undefined") MonMeter.push(d); const L=this.pts[this.pts.length-1]; if(!L||d.km-L[0]>=0.2) this.pts.push([d.km,d.abs,d.v,d.soc]); this.modeUI(d.mode); this.top(); this.order(); this.drawMap(); this.drawChart(); }
   else if(d.t==="fc"){ this.fc=d; this.forecast(); this.drawChart(); }
   else if(d.t==="radio"){ const L=this.rec[this.rec.length-1]; if(L) L.memo=(L.memo?L.memo+" / ":"")+`${d.who||""}: ${d.msg}`; this.radio.unshift(d); this.radio.length=Math.min(this.radio.length,40); this.radioUI(); }
   else if(d.t==="mode") this.modeUI(d.mode);
@@ -75,7 +75,8 @@ const Monitor={
   document.body.classList.add("mon-on");
   for(const e of [document.documentElement,document.body]) Object.assign(e.style,{overflow:"auto",height:"auto",position:"static",touchAction:"auto"});   // ゲーム用のスクロール禁止を外す
   const el=document.createElement("div"); el.id="mon"; el.innerHTML=`
-  <header><img src="assets/img/logo.svg" class="logo" width="46" alt=""><div><div class="ttl">REALTIME RUN ANALYSIS</div><div class="sub" id="mon-state">準備中</div></div><div class="seg" id="mon-role">${Object.entries(this.ROLES).map(([k,v])=>`<button data-r="${k}">${v}</button>`).join("")}</div><div class="clk" id="mon-clk">―</div></header>
+  <header><img src="assets/img/logo.svg" class="logo" width="46" alt=""><div><div class="ttl">REALTIME RUN ANALYSIS</div><div class="sub" id="mon-state">準備中</div></div><div class="seg" id="mon-role">${Object.entries(this.ROLES).map(([k,v])=>`<button data-r="${k}">${v}</button>`).join("")}</div><div class="seg" id="mon-page"><button data-p="std">標準</button><button data-p="meter">計測</button></div><div class="clk" id="mon-clk">―</div></header>
+  ${typeof MonMeter!=="undefined"? MonMeter.html() : ""}
   <section class="kpis" id="mon-kpi"></section>
   <section class="card" id="mon-ahead"><div class="ch">${ic("flag")}この先</div><div id="mon-aheadb" class="ahead"><div class="dim">待っています…</div></div></section>
   <section class="card" id="mon-warn"><div class="ch">${ic("radio")}ドライバーへ警告 <span class="dim" id="mon-warnas"></span></div><div class="wb" id="mon-wb"></div><div class="wt"><input id="mon-wt" maxlength="120" placeholder="自由に入力 (読み上げます)"><label class="chk" title="警報音を鳴らす"><input type="checkbox" id="mon-wu"><i></i>急ぎ</label><button class="btn pri" onclick="Monitor.warnText()">送る</button></div></section>
@@ -90,10 +91,18 @@ const Monitor={
   document.getElementById("mon-mv").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; this.view=b.dataset.v; this.dirty=true; document.querySelectorAll("#mon-mv button").forEach(x=>x.classList.toggle("on",x===b)); this.aim(); this.drawMap(); });
   document.getElementById("mon-met").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; document.querySelectorAll("#mon-met button").forEach(x=>x.classList.toggle("on",x===b)); if(this.ctx){ this.ctx.metric=b.dataset.v; this.dirty=true; } this.drawMap(); });
   document.getElementById("mon-role").addEventListener("click",e=>{ const b=e.target.closest("button"); if(b) this.setRole(b.dataset.r); });
+  document.getElementById("mon-page").addEventListener("click",e=>{ const b=e.target.closest("button"); if(b) this.setPage(b.dataset.p); });
+  if(typeof MonMeter!=="undefined") MonMeter.bind();
+  this.setPage(new URLSearchParams(location.search).get("page")==="meter"? "meter" : "std",true);
   document.getElementById("mon-wb").addEventListener("click",e=>{ const b=e.target.closest("button"); if(b) this.warn(b.dataset.m,+b.dataset.u); });
   document.getElementById("mon-wt").addEventListener("keydown",e=>{ if(e.key==="Enter") this.warnText(); });
   this.setRole(this.role,true);
  },
+ /* ページの切り替え: 標準 (地図・指示・予報) / 計測 (車載計測ソフト風の数値とグラフ)。URL の &page= に残す */
+ setPage(p,first){ const m=p==="meter"&&typeof MonMeter!=="undefined"; document.body.classList.toggle("mon-meter",m);
+  document.querySelectorAll("#mon-page button").forEach(b=>b.classList.toggle("on",b.dataset.p===(m?"meter":"std")));
+  if(!first){ try{ const q=new URLSearchParams(location.search); if(m) q.set("page","meter"); else q.delete("page"); history.replaceState(null,"",location.pathname+"?"+q.toString()+location.hash); }catch(e){} }
+  if(m){ MonMeter.ui(); MonMeter.draw(); } else this.drawAll(); },
  /* 役割の切り替え: 見せる欄・KPI・警告のボタン・地図の向き */
  setRole(r,first){ if(!this.ROLES[r]) return; this.role=r; const el=document.getElementById("mon"); el.className="r-"+r;
   document.querySelectorAll("#mon-role button").forEach(b=>b.classList.toggle("on",b.dataset.r===r));
@@ -201,5 +210,5 @@ const Monitor={
   c.strokeStyle="#fff"; c.beginPath(); c.moveTo(X(k),4); c.lineTo(X(k),H-20); c.stroke();
   c.fillStyle="#8b9097"; const step=[10,20,50].find(st=>(b-a)/st<=8)||50; for(let x=Math.ceil(a/step)*step;x<=b;x+=step) if(X(x)-14>=L+2) c.fillText(x+" km",X(x)-14,H-6);
  },
- drawAll(){ this.drawMap(); this.drawChart(); },
+ drawAll(){ if(document.body.classList.contains("mon-meter")&&typeof MonMeter!=="undefined"){ MonMeter.draw(); return; } this.drawMap(); this.drawChart(); },
 };

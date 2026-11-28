@@ -641,3 +641,5 @@ I18N.pat([
 I18N.add({"まだ抜けません。車線に戻ってください。":"It can't pass yet. Return to the lane."});
 I18N.add({"追い越し":"Overtake","前に追い越せるチームがいません":"No team ahead to overtake","返事を待っています":"Waiting for a reply"});
 I18N.pat([[/^(.+?) は道を譲っています$/,"$1 is giving way"]]);
+/* テレメトリの計測画面 */
+I18N.add({"計測":"Meter","左軸":"Left axis","右軸":"Right axis","隠す":"Hide","表示幅":"Span","全部":"All","記録間隔":"Interval","1 秒":"1 s","5 秒":"5 s","今の Lap":"Current lap","Lap 距離":"Lap distance","温度 [℃]":"Temp [°C]","モーター電力":"Motor power","ソーラー電力":"Solar power","ライン電圧":"Line voltage","速度":"Speed","電池残量":"Battery left","ソーラー積算":"Solar total","電池電流":"Battery current"});
