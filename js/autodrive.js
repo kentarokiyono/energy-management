@@ -64,8 +64,8 @@ const AutoDrive={
   if(typeof Wildlife!=="undefined") for(const a of Wildlife.list){ const d=a.s-V.s; if(d<-3||d>160) continue;
    if(a.kind==="roadkill"){ if(Math.abs(a.lat-V.lateral)<1.5&&d<120){ if(!bay) latT= a.lat<-1.2? Math.min(-0.4,a.lat+2.0) : -3.3; set(55/3.6,"死骸をよける"); } }
    else if((a.st==="cross"&&Math.abs(a.lat-V.lateral)<5)||(a.st==="wait"&&d<v*4)){ set(a.st==="cross"? this.stopV(d-4,4.5) : Math.min(v,60/3.6),"動物"); } }
-  // 後ろのロードトレインに道を譲る
-  if(typeof Traffic!=="undefined"&&Traffic.rtMsg&&Traffic.rtMsg!=="done"){ const rt=Traffic.cars.find(c=>c.id===Traffic.rtMsg); if(rt&&rt.s-rt.L<V.s+20){ if(!bay) latT=-4.1; set(rt.v0*0.65,"道を譲る"); } }
+  // 後ろのロードトレインに道を譲る (譲れば抜ける状態のときだけ。町の中などで抜けないのに遅く走り続けない)
+  if(typeof Traffic!=="undefined"&&Traffic.rtMsg&&Traffic.rtMsg!=="done"){ const rt=Traffic.cars.find(c=>c.id===Traffic.rtMsg); if(rt&&rt.s-rt.L<V.s+20&&(rt.canPass||rt.mode==="pass")){ if(!bay) latT=-4.1; set(rt.v0*0.65,"道を譲る"); } }
   // 止まる: 指示 (km / now)・17:00 以降・充電・パンク・暴風雨
   let pull=null;
   if(this.stopAt==="now") pull=0;

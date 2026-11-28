@@ -638,3 +638,4 @@ I18N.pat([
  [/^使った区間 \(3 km \/ 5 分ごとの平均\) (\d+)・(速度の幅が狭いので転がり抵抗は今の設定に固定・)?当てはまり R² (.+?) \((.+?)\)。「今の設定」の消費 = この走行と同じ速度・勾配で今の設定のモデルを走らせた値。CdA は空気抵抗係数 × 前面投影面積、Crr は η=0\.95 と置いた推定。発電は温度・角度の影響を含んだ実効値。$/,
   (m,n,fx,r,q)=>`Sections used (3 km / 5 min averages): ${n}. ${fx?"Speed range is narrow, so rolling resistance is fixed at the current setting. ":""}Fit R² ${r} (${q.replace(/^低い: 速度の幅が狭い・風や加速の影響が大きい$/,"low: narrow speed range, large wind/acceleration effects").replace(/^高い$/,"high").replace(/^ふつう$/,"fair")}). “Current” consumption = the current model run at this run's speeds and grades. CdA = drag coefficient × frontal area; Crr estimated with η = 0.95. Solar is the effective value including temperature and angle effects.`],
 ]);
+I18N.add({"まだ抜けません。車線に戻ってください。":"It can't pass yet. Return to the lane."});
