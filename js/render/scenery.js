@@ -307,7 +307,7 @@ bldFree(x,z,r,owner){ const L=this._bld||(this._bld=[]);
 guardPR(){
  if(PR.__guarded) return; PR.__guarded=true;
  const keep=new Set(["solarCar","woodPole","stobie"]), DECOR=new Set(["tree","desertoak","mulga","spinifex","grass","saltbush","pandanus","palm","termite","rock"]);   // 柱は電線の高さを返すので常に置く (位置は clearAt で道路を避け済み)
- const BR={houseOutback:8.5,houseTropical:8,houseBrick:8,shopStrip:14,shed:11,roadhouse:17,tower:15,midrise:13,mullock:4.5,marbles:4,windmill:2.5,tank:1.8};   // 建物の占める半径 [m]
+ const BR={houseOutback:8.5,houseTropical:8,houseBrick:8,shopStrip:14,shed:11,roadhouse:17,tower:15,midrise:13,mullock:4.5,marbles:7,windmill:2.5,tank:1.8};   // 建物の占める半径 [m]
  const pad={tree:0.8,redgum:0.8,houseOutback:2.5,houseTropical:2.5,houseBrick:2.5,shopStrip:3,shed:2,roadhouse:3,tower:4,midrise:4,windmill:1,termite:0.4,rock:0.3,tank:1};
  for(const k of Object.keys(PR)){ const f=PR[k]; if(typeof f!=="function") continue;
   const kp=keep.has(k);
@@ -549,8 +549,11 @@ features(ctx){
  for(const f of FEATURES){
   if(kmB<f.km0||kmA>f.km1) continue;
   if(f.id==="devils_marbles"){
-   for(let i=0;i<26;i++){ const s=rndr(s0,s1); if(this.kmOfS(view,s)<f.km0||this.kmOfS(view,s)>f.km1) continue;
-    const sd=f.side||(rnd()<0.5?-1:1), q=this.at(view,s,sd*(SH+rndr(14,140))); PR.marbles(bs,q.x,q.y,q.z,rndr(0.8,1.4)); }
+   for(let i=0;i<34;i++){ const s=rndr(s0,s1); if(this.kmOfS(view,s)<f.km0||this.kmOfS(view,s)>f.km1) continue;
+    const sd=f.side||(rnd()<0.5?-1:1), q=this.at(view,s,sd*(SH+rndr(12,200))); PR.marbles(bs,q.x,q.y,q.z,rndr(0.7,1.3)); }
+   for(let i=0;i<30;i++){ const s=rndr(s0,s1); if(this.kmOfS(view,s)<f.km0||this.kmOfS(view,s)>f.km1) continue;   // 群れの間に散らばる 1 個ずつの丸い岩
+    const sd=f.side||(rnd()<0.5?-1:1), q=this.at(view,s,sd*(SH+rndr(8,220))), r=rndr(0.4,1.4);
+    PR.rock(bs,q.x,q.y,q.z,r,0xa84c27); }
   } else if(f.id==="mullock"){
    for(let i=0;i<60;i++){ const s=rndr(s0,s1); if(this.kmOfS(view,s)<f.km0||this.kmOfS(view,s)>f.km1) continue;
     const sd=rnd()<0.5?-1:1, q=this.at(view,s,sd*(SH+rndr(20,420))); PR.mullock(bs,q.x,q.y,q.z,rndr(0.6,1.3)); }
