@@ -135,6 +135,9 @@ trackMinSpeed(s,dKm,dtS,lim){
  w.km+=dKm; w.t+=dtS; if(w.km<this.MIN_WIN) return;
  const avg=w.km/(w.t/3600); w.km=0; w.t=0;
  if(avg>=this.MIN_KMH){ w.warn=0; return; }
+ if(!P.nlcStrict){   // 設定で「警告だけ」(既定): 競技外にはせず、毎回知らせて記録だけ (結果画面に低速の区間として出す)
+  s.slowWins=(s.slowWins||0)+1; s.slowMin=Math.min(s.slowMin??1e9,avg);
+  Radio.push(`開けた道の平均が時速 ${avg.toFixed(0)} km です (60 km/h 未満・規則 3.29.1)。`,"Event Official"); return; }
  if(++w.warn===1){ Radio.push(`開けた道の平均が時速 ${avg.toFixed(0)} km です。時速 60 km を保てないと競技外になります (規則 3.29.1)。`,"Event Official"); return; }
  s.competing=false; s.nlcReason=`開けた道で時速 60 km を保てない (平均 ${avg.toFixed(0)} km/h)`;
  Radio.push(`競技外 (no longer competing): ${s.nlcReason}。走行は続けられますが、記録は参考扱いです。`,"Event Official"); toast("⚠ 競技外: 最低速度 60 km/h","#f59e0b");
