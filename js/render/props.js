@@ -117,22 +117,22 @@ rock(bs,x,y,z,sc=1,col=0x8b4426){   // 割れて角ばった岩 (4 種の形)。
   for(let i=0;i<n;i++){ const a=h*40+i*2.3, d=r*(1.3+0.5*((h*(i+3)*17)%1)), q=r*(0.15+0.15*((h*(i+5)*13)%1));
    bs.get("solid").add(tpl("rock"+((Math.floor(h*4)+i+1)%4)),M4(x+Math.cos(a)*d,y+q*0.2,z+Math.sin(a)*d,q*1.2,q*0.7,q,a,0,0),PR._rockCol(col,h)); } }
 },
-_rockCol(col,h){ const c=linCol(col,0.1), l=(c.r+c.g+c.b)/3, k=0.3+0.3*((h*31)%1); c.r+=(l-c.r)*k; c.g+=(l-c.g)*k; c.b+=(l-c.b)*k; return c.multiplyScalar(l<0.05? 1.7 : 1.3); },   // 型の陰で暗くなる分を戻す (黒っぽい岩は黒くつぶれないように)   // 岩の色をくすませる (岩ごとに少し違う)
+_rockCol(col,h,dk=1){ const c=linCol(col,0.1), l=(c.r+c.g+c.b)/3, k=(0.3+0.3*((h*31)%1))*dk; c.r+=(l-c.r)*k; c.g+=(l-c.g)*k; c.b+=(l-c.b)*k; return c.multiplyScalar(l<0.05? 1.7 : 1.3); },   // 型の陰で暗くなる分を戻す (黒っぽい岩は黒くつぶれないように)   // 岩の色をくすませる (岩ごとに少し違う)
 marbles(bs,x,y,z,sc=1){ // デビルズマーブルズ: 丸く風化した花崗岩の群れ。大小の丸い塊・まっぷたつに割れた塊・積み重なった塊・地面に出た平たい岩盤・まわりの欠片
- const cols=[0xb5562c,0xa84c27,0xc0663a,0x9c4a2c,0xb86a40];
+ const cols=[0xb4532a,0xa44a24,0xbb6232,0x9c4626,0xb4683c];
  for(let i=0;i<2;i++){ const a=rnd()*6.28, d=rnd()*4*sc;   // 平たい岩盤
   bs.get("solid").add(tpl("rock"+(i*2)),M4(x+Math.cos(a)*d,y-0.08,z+Math.sin(a)*d,rndr(2,4.5)*sc,0.22*sc,rndr(1.8,3.5)*sc,rnd()*6),PR._rockCol(0x9a4a2a,rnd())); }
  const n=3+Math.floor(rnd()*8);
  for(let i=0;i<n;i++){
   const r=(i===0? rndr(1.6,3.0) : rndr(0.45,1.9))*sc, a=rnd()*6.28, d= i===0? 0 : rndr(1.2,6.5)*sc;
-  const px=x+Math.cos(a)*d, pz=z+Math.sin(a)*d, ry=rnd()*6.28, col=PR._rockCol(cols[Math.floor(rnd()*cols.length)],rnd()).clone();
+  const px=x+Math.cos(a)*d, pz=z+Math.sin(a)*d, ry=rnd()*6.28, col=PR._rockCol(cols[Math.floor(rnd()*cols.length)],rnd(),0.5).clone();
   const sx=r*rndr(1,1.35), sy=r*rndr(0.68,0.95), sz=r*rndr(0.85,1.15), u=rnd();
   if(u<0.2&&r>1){ const g=0.06*r, cx=Math.cos(ry), cz=-Math.sin(ry);   // まっぷたつに割れた塊 (半分ずつ少し開く)
    for(const sd of [-1,1]) bs.get("solid").add(tpl("boulderH"),M4(px+cx*sd*g,y+sy*0.35,pz+cz*sd*g,sx,sy,sz,ry+(sd>0?Math.PI:0),0,-0.07),col);
   } else {
    bs.get("solid").add(tpl("boulder"+Math.floor(rnd()*3)),M4(px,y+sy*0.35,pz,sx,sy,sz,ry,rndr(-0.12,0.12),rndr(-0.12,0.12)),col);
    if(u>0.78&&r>0.9){ const r2=r*rndr(0.45,0.75);   // 上に載った塊
-    bs.get("solid").add(tpl("boulder"+Math.floor(rnd()*3)),M4(px+rndr(-0.2,0.2)*r,y+sy*1.25+r2*0.2,pz+rndr(-0.2,0.2)*r,r2*1.2,r2*0.85,r2,rnd()*6,rndr(-0.2,0.2),rndr(-0.2,0.2)),PR._rockCol(cols[Math.floor(rnd()*cols.length)],rnd())); }
+    bs.get("solid").add(tpl("boulder"+Math.floor(rnd()*3)),M4(px+rndr(-0.2,0.2)*r,y+sy*1.25+r2*0.2,pz+rndr(-0.2,0.2)*r,r2*1.2,r2*0.85,r2,rnd()*6,rndr(-0.2,0.2),rndr(-0.2,0.2)),PR._rockCol(cols[Math.floor(rnd()*cols.length)],rnd(),0.5)); }
   } }
  for(let i=0;i<5;i++){ const a=rnd()*6.28, d=rndr(2,8)*sc, q=rndr(0.12,0.35)*sc;   // 欠片
   bs.get("solid").add(tpl("rock"+(i%4)),M4(x+Math.cos(a)*d,y+q*0.15,z+Math.sin(a)*d,q*1.3,q*0.7,q,rnd()*6),PR._rockCol(0xa04c2a,rnd())); }
