@@ -7,13 +7,15 @@ return { p:g.attributes.position.array, n:g.attributes.normal.array, uv:g.attrib
 }
 /* 岩の形 (4 種): 正 20 面体を細かくしてノイズででこぼこにし、平面で何か所か割って (角ばった割れ面)、底を平らに (半分埋まる)。
  頂点の明るさ: 上は日に焼けて明るく、下と割れ面のくぼみは暗く、黒っぽい筋 (砂漠の岩の表面の黒い膜)。round=1 は丸く風化した花崗岩 (なめらか) */
-function _rockGeo(seed,round){
+function _rockGeo(seed,round,half=0){
  let sd=seed*7919+13; const R=()=>((sd=(sd*16807)%2147483647)/2147483647);
  const g0=new THREE.IcosahedronGeometry(1,round?3:2), P=g0.attributes.position, v=new THREE.Vector3();
  const ph=[R()*9,R()*9,R()*9], planes=[]; if(!round) for(let k=0;k<3;k++){ const n=new THREE.Vector3(R()-0.5,R()*0.6-0.1,R()-0.5).normalize(); planes.push([n,0.45+R()*0.35]); }
  const nz=(x,y,z)=>Math.sin(x*2.1+ph[0])*Math.sin(y*2.7+ph[1])*Math.sin(z*2.3+ph[2])+0.5*Math.sin(x*5.3+ph[1])*Math.sin(y*4.9+ph[2])*Math.sin(z*5.7+ph[0]);
  for(let i=0;i<P.count;i++){ v.fromBufferAttribute(P,i);
-  v.multiplyScalar(1+(round?0.13:0.22)*nz(v.x,v.y,v.z)+(round?0:0.06*Math.sin(v.x*11+v.z*9)));
+  if(round){ const q=Math.pow(Math.pow(Math.abs(v.x),3)+Math.pow(Math.abs(v.y),3)+Math.pow(Math.abs(v.z),3),1/3); v.multiplyScalar(1/q); }   // 丸みのある箱形 (風化した花崗岩の塊)
+  v.multiplyScalar(1+(round?0.07:0.22)*nz(v.x,v.y,v.z)+(round?0:0.06*Math.sin(v.x*11+v.z*9)));
+  if(half&&v.x>-0.05) v.x=-0.05-(v.x+0.05)*0.02;   // 割れた岩の半分 (割れ面は平ら)
   for(const [n,d] of planes){ const t=v.dot(n); if(t>d) v.addScaledVector(n,d-t); }
   if(v.y<-0.35) v.y=-0.35-(v.y+0.35)*0.1;
   P.setXYZ(i,v.x,v.y,v.z); }
@@ -47,7 +49,8 @@ case "box": g=new THREE.BoxGeometry(1,1,1); g.translate(0,0.5,0); break;
 case "boxC": g=new THREE.BoxGeometry(1,1,1); break;
 case "plane": g=new THREE.PlaneGeometry(1,1); break;
 case "rock0": case "rock1": case "rock2": case "rock3": TPL[name]=_tpl(_rockGeo(+name[4]+1,0),false); return TPL[name];
-case "boulder0": case "boulder1": TPL[name]=_tpl(_rockGeo(+name[7]+11,1),false); return TPL[name];
+case "boulder0": case "boulder1": case "boulder2": TPL[name]=_tpl(_rockGeo(+name[7]+11,1),false); return TPL[name];
+case "boulderH": TPL[name]=_tpl(_rockGeo(17,1,1),false); return TPL[name];
 case "cabin": { // 車の客室: 幅 1・高さ 1・長さ 1 の箱の上面を前後左右にすぼめた形 (前のガラスは寝て、後ろは少し立つ)。底面中心が原点
  const B=[[-0.5,0,-0.5],[0.5,0,-0.5],[0.5,0,0.5],[-0.5,0,0.5]], T=[[-0.42,1,-0.1],[0.42,1,-0.1],[0.42,1,0.32],[-0.42,1,0.32]], pos=[];
  const q=(a,b,c,d)=>pos.push(...a,...b,...c,...a,...c,...d);
