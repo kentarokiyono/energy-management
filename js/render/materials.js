@@ -8,17 +8,54 @@ if(srgb) t.encoding=THREE.sRGBEncoding;
 return t;
 }
 const TEX={};
+/* 色調 (全画質): ACES の後に、暗い所を少し青く・明るい所を少し暖かく、明暗をわずかに締めて、鮮やかさを少し上げる (乾いた強い日差しの感じ) */
+THREE.ShaderChunk.tonemapping_pars_fragment=THREE.ShaderChunk.tonemapping_pars_fragment
+ .replace(/vec3 ACESFilmicToneMapping\( vec3 color \) \{/,`vec3 gradeCol(vec3 c){
+ float l=dot(c,vec3(0.2126,0.7152,0.0722));
+ c*=mix(vec3(0.86,0.96,1.16),vec3(1.1,1.0,0.86),smoothstep(0.03,0.55,l));
+ c=mix(vec3(l),c,1.18);
+ c=mix(c,c*c*(3.0-2.0*c),0.32);
+ return clamp(c,0.0,1.0); }
+vec3 ACESFilmicToneMapping( vec3 color ) {`)
+ .replace(/color = ACESOutputMat \* color;\s*return saturate\( color \);/,"color = ACESOutputMat * color;\n\treturn gradeCol( saturate( color ) );");
+/* 影の 2 段: 平行光源の影が 2 枚のとき (View.farSun)、近くの細かい影 [0] の範囲内はそれを、外は遠くの粗い影 [1] を使う (境目はなめらかに) */
+THREE.ShaderChunk.shadowmask_pars_fragment=THREE.ShaderChunk.shadowmask_pars_fragment.replace("#if NUM_DIR_LIGHT_SHADOWS > 0\n\tDirectionalLightShadow directionalLight;",
+`#if NUM_DIR_LIGHT_SHADOWS == 2
+ if(receiveShadow){
+  float s0=getShadow(directionalShadowMap[0],directionalLightShadows[0].shadowMapSize,directionalLightShadows[0].shadowBias,directionalLightShadows[0].shadowRadius,vDirectionalShadowCoord[0]);
+  float s1=getShadow(directionalShadowMap[1],directionalLightShadows[1].shadowMapSize,directionalLightShadows[1].shadowBias,directionalLightShadows[1].shadowRadius,vDirectionalShadowCoord[1]);
+  vec3 p0=vDirectionalShadowCoord[0].xyz/vDirectionalShadowCoord[0].w; vec2 e0=min(p0.xy,1.0-p0.xy);
+  shadow*=mix(s1,s0,smoothstep(0.0,0.1,min(e0.x,e0.y)));
+ }
+ #elif NUM_DIR_LIGHT_SHADOWS > 0
+\tDirectionalLightShadow directionalLight;`);
+/* 空気遠近 (three.js の霧の計算を差し替え): 近くから少しずつ青白くかすむ指数の霞 + 遠くの端で景色を消す霧。
+ カメラより高い所 (丘の上・木の上) は空気が薄いのでかすみにくい。霞の強さは霧の距離 (fogFar) から決めるので、雨で霧を近くしたときもそのまま濃くなる */
+THREE.ShaderChunk.fog_pars_vertex="#ifdef USE_FOG\n varying float fogDepth; varying float vFogDY;\n#endif";
+THREE.ShaderChunk.fog_vertex="#ifdef USE_FOG\n fogDepth=-mvPosition.z; vFogDY=(vec4(mvPosition.xyz,0.0)*viewMatrix).y;\n#endif";
+THREE.ShaderChunk.fog_pars_fragment="#ifdef USE_FOG\n uniform vec3 fogColor; varying float fogDepth; varying float vFogDY;\n #ifdef FOG_EXP2\n uniform float fogDensity;\n #else\n uniform float fogNear; uniform float fogFar;\n #endif\n#endif";
+THREE.ShaderChunk.fog_fragment=`#ifdef USE_FOG
+ #ifdef FOG_EXP2
+  float fogFactor=1.0-exp(-fogDensity*fogDensity*fogDepth*fogDepth);
+ #else
+  float fh=max(vFogDY,0.0)/60.0, fk= fh>0.001? (1.0-exp(-fh))/fh : 1.0;
+  float haze=(1.0-exp(-fogDepth*(1.5/fogFar)*fk))*0.8;
+  float fogFactor=max(haze,pow(smoothstep(fogNear,fogFar,fogDepth),1.4));
+ #endif
+ gl_FragColor.rgb=mix(gl_FragColor.rgb,fogColor,fogFactor);
+#endif`;
 /* 道路: 横方向=全幅(2*ROAD_W) / 縦方向=12m (白線3m+間隔9m) */
 function roadTex(kind){
-const key="road_"+kind; if(TEX[key]) return TEX[key];
-const W=256,H=512, [cv,c]=_cv(W,H);
+const gk=typeof GFX!=="undefined"? GFX.key() : "high", F= gk==="low"? 1 : gk==="mid"? 2 : 4;   // 画質で解像度 (高: 1024×2048 = 全幅で約 1 cm/画素)
+const key="road_"+kind+"_"+F; if(TEX[key]) return TEX[key];
+const W=256*F,H=512*F, [cv,c]=_cv(W,H);
 const urban=kind==="urban";
 c.fillStyle=urban?"#3b3c3f":"#66625c"; c.fillRect(0,0,W,H);
 // 骨材(チップシール)の粒
-for(let i=0;i<(urban?9000:16000);i++){
+for(let i=0;i<(urban?9000:16000)*F*F;i++){
  const l=urban? 40+Math.random()*50 : 60+Math.random()*80;
  c.fillStyle=`rgba(${l+8},${l+4},${l},${0.25+Math.random()*0.4})`;
- const s=Math.random()<0.8?1:2; c.fillRect(Math.random()*W,Math.random()*H,s,s);
+ const s=(Math.random()<0.8?1:2)*(F>1?F*0.6:1); c.fillRect(Math.random()*W,Math.random()*H,s,s);
 }
 // 轍(わだち): 黒く滑らかに磨かれた帯
 for(const u of [0.14,0.36,0.64,0.86]){
@@ -31,9 +68,9 @@ for(let i=0;i<(urban?3:4);i++){
  c.fillStyle=urban?`rgba(20,20,22,${0.08+Math.random()*0.1})`:`rgba(40,38,36,${0.08+Math.random()*0.1})`;
  const px=Math.random()*W*0.8, py=Math.random()*H; c.fillRect(px,py,20+Math.random()*60,30+Math.random()*120);
 }
-c.strokeStyle="rgba(15,14,13,0.5)"; c.lineWidth=1;
+c.strokeStyle="rgba(15,14,13,0.5)"; c.lineWidth=F;
 for(let i=0;i<14;i++){ c.beginPath(); let x=Math.random()*W, y=Math.random()*H; c.moveTo(x,y);
- for(let k=0;k<6;k++){ x+=(Math.random()-0.5)*18; y+=Math.random()*14; c.lineTo(x,y);} c.stroke(); }
+ for(let k=0;k<6*F;k++){ x+=(Math.random()-0.5)*18; y+=Math.random()*14; c.lineTo(x,y);} c.stroke(); }
 // 路肩側の赤土の吹き溜まり(郊外)
 if(!urban){
  for(const [a,b] of [[0,0.07],[0.93,1]]){
@@ -45,7 +82,7 @@ if(!urban){
 }
 // 区画線 (豪州: 白の外側線 + 白破線センターライン)
 const line=(u0,u1,v0,v1,a=0.92)=>{ c.fillStyle=`rgba(236,234,224,${a})`; c.fillRect(u0*W,v0*H,(u1-u0)*W,(v1-v0)*H);
- for(let i=0;i<60;i++){ c.fillStyle="rgba(80,78,72,0.25)"; c.fillRect(u0*W+Math.random()*(u1-u0)*W,v0*H+Math.random()*(v1-v0)*H,1,1);} };
+ for(let i=0;i<60*F*F;i++){ c.fillStyle="rgba(80,78,72,0.25)"; c.fillRect(u0*W+Math.random()*(u1-u0)*W,v0*H+Math.random()*(v1-v0)*H,F,F);} };
 line(0.018,0.036,0,1); line(0.964,0.982,0,1);
 line(0.493,0.507,0,0.25);
 TEX[key]=_tex(cv,true,16);
@@ -207,9 +244,9 @@ const mat=new THREE.MeshLambertMaterial({vertexColors:true});
 mat.userData.uniforms={uDetail:{value:detailTex()}};
 mat.onBeforeCompile=(sh)=>{
  Object.assign(sh.uniforms,mat.userData.uniforms);
- sh.vertexShader="attribute vec4 aVeg;\nattribute vec3 aMisc;\nvarying vec4 vVeg;\nvarying vec3 vMisc;\nvarying vec3 vWPos;\n"+sh.vertexShader
-  .replace("#include <begin_vertex>","#include <begin_vertex>\nvVeg=aVeg; vMisc=aMisc; vWPos=(modelMatrix*vec4(transformed,1.0)).xyz;");
- sh.fragmentShader="uniform sampler2D uDetail;\nvarying vec4 vVeg;\nvarying vec3 vMisc;\nvarying vec3 vWPos;\n"+GLSL_NOISE+sh.fragmentShader
+ sh.vertexShader="attribute vec4 aVeg;\nattribute vec3 aMisc;\nvarying vec4 vVeg;\nvarying vec3 vMisc;\nvarying vec3 vWPos;\nvarying float vCamD;\n"+sh.vertexShader
+  .replace("#include <begin_vertex>","#include <begin_vertex>\nvVeg=aVeg; vMisc=aMisc; vWPos=(modelMatrix*vec4(transformed,1.0)).xyz; vCamD=length((modelViewMatrix*vec4(transformed,1.0)).xyz);");
+ sh.fragmentShader="uniform sampler2D uDetail;\nvarying vec4 vVeg;\nvarying vec3 vMisc;\nvarying vec3 vWPos;\nvarying float vCamD;\n"+GLSL_NOISE+sh.fragmentShader
   .replace("#include <color_fragment>",`#include <color_fragment>
 {
  vec2 q=vWPos.xz;
@@ -235,6 +272,23 @@ mat.onBeforeCompile=(sh)=>{
  }
  float det=texture2D(uDetail,q*0.25).r;
  c*=0.78+0.44*det;
+ /* 広い色のムラ: 赤〜橙〜くすんだ茶 (数百 m の大きさ) */
+ { float m=gFbm(q*0.0032+vec2(41.,17.)); c*=mix(vec3(1.07,0.97,0.9),vec3(0.9,0.93,0.98),smoothstep(0.3,0.7,m)); }
+ /* 近く (約 70 m まで) だけ: 細かな粒・小石・乾いた土のひび割れ。遠くは薄れる (ちらつかない) */
+ { float dist=vCamD, nf=1.0-smoothstep(22.0,70.0,dist);
+  if(nf>0.0){
+   float gr=gVn(q*4.0)*0.5+gVn(q*11.0)*0.3+gVn(q*27.0)*0.2; c*=mix(1.0,0.76+0.44*gr,nf);
+   for(int L=0;L<2;L++){   /* 小石: 2 つの大きさの層。明るい石の面 + 下側 (日の当たらない側) の小さな影 */
+    float sc= L==0? 1.7 : 4.3; vec2 p=q*sc+float(L)*17.3, ci=floor(p), f=fract(p); vec2 o=vec2(gHash(ci+1.7),gHash(ci+9.2))*0.6+0.2;
+    float on=step(0.8-0.35*vMisc.y,gHash(ci+4.4)), pr=0.06+0.12*gHash(ci+5.5), e=0.6+0.8*gHash(ci+2.2);
+    vec2 d=(f-o)*vec2(e,1.0/e); float pd=length(d), body=on*(1.0-smoothstep(pr*0.75,pr,pd)), sh=on*(1.0-smoothstep(pr*0.8,pr*1.25,length(d-vec2(0.035,0.05))))*(1.0-body);
+    vec3 st=mix(c*vec3(0.78,0.7,0.66),mix(vec3(0.16,0.07,0.035),vec3(0.24,0.18,0.13),gHash(ci+8.8)),0.5);   /* 赤茶〜灰色の石 (土になじむ色) */
+    c=mix(c,c*0.62,sh*0.7*nf); c=mix(c,st*(0.8+0.35*gr),body*0.85*nf); }
+   float pan=smoothstep(0.46,0.58,gFbm(q*0.018+vec2(3.,8.)))*(1.0-vVeg.a*0.6);   /* ひび割れは所々の平らな粘土の所だけ */
+   if(pan>0.0){ vec2 cp=q*0.7, cc=floor(cp), cf=fract(cp); float d1=9.0, d2=9.0;
+    for(int j=-1;j<=1;j++) for(int i=-1;i<=1;i++){ vec2 g=vec2(float(i),float(j)), oo=vec2(gHash(cc+g+0.3),gHash(cc+g+7.1)); float d=length(g+oo-cf); if(d<d1){ d2=d1; d1=d; } else if(d<d2) d2=d; }
+    float cr=1.0-smoothstep(0.0,0.05,d2-d1); c=mix(c,c*0.6,cr*pan*nf*0.8); c=mix(c,c*1.06,pan*nf*0.5); }
+  } }
  c=mix(vec3(dot(c,vec3(0.3,0.59,0.11))),c,0.80);   /* 赤土の鮮やかさを少し抑える (乾いた土は彩度が低い) */
  diffuseColor.rgb=c;
 }`);
@@ -244,10 +298,11 @@ return mat;
 /* ---- 道路マテリアル (逃げ水=蜃気楼つき) ---- */
 /* 路面の凹凸 (骨材の粒) の法線マップと、粗さのマップ (轍は磨かれて少しつるつる)。roadTex と同じ大きさ・同じ並びで繰り返す */
 function roadDetail(kind){
- const key="roadN_"+kind; if(TEX[key]) return TEX[key];
- const W=256,H=512, hgt=new Float32Array(W*H), urban=kind==="urban";
+ const F=typeof GFX!=="undefined"&&GFX.key()==="mid"? 1 : 2;   // 高: 512×1024
+ const key="roadN_"+kind+"_"+F; if(TEX[key]) return TEX[key];
+ const W=256*F,H=512*F, hgt=new Float32Array(W*H), urban=kind==="urban";
  let seed=kind.length*7919+17; const rnd=()=>((seed=(seed*1103515245+12345)>>>0)/4294967296);
- for(let i=0;i<(urban?14000:22000);i++){ const x=Math.floor(rnd()*W), y=Math.floor(rnd()*H), r=rnd()<0.75?1:2, h=0.4+rnd()*0.6;
+ for(let i=0;i<(urban?14000:22000)*F*F;i++){ const x=Math.floor(rnd()*W), y=Math.floor(rnd()*H), r=rnd()<0.75?1:2, h=0.4+rnd()*0.6;
   for(let dy=-r;dy<=r;dy++) for(let dx=-r;dx<=r;dx++){ if(dx*dx+dy*dy>r*r) continue; const k=((y+dy+H)%H)*W+((x+dx+W)%W); hgt[k]=Math.max(hgt[k],h*(1-(dx*dx+dy*dy)/(r*r+1))); } }
  const [nc,n]=_cv(W,H), [rc,rg]=_cv(W,H), ni=n.createImageData(W,H), ri=rg.createImageData(W,H), S=urban?2.2:3.0;
  const at=(x,y)=>hgt[((y+H)%H)*W+((x+W)%W)];
@@ -265,11 +320,12 @@ const pbr=typeof GFX!=="undefined"&&GFX.key()!=="low", D=pbr? roadDetail(kind) :
 const mat= pbr? new THREE.MeshStandardMaterial({map:roadTex(kind),vertexColors:true,normalMap:D.normal,normalScale:new THREE.Vector2(0.35,0.35),roughnessMap:D.rough,roughness:1,metalness:0,envMapIntensity:0.5})
  : new THREE.MeshLambertMaterial({map:roadTex(kind),vertexColors:true});
 mat.userData.gfx=pbr?"pbr":"low";
-mat.userData.uniforms={uMirage:{value:0},uSkyCol:{value:new THREE.Color(0.7,0.8,0.9)},uTime:{value:0},uWet:{value:0}};
+mat.userData.uniforms={uMirage:{value:0},uSkyCol:{value:new THREE.Color(0.7,0.8,0.9)},uTime:{value:0},uWet:{value:0},uSunDir:{value:new THREE.Vector3(0,1,0)},uSunCol:{value:new THREE.Color(0,0,0)}};
+const RURAL=kind==="rural"? 1 : 0, PBR=pbr? 1 : 0;   // 「低」(Lambert) は cameraPosition が来ないので、距離を使う粒と照り返しは入れない
 mat.onBeforeCompile=(sh)=>{
  Object.assign(sh.uniforms,mat.userData.uniforms);
  sh.vertexShader="varying vec3 vWPos;\n"+sh.vertexShader.replace("#include <begin_vertex>","#include <begin_vertex>\nvWPos=(modelMatrix*vec4(transformed,1.0)).xyz;");
- sh.fragmentShader="uniform float uMirage;uniform vec3 uSkyCol;uniform float uTime;uniform float uWet;varying vec3 vWPos;\n"+GLSL_NOISE+sh.fragmentShader
+ sh.fragmentShader="uniform float uMirage;uniform vec3 uSkyCol;uniform float uTime;uniform float uWet;uniform vec3 uSunDir;uniform vec3 uSunCol;varying vec3 vWPos;\n"+GLSL_NOISE+sh.fragmentShader
   .replace("#include <map_fragment>",`#include <map_fragment>
 #ifdef USE_MAP
 { // 路面の変化 (繰り返しの模様の上に、場所ごとに違うものを重ねる)。vUv.x = 車線の横の位置、vUv.y * 12 = 道に沿った距離 m
@@ -290,9 +346,48 @@ mat.onBeforeCompile=(sh)=>{
  // 車線の真ん中の油の染み
  float lc=max(1.0-smoothstep(0.02,0.07,abs(uu-0.25)),1.0-smoothstep(0.02,0.07,abs(uu-0.75)));
  diffuseColor.rgb*=1.0-0.07*lc*smoothstep(0.55,0.85,gVn(vec2(uu*20.0,vv*0.3)));
+ const vec3 SEAL=vec3(0.022,0.021,0.02);
+ // 丸い穴埋めの補修 (縁がでこぼこ)
+ float pc2=floor(vv/18.0), ph2=fract(sin(pc2*17.17+0.3)*24634.6);
+ if(ph2<0.4){ vec2 dd=vec2((uu-(0.08+0.84*fract(ph2*71.3)))*9.0, vv-(pc2*18.0+2.0+14.0*fract(ph2*13.7))); float rr=0.3+0.45*fract(ph2*5.1);
+  float m=1.0-smoothstep(rr-0.04,rr+0.02,length(dd*vec2(1.0,0.75))+(gVn(vec2(uu*70.0,vv*7.0))-0.5)*rr*0.5);
+  diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(0.55,0.55,0.58),m); }
+ // ひびを埋めた黒い線: 中央付近の縦の継ぎ目 (うねる) と、所々の横のひび
+ float cs=floor(vv/40.0), ch=fract(sin(cs*45.3+2.1)*2375.85), cf=fract(vv/40.0);
+ if(ch<0.55){ float lu=0.47+0.06*fract(ch*13.1)+0.010*sin(vv*0.9+ch*30.0)+0.004*sin(vv*3.1);
+  float m=(1.0-smoothstep(0.0018,0.0036,abs(uu-lu)))*step(0.1,cf)*step(cf,0.15+0.8*fract(ch*7.7));
+  diffuseColor.rgb=mix(diffuseColor.rgb,SEAL,m*0.85); }
+ float ts=floor(vv/9.0), th=fract(sin(ts*78.2+5.5)*4375.8);
+ if(th<0.25){ float y=ts*9.0+1.5+6.0*fract(th*9.3)+0.18*sin(uu*40.0+th*20.0)+0.06*sin(uu*130.0), u0=fract(th*31.7)*0.6, u1=u0+0.12+0.35*fract(th*57.1);
+  float m=(1.0-smoothstep(0.015,0.03,abs(vv-y)))*smoothstep(u0,u0+0.01,uu)*(1.0-smoothstep(u1-0.01,u1,uu));
+  diffuseColor.rgb=mix(diffuseColor.rgb,SEAL,m*0.8); }
+ // 白線のかすれ: 線の所だけ、細かい斑と長い区間のむらで下のアスファルトが出る
+ float Lm=max(max(step(0.016,uu)*step(uu,0.038),step(0.962,uu)*step(uu,0.984)),step(0.491,uu)*step(uu,0.509)*step(fract(vv/12.0),0.25));
+ if(Lm>0.0){ float wr=gVn(vec2(uu*500.0,vv*9.0))*0.55+gVn(vec2(uu*90.0,vv*1.1))*0.45;
+  float wear=smoothstep(0.36,0.66,wr)*(0.45+0.55*gVn(vec2(vv*0.015,uu*3.0+2.0)));
+  diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.12,0.115,0.108)*(0.8+0.4*gVn(vec2(uu*300.0,vv*30.0))),wear*0.9); }
+ // 轍: 車輪の通り道はわずかに沈んで暗く、その間の盛り上がりは少し明るい
+ float rut=max(max(1.0-smoothstep(0.02,0.06,abs(uu-0.14)),1.0-smoothstep(0.02,0.06,abs(uu-0.36))),max(1.0-smoothstep(0.02,0.06,abs(uu-0.64)),1.0-smoothstep(0.02,0.06,abs(uu-0.86))));
+ diffuseColor.rgb*=0.97+0.06*(1.0-rut)-0.05*rut;
+ // 近くの骨材の粒 (チップシール): 1 cm 角の石と黒い隙間。遠くはちらつくので消す
+ { float cdist=length(vWPos-cameraPosition), nf=1.0-smoothstep(6.0,22.0,cdist);
+  if(${PBR}==1&&nf>0.0){ vec2 g=vWPos.xz*42.0, cc=floor(g), f=fract(g); vec2 o=vec2(gHash(cc),gHash(cc+5.3))*0.5+0.25; float r=length(f-o);
+   float stone=1.0-smoothstep(0.2,0.42,r), tone=0.7+0.6*gHash(cc+11.1);
+   diffuseColor.rgb*=mix(1.0,mix(0.7,tone,stone),nf*0.75); } }
+ // 舗装の端の崩れ (郊外): 端がでこぼこに欠けて路肩の砂利・赤土が入り込む
+ if(${RURAL}==1){ float ed=min(uu,1.0-uu), rag=0.004+0.012*gVn(vec2(vv*0.9,uu>0.5?3.0:9.0))+0.004*gVn(vec2(vv*6.0,uu>0.5?1.0:5.0));
+  float gm=1.0-smoothstep(rag,rag+0.003,ed);
+  vec3 grav=vec3(0.26,0.15,0.085)*(0.75+0.5*gVn(vWPos.xz*25.0));
+  diffuseColor.rgb=mix(diffuseColor.rgb,grav,gm);
+  diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.1,0.92,0.8),(1.0-smoothstep(rag,rag+0.035,ed))*(1.0-gm)*0.6); }
 }
 #endif`)
-  .replace("#include <fog_fragment>",`#include <fog_fragment>
+  .replace("#include <fog_fragment>",`{ // 照り返し: 太陽の方を向いて見ると路面が白っぽく光る (逆光・浅い角度で強い)。粗い路面なので広くぼやける
+ vec3 V=normalize(cameraPosition-vWPos), Rf=reflect(-V,vec3(0.0,1.0,0.0));
+ float sp=pow(max(dot(Rf,uSunDir),0.0),5.0), fr=pow(1.0-clamp(V.y,0.0,1.0),5.0);
+ if(${PBR}==1) gl_FragColor.rgb+=uSunCol*sp*(0.05+0.55*fr)*(1.0-0.6*uWet);
+}
+#include <fog_fragment>
 {
  float d=length(vWPos.xz-cameraPosition.xz);
  float hgt=max(cameraPosition.y-vWPos.y,0.5);
@@ -334,6 +429,9 @@ get(name){
  case "resi": def={mat:L({map:resiTex()}),cast:true}; break;
  case "shop": def={mat:L({map:shopTex()}),cast:true}; break;
  case "glass": def={mat:new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.12,metalness:0.6,envMapIntensity:1.0}),cast:false}; break;
+ case "paint": def={mat:new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.3,metalness:0.45,envMapIntensity:1.1}),cast:true}; break;   // 車の塗装 (空が映る)
+ case "chrome": def={mat:new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.18,metalness:1.0,envMapIntensity:1.2}),cast:true}; break;   // めっき・アルミホイール
+ case "rubber": def={mat:new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.92,metalness:0,envMapIntensity:0.3}),cast:true}; break;   // タイヤ・樹脂バンパー
  case "water": def={mat:new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.08,metalness:0.2,envMapIntensity:1.2}),cast:false}; break;
  case "emis": def={mat:new THREE.MeshBasicMaterial({vertexColors:true}),cast:false}; break;
  case "ground": def={mat:makeGroundMaterial(),cast:false}; break;

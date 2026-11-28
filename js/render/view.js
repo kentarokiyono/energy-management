@@ -62,6 +62,12 @@ this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 { const e=GFX.ultra()?70:45; Object.assign(this.sunLight.shadow.camera,{left:-e,right:e,top:e,bottom:-e,near:800,far:2600}); this.sunLight.shadow.camera.updateProjectionMatrix(); }
 this.sunLight.shadow.bias=-0.0006; this.sunLight.shadow.normalBias=0.02;
 this.scene.add(this.sunLight.target);
+// 遠くの影 (粗い 2 枚目): 強さ 0 の平行光源で影だけ作る。地面・景色 (Lambert) で近くの影の外側に使う (getShadowMask の差し替えは materials.js)。
+// 重いので 12 フレームに 1 回だけ作り直す (前方へずらして範囲を取る)
+this.farSun=null;
+if(GFX.cur().shadow>0){ const f=new THREE.DirectionalLight(0xffffff,0), sz=GFX.key()==="mid"?1024:2048, e=GFX.key()==="mid"?220:320;
+ f.castShadow=true; f.shadow.mapSize.set(sz,sz); Object.assign(f.shadow.camera,{left:-e,right:e,top:e,bottom:-e,near:600,far:2600}); f.shadow.camera.updateProjectionMatrix();
+ f.shadow.bias=-0.0015; f.shadow.normalBias=0.4; f.shadow.autoUpdate=false; f.shadow.needsUpdate=true; this.scene.add(f); this.scene.add(f.target); this.farSun=f; this._fsN=99; }
 this.sun=new THREE.Mesh(new THREE.SphereGeometry(22,16,16),
 new THREE.MeshBasicMaterial({color:0xfff1b0}));
 this.sun.visible=false; this.scene.add(this.sun);
@@ -396,15 +402,18 @@ const cab=rndPick([0xaa2222,0x1f4f9c,0xe8e8e8,0xd8a21c,0x1d1d1d,0x2f6b3a]);
 const chrome=0xd0d4d8, tyre=0x141414;
 // トラクタ (前方=+z: すれ違い用に後で反転)
 bs.get("solid").add(tpl("box"),M4(0,0.9,4.6,2.5,0.35,8.5),linCol(0x222222));
-bs.get("solid").add(tpl("box"),M4(0,1.25,7.6,2.3,1.35,2.6),linCol(cab));            // ボンネット
-bs.get("solid").add(tpl("box"),M4(0,1.25,5.0,2.5,2.65,2.6),linCol(cab));            // キャブ
-bs.get("solid").add(tpl("box"),M4(0,3.9,4.4,2.5,1.0,1.6),linCol(cab));              // スリーパー
+bs.get("paint").add(tpl("box"),M4(0,1.25,7.6,2.3,1.35,2.6),linCol(cab));            // ボンネット
+bs.get("paint").add(tpl("box"),M4(0,1.25,5.0,2.5,2.65,2.6),linCol(cab));            // キャブ
+for(const sx of [-1,1]) bs.get("glass").add(tpl("box"),M4(sx*1.255,2.6,5.3,0.02,0.85,1.3),linCol(0x1a2228));   // 横の窓
+for(const sx of [-1,1]) bs.get("chrome").add(tpl("box"),M4(sx*1.45,2.5,6.2,0.08,0.7,0.25),linCol(chrome));   // 大きなミラー
+bs.get("paint").add(tpl("box"),M4(0,3.9,4.4,2.5,1.0,1.6),linCol(cab));              // スリーパー
 bs.get("glass").add(tpl("box"),M4(0,2.75,6.31,2.3,0.9,0.05),linCol(0x1a2228));
-bs.get("solid").add(tpl("box"),M4(0,1.1,8.95,2.3,1.15,0.15),linCol(chrome));       // グリル
-bs.get("solid").add(tpl("box"),M4(0,0.55,9.25,2.6,1.25,0.35),linCol(0xb9bcbf));    // ブルバー
-for(const sx of [-1.15,1.15]) bs.get("solid").add(tpl("cyl8"),M4(sx,1.6,3.75,0.09,3.6,0.09),linCol(chrome)); // 排気スタック
-for(const sx of [-0.95,0.95]) bs.get("solid").add(tpl("cyl12"),M4(sx,0.95,3.9,0.36,1.5,0.36,0,Math.PI/2,0),linCol(chrome)); // 燃料タンク (車体の下・前後方向)
-const wheel=(x,z)=>bs.get("solid").add(tpl("cyl12"),M4(x,0.52,z,0.52,0.3,0.52,0,0,Math.PI/2),linCol(tyre));
+bs.get("chrome").add(tpl("box"),M4(0,1.1,8.95,2.3,1.15,0.15),linCol(chrome));       // グリル
+for(let k=0;k<6;k++) bs.get("rubber").add(tpl("box"),M4(0,1.22+k*0.17,9.03,2.1,0.06,0.02),linCol(0x202224));   // グリルの横桟
+bs.get("chrome").add(tpl("box"),M4(0,0.55,9.25,2.6,1.25,0.35),linCol(0xb9bcbf));    // ブルバー
+for(const sx of [-1.15,1.15]) bs.get("chrome").add(tpl("cyl8"),M4(sx,1.6,3.75,0.09,3.6,0.09),linCol(chrome)); // 排気スタック
+for(const sx of [-0.95,0.95]) bs.get("chrome").add(tpl("cyl12"),M4(sx,0.95,3.9,0.36,1.5,0.36,0,Math.PI/2,0),linCol(chrome)); // 燃料タンク (車体の下・前後方向)
+const wheel=(x,z)=>{ bs.get("rubber").add(tpl("cyl12"),M4(x,0.52,z,0.52,0.3,0.52,0,0,Math.PI/2),linCol(tyre)); bs.get("chrome").add(tpl("cyl12"),M4(x*1.01,0.52,z,0.3,0.305,0.3,0,0,Math.PI/2),linCol(0xc4c8cc)); };   // タイヤ + アルミホイール
 for(const z of [8.2,2.6,1.2]) for(const x of [-1.1,1.1]) wheel(x,z);
 // トレーラ ×3 (サイドティッパー/バン)
 const trCol=rndPick([0xb4b7ba,0x9aa0a6,0xc9c9c2,0x7a8288]);
@@ -416,6 +425,8 @@ for(let i=0;i<3;i++){
  if(i<2) bs.get("solid").add(tpl("box"),M4(0,0.6,zc-7.1,0.2,0.2,2.2),linCol(0x333333));  // ドーリー連結
  for(const dz of [-4.8,-3.4,-2.0,4.4,5.8]) for(const x of [-1.1,1.1]) wheel(x,zc+dz);
  bs.get("solid").add(tpl("box"),M4(0,0.9,zc-6.2,2.4,0.25,0.06),linCol(0xd11a1a));
+ for(const sx of [-1,1]){ for(let k=0;k<4;k++) bs.get("emis").add(tpl("box"),M4(sx*1.26,1.15,zc-5.5+k*3.6,0.03,0.08,0.12),linCol(0xff9a1a));   // 横の車幅灯 (橙)
+  bs.get("rubber").add(tpl("box"),M4(sx*1.1,0.12,zc-5.6,0.5,0.6,0.03),linCol(0x161616)); }   // 泥よけ
 }
 bs.get("solid").add(tpl("box"),M4(0,1.7,-33.8,1.2,0.6,0.04),linCol(0xf6c400));     // ROAD TRAIN 表示板
 bs.toGroup(t);
@@ -1191,6 +1202,8 @@ this.sunLight.intensity=clamp(1.25*dayK,0.02,1.2)*(1-0.65*WX);
 { const warm=clamp(alt/0.3,0,1); this.sunLight.color.setRGB(1.0,0.62+0.33*warm,0.38+0.5*warm); }
 this.sunLight.target.position.copy(this.car.position);
 this.sunLight.position.sub(this.car.position).normalize().multiplyScalar(1400).add(this.car.position);
+if(this.farSun&&++this._fsN>=12){ this._fsN=0; const f=this.farSun, c=this.car.position.clone().add(new THREE.Vector3(Math.sin(this.ch),0,-Math.cos(this.ch)).multiplyScalar(f.shadow.camera.right*0.45));
+ f.target.position.copy(c); f.position.copy(this.sunLight.position).sub(this.car.position).add(c); f.target.updateMatrixWorld(); f.updateMatrixWorld(); f.shadow.needsUpdate=true; }
 const dayTop=new THREE.Color(0x2f7fc4),dayHor=new THREE.Color(0xbdd7ea);
 const setTop=new THREE.Color(0x27356b),setHor=new THREE.Color(0xe8814f);
 const nigTop=new THREE.Color(0x040914),nigHor=new THREE.Color(0x0a1226);
@@ -1221,6 +1234,7 @@ this.hemiLight.color.copy(top).lerp(hor,0.35).lerp(_WHITE,0.45);
 // 車体などに映る空 (時刻・天気・土地の色に合わせて作り直す。画質「低」は作らない)
 EnvLight.update(this.renderer,this.scene,top,hor,new THREE.Color(biomeAt(es.km).soil),this.sun.position.clone().sub(this.car.position).normalize(),clamp(Math.sin(alt)*1.3,0,1)*(1-0.8*WX),this.sunLight.color);
 this.updateEnvironment(es,pHere,alt,hor);
+if(typeof Grass!=="undefined") Grass.update(this,es,dtR);   // 近くの草 (js/render/grass.js)
 if(typeof Rain!=="undefined") Rain.update(this,es,dtR);   // 雨 (雨筋・しぶき・濡れた路面・視界・ガラスの雨粒・音・雷)
 this.updateLandmarks(es);
 this.updateRoadTrains(es,dtR);
@@ -1293,7 +1307,8 @@ updateEnvironment(es,pHere,alt,hor){
  // 逃げ水: 晴天・日中・高温ほど強い
  const heat=clamp(((es.Tamb||25)-22)/12,0,1)*clamp((alt-0.35)/0.4,0,1)*(1-0.85*(this.wxMix||0));
  const t=performance.now()/1000;
- SceneMats.eachRoad(u=>{ u.uMirage.value=heat*(bio.urban?0.3:1); u.uSkyCol.value.copy(hor).multiplyScalar(1.05); u.uTime.value=t; });
+ { const sd=this.sun.position.clone().sub(this.car.position).normalize(), sc=this.sunLight.color.clone().multiplyScalar(this.sunLight.intensity*(sd.y>0?1:0));
+  SceneMats.eachRoad(u=>{ u.uMirage.value=heat*(bio.urban?0.3:1); u.uSkyCol.value.copy(hor).multiplyScalar(1.05); u.uTime.value=t; u.uSunDir.value.copy(sd); u.uSunCol.value.copy(sc); }); }
  Horizon.update(this,es);
 },
 updateLandmarks(es){

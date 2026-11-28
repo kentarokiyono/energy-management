@@ -402,6 +402,7 @@ rural(ctx){
     const minOff= small? 2.5 : 9;
     const maxOff= sp==="grass"? 90 : small? 170 : 560;
     const off=sd*(SH+minOff+Math.pow(rnd(),small?1.7:1.3)*(maxOff-minOff));
+    if((sp==="spinifex"||sp==="grass")&&Math.abs(off)<SH+Grass.OFF1&&typeof Grass!=="undefined") continue;   // 近くの草は js/render/grass.js が細かく置く
     const q=this.at(view,s,off);
     if(q.blocked||this.salt(km,off)) continue;
     // 樹木は群生させる(ノイズマスク)
@@ -409,9 +410,9 @@ rural(ctx){
     if(sp==="woodland" && vnoise(q.x*0.01+3.1,q.z*0.01-7.7)<0.2) continue;
     const y=q.y-0.05;
     switch(sp){
-     case "woodland": PR.tree(bs,q.x,y,q.z,"woodland",1,Math.abs(off)>220?1:0); break;
-     case "ghost": PR.tree(bs,q.x,y,q.z,"ghost",1,Math.abs(off)>220?1:0); break;
-     case "redgum": PR.tree(bs,q.x,y,q.z,"redgum",1,Math.abs(off)>220?1:0); break;
+     case "woodland": PR.tree(bs,q.x,y,q.z,"woodland",1,Math.abs(off)>150?1:0); break;
+     case "ghost": PR.tree(bs,q.x,y,q.z,"ghost",1,Math.abs(off)>150?1:0); break;
+     case "redgum": PR.tree(bs,q.x,y,q.z,"redgum",1,Math.abs(off)>150?1:0); break;
      case "mango": PR.tree(bs,q.x,y,q.z,"mango"); break;
      case "desertoak": PR.desertoak(bs,q.x,y,q.z); break;
      case "mulga": PR.mulga(bs,q.x,y,q.z); break;
@@ -596,9 +597,12 @@ signMesh(ctx,q,kind,text,w,h,postH,off){
  if(!this._signMats) this._signMats=new Map();
  const key=kind+"|"+text;
  let mat=this._signMats.get(key);
- if(!mat){ mat=new THREE.MeshLambertMaterial({map:signTex(kind,text),side:THREE.DoubleSide}); this._signMats.set(key,mat); }
+ if(!mat){ mat=new THREE.MeshLambertMaterial({map:signTex(kind,text)}); this._signMats.set(key,mat); }   // 表だけ (裏は下のアルミ板)
  const m=new THREE.Mesh(new THREE.PlaneGeometry(1,1),mat);
  m.scale.set(w,h,1); m.position.set(q.x,q.y+postH+h/2-0.1,q.z); m.rotation.y=ry; m.castShadow=true;
+ { const bx=-Math.sin(ry)*0.014, bz=-Math.cos(ry)*0.014, y0=q.y+postH-0.1;   // 裏: 灰色のアルミ板と、柱に留める横の金具 2 本
+  bs.get("solid").add(tpl("box"),M4(q.x+bx,y0,q.z+bz,w,h,0.018,ry),linCol(0x8d9093));
+  for(const t of [0.22,0.78]) bs.get("solid").add(tpl("box"),M4(q.x+bx*2.6,y0+h*t-0.03,q.z+bz*2.6,w*0.92,0.06,0.03,ry),linCol(0x6f7275)); }
  ctx.signs.push(m);
 },
 roadSigns(ctx){

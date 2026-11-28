@@ -23,6 +23,24 @@ case "blade": g=new THREE.ConeGeometry(1,1,3,1,true); g.translate(0,0.5,0); brea
 case "box": g=new THREE.BoxGeometry(1,1,1); g.translate(0,0.5,0); break;
 case "boxC": g=new THREE.BoxGeometry(1,1,1); break;
 case "plane": g=new THREE.PlaneGeometry(1,1); break;
+case "cabin": { // 車の客室: 幅 1・高さ 1・長さ 1 の箱の上面を前後左右にすぼめた形 (前のガラスは寝て、後ろは少し立つ)。底面中心が原点
+ const B=[[-0.5,0,-0.5],[0.5,0,-0.5],[0.5,0,0.5],[-0.5,0,0.5]], T=[[-0.42,1,-0.1],[0.42,1,-0.1],[0.42,1,0.32],[-0.42,1,0.32]], pos=[];
+ const q=(a,b,c,d)=>pos.push(...a,...b,...c,...a,...c,...d);
+ q(T[0],T[3],T[2],T[1]); q(B[0],B[1],B[2],B[3]); q(B[0],T[0],T[1],B[1]); q(B[2],T[2],T[3],B[3]); q(B[1],T[1],T[2],B[2]); q(B[3],T[3],T[0],B[0]);
+ g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); break; }
+case "leaves": { // 葉の房: 細長い葉 (ひし形) を半径 1 の球の中に向きばらばらに散らす。法線は房の外向き (塊に見えず、ふんわり明暗)
+ const pos=[],nor=[]; let sd=12345; const R=()=>{ sd=(sd*1664525+1013904223)>>>0; return sd/4294967296; };
+ for(let i=0;i<26;i++){
+  let cx,cy,cz; do{ cx=R()*2-1; cy=R()*2-1; cz=R()*2-1; }while(cx*cx+cy*cy+cz*cz>1);
+  const a=R()*6.283, e=(R()-0.3)*1.4, L=0.55+R()*0.25, W=0.14+R()*0.06;
+  const dx=Math.cos(a)*Math.cos(e)*L, dy=Math.sin(e)*L, dz=Math.sin(a)*Math.cos(e)*L;   // 葉の向き
+  const sa=R()*6.283, wx=-Math.sin(a)*Math.cos(sa)*W, wy=Math.sin(sa)*W, wz=Math.cos(a)*Math.cos(sa)*W;   // 葉の幅の向き (ねじれ)
+  const P0=[cx-dx/2,cy-dy/2,cz-dz/2], P1=[cx+wx,cy+wy,cz+wz], P2=[cx+dx/2,cy+dy/2,cz+dz/2], P3=[cx-wx,cy-wy,cz-wz];
+  const nl=Math.hypot(cx,cy+0.4,cz)||1, N=[cx/nl,(cy+0.4)/nl,cz/nl];
+  pos.push(...P0,...P1,...P2, ...P0,...P2,...P3); for(let k=0;k<6;k++) nor.push(...N);
+ }
+ g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); g.setAttribute("normal",new THREE.Float32BufferAttribute(nor,3));
+ TPL[name]=_tpl(g,false); return TPL[name]; }
 case "frond": { // 垂れ下がるヤシの葉(先端に向かって細く下がる)
  const pos=[],uv=[]; const N=5;
  for(let i=0;i<N;i++){
@@ -79,18 +97,21 @@ _gbC.convertSRGBToLinear();
 return _gbC;
 }
 class GeoBatch{
-constructor(){ this.p=[]; this.n=[]; this.c=[]; this.uv=[]; }
+constructor(ao=0){ this.p=[]; this.n=[]; this.c=[]; this.uv=[]; this.ao=ao; }
 /* t: tpl()/boxMetric() / m: Matrix4 / col: THREE.Color(linear) */
 add(t,m,col,uvs=1){
 const e=m.elements; _gbN.getNormalMatrix(m); const ne=_gbN.elements;
 const P=t.p,N=t.n,U=t.uv, r=col.r,g=col.g,b=col.b;
+// 根元の暗がり (焼き込み): 置いた物の一番下から少しの高さまで色を暗くする (地面との接地感・葉の房の下側の陰)
+let y0=0, zone=0; if(this.ao){ let lo=Infinity, hi=-Infinity; for(let i=1;i<P.length;i+=3){ const wy=e[1]*P[i-1]+e[5]*P[i]+e[9]*P[i+1]+e[13]; if(wy<lo) lo=wy; if(wy>hi) hi=wy; }
+ if(hi-lo>0.3){ y0=lo; zone=Math.min(0.7,(hi-lo)*0.3); } }
 for(let i=0,j=0;i<P.length;i+=3,j+=2){
- const x=P[i],y=P[i+1],z=P[i+2];
- this.p.push(e[0]*x+e[4]*y+e[8]*z+e[12], e[1]*x+e[5]*y+e[9]*z+e[13], e[2]*x+e[6]*y+e[10]*z+e[14]);
+ const x=P[i],y=P[i+1],z=P[i+2], wy=e[1]*x+e[5]*y+e[9]*z+e[13];
+ this.p.push(e[0]*x+e[4]*y+e[8]*z+e[12], wy, e[2]*x+e[6]*y+e[10]*z+e[14]);
  const nx=N[i],ny=N[i+1],nz=N[i+2];
  let ax=ne[0]*nx+ne[3]*ny+ne[6]*nz, ay=ne[1]*nx+ne[4]*ny+ne[7]*nz, az=ne[2]*nx+ne[5]*ny+ne[8]*nz;
  const l=Math.hypot(ax,ay,az)||1; this.n.push(ax/l,ay/l,az/l);
- this.c.push(r,g,b);
+ if(zone>0){ const t=Math.min(1,(wy-y0)/zone), k=1-this.ao*(1-t*t*(3-2*t)); if(this.dust) this.c.push(r*k,g*Math.pow(k,1.35),b*Math.pow(k,1.8)); else this.c.push(r*k,g*k,b*k); } else this.c.push(r,g,b);   // 壁は赤土の汚れ色で
  if(U) this.uv.push(U[j]*uvs,U[j+1]*uvs); else this.uv.push(0,0);
 }
 }
@@ -109,7 +130,7 @@ return m;
 /* マテリアル名→GeoBatch の束 */
 class BatchSet{
 constructor(){ this.b={}; }
-get(name){ return this.b[name]||(this.b[name]=new GeoBatch()); }
+get(name){ if(!this.b[name]){ const g=new GeoBatch(BatchSet.AO[name]||0); g.dust=BatchSet.DUST.includes(name); this.b[name]=g; } return this.b[name]; }
 toGroup(grp){
 for(const k in this.b){ const bt=this.b[k]; if(bt.empty) continue;
  const def=SceneMats.get(k);
@@ -117,3 +138,5 @@ for(const k in this.b){ const bt=this.b[k]; if(bt.empty) continue;
 return grp;
 }
 }
+BatchSet.AO={veg:0.4,bark:0.35,solid:0.32,solidDS:0.25,brick:0.3,corr:0.25,resi:0.3,shop:0.3,office:0.25};   // 根元の暗さ (材質ごと)
+BatchSet.DUST=["solid","brick","corr","resi","shop"];   // 根元を赤土の色で汚す材質

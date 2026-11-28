@@ -27,41 +27,59 @@ const Traffic={
  mkMesh(V,kind){
   if(kind==="rt"){ const t=V.mkRoadTrain(), g=new THREE.Group(); t.rotation.y=Math.PI; g.add(t); g.userData.zf=-9.4; g.userData.tail=null; return g; }
   const g=new THREE.Group(), bs=new BatchSet(), col=this.COLORS[Math.floor(Math.random()*this.COLORS.length)], body=linCol(col).clone(), dark=linCol(0x18191b).clone(), glass=linCol(0x1a242b).clone(), K=this.KINDS[kind];   // linCol は使い回しの 1 個を返すので複製する
-  const wheel=(x,z,r)=>{ bs.get("solid").add(tpl("cyl12"),M4(x,r,z,r,0.26,r,0,0,Math.PI/2),dark); bs.get("solid").add(tpl("cyl8"),M4(x*1.01,r,z,r*0.55,0.27,r*0.55,0,0,Math.PI/2),linCol(0x8f9396)); };
+  const P="paint", plas=linCol(0x222426).clone(), rimC=linCol(Math.random()<0.6?0xb8bcc0:0x3a3c3f).clone();
+  // 車輪: タイヤ (側面は少し丸く) + ホイール (めっき) + 中心のキャップ。タイヤの内側に暗い穴 (ホイールハウス)
+  const wheel=(x,z,r)=>{ const sx=Math.sign(x)||1;
+   bs.get("rubber").add(tpl("cyl12"),M4(x,r,z,r,0.26,r,0,0,Math.PI/2),dark);
+   bs.get("rubber").add(tpl("cyl12"),M4(x+sx*0.005,r,z,r*0.93,0.28,r*0.93,0,0,Math.PI/2),dark);
+   bs.get("chrome").add(tpl("cyl12"),M4(x+sx*0.01,r,z,r*0.62,0.272,r*0.62,0,0,Math.PI/2),rimC);
+   bs.get("rubber").add(tpl("cyl8"),M4(x+sx*0.02,r,z,r*0.18,0.272,r*0.18,0,0,Math.PI/2),plas); };
+  // 共通の小物: 前後のバンパー (樹脂)・グリル・ナンバー・サイドミラー
+  const trim=(w,yb,zF,zR,mirY,mirZ)=>{
+   bs.get("rubber").add(tpl("box"),M4(0,yb,zF+0.08,w+0.04,0.28,0.2),plas); bs.get("rubber").add(tpl("box"),M4(0,yb,zR-0.08,w+0.04,0.28,0.2),plas);
+   bs.get("rubber").add(tpl("box"),M4(0,yb+0.3,zF+0.02,w*0.5,0.2,0.06),linCol(0x101112));
+   bs.get("solid").add(tpl("box"),M4(0,yb+0.02,zF-0.03,0.52,0.13,0.03),linCol(0xf2f2ea)); bs.get("solid").add(tpl("box"),M4(0,yb+0.06,zR+0.03,0.52,0.13,0.03),linCol(0xf2f2ea));
+   for(const sx of [-1,1]){ bs.get(P).add(tpl("box"),M4(sx*(w/2+0.1),mirY,mirZ,0.2,0.12,0.1),body); bs.get("rubber").add(tpl("box"),M4(sx*(w/2+0.04),mirY-0.02,mirZ+0.02,0.1,0.04,0.04),plas); } };
   let zf=-K.L/2, tailZ=K.L/2, tailY=0.85, tailX=0.72;
   if(kind==="sedan"){
-   bs.get("solid").add(tpl("box"),M4(0,0.62,0,1.8,0.62,4.7),body);
-   bs.get("solid").add(tpl("box"),M4(0,1.12,0.25,1.62,0.5,2.3),body);
-   bs.get("glass").add(tpl("box"),M4(0,1.14,0.25,1.65,0.4,2.15),glass);
+   bs.get(P).add(tpl("box"),M4(0,0.32,0,1.8,0.6,4.7),body);
+   bs.get(P).add(tpl("cabin"),M4(0,0.92,0.25,1.7,0.5,2.6),body);
+   bs.get("glass").add(tpl("cabin"),M4(0,0.95,0.25,1.72,0.38,2.5),glass);
+   trim(1.8,0.42,-2.35,2.35,1.05,-0.75);
    for(const [x,z] of [[-0.8,1.45],[0.8,1.45],[-0.8,-1.45],[0.8,-1.45]]) wheel(x,z,0.33);
    tailY=0.78;
   } else if(kind==="ute"){
-   bs.get("solid").add(tpl("box"),M4(0,0.78,-1.55,1.86,0.7,2.2),body);            // ボンネット
-   bs.get("solid").add(tpl("box"),M4(0,1.4,-0.2,1.8,0.85,1.6),body);              // キャブ
-   bs.get("glass").add(tpl("box"),M4(0,1.5,-0.2,1.83,0.55,1.45),glass);
-   bs.get("solid").add(tpl("box"),M4(0,0.85,1.65,1.86,0.75,2.0),linCol(0x2b2d30)); // 荷台
-   bs.get("solid").add(tpl("box"),M4(0,0.42,-2.6,1.95,0.5,0.18),linCol(0x34383b)); // ブルバー
+   bs.get(P).add(tpl("box"),M4(0,0.43,-1.55,1.86,0.7,2.2),body);            // ボンネット
+   bs.get(P).add(tpl("cabin"),M4(0,0.97,-0.2,1.84,0.85,1.9),body);              // キャブ
+   bs.get("glass").add(tpl("cabin"),M4(0,1.22,-0.2,1.87,0.55,1.8),glass);
+   trim(1.86,0.45,-2.6,2.65,1.55,-0.85);
+   bs.get("solid").add(tpl("box"),M4(0,0.475,1.65,1.86,0.75,2.0),linCol(0x2b2d30)); // 荷台
+   bs.get("chrome").add(tpl("box"),M4(0,0.2,-2.72,1.95,0.5,0.12),linCol(0x8a8e92)); // ブルバー
    for(const [x,z] of [[-0.82,1.75],[0.82,1.75],[-0.82,-1.6],[0.82,-1.6]]) wheel(x,z,0.4);
    tailY=0.95; tailX=0.8;
   } else if(kind==="suv"||kind==="caravan"){
    const zc= kind==="caravan"? -K.L/2+2.45 : 0;
-   bs.get("solid").add(tpl("box"),M4(0,0.75,zc,1.92,0.85,4.8),body);
-   bs.get("solid").add(tpl("box"),M4(0,1.5,zc+0.4,1.84,0.75,3.2),body);
-   bs.get("glass").add(tpl("box"),M4(0,1.55,zc+0.4,1.87,0.55,3.0),glass);
+   bs.get(P).add(tpl("box"),M4(0,0.325,zc,1.92,0.85,4.8),body);
+   bs.get(P).add(tpl("cabin"),M4(0,1.15,zc+0.4,1.86,0.72,3.6),body);
+   bs.get("glass").add(tpl("cabin"),M4(0,1.22,zc+0.4,1.89,0.5,3.45),glass);
+   trim(1.92,0.48,zc-2.4,zc+2.4,1.45,zc-0.75);
+   bs.get("rubber").add(tpl("box"),M4(0,1.9,zc+0.6,1.5,0.05,2.4),plas);   // ルーフレール
    for(const [x,z] of [[-0.86,1.55],[0.86,1.55],[-0.86,-1.5],[0.86,-1.5]]) wheel(x,zc+z,0.38);
    if(kind==="caravan"){ // キャンピングトレーラー (白い箱・窓・1 軸)
     const zt=zc+2.4+0.9+3.0, cw=linCol(0xf2f1ec);
-    bs.get("solid").add(tpl("box"),M4(0,0.5,zc+2.4+0.45,0.12,0.12,0.9),dark);
-    bs.get("solid").add(tpl("box"),M4(0,1.55,zt,2.3,2.25,6.0),cw);
-    bs.get("solid").add(tpl("box"),M4(0,1.05,zt,2.32,0.18,6.02),linCol(0x6b4a2b));
-    bs.get("glass").add(tpl("box"),M4(0,1.85,zt-0.6,2.34,0.6,1.6),glass);
+    bs.get("solid").add(tpl("box"),M4(0,0.44,zc+2.4+0.45,0.12,0.12,0.9),dark);
+    bs.get("paint").add(tpl("box"),M4(0,0.425,zt,2.3,2.25,6.0),cw);
+    bs.get("solid").add(tpl("box"),M4(0,0.96,zt,2.32,0.18,6.02),linCol(0x6b4a2b));
+    bs.get("glass").add(tpl("box"),M4(0,1.55,zt-0.6,2.34,0.6,1.6),glass);
     for(const x of [-1.05,1.05]) wheel(x,zt+0.3,0.34);
    } else tailZ=2.4;
    tailY=1.0; tailX=0.82;
   } else { // van (箱型のバン)
-   bs.get("solid").add(tpl("box"),M4(0,1.25,0.2,1.98,1.9,4.8),body);
-   bs.get("solid").add(tpl("box"),M4(0,0.75,-2.25,1.9,0.8,0.7),body);
-   bs.get("glass").add(tpl("box"),M4(0,1.75,-1.9,1.9,0.6,0.08,0,-0.35,0),glass);
+   bs.get(P).add(tpl("box"),M4(0,0.3,0.2,1.98,1.9,4.8),body);
+   bs.get(P).add(tpl("box"),M4(0,0.35,-2.25,1.9,0.8,0.7),body);
+   for(const sx of [-1,1]) bs.get("glass").add(tpl("box"),M4(sx*0.995,1.45,-1.5,0.02,0.5,0.9),glass);   // 横の窓
+   trim(1.98,0.45,-2.6,2.6,1.5,-1.95);
+   bs.get("glass").add(tpl("box"),M4(0,1.45,-2.24,1.9,0.6,0.08,0,-0.35,0),glass);
    for(const [x,z] of [[-0.85,1.7],[0.85,1.7],[-0.85,-1.75],[0.85,-1.75]]) wheel(x,z,0.36);
    tailY=1.05; tailX=0.85;
   }
