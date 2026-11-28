@@ -207,9 +207,9 @@ const mat=new THREE.MeshLambertMaterial({vertexColors:true});
 mat.userData.uniforms={uDetail:{value:detailTex()}};
 mat.onBeforeCompile=(sh)=>{
  Object.assign(sh.uniforms,mat.userData.uniforms);
- sh.vertexShader="attribute vec4 aVeg;\nattribute vec3 aMisc;\nvarying vec4 vVeg;\nvarying vec3 vMisc;\nvarying vec3 vWPos;\n"+sh.vertexShader
-  .replace("#include <begin_vertex>","#include <begin_vertex>\nvVeg=aVeg; vMisc=aMisc; vWPos=(modelMatrix*vec4(transformed,1.0)).xyz;");
- sh.fragmentShader="uniform sampler2D uDetail;\nvarying vec4 vVeg;\nvarying vec3 vMisc;\nvarying vec3 vWPos;\n"+GLSL_NOISE+sh.fragmentShader
+ sh.vertexShader="attribute vec4 aVeg;\nattribute vec3 aMisc;\nvarying vec4 vVeg;\nvarying vec3 vMisc;\nvarying vec3 vWPos;\nvarying float vCamD;\n"+sh.vertexShader
+  .replace("#include <begin_vertex>","#include <begin_vertex>\nvVeg=aVeg; vMisc=aMisc; vWPos=(modelMatrix*vec4(transformed,1.0)).xyz; vCamD=length((modelViewMatrix*vec4(transformed,1.0)).xyz);");
+ sh.fragmentShader="uniform sampler2D uDetail;\nvarying vec4 vVeg;\nvarying vec3 vMisc;\nvarying vec3 vWPos;\nvarying float vCamD;\n"+GLSL_NOISE+sh.fragmentShader
   .replace("#include <color_fragment>",`#include <color_fragment>
 {
  vec2 q=vWPos.xz;
@@ -235,6 +235,23 @@ mat.onBeforeCompile=(sh)=>{
  }
  float det=texture2D(uDetail,q*0.25).r;
  c*=0.78+0.44*det;
+ /* 広い色のムラ: 赤〜橙〜くすんだ茶 (数百 m の大きさ) */
+ { float m=gFbm(q*0.0032+vec2(41.,17.)); c*=mix(vec3(1.07,0.97,0.9),vec3(0.9,0.93,0.98),smoothstep(0.3,0.7,m)); }
+ /* 近く (約 70 m まで) だけ: 細かな粒・小石・乾いた土のひび割れ。遠くは薄れる (ちらつかない) */
+ { float dist=vCamD, nf=1.0-smoothstep(22.0,70.0,dist);
+  if(nf>0.0){
+   float gr=gVn(q*4.0)*0.5+gVn(q*11.0)*0.3+gVn(q*27.0)*0.2; c*=mix(1.0,0.76+0.44*gr,nf);
+   for(int L=0;L<2;L++){   /* 小石: 2 つの大きさの層。明るい石の面 + 下側 (日の当たらない側) の小さな影 */
+    float sc= L==0? 1.7 : 4.3; vec2 p=q*sc+float(L)*17.3, ci=floor(p), f=fract(p); vec2 o=vec2(gHash(ci+1.7),gHash(ci+9.2))*0.6+0.2;
+    float on=step(0.8-0.35*vMisc.y,gHash(ci+4.4)), pr=0.06+0.12*gHash(ci+5.5), e=0.6+0.8*gHash(ci+2.2);
+    vec2 d=(f-o)*vec2(e,1.0/e); float pd=length(d), body=on*(1.0-smoothstep(pr*0.75,pr,pd)), sh=on*(1.0-smoothstep(pr*0.8,pr*1.25,length(d-vec2(0.035,0.05))))*(1.0-body);
+    vec3 st=mix(c*vec3(0.78,0.7,0.66),mix(vec3(0.16,0.07,0.035),vec3(0.24,0.18,0.13),gHash(ci+8.8)),0.5);   /* 赤茶〜灰色の石 (土になじむ色) */
+    c=mix(c,c*0.62,sh*0.7*nf); c=mix(c,st*(0.8+0.35*gr),body*0.85*nf); }
+   float pan=smoothstep(0.46,0.58,gFbm(q*0.018+vec2(3.,8.)))*(1.0-vVeg.a*0.6);   /* ひび割れは所々の平らな粘土の所だけ */
+   if(pan>0.0){ vec2 cp=q*0.7, cc=floor(cp), cf=fract(cp); float d1=9.0, d2=9.0;
+    for(int j=-1;j<=1;j++) for(int i=-1;i<=1;i++){ vec2 g=vec2(float(i),float(j)), oo=vec2(gHash(cc+g+0.3),gHash(cc+g+7.1)); float d=length(g+oo-cf); if(d<d1){ d2=d1; d1=d; } else if(d<d2) d2=d; }
+    float cr=1.0-smoothstep(0.0,0.05,d2-d1); c=mix(c,c*0.6,cr*pan*nf*0.8); c=mix(c,c*1.06,pan*nf*0.5); }
+  } }
  c=mix(vec3(dot(c,vec3(0.3,0.59,0.11))),c,0.80);   /* 赤土の鮮やかさを少し抑える (乾いた土は彩度が低い) */
  diffuseColor.rgb=c;
 }`);
