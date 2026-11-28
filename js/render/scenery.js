@@ -402,6 +402,7 @@ rural(ctx){
     const minOff= small? 2.5 : 9;
     const maxOff= sp==="grass"? 90 : small? 170 : 560;
     const off=sd*(SH+minOff+Math.pow(rnd(),small?1.7:1.3)*(maxOff-minOff));
+    if((sp==="spinifex"||sp==="grass")&&Math.abs(off)<SH+Grass.OFF1&&typeof Grass!=="undefined") continue;   // 近くの草は js/render/grass.js が細かく置く
     const q=this.at(view,s,off);
     if(q.blocked||this.salt(km,off)) continue;
     // 樹木は群生させる(ノイズマスク)

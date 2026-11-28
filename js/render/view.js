@@ -1221,6 +1221,7 @@ this.hemiLight.color.copy(top).lerp(hor,0.35).lerp(_WHITE,0.45);
 // 車体などに映る空 (時刻・天気・土地の色に合わせて作り直す。画質「低」は作らない)
 EnvLight.update(this.renderer,this.scene,top,hor,new THREE.Color(biomeAt(es.km).soil),this.sun.position.clone().sub(this.car.position).normalize(),clamp(Math.sin(alt)*1.3,0,1)*(1-0.8*WX),this.sunLight.color);
 this.updateEnvironment(es,pHere,alt,hor);
+if(typeof Grass!=="undefined") Grass.update(this,es,dtR);   // 近くの草 (js/render/grass.js)
 if(typeof Rain!=="undefined") Rain.update(this,es,dtR);   // 雨 (雨筋・しぶき・濡れた路面・視界・ガラスの雨粒・音・雷)
 this.updateLandmarks(es);
 this.updateRoadTrains(es,dtR);
