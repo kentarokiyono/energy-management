@@ -75,7 +75,7 @@ const Rain={
   if(this.flash>0){ view.hemiLight.intensity+=this.flash*2.2; this.flash=Math.max(0,this.flash-dtR*(this.flash>0.5?6:2.5)); }
   // 音
   if(typeof Snd!=="undefined"&&Snd.started&&Snd.rainHi){ const cab= view.cam===2? 1.4 : 1; Snd.set(Snd.rainHi.g.gain,I*0.09*cab,0.4); Snd.set(Snd.rainLo.g.gain,I*(0.12+0.1*this.wet),0.6); }
-  Glass.update(I,es,dtR,this.flash);
+  Glass.update(I,es,dtR,this.flash,view);
   StormFx.update(view,es,dtR);
  },
  reset(){ this.I=0; this.wet=0; this.flash=0; Glass.clear(); StormFx.reset(); },
@@ -84,10 +84,21 @@ const Rain={
 const Glass={
  cv:null, c:null, drops:[],
  ensure(){ if(this.cv) return true; const cv=document.getElementById("rain-glass"); if(!cv) return false; this.cv=cv; this.c=cv.getContext("2d"); return true; },
- clear(){ this.drops.length=0; if(this.ensure()){ this.c.clearRect(0,0,this.cv.width,this.cv.height); this.cv.style.display="none"; } },
- update(I,es,dtR,flash){
+ clear(){ this.drops.length=0; if(this.ensure()){ this.c.clearRect(0,0,this.cv.width,this.cv.height); this.cv.style.display="none"; } if(this.plane) this.plane.visible=false; },
+ /* 運転席の視点: 雨粒をカメラの前 0.75 m (キャノピーのガラスのあたり) の板に貼る。奥行きを見るので、手前の計器・スイッチ箱・枠の上には付かない */
+ plane:null, tex:null, _f:null,
+ place(view){ const cam=view.camera; if(!cam||!view.scene) return;
+  if(!this.plane){ this.tex=new THREE.CanvasTexture(this.cv); this.tex.encoding=THREE.sRGBEncoding;
+   this.plane=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:this.tex,transparent:true,depthWrite:false,fog:false,toneMapped:false}));
+   this.plane.renderOrder=9; this.plane.frustumCulled=false; this.plane.raycast=()=>{}; view.scene.add(this.plane); this._f=new THREE.Vector3(); }
+  const d=0.75, h=2*d*Math.tan(cam.fov*Math.PI/360), w=h*cam.aspect;
+  this.plane.scale.set(w,h,1); this.plane.quaternion.copy(cam.quaternion);
+  this.plane.position.copy(cam.position).add(this._f.set(0,0,-d).applyQuaternion(cam.quaternion));
+  this.tex.needsUpdate=true; this.plane.visible=true; },
+ update(I,es,dtR,flash,view){
   if(!this.ensure()) return;
-  if(I<=0.01&&!this.drops.length&&!(flash>0)){ if(this.cv.style.display!=="none") this.cv.style.display="none"; return; }
+  const cab=!!(view&&view.cam===2);   // 運転席の視点
+  if(I<=0.01&&!this.drops.length&&!(flash>0)){ if(this.cv.style.display!=="none") this.cv.style.display="none"; if(this.plane) this.plane.visible=false; return; }
   const cv=this.cv, W=Math.round(innerWidth*0.75), H=Math.round(innerHeight*0.75); if(cv.width!==W||cv.height!==H){ cv.width=W; cv.height=H; }
   cv.style.display="block"; const c=this.c, v=es&&es.v||0, side=-(es&&es.lastCross||0)*0.6;
   // 新しい粒: 雨が強いほど多い。速く走ると風圧で上・横へ流れる
@@ -103,11 +114,13 @@ const Glass={
    if(big&&Math.random()<dtR*3) d.r*=0.9;
    const fade= I>0.01? 1 : Math.max(0,1-d.life/6+0.3);
    if(d.y>H+10||d.y<-10||d.x<-10||d.x>W+10||fade<=0||d.life>(big?4:14)){ this.drops.splice(i,1); continue; }
-   const a=0.55*fade; c.beginPath(); c.arc(d.x,d.y,d.r,0,6.283); c.fillStyle=`rgba(190,200,212,${(a*0.35).toFixed(3)})`; c.fill();
+   const a=(cab?0.9:0.55)*fade; c.beginPath(); c.arc(d.x,d.y,d.r,0,6.283); c.fillStyle=`rgba(190,200,212,${(a*0.35).toFixed(3)})`; c.fill();
    c.lineWidth=1; c.strokeStyle=`rgba(30,36,44,${(a*0.45).toFixed(3)})`; c.stroke();
    c.beginPath(); c.arc(d.x-d.r*0.3,d.y-d.r*0.35,d.r*0.35,0,6.283); c.fillStyle=`rgba(255,255,255,${(a*0.6).toFixed(3)})`; c.fill();
    if(big&&d.vy>40){ c.strokeStyle=`rgba(200,210,222,${(a*0.25).toFixed(3)})`; c.lineWidth=d.r*0.8; c.beginPath(); c.moveTo(d.x,d.y-d.r); c.lineTo(d.x,d.y-d.r-Math.min(60,d.vy*0.25)); c.stroke(); } }
   c.restore();
+  // 運転席では画面に重ねず、ガラスの位置の板に貼る。ほかの視点は画面に重ねる (カメラのレンズに付いた雨粒)
+  if(cab){ this.cv.style.visibility="hidden"; this.place(view); } else { this.cv.style.visibility=""; if(this.plane) this.plane.visible=false; }
  },
 };
 /* 嵐の前ぶれ (目で見て分かるもの): 近づいてくる暗い雲の壁・遠くの雨のカーテン (近づくほど手前に)・雲の中の稲光・突風で飛ぶゴミや葉
