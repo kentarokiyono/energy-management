@@ -35,7 +35,7 @@ async function newPage(b,base,opt={},retry=1){
  if(!opt.gfx) await p.evaluate(()=>{ P.gfx="low"; });   // 速さを見る確認は軽い画質で (ソフトウェア描画は遅い)。高画質は別に確認
  return p; }
 const noErr=(p)=>p.errs.filter(e=>!/vehicle-private|404/.test(e));
-async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screenshot({path:path.join(OUT,name+".png")}); }
+async function shot(p,name){ fs.mkdirSync(OUT,{recursive:true}); await p.screenshot({path:path.join(OUT,name+".png"),timeout:90000}); }   // 描画の重い場面 (予選を 5 種続けたあと) は CI の CPU 描画で 30 秒を超えることがある
 (async()=>{
  const srv=await serve(), base=`http://127.0.0.1:${srv.address().port}/`;
  const b=await chromium.launch({args:GL_ARGS}); BR.b=BR.orig=b;
