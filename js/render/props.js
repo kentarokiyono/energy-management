@@ -26,16 +26,16 @@ tree(bs,x,y,z,kind,sc=1,lod=0){
    const tx=x+len*Math.sin(t)*Math.sin(a), ty=y+hb+len*Math.cos(t), tz=z+len*Math.sin(t)*Math.cos(a);
    const k=5+Math.floor(rnd()*4);
    { const r=rndr(cfg.cr[0],cfg.cr[1])*sc*0.32;   // 枝の途中にも房 (枝がむき出しに見えない)
-    bs.get("veg").add(tpl("ico1"),M4(x+(tx-x)*0.55,y+hb+(ty-y-hb)*0.6,z+(tz-z)*0.55,r,r*0.7,r,rnd()*6,rnd()*0.4,0),linCol(cfg.crown,0.16).clone().multiplyScalar(0.8)); }
+    bs.get("veg").add(tpl("leaves"),M4(x+(tx-x)*0.55,y+hb+(ty-y-hb)*0.6,z+(tz-z)*0.55,r,r*0.7,r,rnd()*6,rnd()*0.4,0),linCol(cfg.crown,0.16).clone().multiplyScalar(0.8)); }
    for(let j=0;j<k;j++){
     const r=rndr(cfg.cr[0],cfg.cr[1])*sc*(kind==="mango"?0.6:0.38), ox=(rnd()-0.5)*r*4.2, oz=(rnd()-0.5)*r*4.2, oy=(rnd()-0.35)*r*1.8;
     const col=linCol(cfg.crown,0.18).clone().multiplyScalar(oy<0? 0.78 : 1.06);
-    bs.get("veg").add(tpl("ico1"),M4(tx+ox,ty+oy,tz+oz,r*rndr(0.8,1.4),r*rndr(0.35,0.6),r*rndr(0.8,1.4),rnd()*6,rnd()*0.6,rnd()*0.6),col);   // 小さく平たい房を間をあけて散らす (丸い塊に見えない・透ける)
+    bs.get("veg").add(tpl("leaves"),M4(tx+ox,ty+oy,tz+oz,r*rndr(1.1,1.5),r*rndr(0.6,0.9),r*rndr(1.1,1.5),rnd()*6,rnd()*0.6,rnd()*0.6),col);   // 小さく平たい房を間をあけて散らす (丸い塊に見えない・透ける)
    }
   }
   // 幹のまわりの小さな房 (中が透けすぎない)
   const r0=rndr(cfg.cr[0],cfg.cr[1])*sc*0.35;
-  bs.get("veg").add(tpl("ico1"),M4(x,y+hb+H*0.12,z,r0*1.2,r0*0.7,r0*1.2,rnd()*6),linCol(cfg.crown,0.14).clone().multiplyScalar(0.85));
+  bs.get("veg").add(tpl("leaves"),M4(x,y+hb+H*0.12,z,r0*1.2,r0*0.7,r0*1.2,rnd()*6),linCol(cfg.crown,0.14).clone().multiplyScalar(0.85));
   return;
  }
  const nC=Math.max(2,Math.ceil(cfg.n/3));
@@ -51,14 +51,14 @@ desertoak(bs,x,y,z,sc=1){   // デザートオーク: 細長い柱のような�
  bs.get("bark").add(tpl("trunk"),M4(x,y,z,0.2*sc,H*0.8,0.2*sc,rnd()*6),linCol(0x3d332c,0.1));
  const n=5+Math.floor(rnd()*3);
  for(let i=0;i<n;i++){ const f=i/(n-1), a=rnd()*6.28, d=(0.15+rnd()*0.5)*sc*(1-f*0.5), w=(1.15-0.55*f)*sc*rndr(0.8,1.1);
-  bs.get("veg").add(tpl("ico1"),M4(x+Math.cos(a)*d,y+H*(0.35+0.6*f),z+Math.sin(a)*d,w,w*rndr(1.4,1.9),w,rnd()*6,rnd()*0.3,0),linCol(0x56604f,0.12).clone().multiplyScalar(0.85+0.25*f)); }
+  bs.get("veg").add(tpl("leaves"),M4(x+Math.cos(a)*d,y+H*(0.35+0.6*f),z+Math.sin(a)*d,w*1.2,w*rndr(1.4,1.9),w*1.2,rnd()*6,rnd()*0.3,0),linCol(0x56604f,0.12).clone().multiplyScalar(0.85+0.25*f)); }
 },
 mulga(bs,x,y,z,sc=1){   // マルガ: 根元から何本も V 字に分かれる低木。平たい灰緑の房
  const H=rndr(2.5,5)*sc, n=3+Math.floor(rnd()*3);
  for(let i=0;i<n;i++){ const a=rnd()*6.28, t=0.25+rnd()*0.3, L=H*rndr(0.65,0.85);
   bs.get("bark").add(tpl("cyl5"),M4(x,y,z,0.06*sc,L,0.06*sc,a,t,0),linCol(0x3a2e25,0.1));
   const tx=x+L*Math.sin(t)*Math.sin(a), ty=y+L*Math.cos(t), tz=z+L*Math.sin(t)*Math.cos(a), r=rndr(0.7,1.1)*sc;
-  bs.get("veg").add(tpl("ico1"),M4(tx,ty,tz,r*1.3,r*0.5,r*1.3,rnd()*6),linCol(0x6e7452,0.14).clone().multiplyScalar(rndr(0.85,1.08))); }
+  bs.get("veg").add(tpl("leaves"),M4(tx,ty,tz,r*1.5,r*0.7,r*1.5,rnd()*6),linCol(0x6e7452,0.14).clone().multiplyScalar(rndr(0.85,1.08))); }
 },
 spinifex(bs,x,y,z,sc=1){
  const r=rndr(0.4,0.95)*sc;

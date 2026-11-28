@@ -23,6 +23,19 @@ case "blade": g=new THREE.ConeGeometry(1,1,3,1,true); g.translate(0,0.5,0); brea
 case "box": g=new THREE.BoxGeometry(1,1,1); g.translate(0,0.5,0); break;
 case "boxC": g=new THREE.BoxGeometry(1,1,1); break;
 case "plane": g=new THREE.PlaneGeometry(1,1); break;
+case "leaves": { // 葉の房: 細長い葉 (ひし形) を半径 1 の球の中に向きばらばらに散らす。法線は房の外向き (塊に見えず、ふんわり明暗)
+ const pos=[],nor=[]; let sd=12345; const R=()=>{ sd=(sd*1664525+1013904223)>>>0; return sd/4294967296; };
+ for(let i=0;i<30;i++){
+  let cx,cy,cz; do{ cx=R()*2-1; cy=R()*2-1; cz=R()*2-1; }while(cx*cx+cy*cy+cz*cz>1);
+  const a=R()*6.283, e=(R()-0.3)*1.4, L=0.42+R()*0.2, W=0.1+R()*0.05;
+  const dx=Math.cos(a)*Math.cos(e)*L, dy=Math.sin(e)*L, dz=Math.sin(a)*Math.cos(e)*L;   // 葉の向き
+  const sa=R()*6.283, wx=-Math.sin(a)*Math.cos(sa)*W, wy=Math.sin(sa)*W, wz=Math.cos(a)*Math.cos(sa)*W;   // 葉の幅の向き (ねじれ)
+  const P0=[cx-dx/2,cy-dy/2,cz-dz/2], P1=[cx+wx,cy+wy,cz+wz], P2=[cx+dx/2,cy+dy/2,cz+dz/2], P3=[cx-wx,cy-wy,cz-wz];
+  const nl=Math.hypot(cx,cy+0.4,cz)||1, N=[cx/nl,(cy+0.4)/nl,cz/nl];
+  pos.push(...P0,...P1,...P2, ...P0,...P2,...P3); for(let k=0;k<6;k++) nor.push(...N);
+ }
+ g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3)); g.setAttribute("normal",new THREE.Float32BufferAttribute(nor,3));
+ TPL[name]=_tpl(g,false); return TPL[name]; }
 case "frond": { // 垂れ下がるヤシの葉(先端に向かって細く下がる)
  const pos=[],uv=[]; const N=5;
  for(let i=0;i<N;i++){
