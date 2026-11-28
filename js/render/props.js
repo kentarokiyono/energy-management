@@ -17,10 +17,28 @@ tree(bs,x,y,z,kind,sc=1,lod=0){
  const H=rndr(cfg.h[0],cfg.h[1])*sc, tr=rndr(cfg.tr[0],cfg.tr[1])*sc;
  const lean=(rnd()-0.5)*0.12;
  bs.get("bark").add(tpl("trunk"),M4(x,y,z,tr,H*cfg.top+0.6,tr,ry,lean,0),linCol(cfg.bark,0.08));
- // 主枝
- if(!lod) { const a=ry+rnd();
-  bs.get("bark").add(tpl("trunk"),M4(x,y+H*cfg.top*0.8,z,tr*0.4,H*0.22,tr*0.4,a,0.5+rnd()*0.2,0),linCol(cfg.bark,0.08)); }
- const nC=lod? Math.max(2,Math.ceil(cfg.n/3)) : cfg.n;
+ // 近い木: 幹の上から 3〜4 本の枝が斜めに伸び、枝先ごとに小さな葉の房を 2〜4 個ずらして重ねる (房の下側は暗く、上は明るい)
+ if(!lod){
+  const nB= cfg.n>=8? 5 : 4, hb=H*cfg.top*rndr(0.8,0.95);
+  for(let b=0;b<nB;b++){
+   const a=ry+b*6.283/nB+rnd()*0.7, t=rndr(0.3,0.62), len=H*rndr(0.2,0.3)*(kind==="mango"?0.7:1);
+   bs.get("bark").add(tpl("trunk"),M4(x,y+hb,z,tr*0.42,len,tr*0.42,a,t,0),linCol(cfg.bark,0.08));
+   const tx=x+len*Math.sin(t)*Math.sin(a), ty=y+hb+len*Math.cos(t), tz=z+len*Math.sin(t)*Math.cos(a);
+   const k=3+Math.floor(rnd()*3);
+   { const r=rndr(cfg.cr[0],cfg.cr[1])*sc*0.55;   // 枝の途中にも房 (枝がむき出しに見えない)
+    bs.get("veg").add(tpl("ico1"),M4(x+(tx-x)*0.55,y+hb+(ty-y-hb)*0.6,z+(tz-z)*0.55,r,r*0.7,r,rnd()*6,rnd()*0.4,0),linCol(cfg.crown,0.16).clone().multiplyScalar(0.8)); }
+   for(let j=0;j<k;j++){
+    const r=rndr(cfg.cr[0],cfg.cr[1])*sc*(kind==="mango"?0.85:0.7), ox=(rnd()-0.5)*r*1.6, oz=(rnd()-0.5)*r*1.6, oy=(rnd()-0.35)*r*0.9;
+    const col=linCol(cfg.crown,0.18).clone().multiplyScalar(oy<0? 0.78 : 1.06);
+    bs.get("veg").add(tpl("ico1"),M4(tx+ox,ty+oy,tz+oz,r*rndr(0.9,1.25),r*rndr(0.55,0.8),r*rndr(0.9,1.25),rnd()*6,rnd()*0.4,rnd()*0.4),col);
+   }
+  }
+  // 幹のまわりの小さな房 (中が透けすぎない)
+  const r0=rndr(cfg.cr[0],cfg.cr[1])*sc*0.75;
+  bs.get("veg").add(tpl("ico1"),M4(x,y+hb+H*0.12,z,r0*1.2,r0*0.7,r0*1.2,rnd()*6),linCol(cfg.crown,0.14).clone().multiplyScalar(0.85));
+  return;
+ }
+ const nC=Math.max(2,Math.ceil(cfg.n/3));
  for(let i=0;i<nC;i++){
   const cy=y+H*rndr(0.55,0.95);
   const a=rnd()*6.28, d=rnd()*cfg.spread*cfg.cr[1]*sc*0.8;
@@ -28,18 +46,19 @@ tree(bs,x,y,z,kind,sc=1,lod=0){
   bs.get("veg").add(tpl("ico0"),M4(x+Math.cos(a)*d,cy,z+Math.sin(a)*d,r*rndr(0.8,1.2),r*(kind==="mango"?0.85:rndr(0.6,0.85)),r*rndr(0.8,1.2),rnd()*6,rnd(),rnd()),linCol(cfg.crown,0.14));
  }
 },
-desertoak(bs,x,y,z,sc=1){
+desertoak(bs,x,y,z,sc=1){   // デザートオーク: 細長い柱のような樹形。灰緑の細い葉が垂れる房を縦に重ねる
  const H=rndr(7,12)*sc;
- bs.get("bark").add(tpl("trunk"),M4(x,y,z,0.2*sc,H*0.75,0.2*sc,rnd()*6),linCol(0x3d332c,0.1));
- for(let i=0;i<3;i++){ const a=rnd()*6.28, d=rnd()*0.5*sc;
-  bs.get("veg").add(tpl("ico0"),M4(x+Math.cos(a)*d,y+H*(0.45+i*0.18),z+Math.sin(a)*d,1.2*sc*(1-i*0.2),1.9*sc,1.2*sc*(1-i*0.2),rnd()*6),linCol(0x4f5a4a,0.1)); }
+ bs.get("bark").add(tpl("trunk"),M4(x,y,z,0.2*sc,H*0.8,0.2*sc,rnd()*6),linCol(0x3d332c,0.1));
+ const n=5+Math.floor(rnd()*3);
+ for(let i=0;i<n;i++){ const f=i/(n-1), a=rnd()*6.28, d=(0.15+rnd()*0.5)*sc*(1-f*0.5), w=(1.15-0.55*f)*sc*rndr(0.8,1.1);
+  bs.get("veg").add(tpl("ico1"),M4(x+Math.cos(a)*d,y+H*(0.35+0.6*f),z+Math.sin(a)*d,w,w*rndr(1.4,1.9),w,rnd()*6,rnd()*0.3,0),linCol(0x56604f,0.12).clone().multiplyScalar(0.85+0.25*f)); }
 },
-mulga(bs,x,y,z,sc=1){
- const H=rndr(2.5,5)*sc;
- for(let i=0;i<3;i++){ const a=rnd()*6.28;
-  bs.get("bark").add(tpl("cyl5"),M4(x,y,z,0.06*sc,H*0.7,0.06*sc,a,0.25+rnd()*0.2,0),linCol(0x3a2e25,0.1)); }
- for(let i=0;i<3;i++){ const a=rnd()*6.28,d=rnd()*0.9*sc;
-  bs.get("veg").add(tpl("ico0"),M4(x+Math.cos(a)*d,y+H*0.75,z+Math.sin(a)*d,1.3*sc,0.55*sc,1.3*sc,rnd()*6),linCol(0x6e7452,0.12)); }
+mulga(bs,x,y,z,sc=1){   // マルガ: 根元から何本も V 字に分かれる低木。平たい灰緑の房
+ const H=rndr(2.5,5)*sc, n=3+Math.floor(rnd()*3);
+ for(let i=0;i<n;i++){ const a=rnd()*6.28, t=0.25+rnd()*0.3, L=H*rndr(0.65,0.85);
+  bs.get("bark").add(tpl("cyl5"),M4(x,y,z,0.06*sc,L,0.06*sc,a,t,0),linCol(0x3a2e25,0.1));
+  const tx=x+L*Math.sin(t)*Math.sin(a), ty=y+L*Math.cos(t), tz=z+L*Math.sin(t)*Math.cos(a), r=rndr(0.7,1.1)*sc;
+  bs.get("veg").add(tpl("ico1"),M4(tx,ty,tz,r*1.3,r*0.5,r*1.3,rnd()*6),linCol(0x6e7452,0.14).clone().multiplyScalar(rndr(0.85,1.08))); }
 },
 spinifex(bs,x,y,z,sc=1){
  const r=rndr(0.4,0.95)*sc;
