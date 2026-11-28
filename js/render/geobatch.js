@@ -25,7 +25,7 @@ function _rockGeo(seed,round,half=0){
   let k=0.62+0.45*Math.min(1,Math.max(0,(y+0.35)/1.2));
   k*=1-0.5*Math.max(0,Math.sin(x*3.1+z*2.3+ph[0]*3)*Math.sin(y*(round?5:9)+ph[2]))**2;   // 黒い筋 (上から垂れる)
   k*=0.85+0.3*Math.abs(Math.sin(x*13+y*7+z*11+ph[1])*Math.sin(x*5-z*8+ph[2]));
-  const li=Math.max(0,Math.sin(x*4.3+ph[1])*Math.sin(z*3.7+ph[0])*Math.sin(y*2.9+ph[2]+1)-0.15)*2.2;   // 灰色のまだら (赤い色を抜く)
+  const li=Math.max(0,Math.sin(x*4.3+ph[1])*Math.sin(z*3.7+ph[0])*Math.sin(y*2.9+ph[2]+1)-0.15)*(round?0.7:2.2);   // 灰色のまだら (赤い色を抜く)
   col[i*3]=k*(1-0.22*li); col[i*3+1]=k*(0.98-0.02*li); col[i*3+2]=k*(0.95+0.45*li); }
  g.setAttribute("color",new THREE.BufferAttribute(col,3));
  return g;

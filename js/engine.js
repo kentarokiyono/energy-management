@@ -7,7 +7,7 @@ this.st={
 seed,
 km:0, v:0,
 day:1, hour:8.0, dayOfYear:PRO.dayOfYear,
-soc:clamp(PRO.startSoc,0,1), whUsed:0, whGen:0, ahUsed:0,
+soc:clamp(PRO.startSoc,0,1), whUsed:0, whGen:0, ahUsed:0, ahSol:0,
 powerMode:false, gLat:0, gLong:0, signal:0,
 stopTimer:0, stopKind:"", stopExtra:"", gear:"D", damage:{aero:0,n:0}, crashed:false, crashReason:"", hitCd:0,
 morningPenaltyMin:0, extensionMin:0, extWarned:false,
@@ -453,7 +453,7 @@ s.lastIbat=Ibat; s.lastNet=Pnet;
 if(Ibat>0) s.ahUsed+=Ibat*dtS/3600;
 if(P.event&&s.soc<0.12)s.soc=0.12; // ② 電欠なし=必ずゴール可能
 if(Pnet>0) s.whUsed+=Pnet*dtS/3600;
-if(!s.disconnected) s.whGen+=Psolar*dtS/3600;
+if(!s.disconnected){ s.whGen+=Psolar*dtS/3600; if(Vterm>1) s.ahSol=(s.ahSol||0)+Psolar/Vterm*dtS/3600; }   // ソーラーの積算 Ah (テレメトリの計測画面)
 if(s.soc<=0.001 && s.v>1){
 s.socZeroSec+=dtS;
 if(s.socZeroSec>60&&!s.radioCd.soc0){ Radio.push("⚠ SOC 0%!直ちに停車してください!過放電で危険です!"); s.radioCd.soc0=true; }
