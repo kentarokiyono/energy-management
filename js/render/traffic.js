@@ -160,7 +160,7 @@ const Traffic={
    if(c.mode==="lane"){
     const slow=homeLd&&!homeLd.sig&&homeLd.v<c.v0-1.5&&homeLd.r-c.s<near;
     c.wait= slow? c.wait+dtR : Math.max(0,c.wait-dtR);
-    if(slow&&c.wait>2.5&&c.kind==="rt"&&!ln.multi&&(homeLd.me||homeLd.convoy)) this.rtRadio(c,es);
+    if(c.radioT>0) c.radioT-=dtR;
     if(slow&&c.wait>2.5){
      const passLat=ln.right, passLd=this.leader(c,obs,passLat,!town);
      const free=(!passLd||passLd.r-c.s>120)&&homeLd.v<c.v0-3.5   // 速さの差が小さい (13 km/h 未満) なら抜かずに付いていく
@@ -176,6 +176,13 @@ const Traffic={
       if(!yielded) ok=false;
      }
      c.why=ok?"":!free?"free":!noTown?"town":others?"others":!straight?"curve":oncoming?"rt":"yield";   // 追い越さない理由 (確認用)
+     // 自車の隊列の後ろのロードトレイン: 「譲れば抜ける」(町の外・見通しがよい・対向なし・ほかに追い越し中の車なし) ときだけ道を譲る無線を出す。
+     // 無線のあと抜けない状態が 5 秒続いたら取り消す (町の中などで、抜かれないまま何 km も遅く走り続けない)
+     if(c.kind==="rt"&&!ln.multi&&(homeLd.me||homeLd.convoy)){
+      c.canPass=free&&noTown&&!others&&straight&&!oncoming;
+      if(c.canPass){ c.noPassT=0; if(this.rtMsg!==c.id&&!(c.radioT>0)) this.rtRadio(c,es); }
+      else if(this.rtMsg===c.id){ c.noPassT=(c.noPassT||0)+dtR; if(c.noPassT>5){ this.rtMsg=null; c.noPassT=0; c.radioT=20; Radio.push("まだ抜けません。車線に戻ってください。","後方追走車"); } }
+     }
      if(ok){ c.mode="pass"; c.latT=passLat; c.passLat=passLat; c.wait=0; }
     }
    }
