@@ -24,17 +24,17 @@ tree(bs,x,y,z,kind,sc=1,lod=0){
    const a=ry+b*6.283/nB+rnd()*0.7, t=rndr(0.3,0.62), len=H*rndr(0.2,0.3)*(kind==="mango"?0.7:1);
    bs.get("bark").add(tpl("trunk"),M4(x,y+hb,z,tr*0.42,len,tr*0.42,a,t,0),linCol(cfg.bark,0.08));
    const tx=x+len*Math.sin(t)*Math.sin(a), ty=y+hb+len*Math.cos(t), tz=z+len*Math.sin(t)*Math.cos(a);
-   const k=3+Math.floor(rnd()*3);
-   { const r=rndr(cfg.cr[0],cfg.cr[1])*sc*0.55;   // 枝の途中にも房 (枝がむき出しに見えない)
+   const k=5+Math.floor(rnd()*4);
+   { const r=rndr(cfg.cr[0],cfg.cr[1])*sc*0.32;   // 枝の途中にも房 (枝がむき出しに見えない)
     bs.get("veg").add(tpl("ico1"),M4(x+(tx-x)*0.55,y+hb+(ty-y-hb)*0.6,z+(tz-z)*0.55,r,r*0.7,r,rnd()*6,rnd()*0.4,0),linCol(cfg.crown,0.16).clone().multiplyScalar(0.8)); }
    for(let j=0;j<k;j++){
-    const r=rndr(cfg.cr[0],cfg.cr[1])*sc*(kind==="mango"?0.85:0.7), ox=(rnd()-0.5)*r*1.6, oz=(rnd()-0.5)*r*1.6, oy=(rnd()-0.35)*r*0.9;
+    const r=rndr(cfg.cr[0],cfg.cr[1])*sc*(kind==="mango"?0.6:0.38), ox=(rnd()-0.5)*r*4.2, oz=(rnd()-0.5)*r*4.2, oy=(rnd()-0.35)*r*1.8;
     const col=linCol(cfg.crown,0.18).clone().multiplyScalar(oy<0? 0.78 : 1.06);
-    bs.get("veg").add(tpl("ico1"),M4(tx+ox,ty+oy,tz+oz,r*rndr(0.9,1.25),r*rndr(0.55,0.8),r*rndr(0.9,1.25),rnd()*6,rnd()*0.4,rnd()*0.4),col);
+    bs.get("veg").add(tpl("ico1"),M4(tx+ox,ty+oy,tz+oz,r*rndr(0.8,1.4),r*rndr(0.35,0.6),r*rndr(0.8,1.4),rnd()*6,rnd()*0.6,rnd()*0.6),col);   // 小さく平たい房を間をあけて散らす (丸い塊に見えない・透ける)
    }
   }
   // 幹のまわりの小さな房 (中が透けすぎない)
-  const r0=rndr(cfg.cr[0],cfg.cr[1])*sc*0.75;
+  const r0=rndr(cfg.cr[0],cfg.cr[1])*sc*0.35;
   bs.get("veg").add(tpl("ico1"),M4(x,y+hb+H*0.12,z,r0*1.2,r0*0.7,r0*1.2,rnd()*6),linCol(cfg.crown,0.14).clone().multiplyScalar(0.85));
   return;
  }
